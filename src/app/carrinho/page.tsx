@@ -236,18 +236,16 @@ export default async function CartPage() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                disabled
-                className="mt-6 inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl bg-neutral-300 px-6 py-4 text-sm font-semibold text-white"
-              >
-                Checkout em preparação
-              </button>
+              <Link
+  href="/checkout"
+  className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+>
+  Avançar para checkout
+</Link>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-                Na próxima etapa vamos ligar este carrinho ao Stripe e criar a
-                encomenda automaticamente após pagamento.
-              </p>
+  O pagamento será processado de forma segura através da Stripe.
+</p>
             </aside>
           </div>
         ) : (
