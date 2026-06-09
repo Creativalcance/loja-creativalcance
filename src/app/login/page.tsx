@@ -1,6 +1,37 @@
 import { LoginForm } from "@/components/auth/LoginForm";
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<{
+    next?: string;
+  }>;
+};
+
+function getSafeNextPath(value: string | undefined): string {
+  if (!value) {
+    return "/admin";
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed.startsWith("/")) {
+    return "/admin";
+  }
+
+  if (trimmed.startsWith("//")) {
+    return "/admin";
+  }
+
+  if (trimmed.includes("://")) {
+    return "/admin";
+  }
+
+  return trimmed;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const nextPath = getSafeNextPath(resolvedSearchParams?.next);
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-6 py-12">
       <section className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
@@ -16,7 +47,7 @@ export default function LoginPage() {
           Acede à tua área cliente, comercial ou administrativa.
         </p>
 
-        <LoginForm />
+        <LoginForm nextPath={nextPath} />
       </section>
     </main>
   );

@@ -14,6 +14,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StrickerManualImportForm from "@/components/admin/StrickerManualImportForm";
 import NormalizeManualImportButton from "@/components/admin/NormalizeManualImportButton";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type Profile = {
   role: string;
 };
@@ -98,7 +101,7 @@ async function assertAdminPageAccess(): Promise<void> {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect("/login?next=/admin/sincronizacao");
   }
 
   const { data: profile } = await supabase

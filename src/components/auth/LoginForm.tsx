@@ -9,7 +9,11 @@ const initialState: AuthActionState = {
   message: "",
 };
 
-export function LoginForm() {
+type LoginFormProps = {
+  nextPath?: string;
+};
+
+export function LoginForm({ nextPath = "/admin" }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(
     loginAction,
     initialState,
@@ -17,6 +21,8 @@ export function LoginForm() {
 
   return (
     <form action={formAction} className="mt-8 space-y-5">
+      <input type="hidden" name="next" value={nextPath} />
+
       <div>
         <label
           htmlFor="email"

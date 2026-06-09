@@ -8,12 +8,35 @@ export type AuthActionState = {
   message: string;
 };
 
+function getSafeRedirectPath(value: FormDataEntryValue | null): string {
+  if (typeof value !== "string") {
+    return "/admin";
+  }
+
+  const trimmed = value.trim();
+
+  if (!trimmed.startsWith("/")) {
+    return "/admin";
+  }
+
+  if (trimmed.startsWith("//")) {
+    return "/admin";
+  }
+
+  if (trimmed.includes("://")) {
+    return "/admin";
+  }
+
+  return trimmed || "/admin";
+}
+
 export async function loginAction(
   _previousState: AuthActionState,
   formData: FormData,
 ): Promise<AuthActionState> {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
+  const nextPath = getSafeRedirectPath(formData.get("next"));
 
   if (!email || !password) {
     return {
@@ -46,7 +69,7 @@ export async function loginAction(
     };
   }
 
-  redirect("/admin");
+  redirect(nextPath);
 }
 
 export async function registerAction(
