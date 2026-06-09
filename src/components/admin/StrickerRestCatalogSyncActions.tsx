@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { RefreshCw, ServerCog } from "lucide-react";
 
-type SyncDataset = "colors" | "productTypes";
+type SyncAction = "colors" | "productTypes" | "stocksByCountry";
 
 type SyncState = {
-  loadingDataset: SyncDataset | null;
+  loadingAction: SyncAction | null;
   message: string | null;
   error: string | null;
 };
@@ -14,55 +14,78 @@ type SyncState = {
 type SyncResponse = {
   success: boolean;
   message: string;
-  dataset?: SyncDataset;
+  dataset?: string;
   lang?: string;
+  country?: string;
   recordsReceived?: number;
   recordsImported?: number;
+  stocksImported?: number;
+  futureStocksImported?: number;
+  variantsMatched?: number;
   datasetImportId?: string;
 };
 
-const DATASETS: {
-  dataset: SyncDataset;
+const ACTIONS: {
+  action: SyncAction;
   title: string;
   description: string;
 }[] = [
   {
-    dataset: "colors",
+    action: "colors",
     title: "Sincronizar cores",
     description: "Importa cores da Stricker via REST para supplier_colors.",
   },
   {
-    dataset: "productTypes",
+    action: "productTypes",
     title: "Sincronizar tipos",
     description:
       "Importa tipos e subtipos da Stricker via REST para supplier_catalog_categories.",
+  },
+  {
+    action: "stocksByCountry",
+    title: "Sincronizar stocks PT",
+    description:
+      "Importa stocks PT da Stricker via REST para product_stocks e product_future_stocks.",
   },
 ];
 
 export default function StrickerRestCatalogSyncActions() {
   const [state, setState] = useState<SyncState>({
-    loadingDataset: null,
+    loadingAction: null,
     message: null,
     error: null,
   });
 
-  async function handleSync(dataset: SyncDataset): Promise<void> {
+  async function handleSync(action: SyncAction): Promise<void> {
     setState({
-      loadingDataset: dataset,
+      loadingAction: action,
       message: null,
       error: null,
     });
 
     try {
-      const response = await fetch("/api/admin/stricker/rest/sync-catalog", {
+      const endpoint =
+        action === "stocksByCountry"
+          ? "/api/admin/stricker/rest/sync-stocks"
+          : "/api/admin/stricker/rest/sync-catalog";
+
+      const body =
+        action === "stocksByCountry"
+          ? {
+              lang: "EN",
+              country: "PT",
+            }
+          : {
+              dataset: action,
+              lang: "EN",
+            };
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          dataset,
-          lang: "EN",
-        }),
+        body: JSON.stringify(body),
       });
 
       const payload = (await response.json()) as SyncResponse;
@@ -73,18 +96,30 @@ export default function StrickerRestCatalogSyncActions() {
         );
       }
 
+      const imported =
+        payload.stocksImported ??
+        payload.recordsImported ??
+        0;
+
+      const extra =
+        action === "stocksByCountry"
+          ? ` Variantes encontradas: ${
+              payload.variantsMatched ?? 0
+            }. Stocks futuros: ${payload.futureStocksImported ?? 0}.`
+          : "";
+
       setState({
-        loadingDataset: null,
+        loadingAction: null,
         message: `${payload.message} Recebidos: ${
           payload.recordsReceived ?? 0
-        }. Importados: ${payload.recordsImported ?? 0}.`,
+        }. Importados: ${imported}.${extra}`,
         error: null,
       });
 
       window.location.reload();
     } catch (error) {
       setState({
-        loadingDataset: null,
+        loadingAction: null,
         message: null,
         error:
           error instanceof Error
@@ -107,26 +142,26 @@ export default function StrickerRestCatalogSyncActions() {
           </h2>
 
           <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
-            Sincroniza datasets pequenos directamente via REST usando a sessão
-            autenticada da Stricker.
+            Sincroniza datasets pequenos e operacionais directamente via REST
+            usando a sessão autenticada da Stricker.
           </p>
         </div>
 
         <ServerCog className="h-6 w-6 text-neutral-400" />
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {DATASETS.map((item) => {
-          const isLoading = state.loadingDataset === item.dataset;
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        {ACTIONS.map((item) => {
+          const isLoading = state.loadingAction === item.action;
 
           return (
             <button
-              key={item.dataset}
+              key={item.action}
               type="button"
               onClick={() => {
-                void handleSync(item.dataset);
+                void handleSync(item.action);
               }}
-              disabled={state.loadingDataset !== null}
+              disabled={state.loadingAction !== null}
               className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-left transition hover:border-neutral-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="flex items-center justify-between gap-4">
