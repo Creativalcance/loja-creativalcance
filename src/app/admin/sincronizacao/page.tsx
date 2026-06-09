@@ -8,6 +8,7 @@ import {
   Database,
 } from "lucide-react";
 import StrickerSyncActions from "@/components/admin/StrickerSyncActions";
+import StrickerRestCatalogSyncActions from "@/components/admin/StrickerRestCatalogSyncActions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StrickerManualImportForm from "@/components/admin/StrickerManualImportForm";
@@ -32,9 +33,11 @@ type DatasetImport = {
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
-  supplier_manual_import_files: {
-    id: string;
-  }[] | null;
+  supplier_manual_import_files:
+    | {
+        id: string;
+      }[]
+    | null;
 };
 
 function formatDate(value: string | null): string {
@@ -115,9 +118,9 @@ export default async function AdminSyncPage() {
   const supabaseAdmin = createSupabaseAdminClient();
 
   const { data: importsData } = await supabaseAdmin
-  .from("supplier_dataset_imports")
-  .select(
-    `
+    .from("supplier_dataset_imports")
+    .select(
+      `
       id,
       dataset_name,
       language,
@@ -136,10 +139,10 @@ export default async function AdminSyncPage() {
         id
       )
     `,
-  )
-  .order("created_at", { ascending: false })
-  .limit(15)
-  .returns<DatasetImport[]>();
+    )
+    .order("created_at", { ascending: false })
+    .limit(15)
+    .returns<DatasetImport[]>();
 
   const imports = importsData ?? [];
 
@@ -216,9 +219,10 @@ export default async function AdminSyncPage() {
         </div>
 
         <div className="mt-10 grid gap-6">
-  <StrickerSyncActions />
-  <StrickerManualImportForm />
-</div>
+          <StrickerSyncActions />
+          <StrickerRestCatalogSyncActions />
+          <StrickerManualImportForm />
+        </div>
 
         <section className="mt-10 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
@@ -259,12 +263,6 @@ export default async function AdminSyncPage() {
                       key={item.id}
                       className="border-b border-neutral-100 last:border-0"
                     >
-                      <td className="px-4 py-4">
-  <NormalizeManualImportButton
-    importFileId={item.supplier_manual_import_files?.[0]?.id ?? null}
-    datasetName={item.dataset_name}
-  />
-</td>
                       <td className="px-4 py-4 font-medium text-neutral-950">
                         {item.dataset_name}
                       </td>
@@ -301,6 +299,15 @@ export default async function AdminSyncPage() {
 
                       <td className="px-4 py-4 text-neutral-600">
                         {formatDate(item.finished_at)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <NormalizeManualImportButton
+                          importFileId={
+                            item.supplier_manual_import_files?.[0]?.id ?? null
+                          }
+                          datasetName={item.dataset_name}
+                        />
                       </td>
 
                       <td className="max-w-xs px-4 py-4 text-xs leading-5 text-neutral-500">
