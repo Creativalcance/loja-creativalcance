@@ -45,12 +45,19 @@ export default async function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-7 text-sm font-medium text-neutral-600 lg:flex">
-          <Link href="/categorias" className="transition hover:text-neutral-950">
+          <Link href="/produto" className="transition hover:text-neutral-950">
             Categorias
           </Link>
 
-          <Link href="/pesquisa" className="transition hover:text-neutral-950">
+          <Link
+            href="/produto?ver=produtos"
+            className="transition hover:text-neutral-950"
+          >
             Produtos
+          </Link>
+
+          <Link href="/pesquisa" className="transition hover:text-neutral-950">
+            Pesquisa
           </Link>
 
           <Link href="/blog" className="transition hover:text-neutral-950">
