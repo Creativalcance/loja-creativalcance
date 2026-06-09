@@ -45,19 +45,8 @@ export default async function SiteHeader() {
         </Link>
 
         <nav className="hidden items-center gap-7 text-sm font-medium text-neutral-600 lg:flex">
-          <Link href="/produto" className="transition hover:text-neutral-950">
+          <Link href="/categorias" className="transition hover:text-neutral-950">
             Categorias
-          </Link>
-
-          <Link
-            href="/produto?ver=produtos"
-            className="transition hover:text-neutral-950"
-          >
-            Produtos
-          </Link>
-
-          <Link href="/pesquisa" className="transition hover:text-neutral-950">
-            Pesquisa
           </Link>
 
           <Link href="/blog" className="transition hover:text-neutral-950">
@@ -93,25 +82,25 @@ export default async function SiteHeader() {
           {user ? (
             <Link
               href="/area-cliente"
-              className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold !text-white transition hover:bg-neutral-800"
             >
-              <UserRound className="mr-2 h-4 w-4" />
-              Área cliente
+              <UserRound className="mr-2 h-4 w-4 !text-white" />
+              <span className="!text-white">Área cliente</span>
             </Link>
           ) : (
             <Link
               href="/login"
-              className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold !text-white transition hover:bg-neutral-800"
             >
-              <UserRound className="mr-2 h-4 w-4" />
-              Entrar
+              <UserRound className="mr-2 h-4 w-4 !text-white" />
+              <span className="!text-white">Entrar</span>
             </Link>
           )}
 
           {isAdmin ? (
             <Link
               href="/admin"
-              className="hidden rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950 lg:inline-flex"
+              className="hidden rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950 lg:inline-flex"
             >
               Admin
             </Link>
