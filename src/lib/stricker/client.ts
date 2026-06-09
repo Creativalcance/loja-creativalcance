@@ -1,100 +1,224 @@
-import { getStrickerConfig } from "./config";
-import type { StrickerProductsResponse, StrickerRawProduct } from "./types";
+import { getStrickerConfig } from "@/lib/stricker/config";
+import { getValidStrickerSessionToken } from "@/lib/stricker/auth";
+import {
+  type JsonRecord,
+  type StrickerProductsResponse,
+  type StrickerProductRaw,
+  type StrickerSyncProductsParams,
+} from "@/lib/stricker/types";
 
-type StrickerRequestOptions = {
-  method?: "GET" | "POST";
-  body?: Record<string, unknown>;
-  searchParams?: Record<string, string | number | boolean | undefined>;
-};
+type StrickerRestMethod =
+  | "ProductsTree"
+  | "Products"
+  | "Optionals"
+  | "OptionalsPrice"
+  | "OptionalsComplete"
+  | "CustomizationOptions"
+  | "CustomizationTables"
+  | "Colors"
+  | "Stocks"
+  | "StocksByCountry"
+  | "ProductTypes"
+  | "CanceledProducts"
+  | "RestrictedProducts";
 
-function buildUrl(
-  baseUrl: string,
-  endpoint: string,
-  searchParams?: Record<string, string | number | boolean | undefined>,
-): string {
-  const normalizedBaseUrl = baseUrl.endsWith("/")
-    ? baseUrl.slice(0, -1)
-    : baseUrl;
-
-  const normalizedEndpoint = endpoint.startsWith("/")
-    ? endpoint
-    : `/${endpoint}`;
-
-  const url = new URL(`${normalizedBaseUrl}${normalizedEndpoint}`);
-
-  if (searchParams) {
-    Object.entries(searchParams).forEach(([key, value]) => {
-      if (value !== undefined) {
-        url.searchParams.set(key, String(value));
-      }
-    });
-  }
-
-  return url.toString();
+function isJsonRecord(value: unknown): value is JsonRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function strickerRequest<T>(
-  endpoint: string,
-  options: StrickerRequestOptions = {},
-): Promise<T> {
+function extractArrayFromPayload(
+  payload: unknown,
+  candidateKeys: string[],
+): JsonRecord[] {
+  if (Array.isArray(payload)) {
+    return payload.filter(isJsonRecord);
+  }
+
+  if (!isJsonRecord(payload)) {
+    return [];
+  }
+
+  for (const key of candidateKeys) {
+    const value = payload[key];
+
+    if (Array.isArray(value)) {
+      return value.filter(isJsonRecord);
+    }
+  }
+
+  return [payload];
+}
+
+function extractCount(payload: unknown, fallback: number): number | null {
+  if (!isJsonRecord(payload)) {
+    return fallback;
+  }
+
+  const count = payload.Count ?? payload.count ?? payload.Total ?? payload.total;
+
+  if (typeof count === "number" && Number.isFinite(count)) {
+    return count;
+  }
+
+  if (typeof count === "string") {
+    const parsed = Number(count);
+
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return fallback;
+}
+
+async function callStrickerRestMethod(
+  method: StrickerRestMethod,
+  params: Record<string, string> = {},
+): Promise<unknown> {
   const config = getStrickerConfig();
+  const token = await getValidStrickerSessionToken();
 
-  const method = options.method ?? "GET";
+  const url = new URL(`${config.apiBaseUrl}/${method}`);
+  url.searchParams.set("token", token);
 
-  const response = await fetch(
-    buildUrl(config.apiBaseUrl, endpoint, options.searchParams),
-    {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "X-API-Key": config.apiKey,
-        "X-Username": config.username,
-        "X-Password": config.password,
-      },
-      body: options.body ? JSON.stringify(options.body) : undefined,
-      cache: "no-store",
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
     },
-  );
+    cache: "no-store",
+  });
 
   if (!response.ok) {
-    const errorBody = await response.text();
+    const responseText = await response.text();
 
     throw new Error(
-      `Erro na comunicação com a Stricker. Status: ${response.status}. Resposta: ${errorBody}`,
+      `Erro Stricker ${method}: ${response.status} ${
+        responseText || response.statusText
+      }`,
     );
   }
 
-  return response.json() as Promise<T>;
+  return response.json();
 }
 
-export async function fetchStrickerProducts(params?: {
-  page?: number;
-  perPage?: number;
-}): Promise<StrickerProductsResponse> {
+export async function fetchStrickerProducts(
+  params: StrickerSyncProductsParams = {},
+): Promise<StrickerProductsResponse> {
   const config = getStrickerConfig();
 
-  const response = await strickerRequest<unknown>(config.productsEndpoint, {
-    method: "GET",
-    searchParams: {
-      page: params?.page ?? 1,
-      per_page: params?.perPage ?? 100,
-    },
+  const payload = await callStrickerRestMethod("Products", {
+    lang: params.lang ?? config.defaultLanguage,
   });
 
-  if (Array.isArray(response)) {
-    return {
-      products: response as StrickerRawProduct[],
-    };
-  }
-
-  const parsed = response as Partial<StrickerProductsResponse>;
+  const products = extractArrayFromPayload(payload, [
+    "Products",
+    "products",
+    "Data",
+    "data",
+    "Items",
+    "items",
+  ]) as StrickerProductRaw[];
 
   return {
-    products: Array.isArray(parsed.products) ? parsed.products : [],
-    total: parsed.total,
-    page: parsed.page,
-    per_page: parsed.per_page,
-    next_page: parsed.next_page,
+    products,
+    total: extractCount(payload, products.length),
+    page: params.page ?? null,
+    limit: params.limit ?? null,
   };
+}
+
+export async function fetchStrickerProductsTree(
+  lang?: string,
+): Promise<JsonRecord[]> {
+  const config = getStrickerConfig();
+
+  const payload = await callStrickerRestMethod("ProductsTree", {
+    lang: lang ?? config.defaultLanguage,
+  });
+
+  return extractArrayFromPayload(payload, [
+    "ProductsTree",
+    "productsTree",
+    "Products",
+    "products",
+    "Data",
+    "data",
+  ]);
+}
+
+export async function fetchStrickerOptionals(
+  lang?: string,
+): Promise<JsonRecord[]> {
+  const config = getStrickerConfig();
+
+  const payload = await callStrickerRestMethod("Optionals", {
+    lang: lang ?? config.defaultLanguage,
+  });
+
+  return extractArrayFromPayload(payload, [
+    "Optionals",
+    "optionals",
+    "Data",
+    "data",
+  ]);
+}
+
+export async function fetchStrickerOptionalsComplete(
+  lang?: string,
+): Promise<JsonRecord[]> {
+  const config = getStrickerConfig();
+
+  const payload = await callStrickerRestMethod("OptionalsComplete", {
+    lang: lang ?? config.defaultLanguage,
+  });
+
+  return extractArrayFromPayload(payload, [
+    "OptionalsComplete",
+    "optionalsComplete",
+    "Optionals",
+    "optionals",
+    "Data",
+    "data",
+  ]);
+}
+
+export async function fetchStrickerStocksByCountry(
+  country?: string,
+  lang?: string,
+): Promise<JsonRecord[]> {
+  const config = getStrickerConfig();
+
+  const payload = await callStrickerRestMethod("StocksByCountry", {
+    country: country ?? config.defaultCountry,
+    lang: lang ?? config.defaultLanguage,
+  });
+
+  return extractArrayFromPayload(payload, [
+    "Stocks",
+    "stocks",
+    "Data",
+    "data",
+  ]);
+}
+
+export async function fetchStrickerColors(lang?: string): Promise<JsonRecord[]> {
+  const config = getStrickerConfig();
+
+  const payload = await callStrickerRestMethod("Colors", {
+    lang: lang ?? config.defaultLanguage,
+  });
+
+  return extractArrayFromPayload(payload, [
+    "Colors",
+    "colors",
+    "Colours",
+    "colours",
+    "Data",
+    "data",
+  ]);
 }

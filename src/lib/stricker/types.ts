@@ -1,91 +1,149 @@
-export type StrickerRawProduct = {
-  id?: string | number;
-  product_id?: string | number;
-  code?: string;
-  sku?: string;
-  reference?: string;
-  name?: string;
-  title?: string;
-  description?: string;
-  short_description?: string;
-  brand?: string;
-  material?: string;
-  dimensions?: string;
-  weight?: string | number;
-  category?: string;
-  category_id?: string | number;
-  images?: StrickerRawImage[];
-  variants?: StrickerRawVariant[];
-  prices?: StrickerRawPrice[];
-  stocks?: StrickerRawStock[];
-  printing_techniques?: StrickerRawPrintingTechnique[];
-  [key: string]: unknown;
+export type JsonRecord = Record<string, unknown>;
+
+export type StrickerAuthResponse = {
+  Token?: string;
+  token?: string;
+  ErrorCode?: number | string | null;
+  errorCode?: number | string | null;
+  ErrorMessage?: string | null;
+  errorMessage?: string | null;
 };
 
-export type StrickerRawVariant = {
-  id?: string | number;
-  variant_id?: string | number;
-  code?: string;
-  sku?: string;
-  reference?: string;
-  color?: string;
-  color_name?: string;
-  color_hex?: string;
-  size?: string;
-  capacity?: string;
-  material?: string;
-  barcode?: string;
-  [key: string]: unknown;
+export type StrickerValidateSessionResponse = {
+  Status?: number | string | null;
+  status?: number | string | null;
+  ErrorCode?: number | string | null;
+  errorCode?: number | string | null;
+  ErrorMessage?: string | null;
+  errorMessage?: string | null;
 };
 
-export type StrickerRawImage = {
-  url?: string;
-  image_url?: string;
-  src?: string;
-  alt?: string;
-  type?: string;
-  is_primary?: boolean;
-  [key: string]: unknown;
+export type StrickerDatasetName =
+  | "productsTree"
+  | "products"
+  | "optionals"
+  | "optionalsPrice"
+  | "optionalscomplete"
+  | "customizationOptions"
+  | "customizationTables"
+  | "colors"
+  | "stocks"
+  | "stocksPt"
+  | "stocksCz"
+  | "producttypes"
+  | "canceledproducts"
+  | "restrictedproducts";
+
+export type StrickerDatasetDownloadParams = {
+  datasetName: StrickerDatasetName;
+  lang?: string;
+  extension?: "json" | "xml" | "csv";
 };
 
-export type StrickerRawPrice = {
-  quantity_min?: number;
-  quantity_max?: number;
-  min_qty?: number;
-  max_qty?: number;
-  price?: number;
-  supplier_price?: number;
-  currency?: string;
-  [key: string]: unknown;
+export type NormalizedStrickerColor = {
+  external_id: string;
+  code: string;
+  name: string;
+  hex_code: string | null;
+  raw_payload: JsonRecord;
 };
 
-export type StrickerRawStock = {
-  quantity?: number;
-  available_quantity?: number;
-  stock?: number;
-  warehouse?: string;
-  warehouse_code?: string;
-  incoming_quantity?: number;
-  expected_restock_date?: string;
-  [key: string]: unknown;
-};
+export type StrickerProductRaw = JsonRecord;
+export type StrickerRawProduct = JsonRecord;
+export type StrickerRawPrice = JsonRecord;
+export type StrickerRawStock = JsonRecord;
+export type StrickerRawImage = JsonRecord;
+export type StrickerRawVariant = JsonRecord;
+export type StrickerRawCustomization = JsonRecord;
+export type StrickerRawPrintingTechnique = JsonRecord;
+export type StrickerRawCustomizationOption = JsonRecord;
+export type StrickerRawCustomizationTable = JsonRecord;
+export type StrickerRawColor = JsonRecord;
+export type StrickerRawCategory = JsonRecord;
 
-export type StrickerRawPrintingTechnique = {
-  id?: string | number;
-  technique_id?: string | number;
-  name?: string;
-  description?: string;
-  max_colors?: number;
-  supports_full_color?: boolean;
-  setup_cost?: number;
-  price_per_unit?: number;
-  [key: string]: unknown;
+export type StrickerSyncProductsParams = {
+  page?: number;
+  limit?: number;
+  lang?: string;
 };
 
 export type StrickerProductsResponse = {
-  products: StrickerRawProduct[];
-  total?: number;
-  page?: number;
-  per_page?: number;
-  next_page?: number | null;
+  products: StrickerProductRaw[];
+  total?: number | null;
+  page?: number | null;
+  limit?: number | null;
+};
+
+export type NormalizedProduct = {
+  external_id: string;
+  sku: string;
+  name: string;
+  slug: string;
+  short_description: string | null;
+  description: string | null;
+  brand: string | null;
+  material: string | null;
+  dimensions: string | null;
+  weight: number | null;
+  country_of_origin: string | null;
+  status: "active" | "inactive" | "draft" | "archived";
+  is_active: boolean;
+  is_featured: boolean;
+  is_customizable: boolean;
+  min_order_quantity: number;
+  lead_time_days: number | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  supplier_payload: JsonRecord;
+};
+
+export type NormalizedVariant = {
+  external_variant_id: string;
+  sku: string;
+  color_name: string | null;
+  color_hex: string | null;
+  size: string | null;
+  capacity: string | null;
+  material: string | null;
+  barcode: string | null;
+  is_active: boolean;
+  supplier_payload: JsonRecord;
+};
+
+export type NormalizedPrice = {
+  external_variant_id: string | null;
+  currency: string;
+  quantity_min: number;
+  quantity_max: number | null;
+  supplier_price: number;
+  base_price: number;
+  margin_percentage: number;
+  final_price: number;
+};
+
+export type NormalizedStock = {
+  external_variant_id: string | null;
+  warehouse_code: string;
+  available_quantity: number;
+  reserved_quantity: number;
+  incoming_quantity: number;
+  expected_restock_date: string | null;
+};
+
+export type NormalizedImage = {
+  external_variant_id: string | null;
+  external_url: string;
+  storage_url: string | null;
+  alt_text: string | null;
+  sort_order: number;
+  image_type: string;
+  is_primary: boolean;
+};
+
+export type NormalizedStrickerProductBundle = {
+  product: NormalizedProduct;
+  variants: NormalizedVariant[];
+  prices: NormalizedPrice[];
+  stocks: NormalizedStock[];
+  images: NormalizedImage[];
 };

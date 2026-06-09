@@ -1,43 +1,68 @@
 export type StrickerConfig = {
+  accessKey: string;
   apiBaseUrl: string;
-  username: string;
-  password: string;
-  apiKey: string;
-  productsEndpoint: string;
+  downloadBaseUrl: string;
+  defaultLanguage: string;
+  defaultCountry: string;
+  defaultMarginPercentage: number;
+  orderTestMode: boolean;
 };
 
+function getRequiredEnv(name: string): string {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    throw new Error(`${name} não está configurada.`);
+  }
+
+  return value;
+}
+
+function getOptionalEnv(name: string, fallback: string): string {
+  const value = process.env[name]?.trim();
+
+  return value && value.length > 0 ? value : fallback;
+}
+
+function getOptionalNumberEnv(name: string, fallback: number): number {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getOptionalBooleanEnv(name: string, fallback: boolean): boolean {
+  const value = process.env[name]?.trim().toLowerCase();
+
+  if (!value) {
+    return fallback;
+  }
+
+  return ["true", "1", "yes", "sim"].includes(value);
+}
+
 export function getStrickerConfig(): StrickerConfig {
-  const apiBaseUrl = process.env.STRICKER_API_BASE_URL;
-  const username = process.env.STRICKER_API_USERNAME;
-  const password = process.env.STRICKER_API_PASSWORD;
-  const apiKey = process.env.STRICKER_API_KEY;
-  const productsEndpoint = process.env.STRICKER_PRODUCTS_ENDPOINT;
-
-  if (!apiBaseUrl) {
-    throw new Error("STRICKER_API_BASE_URL não está configurado.");
-  }
-
-  if (!username) {
-    throw new Error("STRICKER_API_USERNAME não está configurado.");
-  }
-
-  if (!password) {
-    throw new Error("STRICKER_API_PASSWORD não está configurado.");
-  }
-
-  if (!apiKey) {
-    throw new Error("STRICKER_API_KEY não está configurado.");
-  }
-
-  if (!productsEndpoint) {
-    throw new Error("STRICKER_PRODUCTS_ENDPOINT não está configurado.");
-  }
-
   return {
-    apiBaseUrl,
-    username,
-    password,
-    apiKey,
-    productsEndpoint,
+    accessKey: getRequiredEnv("STRICKER_ACCESS_KEY"),
+    apiBaseUrl: getOptionalEnv(
+      "STRICKER_API_BASE_URL",
+      "https://ws.stricker-europe.com/api/v1SSL",
+    ).replace(/\/$/, ""),
+    downloadBaseUrl: getOptionalEnv(
+      "STRICKER_DOWNLOAD_BASE_URL",
+      "https://ws.stricker-europe.com/downloads/v1ssl/file",
+    ).replace(/\/$/, ""),
+    defaultLanguage: getOptionalEnv("STRICKER_DEFAULT_LANG", "PT").toUpperCase(),
+    defaultCountry: getOptionalEnv("STRICKER_DEFAULT_COUNTRY", "PT").toUpperCase(),
+    defaultMarginPercentage: getOptionalNumberEnv(
+      "LOJA_CREATIV_DEFAULT_MARGIN_PERCENTAGE",
+      35,
+    ),
+    orderTestMode: getOptionalBooleanEnv("STRICKER_ORDER_TEST_MODE", true),
   };
 }
