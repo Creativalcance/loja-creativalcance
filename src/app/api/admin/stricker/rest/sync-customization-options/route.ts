@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
 import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 
@@ -42,7 +43,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lang?: unknown;
     };
 
-    const langRaw = typeof body.lang === "string" ? body.lang : "EN";
+    const langRaw =
+      typeof body.lang === "string" ? body.lang : getDefaultStrickerLanguage();
 
     if (!isAllowedLanguage(langRaw)) {
       return NextResponse.json(

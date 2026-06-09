@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
 import { syncRestCatalogDataset } from "@/lib/stricker/rest/sync-catalog-datasets";
 import {
   type StrickerDatasetName,
@@ -63,7 +64,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const datasetRaw =
       typeof body.dataset === "string" ? body.dataset : "productTypes";
 
-    const langRaw = typeof body.lang === "string" ? body.lang : "EN";
+    const langRaw =
+      typeof body.lang === "string" ? body.lang : getDefaultStrickerLanguage();
 
     if (!isAllowedDataset(datasetRaw)) {
       return NextResponse.json(

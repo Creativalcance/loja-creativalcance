@@ -14,8 +14,34 @@ const DEFAULT_BASE_URL = "https://ws.stricker-europe.com/api/v1SSL";
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_RETRIES = 2;
 const RETRY_DELAY_MS = 2_000;
+const DEFAULT_LANGUAGE: StrickerLanguage = "PT";
 
 type RequestMethod = "GET" | "POST";
+
+const ALLOWED_LANGUAGES: StrickerLanguage[] = [
+  "BG",
+  "CZ",
+  "DE",
+  "DK",
+  "EN",
+  "ES",
+  "FI",
+  "FR",
+  "GR",
+  "HR",
+  "HU",
+  "IT",
+  "NL",
+  "NO",
+  "PL",
+  "PT",
+  "RO",
+  "RS",
+  "RU",
+  "SE",
+  "SK",
+  "UA",
+];
 
 function getBaseUrl(): string {
   const configured = process.env.STRICKER_API_BASE_URL?.trim();
@@ -25,6 +51,16 @@ function getBaseUrl(): string {
   }
 
   return configured.replace(/\/+$/g, "");
+}
+
+export function getDefaultStrickerLanguage(): StrickerLanguage {
+  const configured = process.env.STRICKER_DEFAULT_LANGUAGE?.trim().toUpperCase();
+
+  if (configured && ALLOWED_LANGUAGES.includes(configured as StrickerLanguage)) {
+    return configured as StrickerLanguage;
+  }
+
+  return DEFAULT_LANGUAGE;
 }
 
 function getAccessKey(): string {
@@ -321,7 +357,7 @@ export async function fetchStrickerDataset(
     request.dataset !== "canceledProducts" &&
     request.dataset !== "restrictedProducts"
   ) {
-    params.lang = request.lang ?? "EN";
+    params.lang = request.lang ?? getDefaultStrickerLanguage();
   }
 
   if (request.dataset === "stocksByCountry") {
@@ -337,7 +373,7 @@ export async function fetchStrickerDataset(
 
 export async function fetchStrickerProducts(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "products",
@@ -348,7 +384,7 @@ export async function fetchStrickerProducts(
 
 export async function fetchStrickerProductsTree(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "productsTree",
@@ -359,7 +395,7 @@ export async function fetchStrickerProductsTree(
 
 export async function fetchStrickerProductTypes(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "productTypes",
@@ -370,7 +406,7 @@ export async function fetchStrickerProductTypes(
 
 export async function fetchStrickerOptionals(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "optionals",
@@ -381,7 +417,7 @@ export async function fetchStrickerOptionals(
 
 export async function fetchStrickerOptionalsPrice(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "optionalsPrice",
@@ -392,7 +428,7 @@ export async function fetchStrickerOptionalsPrice(
 
 export async function fetchStrickerOptionalsComplete(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "optionalsComplete",
@@ -403,7 +439,7 @@ export async function fetchStrickerOptionalsComplete(
 
 export async function fetchStrickerCustomizationTables(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "customizationTables",
@@ -414,7 +450,7 @@ export async function fetchStrickerCustomizationTables(
 
 export async function fetchStrickerCustomizationOptions(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "customizationOptions",
@@ -425,7 +461,7 @@ export async function fetchStrickerCustomizationOptions(
 
 export async function fetchStrickerColors(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "colors",
@@ -436,7 +472,7 @@ export async function fetchStrickerColors(
 
 export async function fetchStrickerStocks(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "stocks",
@@ -448,7 +484,7 @@ export async function fetchStrickerStocks(
 export async function fetchStrickerStocksByCountry(
   token: string,
   country: StrickerCountry = "PT",
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "stocksByCountry",
@@ -478,7 +514,7 @@ export async function fetchStrickerRestrictedProducts(
 
 export async function fetchStrickerPrintingSlas(
   token: string,
-  lang: StrickerLanguage = "EN",
+  lang: StrickerLanguage = getDefaultStrickerLanguage(),
 ): Promise<StrickerDatasetResponse> {
   return fetchStrickerDataset({
     dataset: "printingSlas",
