@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import AddToCartForm from "@/components/product/AddToCartForm";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -8,6 +7,7 @@ import {
   Palette,
   Truck,
 } from "lucide-react";
+import AddToCartForm from "@/components/product/AddToCartForm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type ProductImage = {
@@ -16,6 +16,7 @@ type ProductImage = {
   alt_text: string | null;
   is_primary: boolean;
   sort_order: number;
+  image_type: string;
 };
 
 type ProductPrice = {
@@ -54,17 +55,23 @@ type ProductVariant = {
   color_hex: string | null;
   size: string | null;
   material: string | null;
+  optional_image_1_url: string | null;
+  optional_image_2_url: string | null;
 };
 
-type ProductTechnique = {
-  print_area_name: string | null;
-  position: string | null;
-  printing_techniques: {
-    name: string;
-    description: string | null;
-    supports_full_color: boolean;
-    max_colors: number | null;
-  } | null;
+type ProductCustomizationOption = {
+  id: string;
+  service_code: string;
+  customization_type_code: string | null;
+  customization_type_name: string | null;
+  component_name: string | null;
+  location_name: string | null;
+  max_colors: number | null;
+  max_printing_area_mm: string | null;
+  final_price: number;
+  currency: string;
+  is_default: boolean;
+  printing_lines_image_url: string | null;
 };
 
 type ProductDetail = {
@@ -86,7 +93,7 @@ type ProductDetail = {
   product_prices: ProductPrice[] | null;
   product_stocks: ProductStock[] | null;
   product_variants: ProductVariant[] | null;
-  product_printing_techniques: ProductTechnique[] | null;
+  product_customization_options: ProductCustomizationOption[] | null;
 };
 
 type ProductPageProps = {
@@ -103,7 +110,7 @@ function formatPrice(value: number, currency: string): string {
 }
 
 function getPrimaryImage(product: ProductDetail): ProductImage | null {
-  const images = product.product_images ?? [];
+  const images = [...(product.product_images ?? [])];
 
   if (images.length === 0) {
     return null;
@@ -121,6 +128,36 @@ function getTotalStock(product: ProductDetail): number {
     (total, stock) => total + stock.available_quantity,
     0,
   );
+}
+
+function getLowestPrice(prices: ProductPrice[]): ProductPrice | null {
+  if (prices.length === 0) {
+    return null;
+  }
+
+  return [...prices].sort((a, b) => a.final_price - b.final_price)[0] ?? null;
+}
+
+function getUniqueCustomizationOptions(
+  options: ProductCustomizationOption[],
+): ProductCustomizationOption[] {
+  const map = new Map<string, ProductCustomizationOption>();
+
+  for (const option of options) {
+    const key = [
+      option.customization_type_name ?? option.customization_type_code ?? "custom",
+      option.component_name ?? "component",
+      option.location_name ?? "location",
+      option.max_colors ?? "colors",
+      option.max_printing_area_mm ?? "area",
+    ].join(":");
+
+    if (!map.has(key)) {
+      map.set(key, option);
+    }
+  }
+
+  return Array.from(map.values()).slice(0, 12);
 }
 
 export default async function ProductDetailPage({ params }: ProductPageProps) {
@@ -150,7 +187,8 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           storage_url,
           alt_text,
           is_primary,
-          sort_order
+          sort_order,
+          image_type
         ),
         product_prices (
           final_price,
@@ -165,21 +203,28 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           expected_restock_date
         ),
         product_variants (
+          id,
           sku,
           color_name,
           color_hex,
           size,
-          material
+          material,
+          optional_image_1_url,
+          optional_image_2_url
         ),
-        product_printing_techniques (
-          print_area_name,
-          position,
-          printing_techniques (
-            name,
-            description,
-            supports_full_color,
-            max_colors
-          )
+        product_customization_options (
+          id,
+          service_code,
+          customization_type_code,
+          customization_type_name,
+          component_name,
+          location_name,
+          max_colors,
+          max_printing_area_mm,
+          final_price,
+          currency,
+          is_default,
+          printing_lines_image_url
         )
       `,
     )
@@ -195,35 +240,43 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   const product = data as unknown as ProductDetail;
   const primaryImage = getPrimaryImage(product);
   const imageUrl = primaryImage?.storage_url ?? primaryImage?.external_url;
+
   const prices = [...(product.product_prices ?? [])].sort(
     (a, b) => a.quantity_min - b.quantity_min,
   );
+
   const variants = product.product_variants ?? [];
-  const techniques = product.product_printing_techniques ?? [];
+  const customizationOptions = getUniqueCustomizationOptions(
+    product.product_customization_options ?? [],
+  );
+
   const totalStock = getTotalStock(product);
-const { data: activeTechniquesData } = await supabase
-  .from("printing_techniques")
-  .select("id, name, setup_cost, price_per_unit")
-  .eq("is_active", true)
-  .order("name", { ascending: true });
+  const lowestPrice = getLowestPrice(prices);
 
-const activeTechniques =
-  (activeTechniquesData ?? []) as PrintingTechniqueForCart[];
+  const { data: activeTechniquesData } = await supabase
+    .from("printing_techniques")
+    .select("id, name, setup_cost, price_per_unit")
+    .eq("is_active", true)
+    .order("name", { ascending: true });
 
-const cartVariants = variants.map((variant) => ({
-  id: variant.id,
-  sku: variant.sku,
-  color_name: variant.color_name,
-  color_hex: variant.color_hex,
-  size: variant.size,
-}));
+  const activeTechniques =
+    (activeTechniquesData ?? []) as PrintingTechniqueForCart[];
 
-const cartPrices = prices.map((price) => ({
-  quantity_min: price.quantity_min,
-  quantity_max: price.quantity_max,
-  final_price: price.final_price,
-  currency: price.currency,
-}));
+  const cartVariants = variants.map((variant) => ({
+    id: variant.id,
+    sku: variant.sku,
+    color_name: variant.color_name,
+    color_hex: variant.color_hex,
+    size: variant.size,
+  }));
+
+  const cartPrices = prices.map((price) => ({
+    quantity_min: price.quantity_min,
+    quantity_max: price.quantity_max,
+    final_price: price.final_price,
+    currency: price.currency,
+  }));
+
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
@@ -267,6 +320,16 @@ const cartPrices = prices.map((price) => ({
               </p>
             ) : null}
 
+            {lowestPrice ? (
+              <p className="mt-6 text-sm text-neutral-500">
+                Desde{" "}
+                <span className="text-2xl font-semibold text-neutral-950">
+                  {formatPrice(lowestPrice.final_price, lowestPrice.currency)}
+                </span>{" "}
+                / un.
+              </p>
+            ) : null}
+
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
               <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
                 <Package className="h-5 w-5 text-neutral-500" />
@@ -300,7 +363,7 @@ const cartPrices = prices.map((price) => ({
 
               {prices.length > 0 ? (
                 <div className="mt-5 divide-y divide-neutral-100">
-                  {prices.map((price) => (
+                  {prices.slice(0, 8).map((price) => (
                     <div
                       key={`${price.quantity_min}-${price.quantity_max ?? "plus"}`}
                       className="flex items-center justify-between gap-4 py-3"
@@ -327,14 +390,14 @@ const cartPrices = prices.map((price) => ({
             </div>
 
             <AddToCartForm
-  productId={product.id}
-  productSku={product.sku}
-  productName={product.name}
-  minimumQuantity={product.min_order_quantity}
-  prices={cartPrices}
-  variants={cartVariants}
-  printingTechniques={activeTechniques}
-/>
+              productId={product.id}
+              productSku={product.sku}
+              productName={product.name}
+              minimumQuantity={product.min_order_quantity}
+              prices={cartPrices}
+              variants={cartVariants}
+              printingTechniques={activeTechniques}
+            />
           </div>
         </div>
 
@@ -374,7 +437,7 @@ const cartPrices = prices.map((price) => ({
               <div>
                 <dt className="text-neutral-500">Peso</dt>
                 <dd className="mt-1 font-medium text-neutral-950">
-                  {product.weight ? `${product.weight} kg` : "—"}
+                  {product.weight ? `${product.weight} g` : "—"}
                 </dd>
               </div>
             </dl>
@@ -387,9 +450,9 @@ const cartPrices = prices.map((price) => ({
 
             {variants.length > 0 ? (
               <div className="mt-5 flex flex-wrap gap-2">
-                {variants.map((variant) => (
+                {variants.slice(0, 36).map((variant) => (
                   <span
-                    key={variant.sku}
+                    key={variant.id}
                     className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-700 ring-1 ring-neutral-200"
                   >
                     {variant.color_hex ? (
@@ -410,38 +473,45 @@ const cartPrices = prices.map((price) => ({
 
             <div className="mt-8">
               <h3 className="font-semibold text-neutral-950">
-                Técnicas disponíveis
+                Opções de personalização
               </h3>
 
-              {techniques.length > 0 ? (
+              {customizationOptions.length > 0 ? (
                 <div className="mt-4 space-y-3">
-                  {techniques.map((technique, index) => (
+                  {customizationOptions.map((option) => (
                     <div
-                      key={`${technique.printing_techniques?.name ?? "tecnica"}-${index}`}
+                      key={option.id}
                       className="rounded-2xl border border-neutral-200 p-4"
                     >
                       <p className="font-semibold text-neutral-950">
-                        {technique.printing_techniques?.name ??
-                          "Técnica sob consulta"}
+                        {option.customization_type_name ??
+                          option.customization_type_code ??
+                          "Personalização"}
                       </p>
 
-                      {technique.printing_techniques?.description ? (
-                        <p className="mt-2 text-sm leading-6 text-neutral-600">
-                          {technique.printing_techniques.description}
-                        </p>
-                      ) : null}
+                      <p className="mt-2 text-sm leading-6 text-neutral-600">
+                        {option.component_name ?? "Componente"} ·{" "}
+                        {option.location_name ?? "Localização sob consulta"}
+                      </p>
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {technique.printing_techniques?.supports_full_color ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Full color
+                        {option.max_colors ? (
+                          <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
+                            Até {option.max_colors} cor
+                            {option.max_colors > 1 ? "es" : ""}
                           </span>
                         ) : null}
 
-                        {technique.position ? (
+                        {option.max_printing_area_mm ? (
                           <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
-                            {technique.position}
+                            {option.max_printing_area_mm}
+                          </span>
+                        ) : null}
+
+                        {option.is_default ? (
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                            <CheckCircle2 className="mr-1 h-3 w-3" />
+                            Predefinida
                           </span>
                         ) : null}
                       </div>
