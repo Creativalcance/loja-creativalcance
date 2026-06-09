@@ -11,6 +11,7 @@ import StrickerSyncActions from "@/components/admin/StrickerSyncActions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StrickerManualImportForm from "@/components/admin/StrickerManualImportForm";
+import NormalizeManualImportButton from "@/components/admin/NormalizeManualImportButton";
 
 type Profile = {
   role: string;
@@ -31,6 +32,9 @@ type DatasetImport = {
   started_at: string | null;
   finished_at: string | null;
   created_at: string;
+  supplier_manual_import_files: {
+    id: string;
+  }[] | null;
 };
 
 function formatDate(value: string | null): string {
@@ -111,28 +115,31 @@ export default async function AdminSyncPage() {
   const supabaseAdmin = createSupabaseAdminClient();
 
   const { data: importsData } = await supabaseAdmin
-    .from("supplier_dataset_imports")
-    .select(
-      `
-        id,
-        dataset_name,
-        language,
-        country,
-        extension,
-        status,
-        records_received,
-        records_imported,
-        records_failed,
-        source_url,
-        errors,
-        started_at,
-        finished_at,
-        created_at
-      `,
-    )
-    .order("created_at", { ascending: false })
-    .limit(15)
-    .returns<DatasetImport[]>();
+  .from("supplier_dataset_imports")
+  .select(
+    `
+      id,
+      dataset_name,
+      language,
+      country,
+      extension,
+      status,
+      records_received,
+      records_imported,
+      records_failed,
+      source_url,
+      errors,
+      started_at,
+      finished_at,
+      created_at,
+      supplier_manual_import_files (
+        id
+      )
+    `,
+  )
+  .order("created_at", { ascending: false })
+  .limit(15)
+  .returns<DatasetImport[]>();
 
   const imports = importsData ?? [];
 
@@ -240,6 +247,7 @@ export default async function AdminSyncPage() {
                   <th className="px-4 py-3 font-medium">Falhados</th>
                   <th className="px-4 py-3 font-medium">Início</th>
                   <th className="px-4 py-3 font-medium">Fim</th>
+                  <th className="px-4 py-3 font-medium">Acções</th>
                   <th className="px-4 py-3 font-medium">Erros</th>
                 </tr>
               </thead>
@@ -251,6 +259,12 @@ export default async function AdminSyncPage() {
                       key={item.id}
                       className="border-b border-neutral-100 last:border-0"
                     >
+                      <td className="px-4 py-4">
+  <NormalizeManualImportButton
+    importFileId={item.supplier_manual_import_files?.[0]?.id ?? null}
+    datasetName={item.dataset_name}
+  />
+</td>
                       <td className="px-4 py-4 font-medium text-neutral-950">
                         {item.dataset_name}
                       </td>
@@ -297,7 +311,7 @@ export default async function AdminSyncPage() {
                 ) : (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-4 py-12 text-center text-neutral-500"
                     >
                       Ainda não existem importações registadas.

@@ -19,9 +19,7 @@ function getFileExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
 }
 
-function isAllowedDataset(
-  value: string,
-): value is StrickerManualDatasetName {
+function isAllowedDataset(value: string): value is StrickerManualDatasetName {
   return [
     "products",
     "productsTree",
