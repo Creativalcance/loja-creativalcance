@@ -84,7 +84,7 @@ export async function authenticateStrickerClient(): Promise<string> {
   const config = getStrickerConfig();
 
   const url = new URL(`${config.apiBaseUrl}/AuthenticateClient`);
-url.searchParams.set("AccessKey", config.accessKey);
+url.searchParams.set("accessKey", config.accessKey);
 
   const response = await fetch(url.toString(), {
     method: "GET",

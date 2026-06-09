@@ -10,6 +10,7 @@ import {
 import StrickerSyncActions from "@/components/admin/StrickerSyncActions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import StrickerManualImportForm from "@/components/admin/StrickerManualImportForm";
 
 type Profile = {
   role: string;
@@ -207,9 +208,10 @@ export default async function AdminSyncPage() {
           </article>
         </div>
 
-        <div className="mt-10">
-          <StrickerSyncActions />
-        </div>
+        <div className="mt-10 grid gap-6">
+  <StrickerSyncActions />
+  <StrickerManualImportForm />
+</div>
 
         <section className="mt-10 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
