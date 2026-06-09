@@ -399,7 +399,7 @@ export async function syncRestCustomizationTables(params: {
         lang: params.lang,
       },
       {
-        timeoutMs: 240_000,
+        timeoutMs: 600_000,
       },
     );
 

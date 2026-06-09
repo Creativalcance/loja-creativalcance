@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { assertAdminAccess } from "../../../../../../../lib/auth/assert-admin";
-import { createSupabaseAdminClient } from "../../../../../../../lib/supabase/admin";
-import { normalizeManualColors } from "../../../../../../../lib/stricker/manual-import/normalizers/colors";
-import { normalizeManualProductTypes } from "../../../../../../../lib/stricker/manual-import/normalizers/product-types";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { normalizeManualImportDataset } from "@/lib/stricker/manual-import/normalizers";
+import { type JsonRecord } from "@/lib/stricker/types";
 
 export const runtime = "nodejs";
 
@@ -12,7 +12,7 @@ type RouteContext = {
   }>;
 };
 
-type ManualImportFile = {
+type ManualImportFileRow = {
   id: string;
   supplier_id: string;
   dataset_import_id: string | null;
@@ -22,162 +22,84 @@ type ManualImportFile = {
   file_extension: string;
 };
 
-async function getImportFile(id: string): Promise<ManualImportFile> {
-  const supabaseAdmin = createSupabaseAdminClient();
+type NormalizedRecordBase = JsonRecord & {
+  external_id?: string;
+  sku?: string;
+  slug?: string;
+  name?: string;
+  code?: string;
+  label?: string;
+  supplier_payload?: JsonRecord;
+};
 
-  const { data, error } = await supabaseAdmin
-    .from("supplier_manual_import_files")
-    .select(
-      `
-        id,
-        supplier_id,
-        dataset_import_id,
-        dataset_name,
-        storage_bucket,
-        storage_path,
-        file_extension
-      `,
-    )
-    .eq("id", id)
-    .maybeSingle<ManualImportFile>();
+function getRecordExternalId(record: NormalizedRecordBase, index: number): string {
+  const externalId =
+    typeof record.external_id === "string" && record.external_id.trim().length > 0
+      ? record.external_id.trim()
+      : null;
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  const code =
+    typeof record.code === "string" && record.code.trim().length > 0
+      ? record.code.trim()
+      : null;
 
-  if (!data) {
-    throw new Error("Ficheiro de importação não encontrado.");
-  }
+  const sku =
+    typeof record.sku === "string" && record.sku.trim().length > 0
+      ? record.sku.trim()
+      : null;
 
-  return data;
+  return externalId ?? code ?? sku ?? `record-${index + 1}`;
 }
 
-async function downloadImportContent(file: ManualImportFile): Promise<string> {
-  const supabaseAdmin = createSupabaseAdminClient();
-
-  const { data, error } = await supabaseAdmin.storage
-    .from(file.storage_bucket)
-    .download(file.storage_path);
-
-  if (error) {
-    throw new Error(error.message);
+function getNullableString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
   }
 
-  return data.text();
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : null;
 }
 
-async function normalizeColors(params: {
+function buildNormalizedRow(params: {
   supplierId: string;
   datasetImportId: string | null;
-  fileId: string;
-  content: string;
-  extension: string;
-}): Promise<{
-  imported: number;
-  failed: number;
-  errors: string[];
-}> {
-  const supabaseAdmin = createSupabaseAdminClient();
-  const colors = normalizeManualColors(params.content, params.extension);
+  manualImportFileId: string;
+  datasetName: string;
+  record: NormalizedRecordBase;
+  index: number;
+}) {
+  const {
+    supplierId,
+    datasetImportId,
+    manualImportFileId,
+    datasetName,
+    record,
+    index,
+  } = params;
 
-  let imported = 0;
-  let failed = 0;
-  const errors: string[] = [];
+  const externalId = getRecordExternalId(record, index);
 
-  for (const color of colors) {
-    const { error } = await supabaseAdmin.from("supplier_colors").upsert(
-      {
-        supplier_id: params.supplierId,
-        external_id: color.external_id,
-        code: color.code,
-        name: color.name,
-        hex_code: color.hex_code,
-        language: "PT",
-        is_active: true,
-        raw_payload: {
-          ...color.raw_payload,
-          manual_import_file_id: params.fileId,
-          dataset_import_id: params.datasetImportId,
-        },
-      },
-      {
-        onConflict: "supplier_id,external_id,language",
-      },
-    );
-
-    if (error) {
-      failed += 1;
-      errors.push(error.message);
-    } else {
-      imported += 1;
-    }
-  }
+  const supplierPayload =
+    record.supplier_payload &&
+    typeof record.supplier_payload === "object" &&
+    !Array.isArray(record.supplier_payload)
+      ? record.supplier_payload
+      : {};
 
   return {
-    imported,
-    failed,
-    errors,
-  };
-}
-
-async function normalizeProductTypes(params: {
-  supplierId: string;
-  datasetImportId: string | null;
-  fileId: string;
-  content: string;
-  extension: string;
-}): Promise<{
-  imported: number;
-  failed: number;
-  errors: string[];
-}> {
-  const supabaseAdmin = createSupabaseAdminClient();
-  const productTypes = normalizeManualProductTypes(
-    params.content,
-    params.extension,
-  );
-
-  let imported = 0;
-  let failed = 0;
-  const errors: string[] = [];
-
-  for (const productType of productTypes) {
-    const { error } = await supabaseAdmin
-      .from("supplier_catalog_categories")
-      .upsert(
-        {
-          supplier_id: params.supplierId,
-          external_id: productType.external_id,
-          parent_external_id: productType.parent_external_id,
-          type_code: productType.type_code,
-          type_name: productType.type_name,
-          subtype_code: productType.subtype_code,
-          subtype_name: productType.subtype_name,
-          language: "PT",
-          is_active: true,
-          raw_payload: {
-            ...productType.raw_payload,
-            manual_import_file_id: params.fileId,
-            dataset_import_id: params.datasetImportId,
-          },
-        },
-        {
-          onConflict: "supplier_id,external_id,language",
-        },
-      );
-
-    if (error) {
-      failed += 1;
-      errors.push(error.message);
-    } else {
-      imported += 1;
-    }
-  }
-
-  return {
-    imported,
-    failed,
-    errors,
+    supplier_id: supplierId,
+    dataset_import_id: datasetImportId,
+    manual_import_file_id: manualImportFileId,
+    dataset_name: datasetName,
+    external_id: externalId,
+    sku: getNullableString(record.sku),
+    slug: getNullableString(record.slug),
+    name: getNullableString(record.name) ?? getNullableString(record.label),
+    normalized_payload: record,
+    supplier_payload: supplierPayload,
+    import_status: "normalized",
+    error_message: null,
   };
 }
 
@@ -189,87 +111,146 @@ export async function POST(
     await assertAdminAccess();
 
     const { id } = await context.params;
-    const file = await getImportFile(id);
-    const content = await downloadImportContent(file);
+    const supabaseAdmin = createSupabaseAdminClient();
 
-    let result: {
-      imported: number;
-      failed: number;
-      errors: string[];
-    } | null = null;
+    const { data: manualFile, error: manualFileError } = await supabaseAdmin
+      .from("supplier_manual_import_files")
+      .select(
+        [
+          "id",
+          "supplier_id",
+          "dataset_import_id",
+          "dataset_name",
+          "storage_bucket",
+          "storage_path",
+          "file_extension",
+        ].join(","),
+      )
+      .eq("id", id)
+      .single<ManualImportFileRow>();
 
-    if (file.dataset_name === "colors") {
-      result = await normalizeColors({
-        supplierId: file.supplier_id,
-        datasetImportId: file.dataset_import_id,
-        fileId: file.id,
-        content,
-        extension: file.file_extension,
-      });
-    }
-
-    if (file.dataset_name === "productTypes") {
-      result = await normalizeProductTypes({
-        supplierId: file.supplier_id,
-        datasetImportId: file.dataset_import_id,
-        fileId: file.id,
-        content,
-        extension: file.file_extension,
-      });
-    }
-
-    if (!result) {
+    if (manualFileError || !manualFile) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Este dataset ainda não tem normalização activa. Para já estão activos: colors e productTypes.",
+            manualFileError?.message ??
+            "Ficheiro de importação manual não encontrado.",
         },
-        { status: 400 },
+        { status: 404 },
       );
     }
 
-    const status =
-      result.failed === 0
-        ? "success"
-        : result.imported > 0
-          ? "partial_success"
-          : "failed";
+    const { data: downloadedFile, error: downloadError } =
+      await supabaseAdmin.storage
+        .from(manualFile.storage_bucket)
+        .download(manualFile.storage_path);
 
-    const supabaseAdmin = createSupabaseAdminClient();
+    if (downloadError || !downloadedFile) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            downloadError?.message ??
+            "Não foi possível descarregar o ficheiro da Storage.",
+        },
+        { status: 500 },
+      );
+    }
 
-    await supabaseAdmin
+    const content = await downloadedFile.text();
+
+    const normalized = normalizeManualImportDataset({
+      datasetName: manualFile.dataset_name,
+      content,
+      extension: manualFile.file_extension,
+    });
+
+    const rows = normalized.records.map((record, index) =>
+      buildNormalizedRow({
+        supplierId: manualFile.supplier_id,
+        datasetImportId: manualFile.dataset_import_id,
+        manualImportFileId: manualFile.id,
+        datasetName: normalized.datasetName,
+        record: record as NormalizedRecordBase,
+        index,
+      }),
+    );
+
+    if (rows.length > 0) {
+      const { error: upsertError } = await supabaseAdmin
+        .from("supplier_normalized_import_records")
+        .upsert(rows, {
+          onConflict: "manual_import_file_id,dataset_name,external_id",
+        });
+
+      if (upsertError) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: upsertError.message,
+          },
+          { status: 500 },
+        );
+      }
+    }
+
+    const normalizedPreview = {
+      datasetName: normalized.datasetName,
+      recordsDetected: rows.length,
+      sample: rows.slice(0, 5).map((row) => row.normalized_payload),
+    };
+
+    const { error: updateManualFileError } = await supabaseAdmin
       .from("supplier_manual_import_files")
       .update({
-        parser_status: status === "failed" ? "failed" : "parsed",
-        records_detected: result.imported + result.failed,
-        parser_errors: result.errors,
+        parser_status: "parsed",
+        records_detected: rows.length,
+        preview_payload: normalizedPreview,
+        parser_errors: [],
       })
-      .eq("id", file.id);
+      .eq("id", manualFile.id);
 
-    if (file.dataset_import_id) {
-      await supabaseAdmin
+    if (updateManualFileError) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: updateManualFileError.message,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (manualFile.dataset_import_id) {
+      const { error: updateDatasetImportError } = await supabaseAdmin
         .from("supplier_dataset_imports")
         .update({
-          status,
-          records_imported: result.imported,
-          records_failed: result.failed,
-          errors: result.errors,
+          status: "success",
+          records_imported: rows.length,
+          records_failed: 0,
+          raw_payload: normalizedPreview,
+          errors: [],
           finished_at: new Date().toISOString(),
         })
-        .eq("id", file.dataset_import_id);
+        .eq("id", manualFile.dataset_import_id);
+
+      if (updateDatasetImportError) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: updateDatasetImportError.message,
+          },
+          { status: 500 },
+        );
+      }
     }
 
     return NextResponse.json({
-      success: result.failed === 0,
-      message:
-        result.failed === 0
-          ? "Normalização concluída com sucesso."
-          : "Normalização concluída com erros.",
-      dataset: file.dataset_name,
-      imported: result.imported,
-      failed: result.failed,
-      errors: result.errors,
+      success: true,
+      message: "Ficheiro normalizado com sucesso.",
+      dataset: normalized.datasetName,
+      recordsNormalized: rows.length,
+      sample: normalizedPreview.sample,
     });
   } catch (error) {
     return NextResponse.json(
@@ -278,7 +259,7 @@ export async function POST(
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao normalizar importação manual.",
+            : "Erro inesperado na normalização manual.",
       },
       { status: 500 },
     );

@@ -363,11 +363,11 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
               {prices.length > 0 ? (
                 <div className="mt-5 divide-y divide-neutral-100">
-                  {prices.slice(0, 8).map((price) => (
-                    <div
-                      key={`${price.quantity_min}-${price.quantity_max ?? "plus"}`}
-                      className="flex items-center justify-between gap-4 py-3"
-                    >
+                  {prices.slice(0, 8).map((price, index) => (
+  <div
+    key={`${price.quantity_min}-${price.quantity_max ?? "plus"}-${price.final_price}-${index}`}
+    className="flex items-center justify-between gap-4 py-3"
+  >
                       <p className="text-sm text-neutral-600">
                         {price.quantity_min.toLocaleString("pt-PT")}
                         {price.quantity_max

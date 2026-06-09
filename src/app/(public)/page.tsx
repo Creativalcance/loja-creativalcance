@@ -1,29 +1,39 @@
 import Link from "next/link";
-import { ArrowRight, Building2, Gift, Search, Shirt, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  Building2,
+  Gift,
+  Search,
+  Shirt,
+  Sparkles,
+} from "lucide-react";
 
 const categories = [
   {
     title: "Brindes Promocionais",
-    description: "Produtos personalizados para campanhas, eventos e activações de marca.",
-    href: "/categorias/brindes-promocionais",
+    description:
+      "Produtos personalizados para campanhas, eventos e activações de marca.",
+    href: "/pesquisa?q=brindes",
     icon: Gift,
   },
   {
     title: "Merchandising Corporativo",
-    description: "Soluções de branding para empresas, equipas e clientes estratégicos.",
-    href: "/categorias/merchandising-corporativo",
+    description:
+      "Soluções de branding para empresas, equipas e clientes estratégicos.",
+    href: "/pesquisa?q=merchandising",
     icon: Building2,
   },
   {
     title: "Vestuário Promocional",
     description: "T-shirts, polos, sweats, casacos e uniformes personalizados.",
-    href: "/categorias/vestuario-promocional",
+    href: "/pesquisa?q=vestuario",
     icon: Shirt,
   },
   {
     title: "Gifts Empresariais",
-    description: "Presentes corporativos premium para clientes, equipas e parceiros.",
-    href: "/categorias/gifts-empresariais",
+    description:
+      "Presentes corporativos premium para clientes, equipas e parceiros.",
+    href: "/pesquisa?q=gifts",
     icon: Sparkles,
   },
 ];
@@ -43,16 +53,25 @@ export default function HomePage() {
           </h1>
 
           <p className="mt-8 max-w-2xl text-lg leading-8 text-white/70">
-            A Loja Creative ajuda empresas a transformar produtos
-            personalizados em experiências de marca memoráveis — desde a escolha
-            do artigo até à personalização, orçamento e produção.
+            A Loja Creativ ajuda empresas a transformar produtos personalizados
+            em experiências de marca memoráveis — desde a escolha do artigo até
+            à personalização, orçamento e produção.
           </p>
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
             <Link
-              href="/pedido-de-orcamento"
-              className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"            >
-              Procurar produtos
+  href="/categorias"
+  className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-white/90"
+>
+  Ver catálogo
+  <ArrowRight className="ml-2 h-4 w-4" />
+</Link>
+
+            <Link
+              href="/pesquisa"
+              className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+            >
+              Pesquisar produtos
               <Search className="ml-2 h-4 w-4" />
             </Link>
 
@@ -61,7 +80,6 @@ export default function HomePage() {
               className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               Pedir orçamento
-              <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
         </div>

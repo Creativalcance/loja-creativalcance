@@ -54,7 +54,6 @@ function buildSearchFilter(query: string): string {
     `name.ilike.%${safeQuery}%`,
     `sku.ilike.%${safeQuery}%`,
     `short_description.ilike.%${safeQuery}%`,
-    `description.ilike.%${safeQuery}%`,
     `material.ilike.%${safeQuery}%`,
     `brand.ilike.%${safeQuery}%`,
     `type_name.ilike.%${safeQuery}%`,
@@ -88,6 +87,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   );
   const selectedSort = getSortOption(resolvedSearchParams?.ordenar);
 
+  const hasActiveSearch =
+    Boolean(query) ||
+    Boolean(selectedType) ||
+    Boolean(selectedMaterial) ||
+    Boolean(selectedCustomizable) ||
+    selectedSort !== "destaque";
+
   const supabase = await createSupabaseServerClient();
 
   const { data: facetData } = await supabase
@@ -101,92 +107,91 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const materialOptions = getUniqueSortedValues(facets, "material");
   const typeOptions = getUniqueSortedValues(facets, "type_name");
 
-  let productsQuery = supabase
-    .from("products")
-    .select(
-      `
-        id,
-        sku,
-        name,
-        slug,
-        short_description,
-        brand,
-        material,
-        type_name,
-        subtype_name,
-        is_featured,
-        is_customizable,
-        min_order_quantity,
-        product_images (
-          external_url,
-          storage_url,
-          alt_text,
-          is_primary,
-          sort_order,
-          image_type
-        ),
-        product_prices (
-          final_price,
-          quantity_min,
-          currency
-        ),
-        product_stocks (
-          available_quantity
-        )
-      `,
-    )
-    .eq("status", "active")
-    .eq("is_active", true)
-    .limit(48);
+  let products: ProductCardProduct[] = [];
+  let hasProductsError = false;
 
-  if (query) {
-    productsQuery = productsQuery.or(buildSearchFilter(query));
+  if (hasActiveSearch) {
+    let productsQuery = supabase
+      .from("products")
+      .select(
+        `
+          id,
+          sku,
+          name,
+          slug,
+          short_description,
+          brand,
+          material,
+          type_name,
+          subtype_name,
+          is_featured,
+          is_customizable,
+          min_order_quantity,
+          product_images (
+            external_url,
+            storage_url,
+            alt_text,
+            is_primary,
+            sort_order,
+            image_type
+          ),
+          product_prices (
+            final_price,
+            quantity_min,
+            currency
+          ),
+          product_stocks (
+            available_quantity
+          )
+        `,
+      )
+      .eq("status", "active")
+      .eq("is_active", true)
+      .limit(48);
+
+    if (query) {
+      productsQuery = productsQuery.or(buildSearchFilter(query));
+    }
+
+    if (selectedType) {
+      productsQuery = productsQuery.eq("type_name", selectedType);
+    }
+
+    if (selectedMaterial) {
+      productsQuery = productsQuery.eq("material", selectedMaterial);
+    }
+
+    if (selectedCustomizable === "sim") {
+      productsQuery = productsQuery.eq("is_customizable", true);
+    }
+
+    if (selectedCustomizable === "nao") {
+      productsQuery = productsQuery.eq("is_customizable", false);
+    }
+
+    if (selectedSort === "recentes") {
+      productsQuery = productsQuery.order("updated_at", { ascending: false });
+    }
+
+    if (selectedSort === "nome_asc") {
+      productsQuery = productsQuery.order("name", { ascending: true });
+    }
+
+    if (selectedSort === "nome_desc") {
+      productsQuery = productsQuery.order("name", { ascending: false });
+    }
+
+    if (selectedSort === "destaque") {
+      productsQuery = productsQuery
+        .order("is_featured", { ascending: false })
+        .order("updated_at", { ascending: false });
+    }
+
+    const { data, error } = await productsQuery;
+
+    products = error ? [] : ((data ?? []) as unknown as ProductCardProduct[]);
+    hasProductsError = Boolean(error);
   }
-
-  if (selectedType) {
-    productsQuery = productsQuery.eq("type_name", selectedType);
-  }
-
-  if (selectedMaterial) {
-    productsQuery = productsQuery.eq("material", selectedMaterial);
-  }
-
-  if (selectedCustomizable === "sim") {
-    productsQuery = productsQuery.eq("is_customizable", true);
-  }
-
-  if (selectedCustomizable === "nao") {
-    productsQuery = productsQuery.eq("is_customizable", false);
-  }
-
-  if (selectedSort === "recentes") {
-    productsQuery = productsQuery.order("updated_at", { ascending: false });
-  }
-
-  if (selectedSort === "nome_asc") {
-    productsQuery = productsQuery.order("name", { ascending: true });
-  }
-
-  if (selectedSort === "nome_desc") {
-    productsQuery = productsQuery.order("name", { ascending: false });
-  }
-
-  if (selectedSort === "destaque") {
-    productsQuery = productsQuery
-      .order("is_featured", { ascending: false })
-      .order("updated_at", { ascending: false });
-  }
-
-  const { data, error } = await productsQuery;
-
-  const products = error ? [] : ((data ?? []) as unknown as ProductCardProduct[]);
-
-  const hasActiveFilters =
-    Boolean(query) ||
-    Boolean(selectedType) ||
-    Boolean(selectedMaterial) ||
-    Boolean(selectedCustomizable) ||
-    selectedSort !== "destaque";
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
@@ -312,10 +317,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
         <div className="mt-8 flex items-center justify-between gap-4">
           <p className="text-sm text-neutral-500">
-            {products.length.toLocaleString("pt-PT")} produto(s) apresentado(s)
+            {hasActiveSearch
+              ? `${products.length.toLocaleString("pt-PT")} produto(s) apresentado(s)`
+              : "Introduz uma pesquisa ou usa os filtros para encontrar produtos."}
           </p>
 
-          {hasActiveFilters ? (
+          {hasActiveSearch ? (
             <Link
               href="/pesquisa"
               className="text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
@@ -325,13 +332,24 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           ) : null}
         </div>
 
-        {error ? (
+        {hasProductsError ? (
           <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
             Não foi possível carregar a pesquisa. Tenta novamente.
           </div>
         ) : null}
 
-        {products.length > 0 ? (
+        {!hasActiveSearch ? (
+          <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
+            <h2 className="text-xl font-semibold text-neutral-950">
+              Pesquisa pronta a usar
+            </h2>
+
+            <p className="mt-3 text-neutral-600">
+              Escreve o nome de um produto, SKU, material ou marca. Também
+              podes usar os filtros por tipo, material ou personalização.
+            </p>
+          </div>
+        ) : products.length > 0 ? (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
               <ProductCard key={product.id} product={product} />

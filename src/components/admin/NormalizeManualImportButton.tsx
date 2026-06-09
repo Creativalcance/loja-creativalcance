@@ -17,7 +17,7 @@ type NormalizeResponse = {
   errors?: string[];
 };
 
-const NORMALIZABLE_DATASETS = ["colors", "productTypes"];
+const NORMALIZABLE_DATASETS = ["colors", "productTypes", "productsTree"];
 
 async function readResponse(response: Response): Promise<NormalizeResponse> {
   const contentType = response.headers.get("content-type") ?? "";
