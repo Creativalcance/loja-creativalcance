@@ -19,6 +19,24 @@ type NormalizeResponse = {
 
 const NORMALIZABLE_DATASETS = ["colors", "productTypes"];
 
+async function readResponse(response: Response): Promise<NormalizeResponse> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    return (await response.json()) as NormalizeResponse;
+  }
+
+  const text = await response.text();
+
+  return {
+    success: false,
+    message:
+      text.trim().length > 0
+        ? text.slice(0, 500)
+        : `Pedido falhou com estado HTTP ${response.status}.`,
+  };
+}
+
 export default function NormalizeManualImportButton({
   importFileId,
   datasetName,
@@ -30,7 +48,7 @@ export default function NormalizeManualImportButton({
     Boolean(importFileId) && NORMALIZABLE_DATASETS.includes(datasetName);
 
   async function handleNormalize() {
-    if (!importFileId || !canNormalize) {
+    if (!importFileId || !canNormalize || isNormalizing) {
       return;
     }
 
@@ -38,24 +56,34 @@ export default function NormalizeManualImportButton({
 
     try {
       const response = await fetch(
-        `/api/admin/stricker/manual-import/${importFileId}/normalize`,
+        `/api/admin/stricker/manual-import/${encodeURIComponent(
+          importFileId,
+        )}/normalize`,
         {
           method: "POST",
           credentials: "same-origin",
+          cache: "no-store",
         },
       );
 
-      const payload = (await response.json()) as NormalizeResponse;
+      const payload = await readResponse(response);
 
-      if (!payload.success) {
+      if (!response.ok || !payload.success) {
         alert(payload.message);
+        return;
       }
+
+      alert(
+        `Normalização concluída.\nImportados: ${
+          payload.imported ?? 0
+        }\nFalhados: ${payload.failed ?? 0}`,
+      );
 
       router.refresh();
     } catch (error) {
       alert(
         error instanceof Error
-          ? error.message
+          ? `Erro ao chamar a normalização: ${error.message}`
           : "Erro inesperado ao normalizar ficheiro.",
       );
     } finally {
@@ -64,11 +92,7 @@ export default function NormalizeManualImportButton({
   }
 
   if (!canNormalize) {
-    return (
-      <span className="text-xs text-neutral-400">
-        —
-      </span>
-    );
+    return <span className="text-xs text-neutral-400">—</span>;
   }
 
   return (
@@ -83,7 +107,7 @@ export default function NormalizeManualImportButton({
       ) : (
         <Wand2 className="mr-1.5 h-3.5 w-3.5" />
       )}
-      Normalizar
+      {isNormalizing ? "A normalizar..." : "Normalizar"}
     </button>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertCircle, CheckCircle2, Loader2, Upload } from "lucide-react";
 
@@ -35,6 +36,7 @@ function formatJson(value: unknown): string {
 }
 
 export default function StrickerManualImportForm() {
+  const router = useRouter();
   const [datasetName, setDatasetName] = useState("productsTree");
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -68,6 +70,7 @@ export default function StrickerManualImportForm() {
       const payload = (await response.json()) as ManualImportResult;
 
       setResult(payload);
+      router.refresh();
     } catch (error) {
       setResult({
         success: false,
