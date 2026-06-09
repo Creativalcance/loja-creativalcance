@@ -15,6 +15,41 @@ function hashPayload(payload: unknown): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
+function extractXmlTagValue(xml: string, tagName: string): string | null {
+  const regex = new RegExp(`<${tagName}>(.*?)</${tagName}>`, "is");
+  const match = xml.match(regex);
+
+  if (!match?.[1]) {
+    return null;
+  }
+
+  return match[1].trim();
+}
+
+function buildReadableDownloadError(responseText: string): string {
+  const errorMessage =
+    extractXmlTagValue(responseText, "ErrorMessage") ??
+    extractXmlTagValue(responseText, "Message") ??
+    extractXmlTagValue(responseText, "Description");
+
+  const errorCode =
+    extractXmlTagValue(responseText, "ErrorCode") ??
+    extractXmlTagValue(responseText, "Code");
+
+  if (errorMessage || errorCode) {
+    return `Erro Stricker FileDownload${
+      errorCode ? ` ${errorCode}` : ""
+    }: ${errorMessage ?? "sem mensagem adicional"}`;
+  }
+
+  const preview =
+    responseText.length > 300
+      ? `${responseText.slice(0, 300)}...`
+      : responseText;
+
+  return `Resposta Stricker não é JSON. Pré-visualização: ${preview}`;
+}
+
 export function buildStrickerDownloadUrl(
   params: StrickerDatasetDownloadParams,
 ): string {
@@ -37,14 +72,14 @@ export async function downloadStrickerDataset(
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      Accept: "application/json",
+      Accept: "application/json, text/xml, application/xml, text/plain",
     },
     cache: "no-store",
   });
 
-  if (!response.ok) {
-    const responseText = await response.text();
+  const responseText = await response.text();
 
+  if (!response.ok) {
     throw new Error(
       `Erro ao descarregar dataset Stricker '${params.datasetName}': ${
         response.status
@@ -52,7 +87,24 @@ export async function downloadStrickerDataset(
     );
   }
 
-  const payload = (await response.json()) as unknown;
+  const trimmedResponse = responseText.trim();
+
+  if (trimmedResponse.startsWith("<")) {
+    throw new Error(buildReadableDownloadError(trimmedResponse));
+  }
+
+  let payload: unknown;
+
+  try {
+    payload = JSON.parse(trimmedResponse);
+  } catch {
+    throw new Error(
+      `Resposta Stricker não pôde ser convertida para JSON. Pré-visualização: ${trimmedResponse.slice(
+        0,
+        300,
+      )}`,
+    );
+  }
 
   return {
     url,
