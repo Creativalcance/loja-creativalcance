@@ -9,6 +9,7 @@ type SyncAction =
   | "products"
   | "optionals"
   | "customizationTables"
+  | "customizationOptions"
   | "stocksByCountry";
 
 type SyncState = {
@@ -32,9 +33,13 @@ type SyncResponse = {
   componentsImported?: number;
   locationsImported?: number;
   tablesImported?: number;
+  optionsImported?: number;
+  variantsMatched?: number;
+  componentsMatched?: number;
+  locationsMatched?: number;
+  priceTablesMatched?: number;
   stocksImported?: number;
   futureStocksImported?: number;
-  variantsMatched?: number;
   datasetImportId?: string;
 };
 
@@ -73,6 +78,12 @@ const ACTIONS: {
       "Importa tabelas e preços de personalização para printing_price_tables.",
   },
   {
+    action: "customizationOptions",
+    title: "Sincronizar opções",
+    description:
+      "Liga opções de personalização por SKU a componentes, localizações e tabelas.",
+  },
+  {
     action: "stocksByCountry",
     title: "Sincronizar stocks PT",
     description:
@@ -104,7 +115,9 @@ export default function StrickerRestCatalogSyncActions() {
               ? "/api/admin/stricker/rest/sync-optionals"
               : action === "customizationTables"
                 ? "/api/admin/stricker/rest/sync-customization-tables"
-                : "/api/admin/stricker/rest/sync-catalog";
+                : action === "customizationOptions"
+                  ? "/api/admin/stricker/rest/sync-customization-options"
+                  : "/api/admin/stricker/rest/sync-catalog";
 
       const body =
         action === "stocksByCountry"
@@ -114,7 +127,8 @@ export default function StrickerRestCatalogSyncActions() {
             }
           : action === "products" ||
               action === "optionals" ||
-              action === "customizationTables"
+              action === "customizationTables" ||
+              action === "customizationOptions"
             ? {
                 lang: "EN",
               }
@@ -140,6 +154,7 @@ export default function StrickerRestCatalogSyncActions() {
       }
 
       const imported =
+        payload.optionsImported ??
         payload.tablesImported ??
         payload.variantsImported ??
         payload.productsImported ??
@@ -160,7 +175,13 @@ export default function StrickerRestCatalogSyncActions() {
                 }. Componentes: ${
                   payload.componentsImported ?? 0
                 }. Localizações: ${payload.locationsImported ?? 0}.`
-              : "";
+              : action === "customizationOptions"
+                ? ` Variantes: ${payload.variantsMatched ?? 0}. Componentes: ${
+                    payload.componentsMatched ?? 0
+                  }. Localizações: ${
+                    payload.locationsMatched ?? 0
+                  }. Tabelas: ${payload.priceTablesMatched ?? 0}.`
+                : "";
 
       setState({
         loadingAction: null,
@@ -204,7 +225,7 @@ export default function StrickerRestCatalogSyncActions() {
         <ServerCog className="h-6 w-6 text-neutral-400" />
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-7">
         {ACTIONS.map((item) => {
           const isLoading = state.loadingAction === item.action;
 

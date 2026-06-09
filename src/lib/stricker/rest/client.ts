@@ -12,6 +12,8 @@ import {
 
 const DEFAULT_BASE_URL = "https://ws.stricker-europe.com/api/v1SSL";
 const DEFAULT_TIMEOUT_MS = 120_000;
+const DEFAULT_RETRIES = 2;
+const RETRY_DELAY_MS = 2_000;
 
 type RequestMethod = "GET" | "POST";
 
@@ -77,7 +79,56 @@ function getErrorMessageFromPayload(payload: unknown): string | null {
   return null;
 }
 
-async function fetchJson<TResponse>(
+function isRetryableFetchError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+
+    return (
+      message.includes("fetch failed") ||
+      message.includes("terminated") ||
+      message.includes("timeout") ||
+      message.includes("econnreset") ||
+      message.includes("socket") ||
+      message.includes("network")
+    );
+  }
+
+  return false;
+}
+
+function getReadableFetchError(error: unknown, timeoutMs: number): Error {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return new Error(`Timeout ao contactar a Stricker após ${timeoutMs}ms.`);
+  }
+
+  if (error instanceof TypeError && error.message === "fetch failed") {
+    return new Error(
+      "Falha de rede ao contactar a Stricker. O endpoint pode ter fechado a ligação durante a transferência do dataset.",
+    );
+  }
+
+  if (error instanceof Error) {
+    return error;
+  }
+
+  return new Error("Erro inesperado ao contactar a Stricker.");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function fetchJsonOnce<TResponse>(
   pathname: string,
   params: Record<string, string>,
   options: StrickerFetchOptions & {
@@ -124,14 +175,40 @@ async function fetchJson<TResponse>(
 
     return payload;
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`Timeout ao contactar a Stricker após ${timeoutMs}ms.`);
-    }
-
-    throw error;
+    throw getReadableFetchError(error, timeoutMs);
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchJson<TResponse>(
+  pathname: string,
+  params: Record<string, string>,
+  options: StrickerFetchOptions & {
+    method?: RequestMethod;
+    body?: unknown;
+  } = {},
+): Promise<TResponse> {
+  const maxRetries = DEFAULT_RETRIES;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await fetchJsonOnce<TResponse>(pathname, params, options);
+    } catch (error) {
+      lastError = error;
+
+      if (!isRetryableFetchError(error) || attempt === maxRetries) {
+        throw error;
+      }
+
+      await sleep(RETRY_DELAY_MS * (attempt + 1));
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Erro inesperado ao contactar a Stricker.");
 }
 
 function getDatasetPathname(dataset: StrickerDatasetName): string {
