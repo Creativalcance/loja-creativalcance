@@ -14,13 +14,13 @@ function isValidSessionStatus(status: unknown): boolean {
   }
 
   if (typeof status === "number") {
-    return status === 0 || status === 1;
+    return status === 1;
   }
 
   if (typeof status === "string") {
     const normalized = status.trim().toLowerCase();
 
-    return normalized === "0" || normalized === "1" || normalized === "true";
+    return normalized === "1" || normalized === "true";
   }
 
   return false;
@@ -61,14 +61,34 @@ async function getLatestActiveSession(params: {
 async function markSessionAsInvalid(params: {
   supabaseAdmin: SupabaseAdminClient;
   sessionId: string;
+  rawPayload?: Record<string, unknown>;
 }): Promise<void> {
   const { error } = await params.supabaseAdmin
     .from("supplier_sessions")
     .update({
       status: "invalid",
       last_validated_at: new Date().toISOString(),
+      raw_payload: params.rawPayload ?? {},
     })
     .eq("id", params.sessionId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function closeActiveSessions(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+}): Promise<void> {
+  const { error } = await params.supabaseAdmin
+    .from("supplier_sessions")
+    .update({
+      status: "closed",
+      last_validated_at: new Date().toISOString(),
+    })
+    .eq("supplier_id", params.supplierId)
+    .eq("status", "active");
 
   if (error) {
     throw new Error(error.message);
@@ -102,6 +122,11 @@ async function createStoredSession(params: {
 }): Promise<StrickerStoredSession> {
   const expiresAt = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
 
+  await closeActiveSessions({
+    supabaseAdmin: params.supabaseAdmin,
+    supplierId: params.supplierId,
+  });
+
   const { data, error } = await params.supabaseAdmin
     .from("supplier_sessions")
     .insert({
@@ -134,6 +159,35 @@ async function createStoredSession(params: {
   return data;
 }
 
+function isExpiredSession(session: StrickerStoredSession): boolean {
+  if (!session.expires_at) {
+    return false;
+  }
+
+  return new Date(session.expires_at).getTime() <= Date.now();
+}
+
+async function createNewValidSession(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+}): Promise<string> {
+  const authentication = await authenticateStrickerClient();
+  const token = authentication.Token?.trim();
+
+  if (!token) {
+    throw new Error("A Stricker não devolveu token de autenticação.");
+  }
+
+  await createStoredSession({
+    supabaseAdmin: params.supabaseAdmin,
+    supplierId: params.supplierId,
+    token,
+    rawPayload: authentication as Record<string, unknown>,
+  });
+
+  return token;
+}
+
 export async function getValidStrickerSessionToken(): Promise<string> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -143,45 +197,68 @@ export async function getValidStrickerSessionToken(): Promise<string> {
     supplierId,
   });
 
-  if (existingSession) {
-    try {
-      const validation = await validateStrickerSession(existingSession.token);
+  if (!existingSession) {
+    return createNewValidSession({
+      supabaseAdmin,
+      supplierId,
+    });
+  }
 
-      if (isValidSessionStatus(validation.Status)) {
-        await updateSessionValidation({
-          supabaseAdmin,
-          sessionId: existingSession.id,
-          rawPayload: validation as Record<string, unknown>,
-        });
+  if (isExpiredSession(existingSession)) {
+    await markSessionAsInvalid({
+      supabaseAdmin,
+      sessionId: existingSession.id,
+      rawPayload: {
+        reason: "Sessão expirada localmente.",
+        expires_at: existingSession.expires_at,
+      },
+    });
 
-        return existingSession.token;
-      }
+    return createNewValidSession({
+      supabaseAdmin,
+      supplierId,
+    });
+  }
 
-      await markSessionAsInvalid({
+  try {
+    const validation = await validateStrickerSession(existingSession.token);
+    const rawPayload = validation as Record<string, unknown>;
+
+    if (isValidSessionStatus(validation.Status)) {
+      await updateSessionValidation({
         supabaseAdmin,
         sessionId: existingSession.id,
+        rawPayload,
       });
-    } catch {
-      await markSessionAsInvalid({
-        supabaseAdmin,
-        sessionId: existingSession.id,
-      });
+
+      return existingSession.token;
     }
+
+    await markSessionAsInvalid({
+      supabaseAdmin,
+      sessionId: existingSession.id,
+      rawPayload,
+    });
+
+    return createNewValidSession({
+      supabaseAdmin,
+      supplierId,
+    });
+  } catch (error) {
+    await markSessionAsInvalid({
+      supabaseAdmin,
+      sessionId: existingSession.id,
+      rawPayload: {
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Erro inesperado ao validar sessão Stricker.",
+      },
+    });
+
+    return createNewValidSession({
+      supabaseAdmin,
+      supplierId,
+    });
   }
-
-  const authentication = await authenticateStrickerClient();
-  const token = authentication.Token?.trim();
-
-  if (!token) {
-    throw new Error("A Stricker não devolveu token de autenticação.");
-  }
-
-  await createStoredSession({
-    supabaseAdmin,
-    supplierId,
-    token,
-    rawPayload: authentication as Record<string, unknown>,
-  });
-
-  return token;
 }
