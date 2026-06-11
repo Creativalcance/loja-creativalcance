@@ -71,6 +71,12 @@ function extractCount(payload: unknown, fallback: number): number | null {
   return fallback;
 }
 
+function getForcedStrickerLanguage(): string {
+  const config = getStrickerConfig();
+
+  return config.defaultLanguage.trim().toUpperCase() || "PT";
+}
+
 async function callStrickerRestMethod(
   method: StrickerRestMethod,
   params: Record<string, string> = {},
@@ -78,11 +84,17 @@ async function callStrickerRestMethod(
   const config = getStrickerConfig();
   const token = await getValidStrickerSessionToken();
 
+  const forcedLanguage = getForcedStrickerLanguage();
+
   const url = new URL(`${config.apiBaseUrl}/${method}`);
   url.searchParams.set("token", token);
 
   for (const [key, value] of Object.entries(params)) {
-    url.searchParams.set(key, value);
+    if (key === "lang") {
+      url.searchParams.set("lang", forcedLanguage);
+    } else {
+      url.searchParams.set(key, value);
+    }
   }
 
   const response = await fetch(url.toString(), {
@@ -109,10 +121,8 @@ async function callStrickerRestMethod(
 export async function fetchStrickerProducts(
   params: StrickerSyncProductsParams = {},
 ): Promise<StrickerProductsResponse> {
-  const config = getStrickerConfig();
-
   const payload = await callStrickerRestMethod("Products", {
-    lang: params.lang ?? config.defaultLanguage,
+    lang: getForcedStrickerLanguage(),
   });
 
   const products = extractArrayFromPayload(payload, [
@@ -133,12 +143,10 @@ export async function fetchStrickerProducts(
 }
 
 export async function fetchStrickerProductsTree(
-  lang?: string,
+  _lang?: string,
 ): Promise<JsonRecord[]> {
-  const config = getStrickerConfig();
-
   const payload = await callStrickerRestMethod("ProductsTree", {
-    lang: lang ?? config.defaultLanguage,
+    lang: getForcedStrickerLanguage(),
   });
 
   return extractArrayFromPayload(payload, [
@@ -152,12 +160,10 @@ export async function fetchStrickerProductsTree(
 }
 
 export async function fetchStrickerOptionals(
-  lang?: string,
+  _lang?: string,
 ): Promise<JsonRecord[]> {
-  const config = getStrickerConfig();
-
   const payload = await callStrickerRestMethod("Optionals", {
-    lang: lang ?? config.defaultLanguage,
+    lang: getForcedStrickerLanguage(),
   });
 
   return extractArrayFromPayload(payload, [
@@ -169,12 +175,10 @@ export async function fetchStrickerOptionals(
 }
 
 export async function fetchStrickerOptionalsComplete(
-  lang?: string,
+  _lang?: string,
 ): Promise<JsonRecord[]> {
-  const config = getStrickerConfig();
-
   const payload = await callStrickerRestMethod("OptionalsComplete", {
-    lang: lang ?? config.defaultLanguage,
+    lang: getForcedStrickerLanguage(),
   });
 
   return extractArrayFromPayload(payload, [
@@ -189,13 +193,13 @@ export async function fetchStrickerOptionalsComplete(
 
 export async function fetchStrickerStocksByCountry(
   country?: string,
-  lang?: string,
+  _lang?: string,
 ): Promise<JsonRecord[]> {
   const config = getStrickerConfig();
 
   const payload = await callStrickerRestMethod("StocksByCountry", {
     country: country ?? config.defaultCountry,
-    lang: lang ?? config.defaultLanguage,
+    lang: getForcedStrickerLanguage(),
   });
 
   return extractArrayFromPayload(payload, [
@@ -206,11 +210,9 @@ export async function fetchStrickerStocksByCountry(
   ]);
 }
 
-export async function fetchStrickerColors(lang?: string): Promise<JsonRecord[]> {
-  const config = getStrickerConfig();
-
+export async function fetchStrickerColors(_lang?: string): Promise<JsonRecord[]> {
   const payload = await callStrickerRestMethod("Colors", {
-    lang: lang ?? config.defaultLanguage,
+    lang: getForcedStrickerLanguage(),
   });
 
   return extractArrayFromPayload(payload, [
