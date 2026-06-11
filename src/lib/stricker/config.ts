@@ -24,6 +24,18 @@ function getOptionalEnv(name: string, fallback: string): string {
   return value && value.length > 0 ? value : fallback;
 }
 
+function getOptionalEnvFromNames(names: string[], fallback: string): string {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+
+    if (value && value.length > 0) {
+      return value;
+    }
+  }
+
+  return fallback;
+}
+
 function getOptionalNumberEnv(name: string, fallback: number): number {
   const value = process.env[name]?.trim();
 
@@ -57,8 +69,14 @@ export function getStrickerConfig(): StrickerConfig {
       "STRICKER_DOWNLOAD_BASE_URL",
       "https://ws.stricker-europe.com/downloads/v1ssl/file",
     ).replace(/\/$/, ""),
-    defaultLanguage: getOptionalEnv("STRICKER_DEFAULT_LANG", "PT").toUpperCase(),
-    defaultCountry: getOptionalEnv("STRICKER_DEFAULT_COUNTRY", "PT").toUpperCase(),
+    defaultLanguage: getOptionalEnvFromNames(
+      ["STRICKER_DEFAULT_LANGUAGE", "STRICKER_DEFAULT_LANG"],
+      "PT",
+    ).toUpperCase(),
+    defaultCountry: getOptionalEnv(
+      "STRICKER_DEFAULT_COUNTRY",
+      "PT",
+    ).toUpperCase(),
     defaultMarginPercentage: getOptionalNumberEnv(
       "LOJA_CREATIV_DEFAULT_MARGIN_PERCENTAGE",
       35,
