@@ -3,6 +3,7 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerConfig } from "@/lib/stricker/config";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
 import {
   downloadStrickerDataset,
   extractDatasetRecords,

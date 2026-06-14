@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
-import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
+import {
+  fetchStrickerDataset,
+  getDefaultStrickerLanguage,
+} from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import {
   type StrickerCountry,
@@ -130,7 +133,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const searchParams = request.nextUrl.searchParams;
 
     const datasetRaw = searchParams.get("dataset") ?? "productTypes";
-    const langRaw = searchParams.get("lang") ?? "EN";
+    const langRaw = searchParams.get("lang") ?? getDefaultStrickerLanguage();
     const countryRaw = searchParams.get("country") ?? "PT";
 
     if (!isAllowedDataset(datasetRaw)) {
