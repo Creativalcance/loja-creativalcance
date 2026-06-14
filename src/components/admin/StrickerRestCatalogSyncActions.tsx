@@ -37,6 +37,7 @@ type SyncResponse = {
   componentsImported?: number;
   locationsImported?: number;
   tablesImported?: number;
+  techniqueTranslationsImported?: number;
   optionsImported?: number;
   translationsImported?: number;
   variantsMatched?: number;
@@ -182,6 +183,93 @@ function buildSyncBody(params: {
   };
 }
 
+async function parseSyncResponse(response: Response): Promise<SyncResponse> {
+  const responseText = await response.text();
+
+  try {
+    return JSON.parse(responseText) as SyncResponse;
+  } catch {
+    throw new Error(
+      responseText.length > 0
+        ? `Resposta inválida do servidor (${response.status}): ${responseText.slice(
+            0,
+            300,
+          )}`
+        : `Resposta vazia do servidor (${response.status}).`,
+    );
+  }
+}
+
+function getImportedCount(payload: SyncResponse): number {
+  return (
+    payload.optionsImported ??
+    payload.tablesImported ??
+    payload.variantsImported ??
+    payload.productsImported ??
+    payload.stocksImported ??
+    payload.recordsImported ??
+    0
+  );
+}
+
+function getTranslationCount(payload: SyncResponse): number {
+  return (
+    payload.productTranslationsImported ??
+    payload.variantTranslationsImported ??
+    payload.techniqueTranslationsImported ??
+    payload.translationsImported ??
+    0
+  );
+}
+
+function getExtraMessage(params: {
+  action: SyncAction;
+  payload: SyncResponse;
+}): string {
+  const { action, payload } = params;
+  const translations = getTranslationCount(payload);
+
+  if (action === "stocksByCountry") {
+    return ` Variantes encontradas: ${
+      payload.variantsMatched ?? 0
+    }. Stocks futuros: ${payload.futureStocksImported ?? 0}.`;
+  }
+
+  if (action === "products") {
+    return ` Traduções: ${translations}. Imagens importadas: ${
+      payload.imagesImported ?? 0
+    }.`;
+  }
+
+  if (action === "productTypes") {
+    return ` Traduções: ${translations}.`;
+  }
+
+  if (action === "optionals") {
+    return ` Traduções de variantes: ${translations}. Preços: ${
+      payload.pricesImported ?? 0
+    }. Imagens: ${payload.imagesImported ?? 0}. Componentes: ${
+      payload.componentsImported ?? 0
+    }. Localizações: ${payload.locationsImported ?? 0}.`;
+  }
+
+  if (action === "customizationTables") {
+    return ` Técnicas detectadas: ${
+      payload.techniqueTranslationsImported ?? 0
+    }.`;
+  }
+
+  if (action === "customizationOptions") {
+    return ` Variantes: ${payload.variantsMatched ?? 0}. Componentes: ${
+      payload.componentsMatched ?? 0
+    }. Localizações: ${payload.locationsMatched ?? 0}. Tabelas: ${
+      payload.priceTablesMatched ?? 0
+    }.`;
+  }
+
+  return "";
+}
+
 export default function StrickerRestCatalogSyncActions() {
   const [selectedLanguage, setSelectedLanguage] =
     useState<StrickerLanguage>("PT");
@@ -214,7 +302,7 @@ export default function StrickerRestCatalogSyncActions() {
         body: JSON.stringify(body),
       });
 
-      const payload = (await response.json()) as SyncResponse;
+      const payload = await parseSyncResponse(response);
 
       if (!response.ok || !payload.success) {
         throw new Error(
@@ -222,47 +310,11 @@ export default function StrickerRestCatalogSyncActions() {
         );
       }
 
-      const imported =
-        payload.optionsImported ??
-        payload.tablesImported ??
-        payload.variantsImported ??
-        payload.productsImported ??
-        payload.stocksImported ??
-        payload.recordsImported ??
-        0;
-
-      const translations =
-        payload.productTranslationsImported ??
-        payload.variantTranslationsImported ??
-        payload.translationsImported ??
-        0;
-
-      const extra =
-        action === "stocksByCountry"
-          ? ` Variantes encontradas: ${
-              payload.variantsMatched ?? 0
-            }. Stocks futuros: ${payload.futureStocksImported ?? 0}.`
-          : action === "products"
-            ? ` Traduções: ${translations}. Imagens importadas: ${
-                payload.imagesImported ?? 0
-              }.`
-            : action === "productTypes"
-              ? ` Traduções: ${translations}.`
-              : action === "optionals"
-                ? ` Preços: ${payload.pricesImported ?? 0}. Imagens: ${
-                    payload.imagesImported ?? 0
-                  }. Componentes: ${
-                    payload.componentsImported ?? 0
-                  }. Localizações: ${payload.locationsImported ?? 0}.`
-                : action === "customizationOptions"
-                  ? ` Variantes: ${
-                      payload.variantsMatched ?? 0
-                    }. Componentes: ${
-                      payload.componentsMatched ?? 0
-                    }. Localizações: ${
-                      payload.locationsMatched ?? 0
-                    }. Tabelas: ${payload.priceTablesMatched ?? 0}.`
-                  : "";
+      const imported = getImportedCount(payload);
+      const extra = getExtraMessage({
+        action,
+        payload,
+      });
 
       setState({
         loadingAction: null,
