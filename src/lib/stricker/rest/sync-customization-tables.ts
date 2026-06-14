@@ -88,6 +88,7 @@ export type SyncRestCustomizationTablesResult = {
   lang: StrickerLanguage;
   recordsReceived: number;
   tablesImported: number;
+  techniqueTranslationsImported: number;
   datasetImportId: string;
 };
 
@@ -179,7 +180,9 @@ function getSlotNumber(
   prefix: "MinQt" | "Price",
   index: number,
 ): number | null {
-  return getNumber(record[`${prefix}${index}` as keyof StrickerCustomizationTableRecord]);
+  return getNumber(
+    record[`${prefix}${index}` as keyof StrickerCustomizationTableRecord],
+  );
 }
 
 function getTechniqueCode(tableCode: string): string | null {
@@ -194,16 +197,28 @@ function buildExternalId(params: {
   tableFullCode: string | null;
   quantityMin: number;
 }): string {
-  const base =
-    params.tableFullCode ??
-    params.tableCodeOption ??
-    params.tableCode;
+  const base = params.tableFullCode ?? params.tableCodeOption ?? params.tableCode;
 
   return `${base}:q:${params.quantityMin}`;
 }
 
+function buildRawPayload(params: {
+  record: StrickerCustomizationTableRecord;
+  lang: StrickerLanguage;
+  techniqueCode: string | null;
+  techniqueName: string | null;
+}): JsonRecord {
+  return {
+    ...toJsonRecord(params.record),
+    language: params.lang,
+    technique_code: params.techniqueCode,
+    technique_name: params.techniqueName,
+  };
+}
+
 function buildPrintingPriceTableRows(params: {
   supplierId: string;
+  lang: StrickerLanguage;
   records: StrickerCustomizationTableRecord[];
 }): PrintingPriceTableUpsertRow[] {
   const rows: PrintingPriceTableUpsertRow[] = [];
@@ -271,12 +286,8 @@ function buildPrintingPriceTableRows(params: {
         allow_full_color: getBoolean(record.AllowFullColor, false),
         max_colors: getInteger(record.MaxColors),
         max_area: getNumber(record.MaxArea),
-        area_cm:
-          getNumber(record.AreaCM) ??
-          getNumber(record.TableMaxAreaCM),
-        area_cm2:
-          getNumber(record.AreaCM2) ??
-          getNumber(record.TableMaxAreaCM2),
+        area_cm: getNumber(record.AreaCM) ?? getNumber(record.TableMaxAreaCM),
+        area_cm2: getNumber(record.AreaCM2) ?? getNumber(record.TableMaxAreaCM2),
         stitches: getInteger(record.Stitches),
         additional_stitches: getInteger(record.AdditionalStitches),
         handling_cost_code: getNullableString(record.HandlingCostCode),
@@ -289,7 +300,12 @@ function buildPrintingPriceTableRows(params: {
         margin_percentage: 0,
         final_price: currentTier.supplierPrice + handlingCost,
         is_active: true,
-        raw_payload: toJsonRecord(record),
+        raw_payload: buildRawPayload({
+          record,
+          lang: params.lang,
+          techniqueCode,
+          techniqueName,
+        }),
       });
     }
   }
@@ -377,6 +393,26 @@ async function upsertPrintingPriceTables(params: {
   }
 }
 
+function countUniqueTechniqueTranslations(
+  records: StrickerCustomizationTableRecord[],
+): number {
+  const techniques = new Set<string>();
+
+  for (const record of records) {
+    const tableCode = getNullableString(record.TableCode);
+    const techniqueCode =
+      getNullableString(record.CustomizationTypeCode) ??
+      (tableCode ? getTechniqueCode(tableCode) : null);
+    const techniqueName = getNullableString(record.CustomizationTypeName);
+
+    if (techniqueCode && techniqueName) {
+      techniques.add(`${techniqueCode}:${techniqueName}`);
+    }
+  }
+
+  return techniques.size;
+}
+
 export async function syncRestCustomizationTables(params: {
   lang: StrickerLanguage;
 }): Promise<SyncRestCustomizationTablesResult> {
@@ -409,6 +445,7 @@ export async function syncRestCustomizationTables(params: {
 
     const rows = buildPrintingPriceTableRows({
       supplierId,
+      lang: params.lang,
       records,
     });
 
@@ -419,6 +456,7 @@ export async function syncRestCustomizationTables(params: {
       });
     }
 
+    const techniqueTranslationsImported = countUniqueTechniqueTranslations(records);
     const status = rows.length > 0 ? "success" : "partial_success";
 
     await finishDatasetImport({
@@ -432,6 +470,7 @@ export async function syncRestCustomizationTables(params: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        techniqueTranslationsImported,
         sample: records.slice(0, 5),
       },
       errors:
@@ -447,6 +486,7 @@ export async function syncRestCustomizationTables(params: {
       lang: params.lang,
       recordsReceived: records.length,
       tablesImported: rows.length,
+      techniqueTranslationsImported,
       datasetImportId,
     };
   } catch (error) {
