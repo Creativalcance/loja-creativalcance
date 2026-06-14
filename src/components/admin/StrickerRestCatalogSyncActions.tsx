@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { RefreshCw, ServerCog } from "lucide-react";
 
+type StrickerLanguage = "PT" | "EN" | "ES" | "FR" | "DE" | "IT" | "NL";
+
 type SyncAction =
   | "colors"
   | "productTypes"
@@ -27,13 +29,16 @@ type SyncResponse = {
   recordsReceived?: number;
   recordsImported?: number;
   productsImported?: number;
+  productTranslationsImported?: number;
   variantsImported?: number;
+  variantTranslationsImported?: number;
   pricesImported?: number;
   imagesImported?: number;
   componentsImported?: number;
   locationsImported?: number;
   tablesImported?: number;
   optionsImported?: number;
+  translationsImported?: number;
   variantsMatched?: number;
   componentsMatched?: number;
   locationsMatched?: number;
@@ -42,6 +47,40 @@ type SyncResponse = {
   futureStocksImported?: number;
   datasetImportId?: string;
 };
+
+const AVAILABLE_LANGUAGES: {
+  value: StrickerLanguage;
+  label: string;
+}[] = [
+  {
+    value: "PT",
+    label: "PT — Português",
+  },
+  {
+    value: "EN",
+    label: "EN — Inglês",
+  },
+  {
+    value: "ES",
+    label: "ES — Espanhol",
+  },
+  {
+    value: "FR",
+    label: "FR — Francês",
+  },
+  {
+    value: "DE",
+    label: "DE — Alemão",
+  },
+  {
+    value: "IT",
+    label: "IT — Italiano",
+  },
+  {
+    value: "NL",
+    label: "NL — Neerlandês",
+  },
+];
 
 const ACTIONS: {
   action: SyncAction;
@@ -57,13 +96,13 @@ const ACTIONS: {
     action: "productTypes",
     title: "Sincronizar tipos",
     description:
-      "Importa tipos e subtipos da Stricker via REST para supplier_catalog_categories.",
+      "Importa tipos e subtipos da Stricker via REST para supplier_catalog_categories e category_translations.",
   },
   {
     action: "products",
     title: "Sincronizar produtos",
     description:
-      "Importa produtos base da Stricker via REST para products e product_images.",
+      "Importa produtos base da Stricker via REST para products, product_translations e product_images.",
   },
   {
     action: "optionals",
@@ -91,7 +130,62 @@ const ACTIONS: {
   },
 ];
 
+function getSyncEndpoint(action: SyncAction): string {
+  if (action === "stocksByCountry") {
+    return "/api/admin/stricker/rest/sync-stocks";
+  }
+
+  if (action === "products") {
+    return "/api/admin/stricker/rest/sync-products";
+  }
+
+  if (action === "optionals") {
+    return "/api/admin/stricker/rest/sync-optionals";
+  }
+
+  if (action === "customizationTables") {
+    return "/api/admin/stricker/rest/sync-customization-tables";
+  }
+
+  if (action === "customizationOptions") {
+    return "/api/admin/stricker/rest/sync-customization-options";
+  }
+
+  return "/api/admin/stricker/rest/sync-catalog";
+}
+
+function buildSyncBody(params: {
+  action: SyncAction;
+  language: StrickerLanguage;
+}): Record<string, string> {
+  if (params.action === "stocksByCountry") {
+    return {
+      lang: params.language,
+      country: "PT",
+    };
+  }
+
+  if (
+    params.action === "products" ||
+    params.action === "optionals" ||
+    params.action === "customizationTables" ||
+    params.action === "customizationOptions"
+  ) {
+    return {
+      lang: params.language,
+    };
+  }
+
+  return {
+    dataset: params.action,
+    lang: params.language,
+  };
+}
+
 export default function StrickerRestCatalogSyncActions() {
+  const [selectedLanguage, setSelectedLanguage] =
+    useState<StrickerLanguage>("PT");
+
   const [state, setState] = useState<SyncState>({
     loadingAction: null,
     message: null,
@@ -106,36 +200,11 @@ export default function StrickerRestCatalogSyncActions() {
     });
 
     try {
-      const endpoint =
-        action === "stocksByCountry"
-          ? "/api/admin/stricker/rest/sync-stocks"
-          : action === "products"
-            ? "/api/admin/stricker/rest/sync-products"
-            : action === "optionals"
-              ? "/api/admin/stricker/rest/sync-optionals"
-              : action === "customizationTables"
-                ? "/api/admin/stricker/rest/sync-customization-tables"
-                : action === "customizationOptions"
-                  ? "/api/admin/stricker/rest/sync-customization-options"
-                  : "/api/admin/stricker/rest/sync-catalog";
-
-      const body =
-        action === "stocksByCountry"
-          ? {
-              lang: "EN",
-              country: "PT",
-            }
-          : action === "products" ||
-              action === "optionals" ||
-              action === "customizationTables" ||
-              action === "customizationOptions"
-            ? {
-                lang: "EN",
-              }
-            : {
-                dataset: action,
-                lang: "EN",
-              };
+      const endpoint = getSyncEndpoint(action);
+      const body = buildSyncBody({
+        action,
+        language: selectedLanguage,
+      });
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -162,30 +231,44 @@ export default function StrickerRestCatalogSyncActions() {
         payload.recordsImported ??
         0;
 
+      const translations =
+        payload.productTranslationsImported ??
+        payload.variantTranslationsImported ??
+        payload.translationsImported ??
+        0;
+
       const extra =
         action === "stocksByCountry"
           ? ` Variantes encontradas: ${
               payload.variantsMatched ?? 0
             }. Stocks futuros: ${payload.futureStocksImported ?? 0}.`
           : action === "products"
-            ? ` Imagens importadas: ${payload.imagesImported ?? 0}.`
-            : action === "optionals"
-              ? ` Preços: ${payload.pricesImported ?? 0}. Imagens: ${
-                  payload.imagesImported ?? 0
-                }. Componentes: ${
-                  payload.componentsImported ?? 0
-                }. Localizações: ${payload.locationsImported ?? 0}.`
-              : action === "customizationOptions"
-                ? ` Variantes: ${payload.variantsMatched ?? 0}. Componentes: ${
-                    payload.componentsMatched ?? 0
-                  }. Localizações: ${
-                    payload.locationsMatched ?? 0
-                  }. Tabelas: ${payload.priceTablesMatched ?? 0}.`
-                : "";
+            ? ` Traduções: ${translations}. Imagens importadas: ${
+                payload.imagesImported ?? 0
+              }.`
+            : action === "productTypes"
+              ? ` Traduções: ${translations}.`
+              : action === "optionals"
+                ? ` Preços: ${payload.pricesImported ?? 0}. Imagens: ${
+                    payload.imagesImported ?? 0
+                  }. Componentes: ${
+                    payload.componentsImported ?? 0
+                  }. Localizações: ${payload.locationsImported ?? 0}.`
+                : action === "customizationOptions"
+                  ? ` Variantes: ${
+                      payload.variantsMatched ?? 0
+                    }. Componentes: ${
+                      payload.componentsMatched ?? 0
+                    }. Localizações: ${
+                      payload.locationsMatched ?? 0
+                    }. Tabelas: ${payload.priceTablesMatched ?? 0}.`
+                  : "";
 
       setState({
         loadingAction: null,
-        message: `${payload.message} Recebidos: ${
+        message: `${payload.message} Idioma: ${
+          payload.lang ?? selectedLanguage
+        }. Recebidos: ${
           payload.recordsReceived ?? 0
         }. Importados: ${imported}.${extra}`,
         error: null,
@@ -206,7 +289,7 @@ export default function StrickerRestCatalogSyncActions() {
 
   return (
     <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
             Stricker REST
@@ -218,11 +301,40 @@ export default function StrickerRestCatalogSyncActions() {
 
           <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
             Sincroniza datasets pequenos e operacionais directamente via REST
-            usando a sessão autenticada da Stricker.
+            usando a sessão autenticada da Stricker. O idioma seleccionado é
+            guardado nas tabelas de tradução, sem substituir os restantes
+            idiomas já importados.
           </p>
         </div>
 
-        <ServerCog className="h-6 w-6 text-neutral-400" />
+        <div className="flex items-start gap-4">
+          <div className="min-w-56">
+            <label
+              htmlFor="stricker-sync-language"
+              className="block text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500"
+            >
+              Idioma
+            </label>
+
+            <select
+              id="stricker-sync-language"
+              value={selectedLanguage}
+              disabled={state.loadingAction !== null}
+              onChange={(event) => {
+                setSelectedLanguage(event.target.value as StrickerLanguage);
+              }}
+              className="mt-2 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {AVAILABLE_LANGUAGES.map((language) => (
+                <option key={language.value} value={language.value}>
+                  {language.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <ServerCog className="mt-8 h-6 w-6 text-neutral-400" />
+        </div>
       </div>
 
       <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-7">
