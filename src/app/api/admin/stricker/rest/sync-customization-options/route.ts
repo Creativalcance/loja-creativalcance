@@ -35,6 +35,14 @@ function isAllowedLanguage(value: string): value is StrickerLanguage {
   return ALLOWED_LANGUAGES.includes(value as StrickerLanguage);
 }
 
+function normalizeLanguage(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim().toUpperCase();
+  }
+
+  return getDefaultStrickerLanguage();
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await assertAdminAccess();
@@ -43,8 +51,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lang?: unknown;
     };
 
-    const langRaw =
-      typeof body.lang === "string" ? body.lang : getDefaultStrickerLanguage();
+    const langRaw = normalizeLanguage(body.lang);
 
     if (!isAllowedLanguage(langRaw)) {
       return NextResponse.json(

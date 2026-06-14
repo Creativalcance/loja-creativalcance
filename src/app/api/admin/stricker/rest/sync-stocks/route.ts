@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
 import { syncRestStocksByCountry } from "@/lib/stricker/rest/sync-stocks-by-country";
 import {
   type StrickerCountry,
@@ -43,6 +44,22 @@ function isAllowedCountry(value: string): value is StrickerCountry {
   return ALLOWED_COUNTRIES.includes(value as StrickerCountry);
 }
 
+function normalizeLanguage(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim().toUpperCase();
+  }
+
+  return getDefaultStrickerLanguage();
+}
+
+function normalizeCountry(value: unknown): string {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim().toUpperCase();
+  }
+
+  return "PT";
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await assertAdminAccess();
@@ -52,8 +69,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       country?: unknown;
     };
 
-    const langRaw = typeof body.lang === "string" ? body.lang : "EN";
-    const countryRaw = typeof body.country === "string" ? body.country : "PT";
+    const langRaw = normalizeLanguage(body.lang);
+    const countryRaw = normalizeCountry(body.country);
 
     if (!isAllowedLanguage(langRaw)) {
       return NextResponse.json(
