@@ -94,6 +94,22 @@ type ProductUpsertRow = {
   keywords: string[];
 };
 
+type ProductTranslationUpsertRow = {
+  product_id: string;
+  supplier_id: string;
+  language: StrickerLanguage;
+  name: string;
+  slug: string;
+  short_description: string | null;
+  description: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  material: string | null;
+  type_name: string | null;
+  subtype_name: string | null;
+  supplier_payload: JsonRecord;
+};
+
 type ImportedProductRow = {
   id: string;
   supplier_id: string;
@@ -119,6 +135,7 @@ export type SyncRestProductsResult = {
   lang: StrickerLanguage;
   recordsReceived: number;
   productsImported: number;
+  productTranslationsImported: number;
   imagesImported: number;
   datasetImportId: string;
 };
@@ -239,6 +256,23 @@ function getProductReference(record: StrickerProductRecord): string | null {
   return getNullableString(record.ProdReference);
 }
 
+function getProductDisplayName(record: StrickerProductRecord): string | null {
+  return getNullableString(record.Name) ?? getNullableString(record.SEOName);
+}
+
+function getProductShortDescription(
+  record: StrickerProductRecord,
+): string | null {
+  return (
+    getNullableString(record.ShortDescription) ??
+    getNullableString(record.SEOShortDescription)
+  );
+}
+
+function getProductMaterial(record: StrickerProductRecord): string | null {
+  return getNullableString(record.Materials) ?? getNullableString(record.Material);
+}
+
 function buildProductRows(params: {
   supplierId: string;
   records: StrickerProductRecord[];
@@ -250,18 +284,10 @@ function buildProductRows(params: {
       return [];
     }
 
-    const name =
-      getNullableString(record.Name) ??
-      getNullableString(record.SEOName) ??
-      externalId;
-
-    const shortDescription =
-      getNullableString(record.ShortDescription) ??
-      getNullableString(record.SEOShortDescription);
-
+    const name = getProductDisplayName(record) ?? externalId;
+    const shortDescription = getProductShortDescription(record);
     const description = getNullableString(record.Description);
-    const material =
-      getNullableString(record.Materials) ?? getNullableString(record.Material);
+    const material = getProductMaterial(record);
 
     const dimensions =
       getNullableString(record.CombinedSizes) ?? getNullableString(record.BoxSizeM);
@@ -293,10 +319,7 @@ function buildProductRows(params: {
         status: "active",
         is_active: true,
         is_featured: getBoolean(record.Novelties, false),
-        is_customizable:
-          Boolean(getNullableString(record.CustomizationTypes)) ||
-          getBoolean(record.Recycled_Materials, false) ||
-          true,
+        is_customizable: Boolean(getNullableString(record.CustomizationTypes)),
         min_order_quantity: getInteger(record.Multiplier, 1),
         lead_time_days: null,
         seo_title: name,
@@ -345,6 +368,56 @@ function buildProductRows(params: {
   });
 }
 
+function buildProductTranslationRows(params: {
+  lang: StrickerLanguage;
+  records: StrickerProductRecord[];
+  products: ImportedProductRow[];
+}): ProductTranslationUpsertRow[] {
+  const productsByExternalId = new Map(
+    params.products.map((product) => [product.external_id, product]),
+  );
+
+  const rows: ProductTranslationUpsertRow[] = [];
+
+  for (const record of params.records) {
+    const externalId = getProductReference(record);
+
+    if (!externalId) {
+      continue;
+    }
+
+    const product = productsByExternalId.get(externalId);
+
+    if (!product) {
+      continue;
+    }
+
+    const name = getProductDisplayName(record) ?? product.name ?? externalId;
+    const shortDescription = getProductShortDescription(record);
+    const description = getNullableString(record.Description);
+    const material = getProductMaterial(record);
+    const slug = createSlug(`${name}-${externalId}`);
+
+    rows.push({
+      product_id: product.id,
+      supplier_id: product.supplier_id,
+      language: params.lang,
+      name,
+      slug,
+      short_description: shortDescription,
+      description,
+      seo_title: name,
+      seo_description: shortDescription ?? description,
+      material,
+      type_name: getNullableString(record.Type),
+      subtype_name: getNullableString(record.SubType),
+      supplier_payload: toJsonRecord(record),
+    });
+  }
+
+  return rows;
+}
+
 function buildImageRows(params: {
   records: StrickerProductRecord[];
   products: ImportedProductRow[];
@@ -368,6 +441,7 @@ function buildImageRows(params: {
       continue;
     }
 
+    const translatedName = getProductDisplayName(record) ?? product.name;
     const mainImageUrl = buildStrickerProductImageUrl(record.MainImage);
     const boxImageUrl = buildStrickerProductImageUrl(record.BoxImage);
 
@@ -378,7 +452,7 @@ function buildImageRows(params: {
         supplier_id: product.supplier_id,
         external_url: mainImageUrl,
         storage_url: null,
-        alt_text: product.name,
+        alt_text: translatedName,
         sort_order: 0,
         image_type: "main",
         is_primary: true,
@@ -392,7 +466,7 @@ function buildImageRows(params: {
         supplier_id: product.supplier_id,
         external_url: boxImageUrl,
         storage_url: null,
-        alt_text: `${product.name} - embalagem`,
+        alt_text: `${translatedName} - embalagem`,
         sort_order: 1,
         image_type: "box",
         is_primary: false,
@@ -491,6 +565,29 @@ async function upsertProducts(params: {
   return importedProducts;
 }
 
+async function upsertProductTranslations(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: ProductTranslationUpsertRow[];
+}): Promise<number> {
+  let importedCount = 0;
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const { error } = await params.supabaseAdmin
+      .from("product_translations")
+      .upsert(rowChunk, {
+        onConflict: "product_id,language",
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    importedCount += rowChunk.length;
+  }
+
+  return importedCount;
+}
+
 async function deleteProductImages(params: {
   supabaseAdmin: SupabaseAdminClient;
   productIds: string[];
@@ -568,6 +665,20 @@ export async function syncRestProducts(params: {
           })
         : [];
 
+    const productTranslationRows = buildProductTranslationRows({
+      lang: params.lang,
+      records,
+      products: importedProducts,
+    });
+
+    const productTranslationsImported =
+      productTranslationRows.length > 0
+        ? await upsertProductTranslations({
+            supabaseAdmin,
+            rows: productTranslationRows,
+          })
+        : 0;
+
     if (importedProducts.length > 0) {
       await deleteProductImages({
         supabaseAdmin,
@@ -598,6 +709,7 @@ export async function syncRestProducts(params: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        productTranslationsImported,
         sample: records.slice(0, 5),
       },
       errors: [],
@@ -608,6 +720,7 @@ export async function syncRestProducts(params: {
       lang: params.lang,
       recordsReceived: records.length,
       productsImported: importedProducts.length,
+      productTranslationsImported,
       imagesImported: imageRows.length,
       datasetImportId,
     };
