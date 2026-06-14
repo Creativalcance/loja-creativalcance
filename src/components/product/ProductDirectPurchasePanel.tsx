@@ -33,8 +33,6 @@ export type ProductPurchaseStock = {
 
 type StockSummary = {
   available: number;
-  incoming: number;
-  expectedDate: string | null;
 };
 
 type ProductDirectPurchasePanelProps = {
@@ -62,18 +60,6 @@ function formatPrice(value: number, currency: string): string {
     style: "currency",
     currency,
   }).format(value);
-}
-
-function formatDate(value: string | null): string {
-  if (!value) {
-    return "—";
-  }
-
-  return new Intl.DateTimeFormat("pt-PT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(value));
 }
 
 function getColorLabel(color: ProductPurchaseColor): string {
@@ -151,21 +137,11 @@ function getStockForColor(params: {
       ? colorStocks
       : params.stocks.filter((stock) => !stock.variant_id);
 
-  const expectedDates = activeStocks
-    .map((stock) => stock.expected_restock_date)
-    .filter((value): value is string => Boolean(value))
-    .sort();
-
   return {
     available: activeStocks.reduce(
       (total, stock) => total + stock.available_quantity,
       0,
     ),
-    incoming: activeStocks.reduce(
-      (total, stock) => total + stock.incoming_quantity,
-      0,
-    ),
-    expectedDate: expectedDates[0] ?? null,
   };
 }
 
@@ -214,6 +190,15 @@ export default function ProductDirectPurchasePanel({
     [colors, selectedColorId],
   );
 
+  const selectedStock = useMemo(
+    () =>
+      getStockForColor({
+        stocks,
+        colorId: selectedColorId,
+      }),
+    [stocks, selectedColorId],
+  );
+
   const activePrices = useMemo(
     () =>
       getPricesForColor({
@@ -228,7 +213,9 @@ export default function ProductDirectPurchasePanel({
   const selectedQuantity =
     selectedColorId && quantitiesByColor[selectedColorId]
       ? quantitiesByColor[selectedColorId]
-      : minimumQuantity;
+      : selectedStock.available > 0
+        ? minimumQuantity
+        : 0;
 
   const pricing = useMemo(
     () =>
@@ -243,17 +230,29 @@ export default function ProductDirectPurchasePanel({
   const displayImageUrl = selectedColor?.image_url ?? productImageUrl;
 
   const canProceed =
-    Boolean(selectedColorId) && selectedQuantity >= minimumQuantity;
+    Boolean(selectedColorId) &&
+    selectedStock.available > 0 &&
+    selectedQuantity >= minimumQuantity;
 
   const personalizeHref = `/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
     selectedColorId ?? "",
   )}&quantidade=${encodeURIComponent(String(selectedQuantity))}`;
 
-  function updateColorQuantity(colorId: string, quantity: number) {
-    setSelectedColorId(colorId);
+  function updateColorQuantity(params: {
+    colorId: string;
+    quantity: number;
+    stockAvailable: number;
+  }) {
+    setSelectedColorId(params.colorId);
+
+    const safeQuantity =
+      params.stockAvailable > 0 && Number.isFinite(params.quantity)
+        ? Math.max(0, params.quantity)
+        : 0;
+
     setQuantitiesByColor((current) => ({
       ...current,
-      [colorId]: Number.isFinite(quantity) ? quantity : 0,
+      [params.colorId]: safeQuantity,
     }));
   }
 
@@ -285,6 +284,10 @@ export default function ProductDirectPurchasePanel({
             <div className="mt-4 flex flex-wrap gap-2">
               {colors.map((color) => {
                 const isSelected = color.id === selectedColorId;
+                const stock = getStockForColor({
+                  stocks,
+                  colorId: color.id,
+                });
 
                 return (
                   <button
@@ -308,6 +311,18 @@ export default function ProductDirectPurchasePanel({
                     ) : null}
 
                     {getColorLabel(color)}
+
+                    {stock.available <= 0 ? (
+                      <span
+                        className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                          isSelected
+                            ? "bg-white/15 text-white"
+                            : "bg-neutral-100 text-neutral-500"
+                        }`}
+                      >
+                        Brevemente
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -458,14 +473,6 @@ export default function ProductDirectPurchasePanel({
                       </th>
 
                       <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
-                        Próxima entrada
-                      </th>
-
-                      <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
-                        Em produção
-                      </th>
-
-                      <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
                         Quantidade
                       </th>
                     </tr>
@@ -479,8 +486,10 @@ export default function ProductDirectPurchasePanel({
                       });
 
                       const quantity =
-                        quantitiesByColor[color.id] ??
-                        (color.id === selectedColorId ? minimumQuantity : 0);
+                        stock.available > 0
+                          ? quantitiesByColor[color.id] ??
+                            (color.id === selectedColorId ? minimumQuantity : 0)
+                          : 0;
 
                       const isSelected = color.id === selectedColorId;
 
@@ -512,17 +521,9 @@ export default function ProductDirectPurchasePanel({
                           </td>
 
                           <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                            {stock.available.toLocaleString("pt-PT")}
-                          </td>
-
-                          <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                            {formatDate(stock.expectedDate)}
-                          </td>
-
-                          <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                            {stock.incoming > 0
-                              ? stock.incoming.toLocaleString("pt-PT")
-                              : "—"}
+                            {stock.available > 0
+                              ? stock.available.toLocaleString("pt-PT")
+                              : "Brevemente"}
                           </td>
 
                           <td className="border-b border-neutral-100 px-4 py-3 text-right">
@@ -530,16 +531,18 @@ export default function ProductDirectPurchasePanel({
                               type="number"
                               min={0}
                               value={quantity}
+                              disabled={stock.available <= 0}
                               onFocus={() => {
                                 setSelectedColorId(color.id);
                               }}
                               onChange={(event) => {
-                                updateColorQuantity(
-                                  color.id,
-                                  Number(event.target.value),
-                                );
+                                updateColorQuantity({
+                                  colorId: color.id,
+                                  quantity: Number(event.target.value),
+                                  stockAvailable: stock.available,
+                                });
                               }}
-                              className="w-28 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-right text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
+                              className="w-28 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-right text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
                             />
                           </td>
                         </tr>
@@ -563,7 +566,11 @@ export default function ProductDirectPurchasePanel({
                   min={minimumQuantity}
                   value={selectedQuantity}
                   onChange={(event) => {
-                    updateColorQuantity("default", Number(event.target.value));
+                    updateColorQuantity({
+                      colorId: "default",
+                      quantity: Number(event.target.value),
+                      stockAvailable: totalStock,
+                    });
                   }}
                   className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
                 />
