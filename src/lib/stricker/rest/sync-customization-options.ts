@@ -1011,6 +1011,7 @@ function findPriceTable(params: {
 }
 
 function buildCustomizationOptionRows(params: {
+  lang: StrickerLanguage;
   records: JsonRecord[];
   productsByReference: Map<string, ProductRow>;
   variantsByProductId: Map<string, ProductVariantRow[]>;
@@ -1145,7 +1146,13 @@ function buildCustomizationOptionRows(params: {
           buildStrickerLocationImageUrl(locationImage),
         printing_lines_storage_url: null,
 
-        raw_payload: record,
+        raw_payload: {
+          ...record,
+          language: params.lang,
+          component_id: component?.id ?? null,
+          location_id: location?.id ?? null,
+          printing_price_table_id: priceTable?.id ?? null,
+        },
       });
     }
   }
@@ -1277,6 +1284,7 @@ export async function syncRestCustomizationOptions(params: {
     const priceTableMaps = buildPriceTableMaps(priceTables);
 
     const rows = buildCustomizationOptionRows({
+      lang: params.lang,
       records,
       productsByReference,
       variantsByProductId,
@@ -1287,14 +1295,14 @@ export async function syncRestCustomizationOptions(params: {
     });
 
     const importedCount =
-  rows.length > 0
-    ? await upsertCustomizationOptions({
-        supabaseAdmin,
-        rows,
-      })
-    : 0;
+      rows.length > 0
+        ? await upsertCustomizationOptions({
+            supabaseAdmin,
+            rows,
+          })
+        : 0;
 
-const status = importedCount > 0 ? "success" : "partial_success";
+    const status = importedCount > 0 ? "success" : "partial_success";
 
     await finishDatasetImport({
       supabaseAdmin,
@@ -1302,17 +1310,22 @@ const status = importedCount > 0 ? "success" : "partial_success";
       status,
       recordsReceived: records.length,
       recordsImported: importedCount,
-recordsFailed: Math.max(variants.length - importedCount, 0),
+      recordsFailed: Math.max(records.length - importedCount, 0),
       rawPayload: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        RequestedLanguage: params.lang,
         sample: records.slice(0, 5),
         sampleKeys: records[0] ? Object.keys(records[0]) : [],
         matchedSkuSample: skus.slice(0, 10),
         matchedReferenceSample: references.slice(0, 10),
         productsMatched: products.length,
         variantsMatched: variants.length,
+        componentsMatched: components.length,
+        locationsMatched: locations.length,
+        priceTablesMatched: priceTables.length,
+        rowsBuilt: rows.length,
       },
       errors:
         rows.length > 0
