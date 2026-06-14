@@ -4,8 +4,6 @@ import {
   buildStrickerLocationImageUrl,
   buildStrickerPrintingLinesImageUrl,
 } from "@/lib/stricker/images";
-import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
-import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 
@@ -13,12 +11,6 @@ type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type SupplierDatasetImportRow = {
   id: string;
-};
-
-type ProductRow = {
-  id: string;
-  supplier_id: string;
-  external_id: string;
 };
 
 type ProductVariantRow = {
@@ -44,9 +36,17 @@ type ProductCustomizationLocationRow = {
   product_id: string;
   variant_id: string | null;
   supplier_id: string | null;
+  component_id: string | null;
   external_location_id: string;
   location_code: string | null;
   location_name: string | null;
+  location_index: number | null;
+  max_printing_area_mm: string | null;
+  max_area_cm2: number | null;
+  location_image_url: string | null;
+  area_image_url: string | null;
+  printing_lines_image_url: string | null;
+  raw_payload: JsonRecord | null;
 };
 
 type PrintingPriceTableRow = {
@@ -55,6 +55,8 @@ type PrintingPriceTableRow = {
   external_id: string;
   table_code: string;
   table_code_option: string | null;
+  technique_code: string | null;
+  technique_name: string | null;
   quantity_min: number;
   supplier_price: number;
   final_price: number;
@@ -126,7 +128,7 @@ export type SyncRestCustomizationOptionsResult = {
 };
 
 const PAGE_SIZE = 1000;
-const QUERY_CHUNK_SIZE = 100;
+const QUERY_CHUNK_SIZE = 400;
 const UPSERT_CHUNK_SIZE = 500;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
@@ -160,18 +162,6 @@ function getNullableString(value: unknown): string | null {
   return null;
 }
 
-function getStringByKeys(record: JsonRecord, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = getNullableString(record[key]);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
 function getNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -182,6 +172,28 @@ function getNumber(value: unknown): number | null {
 
     if (Number.isFinite(parsed)) {
       return parsed;
+    }
+  }
+
+  return null;
+}
+
+function getInteger(value: unknown): number | null {
+  const parsed = getNumber(value);
+
+  if (parsed === null) {
+    return null;
+  }
+
+  return Math.round(parsed);
+}
+
+function getStringByKeys(record: JsonRecord, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = getNullableString(record[key]);
+
+    if (value) {
+      return value;
     }
   }
 
@@ -200,245 +212,141 @@ function getNumberByKeys(record: JsonRecord, keys: string[]): number | null {
   return null;
 }
 
-function getIntegerByKeys(record: JsonRecord, keys: string[]): number | null {
-  const value = getNumberByKeys(record, keys);
-
-  if (value === null) {
-    return null;
-  }
-
-  return Math.round(value);
-}
-
-function getBoolean(value: unknown, fallback: boolean): boolean {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    return value === 1;
-  }
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-
-    if (["true", "1", "yes", "sim", "s"].includes(normalized)) {
-      return true;
-    }
-
-    if (["false", "0", "no", "não", "nao", "n"].includes(normalized)) {
-      return false;
-    }
-  }
-
-  return fallback;
-}
-
-function getBooleanByKeys(
+function getSlotString(
   record: JsonRecord,
-  keys: string[],
-  fallback: boolean,
-): boolean {
-  for (const key of keys) {
-    const value = record[key];
+  prefix: string,
+  index: number,
+): string | null {
+  return getNullableString(record[`${prefix}${index}`]);
+}
 
-    if (value !== undefined && value !== null && value !== "") {
-      return getBoolean(value, fallback);
-    }
+function getSlotNumber(
+  record: JsonRecord,
+  prefix: string,
+  index: number,
+): number | null {
+  return getNumber(record[`${prefix}${index}`]);
+}
+
+function splitCodes(value: string | null): string[] {
+  if (!value) {
+    return [];
   }
 
-  return fallback;
+  return value
+    .split(/[,;|]/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
-function getSku(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "WebSku",
-    "WebSKU",
-    "webSku",
-    "webSKU",
-    "web_sku",
-    "SKU",
-    "Sku",
-    "sku",
-    "OptionalSku",
-    "optionalSku",
-    "ProductSku",
-    "productSku",
-  ]);
-}
-
-function getProdReference(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "ProdReference",
-    "prodReference",
-    "ProductReference",
-    "productReference",
-    "Reference",
-    "reference",
-  ]);
-}
-
-function getTableCode(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "TableCode",
-    "tableCode",
-    "table_code",
-    "PrintingTableCode",
-    "printingTableCode",
-  ]);
-}
-
-function getTableCodeOption(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "TableCodeOption",
-    "tableCodeOption",
-    "table_code_option",
-    "TableFullCode",
-    "TableFullcode",
-    "tableFullCode",
-    "tableFullcode",
-  ]);
-}
-
-function getServiceCode(record: JsonRecord, variant: ProductVariantRow): string {
-  const serviceCode = getStringByKeys(record, [
-    "ServiceCode",
-    "serviceCode",
-    "service_code",
-    "Code",
-    "code",
-  ]);
-
-  if (serviceCode) {
-    return serviceCode;
+function getLocationIndex(location: ProductCustomizationLocationRow): number {
+  if (location.location_index && location.location_index > 0) {
+    return location.location_index;
   }
 
-  return `${variant.external_variant_id}:${
-    getComponentCode(record) ?? "C"
-  }:${getLocationCode(record) ?? "L"}:${
-    getStringByKeys(record, [
+  const match = location.external_location_id.match(/:L(\d+)$/i);
+  const parsed = match?.[1] ? Number(match[1]) : null;
+
+  if (parsed && Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  return 1;
+}
+
+function getTableCodesForLocation(
+  location: ProductCustomizationLocationRow,
+): string[] {
+  const payload = toJsonRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  const tableCodes =
+    splitCodes(getSlotString(payload, "TableCodes", index)).length > 0
+      ? splitCodes(getSlotString(payload, "TableCodes", index))
+      : splitCodes(
+          getStringByKeys(payload, [
+            "TableCode",
+            "tableCode",
+            "PrintingTableCode",
+            "printingTableCode",
+          ]),
+        );
+
+  return Array.from(new Set(tableCodes));
+}
+
+function getTableCodeOptionsForLocation(
+  location: ProductCustomizationLocationRow,
+): string[] {
+  const payload = toJsonRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  const optionCodes =
+    splitCodes(getSlotString(payload, "TableCodesOptions", index)).length > 0
+      ? splitCodes(getSlotString(payload, "TableCodesOptions", index))
+      : splitCodes(
+          getStringByKeys(payload, [
+            "TableCodeOption",
+            "tableCodeOption",
+            "TableFullCode",
+            "tableFullCode",
+          ]),
+        );
+
+  return Array.from(new Set(optionCodes));
+}
+
+function getCustomizationTypeCode(
+  location: ProductCustomizationLocationRow,
+  tableCode: string | null,
+): string | null {
+  const payload = toJsonRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  return (
+    getSlotString(payload, "CustomizationTypes", index) ??
+    getStringByKeys(payload, [
       "CustomizationTypeCode",
       "customizationTypeCode",
       "CustomizationType",
       "customizationType",
     ]) ??
-    getTableCode(record) ??
-    "T"
-  }`;
+    tableCode
+  );
 }
 
-function getComponentCode(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "ComponentCode",
-    "componentCode",
-    "component_code",
-    "ComponentID",
-    "componentID",
-    "component_id",
-  ]);
+function getLocationImage(location: ProductCustomizationLocationRow): string | null {
+  return (
+    location.printing_lines_image_url ??
+    location.area_image_url ??
+    location.location_image_url ??
+    null
+  );
 }
 
-function getComponentName(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "ComponentName",
-    "componentName",
-    "component_name",
-    "ComponentDescription",
-    "componentDescription",
-    "Component",
-    "component",
-  ]);
-}
-
-function getLocationCode(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "LocationCode",
-    "locationCode",
-    "location_code",
-    "LocationID",
-    "locationID",
-    "location_id",
-  ]);
-}
-
-function getLocationName(record: JsonRecord): string | null {
-  return getStringByKeys(record, [
-    "LocationName",
-    "locationName",
-    "location_name",
-    "LocationDescription",
-    "locationDescription",
-    "Location",
-    "location",
-  ]);
-}
-
-function getComponentExternalCandidates(params: {
+function buildServiceCode(params: {
   variant: ProductVariantRow;
-  record: JsonRecord;
-}): string[] {
-  const candidates = new Set<string>();
-  const componentCode = getComponentCode(params.record);
-  const componentName = getComponentName(params.record);
+  component: ProductCustomizationComponentRow | null;
+  location: ProductCustomizationLocationRow;
+  tableCode: string | null;
+  tableCodeOption: string | null;
+  customizationTypeCode: string | null;
+}): string {
+  const componentCode =
+    params.component?.component_code ??
+    `C${getLocationIndex(params.location)}`;
 
-  if (componentCode) {
-    candidates.add(`${params.variant.external_variant_id}:${componentCode}`);
-    candidates.add(`${params.variant.sku}:${componentCode}`);
-    candidates.add(`${params.variant.external_variant_id}:C${componentCode}`);
-    candidates.add(`${params.variant.sku}:C${componentCode}`);
-  }
+  const locationCode =
+    params.location.location_code ??
+    `L${getLocationIndex(params.location)}`;
 
-  if (componentName) {
-    for (let index = 1; index <= 8; index += 1) {
-      candidates.add(`${params.variant.external_variant_id}:C${index}`);
-      candidates.add(`${params.variant.sku}:C${index}`);
-    }
-  }
+  const tableReference =
+    params.tableCodeOption ??
+    params.tableCode ??
+    params.customizationTypeCode ??
+    "T";
 
-  return Array.from(candidates);
-}
-
-function getLocationExternalCandidates(params: {
-  variant: ProductVariantRow;
-  record: JsonRecord;
-}): string[] {
-  const candidates = new Set<string>();
-  const componentCode = getComponentCode(params.record);
-  const locationCode = getLocationCode(params.record);
-
-  if (componentCode && locationCode) {
-    candidates.add(
-      `${params.variant.external_variant_id}:${componentCode}:${locationCode}`,
-    );
-    candidates.add(`${params.variant.sku}:${componentCode}:${locationCode}`);
-    candidates.add(
-      `${params.variant.external_variant_id}:C${componentCode}:L${locationCode}`,
-    );
-    candidates.add(`${params.variant.sku}:C${componentCode}:L${locationCode}`);
-  }
-
-  for (let index = 1; index <= 8; index += 1) {
-    candidates.add(`${params.variant.external_variant_id}:C${index}:L${index}`);
-    candidates.add(`${params.variant.sku}:C${index}:L${index}`);
-  }
-
-  return Array.from(candidates);
-}
-
-function getPriceTableExternalCandidates(record: JsonRecord): string[] {
-  const candidates = new Set<string>();
-  const tableCode = getTableCode(record);
-  const tableCodeOption = getTableCodeOption(record);
-
-  if (tableCodeOption) {
-    candidates.add(tableCodeOption);
-  }
-
-  if (tableCode) {
-    candidates.add(tableCode);
-  }
-
-  return Array.from(candidates);
+  return `${params.variant.external_variant_id}:${componentCode}:${locationCode}:${tableReference}`;
 }
 
 async function createDatasetImport(params: {
@@ -458,7 +366,7 @@ async function createDatasetImport(params: {
       records_received: 0,
       records_imported: 0,
       records_failed: 0,
-      source_url: "stricker-rest",
+      source_url: "derived-from-optionals",
       raw_payload: {},
       errors: [],
       started_at: new Date().toISOString(),
@@ -504,91 +412,80 @@ async function finishDatasetImport(params: {
   }
 }
 
-async function fetchProducts(params: {
+async function fetchLocations(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
-  references: string[];
-}): Promise<ProductRow[]> {
-  const rows = new Map<string, ProductRow>();
-  const uniqueReferences = Array.from(new Set(params.references));
+}): Promise<ProductCustomizationLocationRow[]> {
+  const rows: ProductCustomizationLocationRow[] = [];
+  let page = 0;
 
-  for (const referenceChunk of chunkArray(uniqueReferences, QUERY_CHUNK_SIZE)) {
+  while (true) {
+    const from = page * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     const { data, error } = await params.supabaseAdmin
-      .from("products")
-      .select("id,supplier_id,external_id")
+      .from("product_customization_locations")
+      .select(
+        [
+          "id",
+          "product_id",
+          "variant_id",
+          "supplier_id",
+          "component_id",
+          "external_location_id",
+          "location_code",
+          "location_name",
+          "location_index",
+          "max_printing_area_mm",
+          "max_area_cm2",
+          "location_image_url",
+          "area_image_url",
+          "printing_lines_image_url",
+          "raw_payload",
+        ].join(","),
+      )
       .eq("supplier_id", params.supplierId)
-      .in("external_id", referenceChunk)
-      .returns<ProductRow[]>();
+      .not("variant_id", "is", null)
+      .range(from, to)
+      .returns<ProductCustomizationLocationRow[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...(data ?? []));
+
+    if (!data || data.length < PAGE_SIZE) {
+      break;
+    }
+
+    page += 1;
+  }
+
+  return rows;
+}
+
+async function fetchVariantsByIds(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  variantIds: string[];
+}): Promise<ProductVariantRow[]> {
+  const rows = new Map<string, ProductVariantRow>();
+  const uniqueVariantIds = Array.from(new Set(params.variantIds));
+
+  for (const variantIdChunk of chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_variants")
+      .select("id,product_id,supplier_id,external_variant_id,sku")
+      .eq("supplier_id", params.supplierId)
+      .in("id", variantIdChunk)
+      .returns<ProductVariantRow[]>();
 
     if (error) {
       throw new Error(error.message);
     }
 
     for (const row of data ?? []) {
-      rows.set(row.id, row);
-    }
-  }
-
-  return Array.from(rows.values());
-}
-
-async function fetchVariants(params: {
-  supabaseAdmin: SupabaseAdminClient;
-  supplierId: string;
-  skus: string[];
-  productIds: string[];
-}): Promise<ProductVariantRow[]> {
-  const rows = new Map<string, ProductVariantRow>();
-
-  const uniqueSkus = Array.from(new Set(params.skus));
-  const uniqueProductIds = Array.from(new Set(params.productIds));
-
-  for (const skuChunk of chunkArray(uniqueSkus, QUERY_CHUNK_SIZE)) {
-    const { data: bySku, error: skuError } = await params.supabaseAdmin
-      .from("product_variants")
-      .select("id,product_id,supplier_id,external_variant_id,sku")
-      .eq("supplier_id", params.supplierId)
-      .in("sku", skuChunk)
-      .returns<ProductVariantRow[]>();
-
-    if (skuError) {
-      throw new Error(skuError.message);
-    }
-
-    for (const row of bySku ?? []) {
-      rows.set(row.id, row);
-    }
-
-    const { data: byExternalId, error: externalIdError } =
-      await params.supabaseAdmin
-        .from("product_variants")
-        .select("id,product_id,supplier_id,external_variant_id,sku")
-        .eq("supplier_id", params.supplierId)
-        .in("external_variant_id", skuChunk)
-        .returns<ProductVariantRow[]>();
-
-    if (externalIdError) {
-      throw new Error(externalIdError.message);
-    }
-
-    for (const row of byExternalId ?? []) {
-      rows.set(row.id, row);
-    }
-  }
-
-  for (const productIdChunk of chunkArray(uniqueProductIds, QUERY_CHUNK_SIZE)) {
-    const { data: byProduct, error: productError } = await params.supabaseAdmin
-      .from("product_variants")
-      .select("id,product_id,supplier_id,external_variant_id,sku")
-      .eq("supplier_id", params.supplierId)
-      .in("product_id", productIdChunk)
-      .returns<ProductVariantRow[]>();
-
-    if (productError) {
-      throw new Error(productError.message);
-    }
-
-    for (const row of byProduct ?? []) {
       rows.set(row.id, row);
     }
   }
@@ -638,48 +535,6 @@ async function fetchComponents(params: {
   return rows;
 }
 
-async function fetchLocations(params: {
-  supabaseAdmin: SupabaseAdminClient;
-  supplierId: string;
-  variantIds: string[];
-}): Promise<ProductCustomizationLocationRow[]> {
-  const rows: ProductCustomizationLocationRow[] = [];
-  const allowedVariantIds = new Set(params.variantIds);
-  let page = 0;
-
-  while (true) {
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    const { data, error } = await params.supabaseAdmin
-      .from("product_customization_locations")
-      .select(
-        "id,product_id,variant_id,supplier_id,external_location_id,location_code,location_name",
-      )
-      .eq("supplier_id", params.supplierId)
-      .range(from, to)
-      .returns<ProductCustomizationLocationRow[]>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    for (const row of data ?? []) {
-      if (row.variant_id && allowedVariantIds.has(row.variant_id)) {
-        rows.push(row);
-      }
-    }
-
-    if (!data || data.length < PAGE_SIZE) {
-      break;
-    }
-
-    page += 1;
-  }
-
-  return rows;
-}
-
 async function fetchPrintingPriceTables(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
@@ -695,6 +550,8 @@ async function fetchPrintingPriceTables(params: {
       "external_id",
       "table_code",
       "table_code_option",
+      "technique_code",
+      "technique_name",
       "quantity_min",
       "supplier_price",
       "final_price",
@@ -711,6 +568,7 @@ async function fetchPrintingPriceTables(params: {
       .select(selectColumns)
       .eq("supplier_id", params.supplierId)
       .in("table_code", tableCodeChunk)
+      .order("quantity_min", { ascending: true })
       .returns<PrintingPriceTableRow[]>();
 
     if (codeError) {
@@ -726,6 +584,7 @@ async function fetchPrintingPriceTables(params: {
       .select(selectColumns)
       .eq("supplier_id", params.supplierId)
       .in("table_code_option", tableCodeChunk)
+      .order("quantity_min", { ascending: true })
       .returns<PrintingPriceTableRow[]>();
 
     if (optionError) {
@@ -737,54 +596,28 @@ async function fetchPrintingPriceTables(params: {
     }
   }
 
-  return Array.from(rows.values());
+  return Array.from(rows.values()).sort(
+    (a, b) => a.quantity_min - b.quantity_min,
+  );
 }
 
-function buildProductReferenceMap(products: ProductRow[]): Map<string, ProductRow> {
-  return new Map(products.map((product) => [product.external_id, product]));
-}
-
-function buildVariantsByProductId(
-  variants: ProductVariantRow[],
-): Map<string, ProductVariantRow[]> {
-  const map = new Map<string, ProductVariantRow[]>();
-
-  for (const variant of variants) {
-    const current = map.get(variant.product_id) ?? [];
-    current.push(variant);
-    map.set(variant.product_id, current);
-  }
-
-  return map;
-}
-
-function buildVariantBySkuMap(
+function buildVariantMap(
   variants: ProductVariantRow[],
 ): Map<string, ProductVariantRow> {
-  const map = new Map<string, ProductVariantRow>();
-
-  for (const variant of variants) {
-    map.set(variant.sku, variant);
-    map.set(variant.external_variant_id, variant);
-  }
-
-  return map;
+  return new Map(variants.map((variant) => [variant.id, variant]));
 }
 
 function buildComponentMaps(components: ProductCustomizationComponentRow[]) {
-  const byExternalId = new Map<string, ProductCustomizationComponentRow>();
+  const byId = new Map<string, ProductCustomizationComponentRow>();
   const byVariantAndCode = new Map<string, ProductCustomizationComponentRow>();
   const byVariantAndName = new Map<string, ProductCustomizationComponentRow>();
 
   for (const component of components) {
+    byId.set(component.id, component);
+
     if (!component.variant_id) {
       continue;
     }
-
-    byExternalId.set(
-      `${component.variant_id}:${component.external_component_id}`,
-      component,
-    );
 
     if (component.component_code) {
       byVariantAndCode.set(
@@ -802,44 +635,7 @@ function buildComponentMaps(components: ProductCustomizationComponentRow[]) {
   }
 
   return {
-    byExternalId,
-    byVariantAndCode,
-    byVariantAndName,
-  };
-}
-
-function buildLocationMaps(locations: ProductCustomizationLocationRow[]) {
-  const byExternalId = new Map<string, ProductCustomizationLocationRow>();
-  const byVariantAndCode = new Map<string, ProductCustomizationLocationRow>();
-  const byVariantAndName = new Map<string, ProductCustomizationLocationRow>();
-
-  for (const location of locations) {
-    if (!location.variant_id) {
-      continue;
-    }
-
-    byExternalId.set(
-      `${location.variant_id}:${location.external_location_id}`,
-      location,
-    );
-
-    if (location.location_code) {
-      byVariantAndCode.set(
-        `${location.variant_id}:${location.location_code}`,
-        location,
-      );
-    }
-
-    if (location.location_name) {
-      byVariantAndName.set(
-        `${location.variant_id}:${location.location_name}`,
-        location,
-      );
-    }
-  }
-
-  return {
-    byExternalId,
+    byId,
     byVariantAndCode,
     byVariantAndName,
   };
@@ -865,119 +661,50 @@ function buildPriceTableMaps(tables: PrintingPriceTableRow[]) {
   };
 }
 
-function getTargetVariants(params: {
-  record: JsonRecord;
-  productsByReference: Map<string, ProductRow>;
-  variantsByProductId: Map<string, ProductVariantRow[]>;
-  variantsBySku: Map<string, ProductVariantRow>;
-}): ProductVariantRow[] {
-  const sku = getSku(params.record);
-
-  if (sku) {
-    const variant = params.variantsBySku.get(sku);
-
-    if (variant) {
-      return [variant];
-    }
-  }
-
-  const prodReference = getProdReference(params.record);
-
-  if (!prodReference) {
-    return [];
-  }
-
-  const product = params.productsByReference.get(prodReference);
-
-  if (!product) {
-    return [];
-  }
-
-  return params.variantsByProductId.get(product.id) ?? [];
-}
-
 function findComponent(params: {
-  variant: ProductVariantRow;
-  record: JsonRecord;
+  location: ProductCustomizationLocationRow;
   componentMaps: ReturnType<typeof buildComponentMaps>;
 }): ProductCustomizationComponentRow | null {
-  const componentCode = getComponentCode(params.record);
-  const componentName = getComponentName(params.record);
+  if (params.location.component_id) {
+    const byId = params.componentMaps.byId.get(params.location.component_id);
 
-  for (const externalId of getComponentExternalCandidates({
-    variant: params.variant,
-    record: params.record,
-  })) {
-    const found = params.componentMaps.byExternalId.get(
-      `${params.variant.id}:${externalId}`,
-    );
-
-    if (found) {
-      return found;
+    if (byId) {
+      return byId;
     }
   }
 
+  const variantId = params.location.variant_id;
+
+  if (!variantId) {
+    return null;
+  }
+
+  const payload = toJsonRecord(params.location.raw_payload);
+  const index = getLocationIndex(params.location);
+
+  const componentCode =
+    getSlotString(payload, "ComponentCode", index) ??
+    `C${index}`;
+
+  const componentName = getSlotString(payload, "Component", index);
+
   if (componentCode) {
-    const found = params.componentMaps.byVariantAndCode.get(
-      `${params.variant.id}:${componentCode}`,
+    const byCode = params.componentMaps.byVariantAndCode.get(
+      `${variantId}:${componentCode}`,
     );
 
-    if (found) {
-      return found;
+    if (byCode) {
+      return byCode;
     }
   }
 
   if (componentName) {
-    const found = params.componentMaps.byVariantAndName.get(
-      `${params.variant.id}:${componentName}`,
+    const byName = params.componentMaps.byVariantAndName.get(
+      `${variantId}:${componentName}`,
     );
 
-    if (found) {
-      return found;
-    }
-  }
-
-  return null;
-}
-
-function findLocation(params: {
-  variant: ProductVariantRow;
-  record: JsonRecord;
-  locationMaps: ReturnType<typeof buildLocationMaps>;
-}): ProductCustomizationLocationRow | null {
-  const locationCode = getLocationCode(params.record);
-  const locationName = getLocationName(params.record);
-
-  for (const externalId of getLocationExternalCandidates({
-    variant: params.variant,
-    record: params.record,
-  })) {
-    const found = params.locationMaps.byExternalId.get(
-      `${params.variant.id}:${externalId}`,
-    );
-
-    if (found) {
-      return found;
-    }
-  }
-
-  if (locationCode) {
-    const found = params.locationMaps.byVariantAndCode.get(
-      `${params.variant.id}:${locationCode}`,
-    );
-
-    if (found) {
-      return found;
-    }
-  }
-
-  if (locationName) {
-    const found = params.locationMaps.byVariantAndName.get(
-      `${params.variant.id}:${locationName}`,
-    );
-
-    if (found) {
-      return found;
+    if (byName) {
+      return byName;
     }
   }
 
@@ -985,25 +712,23 @@ function findLocation(params: {
 }
 
 function findPriceTable(params: {
-  record: JsonRecord;
+  tableCode: string | null;
+  tableCodeOption: string | null;
   priceTableMaps: ReturnType<typeof buildPriceTableMaps>;
 }): PrintingPriceTableRow | null {
-  const tableCodeOption = getTableCodeOption(params.record);
-  const tableCode = getTableCode(params.record);
+  if (params.tableCodeOption) {
+    const byOption = params.priceTableMaps.byOption.get(params.tableCodeOption);
 
-  if (tableCodeOption) {
-    const found = params.priceTableMaps.byOption.get(tableCodeOption);
-
-    if (found) {
-      return found;
+    if (byOption) {
+      return byOption;
     }
   }
 
-  if (tableCode) {
-    const found = params.priceTableMaps.byCode.get(tableCode);
+  if (params.tableCode) {
+    const byCode = params.priceTableMaps.byCode.get(params.tableCode);
 
-    if (found) {
-      return found;
+    if (byCode) {
+      return byCode;
     }
   }
 
@@ -1012,133 +737,131 @@ function findPriceTable(params: {
 
 function buildCustomizationOptionRows(params: {
   lang: StrickerLanguage;
-  records: JsonRecord[];
-  productsByReference: Map<string, ProductRow>;
-  variantsByProductId: Map<string, ProductVariantRow[]>;
-  variantsBySku: Map<string, ProductVariantRow>;
+  locations: ProductCustomizationLocationRow[];
+  variantsById: Map<string, ProductVariantRow>;
   componentMaps: ReturnType<typeof buildComponentMaps>;
-  locationMaps: ReturnType<typeof buildLocationMaps>;
   priceTableMaps: ReturnType<typeof buildPriceTableMaps>;
 }): ProductCustomizationOptionUpsertRow[] {
   const rows: ProductCustomizationOptionUpsertRow[] = [];
 
-  for (const record of params.records) {
-    const variants = getTargetVariants({
-      record,
-      productsByReference: params.productsByReference,
-      variantsByProductId: params.variantsByProductId,
-      variantsBySku: params.variantsBySku,
+  for (const location of params.locations) {
+    const variantId = location.variant_id;
+    const supplierId = location.supplier_id;
+
+    if (!variantId || !supplierId) {
+      continue;
+    }
+
+    const variant = params.variantsById.get(variantId);
+
+    if (!variant) {
+      continue;
+    }
+
+    const component = findComponent({
+      location,
+      componentMaps: params.componentMaps,
     });
 
-    for (const variant of variants) {
-      const serviceCode = getServiceCode(record, variant);
+    const tableCodes = getTableCodesForLocation(location);
+    const tableCodeOptions = getTableCodeOptionsForLocation(location);
 
-      const component = findComponent({
-        variant,
-        record,
-        componentMaps: params.componentMaps,
-      });
+    const pairs =
+      tableCodeOptions.length > 0
+        ? tableCodeOptions.map((tableCodeOption, index) => ({
+            tableCode: tableCodes[index] ?? tableCodes[0] ?? null,
+            tableCodeOption,
+          }))
+        : tableCodes.length > 0
+          ? tableCodes.map((tableCode) => ({
+              tableCode,
+              tableCodeOption: null,
+            }))
+          : [
+              {
+                tableCode: null,
+                tableCodeOption: null,
+              },
+            ];
 
-      const location = findLocation({
-        variant,
-        record,
-        locationMaps: params.locationMaps,
-      });
-
+    for (const pair of pairs) {
       const priceTable = findPriceTable({
-        record,
+        tableCode: pair.tableCode,
+        tableCodeOption: pair.tableCodeOption,
         priceTableMaps: params.priceTableMaps,
       });
 
-      const locationImage = getStringByKeys(record, [
-        "PrintingLinesImage",
-        "printingLinesImage",
-        "AreaImage",
-        "areaImage",
-        "LocationImage",
-        "locationImage",
-      ]);
+      const payload = toJsonRecord(location.raw_payload);
+      const locationIndex = getLocationIndex(location);
+      const customizationTypeCode = getCustomizationTypeCode(
+        location,
+        pair.tableCode,
+      );
+
+      const serviceCode = buildServiceCode({
+        variant,
+        component,
+        location,
+        tableCode: pair.tableCode,
+        tableCodeOption: pair.tableCodeOption,
+        customizationTypeCode,
+      });
+
+      const locationImage = getLocationImage(location);
+      const slotHandlingCost = getSlotNumber(
+        payload,
+        "HandlingCosts",
+        locationIndex,
+      );
 
       rows.push({
         product_id: variant.product_id,
         variant_id: variant.id,
-        supplier_id: variant.supplier_id,
+        supplier_id: supplierId,
 
-        component_id: component?.id ?? null,
-        location_id: location?.id ?? null,
+        component_id: component?.id ?? location.component_id ?? null,
+        location_id: location.id,
         printing_price_table_id: priceTable?.id ?? null,
 
         service_code: serviceCode,
-        customization_type_code: getStringByKeys(record, [
-          "CustomizationTypeCode",
-          "customizationTypeCode",
-          "CustomizationType",
-          "customizationType",
-        ]),
-        customization_type_name: getStringByKeys(record, [
-          "CustomizationTypeName",
-          "customizationTypeName",
-          "CustomizationTypeDescription",
-          "customizationTypeDescription",
-        ]),
+        customization_type_code: customizationTypeCode,
+        customization_type_name: priceTable?.technique_name ?? customizationTypeCode,
 
-        table_code: getTableCode(record),
-        table_code_option: getTableCodeOption(record),
+        table_code: pair.tableCode,
+        table_code_option: pair.tableCodeOption,
 
-        component_code: getComponentCode(record) ?? component?.component_code ?? null,
-        component_name: getComponentName(record) ?? component?.component_name ?? null,
-        location_code: getLocationCode(record) ?? location?.location_code ?? null,
-        location_name: getLocationName(record) ?? location?.location_name ?? null,
+        component_code: component?.component_code ?? `C${locationIndex}`,
+        component_name:
+          component?.component_name ??
+          getSlotString(payload, "Component", locationIndex),
+        location_code: location.location_code ?? `L${locationIndex}`,
+        location_name:
+          location.location_name ??
+          getSlotString(payload, "Location", locationIndex) ??
+          getSlotString(payload, "ComposedLocation", locationIndex),
 
-        logo_area: getNumberByKeys(record, ["LogoArea", "logoArea"]),
-        logo_width: getNumberByKeys(record, ["LogoWidth", "logoWidth"]),
-        logo_height: getNumberByKeys(record, ["LogoHeight", "logoHeight"]),
+        logo_area: null,
+        logo_width: null,
+        logo_height: null,
 
         max_colors:
-          getIntegerByKeys(record, ["MaxColors", "maxColors"]) ??
+          getInteger(getSlotString(payload, "MaxColors", locationIndex)) ??
           priceTable?.max_colors ??
           null,
-        max_printing_area_mm: getStringByKeys(record, [
-          "MaxPrintingAreaMM",
-          "maxPrintingAreaMM",
-          "LocationMaxPrintingAreaMM",
-          "locationMaxPrintingAreaMM",
-        ]),
-        table_max_area_cm:
-          getNumberByKeys(record, ["TableMaxAreaCM", "tableMaxAreaCM"]) ??
-          priceTable?.area_cm ??
-          null,
+        max_printing_area_mm: location.max_printing_area_mm,
+        table_max_area_cm: priceTable?.area_cm ?? null,
         table_max_area_cm2:
-          getNumberByKeys(record, ["TableMaxAreaCM2", "tableMaxAreaCM2"]) ??
-          priceTable?.area_cm2 ??
-          null,
+          priceTable?.area_cm2 ?? location.max_area_cm2 ?? null,
 
-        price_by_color: getBooleanByKeys(
-          record,
-          ["PriceByColor", "priceByColor"],
-          priceTable?.price_by_color ?? false,
-        ),
-        price_by_area: getBooleanByKeys(
-          record,
-          ["PriceByArea", "priceByArea"],
-          priceTable?.price_by_area ?? false,
-        ),
+        price_by_color: priceTable?.price_by_color ?? false,
+        price_by_area: priceTable?.price_by_area ?? false,
 
-        handling_cost:
-          getNumberByKeys(record, ["HandlingCost", "handlingCost"]) ??
-          priceTable?.handling_cost ??
-          0,
-        supplier_price:
-          getNumberByKeys(record, ["Price1", "Price", "price", "YourPrice"]) ??
-          priceTable?.supplier_price ??
-          0,
-        final_price:
-          getNumberByKeys(record, ["Price1", "FinalPrice", "finalPrice"]) ??
-          priceTable?.final_price ??
-          0,
+        handling_cost: slotHandlingCost ?? priceTable?.handling_cost ?? 0,
+        supplier_price: priceTable?.supplier_price ?? 0,
+        final_price: priceTable?.final_price ?? slotHandlingCost ?? 0,
         currency: "EUR",
 
-        is_default: getBooleanByKeys(record, ["IsDefault", "isDefault"], false),
+        is_default: locationIndex === 1,
         is_active: true,
 
         printing_lines_image_url:
@@ -1147,11 +870,16 @@ function buildCustomizationOptionRows(params: {
         printing_lines_storage_url: null,
 
         raw_payload: {
-          ...record,
+          ...payload,
           language: params.lang,
-          component_id: component?.id ?? null,
-          location_id: location?.id ?? null,
+          source: "derived-from-product_customization_locations",
+          variant_id: variant.id,
+          component_id: component?.id ?? location.component_id ?? null,
+          location_id: location.id,
           printing_price_table_id: priceTable?.id ?? null,
+          table_code: pair.tableCode,
+          table_code_option: pair.tableCodeOption,
+          service_code: serviceCode,
         },
       });
     }
@@ -1213,65 +941,33 @@ export async function syncRestCustomizationOptions(params: {
   });
 
   try {
-    const token = await getValidStrickerSessionToken();
-
-    const payload = await fetchStrickerDataset(
-      {
-        dataset: "customizationOptions",
-        token,
-        lang: params.lang,
-      },
-      {
-        timeoutMs: 300_000,
-      },
-    );
-
-    const records = Array.isArray(payload.CustomizationOptions)
-      ? payload.CustomizationOptions.map((record) => toJsonRecord(record))
-      : [];
-
-    const skus = records
-      .map((record) => getSku(record))
-      .filter((value): value is string => Boolean(value));
-
-    const references = records
-      .map((record) => getProdReference(record))
-      .filter((value): value is string => Boolean(value));
-
-    const products = await fetchProducts({
+    const locations = await fetchLocations({
       supabaseAdmin,
       supplierId,
-      references,
     });
 
-    const productsByReference = buildProductReferenceMap(products);
+    const variantIds = locations
+      .map((location) => location.variant_id)
+      .filter((value): value is string => Boolean(value));
 
-    const variants = await fetchVariants({
+    const variants = await fetchVariantsByIds({
       supabaseAdmin,
       supplierId,
-      skus,
-      productIds: products.map((product) => product.id),
+      variantIds,
     });
 
-    const variantsByProductId = buildVariantsByProductId(variants);
-    const variantsBySku = buildVariantBySkuMap(variants);
-    const variantIds = variants.map((variant) => variant.id);
+    const variantsById = buildVariantMap(variants);
 
     const components = await fetchComponents({
       supabaseAdmin,
       supplierId,
-      variantIds,
+      variantIds: variants.map((variant) => variant.id),
     });
 
-    const locations = await fetchLocations({
-      supabaseAdmin,
-      supplierId,
-      variantIds,
-    });
-
-    const tableCodes = records.flatMap((record) =>
-      getPriceTableExternalCandidates(record),
-    );
+    const tableCodes = locations.flatMap((location) => [
+      ...getTableCodesForLocation(location),
+      ...getTableCodeOptionsForLocation(location),
+    ]);
 
     const priceTables = await fetchPrintingPriceTables({
       supabaseAdmin,
@@ -1280,17 +976,13 @@ export async function syncRestCustomizationOptions(params: {
     });
 
     const componentMaps = buildComponentMaps(components);
-    const locationMaps = buildLocationMaps(locations);
     const priceTableMaps = buildPriceTableMaps(priceTables);
 
     const rows = buildCustomizationOptionRows({
       lang: params.lang,
-      records,
-      productsByReference,
-      variantsByProductId,
-      variantsBySku,
+      locations,
+      variantsById,
       componentMaps,
-      locationMaps,
       priceTableMaps,
     });
 
@@ -1308,37 +1000,32 @@ export async function syncRestCustomizationOptions(params: {
       supabaseAdmin,
       datasetImportId,
       status,
-      recordsReceived: records.length,
+      recordsReceived: locations.length,
       recordsImported: importedCount,
-      recordsFailed: Math.max(records.length - importedCount, 0),
+      recordsFailed: Math.max(locations.length - importedCount, 0),
       rawPayload: {
-        Count: payload.Count ?? records.length,
-        Currency: payload.Currency ?? null,
-        Language: payload.Language ?? params.lang,
+        Language: params.lang,
         RequestedLanguage: params.lang,
-        sample: records.slice(0, 5),
-        sampleKeys: records[0] ? Object.keys(records[0]) : [],
-        matchedSkuSample: skus.slice(0, 10),
-        matchedReferenceSample: references.slice(0, 10),
-        productsMatched: products.length,
+        Source: "derived-from-optionals",
+        locationsMatched: locations.length,
         variantsMatched: variants.length,
         componentsMatched: components.length,
-        locationsMatched: locations.length,
         priceTablesMatched: priceTables.length,
         rowsBuilt: rows.length,
+        sampleLocationIds: locations.slice(0, 10).map((location) => location.id),
       },
       errors:
-        rows.length > 0
+        importedCount > 0
           ? []
           : [
-              "CustomizationOptions recebidas da Stricker, mas nenhuma opção foi associada a variantes existentes.",
+              "Não foi possível gerar opções de personalização a partir das localizações existentes.",
             ],
     });
 
     return {
       dataset: "customizationOptions",
       lang: params.lang,
-      recordsReceived: records.length,
+      recordsReceived: locations.length,
       optionsImported: importedCount,
       variantsMatched: variants.length,
       componentsMatched: components.length,
@@ -1354,11 +1041,14 @@ export async function syncRestCustomizationOptions(params: {
       recordsReceived: 0,
       recordsImported: 0,
       recordsFailed: 1,
-      rawPayload: {},
+      rawPayload: {
+        Source: "derived-from-optionals",
+        RequestedLanguage: params.lang,
+      },
       errors: [
         error instanceof Error
           ? error.message
-          : "Erro inesperado na sincronização REST de customizationOptions.",
+          : "Erro inesperado na geração de customizationOptions.",
       ],
     });
 
