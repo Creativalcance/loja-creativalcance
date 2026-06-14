@@ -191,6 +191,19 @@ type ImportedVariantRow = {
   sku: string;
 };
 
+type ProductVariantTranslationUpsertRow = {
+  variant_id: string;
+  product_id: string;
+  supplier_id: string;
+  language: StrickerLanguage;
+  color_name: string | null;
+  color_desc_1: string | null;
+  color_desc_2: string | null;
+  size_label: string | null;
+  capacity_label: string | null;
+  supplier_payload: JsonRecord;
+};
+
 type ProductPriceInsertRow = {
   product_id: string;
   variant_id: string;
@@ -270,6 +283,7 @@ export type SyncRestOptionalsResult = {
   lang: StrickerLanguage;
   recordsReceived: number;
   variantsImported: number;
+  variantTranslationsImported: number;
   pricesImported: number;
   imagesImported: number;
   componentsImported: number;
@@ -553,6 +567,66 @@ function buildVariantMap(
   return new Map(
     variants.map((variant) => [variant.external_variant_id, variant]),
   );
+}
+
+function buildVariantTranslationRows(params: {
+  lang: StrickerLanguage;
+  records: StrickerOptionalRecord[];
+  variantsBySku: Map<string, ImportedVariantRow>;
+}): ProductVariantTranslationUpsertRow[] {
+  const rows: ProductVariantTranslationUpsertRow[] = [];
+
+  for (const record of params.records) {
+    const sku = getOptionalSku(record);
+
+    if (!sku) {
+      continue;
+    }
+
+    const variant = params.variantsBySku.get(sku);
+
+    if (!variant) {
+      continue;
+    }
+
+    rows.push({
+      variant_id: variant.id,
+      product_id: variant.product_id,
+      supplier_id: variant.supplier_id,
+      language: params.lang,
+      color_name: getNullableString(record.ColorDesc1),
+      color_desc_1: getNullableString(record.ColorDesc1),
+      color_desc_2: getNullableString(record.ColorDesc2),
+      size_label: getNullableString(record.Size),
+      capacity_label: getNullableString(record.Capacity),
+      supplier_payload: toJsonRecord(record),
+    });
+  }
+
+  return rows;
+}
+
+async function upsertVariantTranslations(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: ProductVariantTranslationUpsertRow[];
+}): Promise<number> {
+  let importedCount = 0;
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const { error } = await params.supabaseAdmin
+      .from("product_variant_translations")
+      .upsert(rowChunk, {
+        onConflict: "variant_id,language",
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    importedCount += rowChunk.length;
+  }
+
+  return importedCount;
 }
 
 function buildPriceRows(params: {
@@ -1036,6 +1110,21 @@ export async function syncRestOptionals(params: {
     });
 
     const variantsBySku = buildVariantMap(importedVariants);
+
+    const variantTranslationRows = buildVariantTranslationRows({
+      lang: params.lang,
+      records,
+      variantsBySku,
+    });
+
+    const variantTranslationsImported =
+      variantTranslationRows.length > 0
+        ? await upsertVariantTranslations({
+            supabaseAdmin,
+            rows: variantTranslationRows,
+          })
+        : 0;
+
     const variantIds = importedVariants.map((variant) => variant.id);
 
     if (variantIds.length > 0) {
@@ -1117,6 +1206,7 @@ export async function syncRestOptionals(params: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        variantTranslationsImported,
         sample: records.slice(0, 5),
       },
       errors,
@@ -1127,6 +1217,7 @@ export async function syncRestOptionals(params: {
       lang: params.lang,
       recordsReceived: records.length,
       variantsImported: importedVariants.length,
+      variantTranslationsImported,
       pricesImported: priceRows.length,
       imagesImported: imageRows.length,
       componentsImported: importedComponents.length,
