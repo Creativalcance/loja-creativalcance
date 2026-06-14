@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  ArrowLeft,
-  CheckCircle2,
-  ImageIcon,
-  Package,
-  Palette,
-  Ruler,
-  Truck,
-} from "lucide-react";
+import { ArrowLeft, Package, Palette, Truck } from "lucide-react";
 import AddToCartForm from "@/components/product/AddToCartForm";
+import ProductCustomizationSimulator, {
+  type ProductSimulatorLocation,
+  type ProductSimulatorVariant,
+} from "@/components/product/ProductCustomizationSimulator";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
@@ -423,6 +419,39 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     currency: price.currency,
   }));
 
+  const simulatorVariants: ProductSimulatorVariant[] = variants.map(
+    (variant) => ({
+      id: variant.id,
+      sku: variant.sku,
+      color_name: variant.color_name,
+      color_hex: variant.color_hex,
+      size: variant.size,
+      image_url: variant.optional_image_1_url ?? variant.optional_image_2_url,
+    }),
+  );
+
+  const simulatorLocations: ProductSimulatorLocation[] =
+    customizationLocations.map((location) => {
+      const component = getComponentForLocation({
+        location,
+        componentsById,
+      });
+
+      return {
+        id: location.id,
+        variant_id: location.variant_id,
+        component_name:
+          component?.component_name ?? component?.component_code ?? null,
+        location_name: location.location_name,
+        image_url: getLocationImageUrl(location),
+        max_printing_area_mm: location.max_printing_area_mm,
+        max_area_cm2: location.max_area_cm2,
+        table_codes: getTableCodesForLocation(location),
+        customization_types: getCustomizationTypesForLocation(location),
+        is_default: location.is_default,
+      };
+    });
+
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
@@ -623,132 +652,14 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           </section>
         </div>
 
-        <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                Simulador
-              </p>
-
-              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-                Personalização do produto
-              </h2>
-
-              <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
-                Escolhe a variante, o local de personalização e carrega o teu
-                logótipo para preparar a maquete. Nesta fase já mostramos os
-                locais técnicos importados da Stricker; a edição visual da
-                maquete será ligada no próximo passo.
-              </p>
-            </div>
-
-            <div className="rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">
-              {customizationLocations.length} locais disponíveis
-            </div>
-          </div>
-
-          {customizationLocations.length > 0 ? (
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {customizationLocations.map((location) => {
-                const component = getComponentForLocation({
-                  location,
-                  componentsById,
-                });
-
-                const image = getLocationImageUrl(location);
-                const tableCodes = getTableCodesForLocation(location);
-                const customizationTypes =
-                  getCustomizationTypesForLocation(location);
-
-                return (
-                  <article
-                    key={location.id}
-                    className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50"
-                  >
-                    <div className="aspect-[4/3] bg-white">
-                      {image ? (
-                        <img
-                          src={image}
-                          alt={
-                            location.location_name ??
-                            component?.component_name ??
-                            "Local de personalização"
-                          }
-                          className="h-full w-full object-contain p-6"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-neutral-400">
-                          <ImageIcon className="h-8 w-8" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-semibold text-neutral-950">
-                            {location.location_name ??
-                              `Local ${getLocationIndex(location)}`}
-                          </p>
-
-                          <p className="mt-1 text-sm text-neutral-600">
-                            {component?.component_name ??
-                              component?.component_code ??
-                              "Componente do produto"}
-                          </p>
-                        </div>
-
-                        {location.is_default ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Default
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {location.max_printing_area_mm ? (
-                          <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
-                            <Ruler className="mr-1 h-3 w-3" />
-                            {location.max_printing_area_mm}
-                          </span>
-                        ) : null}
-
-                        {location.max_area_cm2 ? (
-                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
-                            {location.max_area_cm2} cm²
-                          </span>
-                        ) : null}
-                      </div>
-
-                      {customizationTypes.length > 0 ||
-                      tableCodes.length > 0 ? (
-                        <div className="mt-4 space-y-2">
-                          {customizationTypes.length > 0 ? (
-                            <p className="text-xs leading-5 text-neutral-500">
-                              Técnicas: {customizationTypes.join(", ")}
-                            </p>
-                          ) : null}
-
-                          {tableCodes.length > 0 ? (
-                            <p className="text-xs leading-5 text-neutral-500">
-                              Tabelas: {tableCodes.slice(0, 5).join(", ")}
-                              {tableCodes.length > 5 ? "…" : ""}
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm leading-6 text-neutral-600">
-              Este produto ainda não tem locais de personalização importados. A
-              personalização poderá ser tratada por pedido de orçamento.
-            </div>
-          )}
+        <section className="mt-8">
+          <ProductCustomizationSimulator
+            productName={product.name}
+            productSku={product.sku}
+            productImageUrl={imageUrl ?? null}
+            variants={simulatorVariants}
+            locations={simulatorLocations}
+          />
         </section>
       </section>
     </main>
