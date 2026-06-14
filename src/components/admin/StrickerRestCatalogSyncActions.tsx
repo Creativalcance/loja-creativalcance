@@ -26,8 +26,16 @@ type SyncResponse = {
   dataset?: string;
   lang?: string;
   country?: string;
+
   recordsReceived?: number;
   recordsImported?: number;
+  recordsTotal?: number;
+  recordsProcessed?: number;
+  offset?: number;
+  limit?: number;
+  nextOffset?: number | null;
+  hasMore?: boolean;
+
   productsImported?: number;
   productTranslationsImported?: number;
   variantsImported?: number;
@@ -48,6 +56,8 @@ type SyncResponse = {
   futureStocksImported?: number;
   datasetImportId?: string;
 };
+
+const CUSTOMIZATION_OPTIONS_BATCH_LIMIT = 250;
 
 const AVAILABLE_LANGUAGES: {
   value: StrickerLanguage;
@@ -121,7 +131,7 @@ const ACTIONS: {
     action: "customizationOptions",
     title: "Sincronizar opções",
     description:
-      "Liga opções de personalização por SKU a componentes, localizações e tabelas.",
+      "Gera opções de personalização por lotes a partir de componentes, localizações e tabelas.",
   },
   {
     action: "stocksByCountry",
@@ -198,6 +208,31 @@ async function parseSyncResponse(response: Response): Promise<SyncResponse> {
         : `Resposta vazia do servidor (${response.status}).`,
     );
   }
+}
+
+async function requestSync(params: {
+  action: SyncAction;
+  body: Record<string, string | number>;
+}): Promise<SyncResponse> {
+  const endpoint = getSyncEndpoint(params.action);
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(params.body),
+  });
+
+  const payload = await parseSyncResponse(response);
+
+  if (!response.ok || !payload.success) {
+    throw new Error(
+      payload.message || "Não foi possível sincronizar o dataset.",
+    );
+  }
+
+  return payload;
 }
 
 function getImportedCount(payload: SyncResponse): number {
@@ -280,6 +315,67 @@ export default function StrickerRestCatalogSyncActions() {
     error: null,
   });
 
+  async function handleCustomizationOptionsSync(): Promise<void> {
+    let offset = 0;
+    let totalRecords = 0;
+    let processedRecords = 0;
+    let importedOptions = 0;
+    let variantsMatched = 0;
+    let componentsMatched = 0;
+    let locationsMatched = 0;
+    let priceTablesMatched = 0;
+    let batchCount = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      batchCount += 1;
+
+      const payload = await requestSync({
+        action: "customizationOptions",
+        body: {
+          lang: selectedLanguage,
+          offset,
+          limit: CUSTOMIZATION_OPTIONS_BATCH_LIMIT,
+        },
+      });
+
+      totalRecords = payload.recordsTotal ?? totalRecords;
+      processedRecords += payload.recordsProcessed ?? payload.recordsReceived ?? 0;
+      importedOptions += payload.optionsImported ?? 0;
+      variantsMatched += payload.variantsMatched ?? 0;
+      componentsMatched += payload.componentsMatched ?? 0;
+      locationsMatched += payload.locationsMatched ?? 0;
+      priceTablesMatched += payload.priceTablesMatched ?? 0;
+
+      setState({
+        loadingAction: "customizationOptions",
+        message: `A gerar opções de personalização por lotes. Lote ${batchCount}. Processadas: ${processedRecords}${
+          totalRecords > 0 ? `/${totalRecords}` : ""
+        }. Importadas: ${importedOptions}.`,
+        error: null,
+      });
+
+      hasMore = Boolean(payload.hasMore && payload.nextOffset !== null);
+      offset = payload.nextOffset ?? offset + CUSTOMIZATION_OPTIONS_BATCH_LIMIT;
+
+      if (batchCount > 10_000) {
+        throw new Error(
+          "A sincronização foi interrompida por segurança: número excessivo de lotes.",
+        );
+      }
+    }
+
+    setState({
+      loadingAction: null,
+      message: `Opções de personalização Stricker sincronizadas com sucesso. Idioma: ${selectedLanguage}. Processadas: ${processedRecords}${
+        totalRecords > 0 ? `/${totalRecords}` : ""
+      }. Importadas: ${importedOptions}. Lotes: ${batchCount}. Variantes: ${variantsMatched}. Componentes: ${componentsMatched}. Localizações: ${locationsMatched}. Tabelas: ${priceTablesMatched}.`,
+      error: null,
+    });
+
+    window.location.reload();
+  }
+
   async function handleSync(action: SyncAction): Promise<void> {
     setState({
       loadingAction: action,
@@ -288,27 +384,20 @@ export default function StrickerRestCatalogSyncActions() {
     });
 
     try {
-      const endpoint = getSyncEndpoint(action);
+      if (action === "customizationOptions") {
+        await handleCustomizationOptionsSync();
+        return;
+      }
+
       const body = buildSyncBody({
         action,
         language: selectedLanguage,
       });
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
+      const payload = await requestSync({
+        action,
+        body,
       });
-
-      const payload = await parseSyncResponse(response);
-
-      if (!response.ok || !payload.success) {
-        throw new Error(
-          payload.message || "Não foi possível sincronizar o dataset.",
-        );
-      }
 
       const imported = getImportedCount(payload);
       const extra = getExtraMessage({

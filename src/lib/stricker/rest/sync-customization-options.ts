@@ -115,10 +115,21 @@ type ProductCustomizationOptionUpsertRow = {
   raw_payload: JsonRecord;
 };
 
+type FetchLocationsResult = {
+  rows: ProductCustomizationLocationRow[];
+  total: number;
+};
+
 export type SyncRestCustomizationOptionsResult = {
   dataset: "customizationOptions";
   lang: StrickerLanguage;
   recordsReceived: number;
+  recordsTotal: number;
+  recordsProcessed: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  hasMore: boolean;
   optionsImported: number;
   variantsMatched: number;
   componentsMatched: number;
@@ -127,7 +138,6 @@ export type SyncRestCustomizationOptionsResult = {
   datasetImportId: string;
 };
 
-const PAGE_SIZE = 1000;
 const QUERY_CHUNK_SIZE = 400;
 const UPSERT_CHUNK_SIZE = 500;
 
@@ -200,18 +210,6 @@ function getStringByKeys(record: JsonRecord, keys: string[]): string | null {
   return null;
 }
 
-function getNumberByKeys(record: JsonRecord, keys: string[]): number | null {
-  for (const key of keys) {
-    const value = getNumber(record[key]);
-
-    if (value !== null) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
 function getSlotString(
   record: JsonRecord,
   prefix: string,
@@ -260,19 +258,24 @@ function getTableCodesForLocation(
   const payload = toJsonRecord(location.raw_payload);
   const index = getLocationIndex(location);
 
-  const tableCodes =
-    splitCodes(getSlotString(payload, "TableCodes", index)).length > 0
-      ? splitCodes(getSlotString(payload, "TableCodes", index))
-      : splitCodes(
-          getStringByKeys(payload, [
-            "TableCode",
-            "tableCode",
-            "PrintingTableCode",
-            "printingTableCode",
-          ]),
-        );
+  const slotCodes = splitCodes(getSlotString(payload, "TableCodes", index));
 
-  return Array.from(new Set(tableCodes));
+  if (slotCodes.length > 0) {
+    return Array.from(new Set(slotCodes));
+  }
+
+  return Array.from(
+    new Set(
+      splitCodes(
+        getStringByKeys(payload, [
+          "TableCode",
+          "tableCode",
+          "PrintingTableCode",
+          "printingTableCode",
+        ]),
+      ),
+    ),
+  );
 }
 
 function getTableCodeOptionsForLocation(
@@ -281,19 +284,26 @@ function getTableCodeOptionsForLocation(
   const payload = toJsonRecord(location.raw_payload);
   const index = getLocationIndex(location);
 
-  const optionCodes =
-    splitCodes(getSlotString(payload, "TableCodesOptions", index)).length > 0
-      ? splitCodes(getSlotString(payload, "TableCodesOptions", index))
-      : splitCodes(
-          getStringByKeys(payload, [
-            "TableCodeOption",
-            "tableCodeOption",
-            "TableFullCode",
-            "tableFullCode",
-          ]),
-        );
+  const slotOptions = splitCodes(
+    getSlotString(payload, "TableCodesOptions", index),
+  );
 
-  return Array.from(new Set(optionCodes));
+  if (slotOptions.length > 0) {
+    return Array.from(new Set(slotOptions));
+  }
+
+  return Array.from(
+    new Set(
+      splitCodes(
+        getStringByKeys(payload, [
+          "TableCodeOption",
+          "tableCodeOption",
+          "TableFullCode",
+          "tableFullCode",
+        ]),
+      ),
+    ),
+  );
 }
 
 function getCustomizationTypeCode(
@@ -353,6 +363,8 @@ async function createDatasetImport(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
   lang: StrickerLanguage;
+  offset: number;
+  limit: number;
 }): Promise<string> {
   const { data, error } = await params.supabaseAdmin
     .from("supplier_dataset_imports")
@@ -367,7 +379,10 @@ async function createDatasetImport(params: {
       records_imported: 0,
       records_failed: 0,
       source_url: "derived-from-optionals",
-      raw_payload: {},
+      raw_payload: {
+        offset: params.offset,
+        limit: params.limit,
+      },
       errors: [],
       started_at: new Date().toISOString(),
       finished_at: null,
@@ -415,54 +430,48 @@ async function finishDatasetImport(params: {
 async function fetchLocations(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
-}): Promise<ProductCustomizationLocationRow[]> {
-  const rows: ProductCustomizationLocationRow[] = [];
-  let page = 0;
+  offset: number;
+  limit: number;
+}): Promise<FetchLocationsResult> {
+  const from = params.offset;
+  const to = params.offset + params.limit - 1;
 
-  while (true) {
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+  const { data, error, count } = await params.supabaseAdmin
+    .from("product_customization_locations")
+    .select(
+      [
+        "id",
+        "product_id",
+        "variant_id",
+        "supplier_id",
+        "component_id",
+        "external_location_id",
+        "location_code",
+        "location_name",
+        "location_index",
+        "max_printing_area_mm",
+        "max_area_cm2",
+        "location_image_url",
+        "area_image_url",
+        "printing_lines_image_url",
+        "raw_payload",
+      ].join(","),
+      { count: "exact" },
+    )
+    .eq("supplier_id", params.supplierId)
+    .not("variant_id", "is", null)
+    .order("id", { ascending: true })
+    .range(from, to)
+    .returns<ProductCustomizationLocationRow[]>();
 
-    const { data, error } = await params.supabaseAdmin
-      .from("product_customization_locations")
-      .select(
-        [
-          "id",
-          "product_id",
-          "variant_id",
-          "supplier_id",
-          "component_id",
-          "external_location_id",
-          "location_code",
-          "location_name",
-          "location_index",
-          "max_printing_area_mm",
-          "max_area_cm2",
-          "location_image_url",
-          "area_image_url",
-          "printing_lines_image_url",
-          "raw_payload",
-        ].join(","),
-      )
-      .eq("supplier_id", params.supplierId)
-      .not("variant_id", "is", null)
-      .range(from, to)
-      .returns<ProductCustomizationLocationRow[]>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    rows.push(...(data ?? []));
-
-    if (!data || data.length < PAGE_SIZE) {
-      break;
-    }
-
-    page += 1;
+  if (error) {
+    throw new Error(error.message);
   }
 
-  return rows;
+  return {
+    rows: data ?? [],
+    total: count ?? data?.length ?? 0,
+  };
 }
 
 async function fetchVariantsByIds(params: {
@@ -470,6 +479,10 @@ async function fetchVariantsByIds(params: {
   supplierId: string;
   variantIds: string[];
 }): Promise<ProductVariantRow[]> {
+  if (params.variantIds.length === 0) {
+    return [];
+  }
+
   const rows = new Map<string, ProductVariantRow>();
   const uniqueVariantIds = Array.from(new Set(params.variantIds));
 
@@ -498,13 +511,17 @@ async function fetchComponents(params: {
   supplierId: string;
   variantIds: string[];
 }): Promise<ProductCustomizationComponentRow[]> {
+  if (params.variantIds.length === 0) {
+    return [];
+  }
+
   const rows: ProductCustomizationComponentRow[] = [];
   const allowedVariantIds = new Set(params.variantIds);
   let page = 0;
 
   while (true) {
-    const from = page * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+    const from = page * QUERY_CHUNK_SIZE;
+    const to = from + QUERY_CHUNK_SIZE - 1;
 
     const { data, error } = await params.supabaseAdmin
       .from("product_customization_components")
@@ -525,7 +542,7 @@ async function fetchComponents(params: {
       }
     }
 
-    if (!data || data.length < PAGE_SIZE) {
+    if (!data || data.length < QUERY_CHUNK_SIZE) {
       break;
     }
 
@@ -540,6 +557,10 @@ async function fetchPrintingPriceTables(params: {
   supplierId: string;
   tableCodes: string[];
 }): Promise<PrintingPriceTableRow[]> {
+  if (params.tableCodes.length === 0) {
+    return [];
+  }
+
   const rows = new Map<string, PrintingPriceTableRow>();
   const uniqueTableCodes = Array.from(new Set(params.tableCodes));
 
@@ -683,8 +704,7 @@ function findComponent(params: {
   const index = getLocationIndex(params.location);
 
   const componentCode =
-    getSlotString(payload, "ComponentCode", index) ??
-    `C${index}`;
+    getSlotString(payload, "ComponentCode", index) ?? `C${index}`;
 
   const componentName = getSlotString(payload, "Component", index);
 
@@ -930,6 +950,8 @@ async function upsertCustomizationOptions(params: {
 
 export async function syncRestCustomizationOptions(params: {
   lang: StrickerLanguage;
+  offset: number;
+  limit: number;
 }): Promise<SyncRestCustomizationOptionsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -938,13 +960,20 @@ export async function syncRestCustomizationOptions(params: {
     supabaseAdmin,
     supplierId,
     lang: params.lang,
+    offset: params.offset,
+    limit: params.limit,
   });
 
   try {
-    const locations = await fetchLocations({
+    const locationsResult = await fetchLocations({
       supabaseAdmin,
       supplierId,
+      offset: params.offset,
+      limit: params.limit,
     });
+
+    const locations = locationsResult.rows;
+    const recordsTotal = locationsResult.total;
 
     const variantIds = locations
       .map((location) => location.variant_id)
@@ -994,6 +1023,9 @@ export async function syncRestCustomizationOptions(params: {
           })
         : 0;
 
+    const nextOffset = params.offset + params.limit;
+    const hasMore = nextOffset < recordsTotal;
+    const normalizedNextOffset = hasMore ? nextOffset : null;
     const status = importedCount > 0 ? "success" : "partial_success";
 
     await finishDatasetImport({
@@ -1007,6 +1039,11 @@ export async function syncRestCustomizationOptions(params: {
         Language: params.lang,
         RequestedLanguage: params.lang,
         Source: "derived-from-optionals",
+        offset: params.offset,
+        limit: params.limit,
+        nextOffset: normalizedNextOffset,
+        hasMore,
+        recordsTotal,
         locationsMatched: locations.length,
         variantsMatched: variants.length,
         componentsMatched: components.length,
@@ -1015,7 +1052,7 @@ export async function syncRestCustomizationOptions(params: {
         sampleLocationIds: locations.slice(0, 10).map((location) => location.id),
       },
       errors:
-        importedCount > 0
+        importedCount > 0 || locations.length === 0
           ? []
           : [
               "Não foi possível gerar opções de personalização a partir das localizações existentes.",
@@ -1026,6 +1063,12 @@ export async function syncRestCustomizationOptions(params: {
       dataset: "customizationOptions",
       lang: params.lang,
       recordsReceived: locations.length,
+      recordsTotal,
+      recordsProcessed: locations.length,
+      offset: params.offset,
+      limit: params.limit,
+      nextOffset: normalizedNextOffset,
+      hasMore,
       optionsImported: importedCount,
       variantsMatched: variants.length,
       componentsMatched: components.length,
@@ -1044,6 +1087,8 @@ export async function syncRestCustomizationOptions(params: {
       rawPayload: {
         Source: "derived-from-optionals",
         RequestedLanguage: params.lang,
+        offset: params.offset,
+        limit: params.limit,
       },
       errors: [
         error instanceof Error
