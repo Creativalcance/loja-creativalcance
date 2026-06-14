@@ -62,13 +62,51 @@ type SupplierCatalogCategoryUpsertRow = {
   raw_payload: JsonRecord;
 };
 
+type ImportedCategoryRow = {
+  id: string;
+  supplier_id: string;
+  external_id: string;
+  parent_external_id: string | null;
+  type_code: string | null;
+  type_name: string | null;
+  subtype_code: string | null;
+  subtype_name: string | null;
+  language: string;
+  raw_payload: JsonRecord | null;
+};
+
+type CategoryTranslationUpsertRow = {
+  category_id: string;
+  supplier_id: string;
+  language: StrickerLanguage;
+  name: string;
+  slug: string;
+  description: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  supplier_payload: JsonRecord;
+};
+
 export type SyncRestCatalogDatasetResult = {
   dataset: SyncableRestCatalogDataset;
   lang: StrickerLanguage;
   recordsReceived: number;
   recordsImported: number;
+  translationsImported: number;
   datasetImportId: string;
 };
+
+const UPSERT_CHUNK_SIZE = 500;
+
+function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
+  const chunks: TValue[][] = [];
+
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
+  }
+
+  return chunks;
+}
 
 function createSlug(value: string): string {
   return value
@@ -283,6 +321,126 @@ function buildProductTypeCategoryRows(params: {
   return Array.from(rows.values());
 }
 
+function buildCategoryTranslationRows(params: {
+  lang: StrickerLanguage;
+  categories: ImportedCategoryRow[];
+}): CategoryTranslationUpsertRow[] {
+  return params.categories.flatMap((category) => {
+    const name =
+      category.subtype_name ??
+      category.type_name ??
+      category.subtype_code ??
+      category.type_code ??
+      category.external_id;
+
+    if (!name) {
+      return [];
+    }
+
+    const slugBase = category.subtype_name
+      ? `${category.type_name ?? category.type_code ?? "categoria"}-${category.subtype_name}`
+      : name;
+
+    return [
+      {
+        category_id: category.id,
+        supplier_id: category.supplier_id,
+        language: params.lang,
+        name,
+        slug: createSlug(slugBase),
+        description: null,
+        seo_title: name,
+        seo_description: null,
+        supplier_payload: category.raw_payload ?? {},
+      },
+    ];
+  });
+}
+
+async function upsertSupplierColors(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: SupplierColorUpsertRow[];
+}): Promise<number> {
+  let importedCount = 0;
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const { error } = await params.supabaseAdmin
+      .from("supplier_colors")
+      .upsert(rowChunk, {
+        onConflict: "supplier_id,external_id,language",
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    importedCount += rowChunk.length;
+  }
+
+  return importedCount;
+}
+
+async function upsertSupplierCatalogCategories(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: SupplierCatalogCategoryUpsertRow[];
+}): Promise<ImportedCategoryRow[]> {
+  const importedCategories: ImportedCategoryRow[] = [];
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("supplier_catalog_categories")
+      .upsert(rowChunk, {
+        onConflict: "supplier_id,external_id,language",
+      })
+      .select(
+        [
+          "id",
+          "supplier_id",
+          "external_id",
+          "parent_external_id",
+          "type_code",
+          "type_name",
+          "subtype_code",
+          "subtype_name",
+          "language",
+          "raw_payload",
+        ].join(","),
+      )
+      .returns<ImportedCategoryRow[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    importedCategories.push(...(data ?? []));
+  }
+
+  return importedCategories;
+}
+
+async function upsertCategoryTranslations(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: CategoryTranslationUpsertRow[];
+}): Promise<number> {
+  let importedCount = 0;
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const { error } = await params.supabaseAdmin
+      .from("category_translations")
+      .upsert(rowChunk, {
+        onConflict: "category_id,language",
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    importedCount += rowChunk.length;
+  }
+
+  return importedCount;
+}
+
 export async function syncRestCatalogDataset(params: {
   dataset: SyncableRestCatalogDataset;
   lang: StrickerLanguage;
@@ -322,29 +480,26 @@ export async function syncRestCatalogDataset(params: {
         records,
       });
 
-      if (rows.length > 0) {
-        const { error } = await supabaseAdmin
-          .from("supplier_colors")
-          .upsert(rows, {
-            onConflict: "supplier_id,external_id,language",
-          });
-
-        if (error) {
-          throw new Error(error.message);
-        }
-      }
+      const recordsImported =
+        rows.length > 0
+          ? await upsertSupplierColors({
+              supabaseAdmin,
+              rows,
+            })
+          : 0;
 
       await finishDatasetImport({
         supabaseAdmin,
         datasetImportId,
         status: "success",
         recordsReceived: records.length,
-        recordsImported: rows.length,
-        recordsFailed: Math.max(records.length - rows.length, 0),
+        recordsImported,
+        recordsFailed: Math.max(records.length - recordsImported, 0),
         rawPayload: {
           Count: payload.Count ?? records.length,
           Currency: payload.Currency ?? null,
           Language: payload.Language ?? params.lang,
+          translationsImported: 0,
           sample: records.slice(0, 5),
         },
         errors: [],
@@ -354,7 +509,8 @@ export async function syncRestCatalogDataset(params: {
         dataset: params.dataset,
         lang: params.lang,
         recordsReceived: records.length,
-        recordsImported: rows.length,
+        recordsImported,
+        translationsImported: 0,
         datasetImportId,
       };
     }
@@ -369,29 +525,39 @@ export async function syncRestCatalogDataset(params: {
       records,
     });
 
-    if (rows.length > 0) {
-      const { error } = await supabaseAdmin
-        .from("supplier_catalog_categories")
-        .upsert(rows, {
-          onConflict: "supplier_id,external_id,language",
-        });
+    const importedCategories =
+      rows.length > 0
+        ? await upsertSupplierCatalogCategories({
+            supabaseAdmin,
+            rows,
+          })
+        : [];
 
-      if (error) {
-        throw new Error(error.message);
-      }
-    }
+    const translationRows = buildCategoryTranslationRows({
+      lang: params.lang,
+      categories: importedCategories,
+    });
+
+    const translationsImported =
+      translationRows.length > 0
+        ? await upsertCategoryTranslations({
+            supabaseAdmin,
+            rows: translationRows,
+          })
+        : 0;
 
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,
       status: "success",
       recordsReceived: records.length,
-      recordsImported: rows.length,
-      recordsFailed: 0,
+      recordsImported: importedCategories.length,
+      recordsFailed: Math.max(rows.length - importedCategories.length, 0),
       rawPayload: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        translationsImported,
         sample: records.slice(0, 5),
       },
       errors: [],
@@ -401,7 +567,8 @@ export async function syncRestCatalogDataset(params: {
       dataset: params.dataset,
       lang: params.lang,
       recordsReceived: records.length,
-      recordsImported: rows.length,
+      recordsImported: importedCategories.length,
+      translationsImported,
       datasetImportId,
     };
   } catch (error) {
