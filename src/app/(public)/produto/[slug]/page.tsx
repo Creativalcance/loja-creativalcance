@@ -3,12 +3,16 @@ import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   CheckCircle2,
+  ImageIcon,
   Package,
   Palette,
+  Ruler,
   Truck,
 } from "lucide-react";
 import AddToCartForm from "@/components/product/AddToCartForm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+type JsonRecord = Record<string, unknown>;
 
 type ProductImage = {
   external_url: string | null;
@@ -33,14 +37,6 @@ type ProductStock = {
   expected_restock_date: string | null;
 };
 
-type ProductVariantForCart = {
-  id: string;
-  sku: string;
-  color_name: string | null;
-  color_hex: string | null;
-  size: string | null;
-};
-
 type PrintingTechniqueForCart = {
   id: string;
   name: string;
@@ -59,19 +55,32 @@ type ProductVariant = {
   optional_image_2_url: string | null;
 };
 
-type ProductCustomizationOption = {
+type ProductCustomizationComponent = {
   id: string;
-  service_code: string;
-  customization_type_code: string | null;
-  customization_type_name: string | null;
+  variant_id: string | null;
+  component_code: string | null;
   component_name: string | null;
+};
+
+type ProductCustomizationLocation = {
+  id: string;
+  variant_id: string | null;
+  component_id: string | null;
+  external_location_id: string;
+  location_code: string | null;
   location_name: string | null;
-  max_colors: number | null;
+  location_index: number | null;
   max_printing_area_mm: string | null;
-  final_price: number;
-  currency: string;
-  is_default: boolean;
+  max_area_cm2: number | null;
+  location_image_url: string | null;
+  location_storage_url: string | null;
+  area_image_url: string | null;
+  area_storage_url: string | null;
   printing_lines_image_url: string | null;
+  printing_lines_storage_url: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  raw_payload: JsonRecord | null;
 };
 
 type ProductDetail = {
@@ -93,7 +102,8 @@ type ProductDetail = {
   product_prices: ProductPrice[] | null;
   product_stocks: ProductStock[] | null;
   product_variants: ProductVariant[] | null;
-  product_customization_options: ProductCustomizationOption[] | null;
+  product_customization_components: ProductCustomizationComponent[] | null;
+  product_customization_locations: ProductCustomizationLocation[] | null;
 };
 
 type ProductPageProps = {
@@ -138,26 +148,145 @@ function getLowestPrice(prices: ProductPrice[]): ProductPrice | null {
   return [...prices].sort((a, b) => a.final_price - b.final_price)[0] ?? null;
 }
 
-function getUniqueCustomizationOptions(
-  options: ProductCustomizationOption[],
-): ProductCustomizationOption[] {
-  const map = new Map<string, ProductCustomizationOption>();
+function getPayloadRecord(value: unknown): JsonRecord {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
 
-  for (const option of options) {
+  return value as JsonRecord;
+}
+
+function getNullableString(value: unknown): string | null {
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(value);
+  }
+
+  return null;
+}
+
+function getSlotString(
+  record: JsonRecord,
+  prefix: string,
+  index: number,
+): string | null {
+  return getNullableString(record[`${prefix}${index}`]);
+}
+
+function splitCodes(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(/[,;|]/g)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function getLocationIndex(location: ProductCustomizationLocation): number {
+  if (location.location_index && location.location_index > 0) {
+    return location.location_index;
+  }
+
+  const match = location.external_location_id.match(/:L(\d+)$/i);
+  const parsed = match?.[1] ? Number(match[1]) : null;
+
+  if (parsed && Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+
+  return 1;
+}
+
+function getTableCodesForLocation(
+  location: ProductCustomizationLocation,
+): string[] {
+  const payload = getPayloadRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  const slotCodes = splitCodes(getSlotString(payload, "TableCodes", index));
+
+  return Array.from(new Set(slotCodes));
+}
+
+function getCustomizationTypesForLocation(
+  location: ProductCustomizationLocation,
+): string[] {
+  const payload = getPayloadRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  return Array.from(
+    new Set(splitCodes(getSlotString(payload, "CustomizationTypes", index))),
+  );
+}
+
+function buildComponentMap(
+  components: ProductCustomizationComponent[],
+): Map<string, ProductCustomizationComponent> {
+  return new Map(components.map((component) => [component.id, component]));
+}
+
+function getComponentForLocation(params: {
+  location: ProductCustomizationLocation;
+  componentsById: Map<string, ProductCustomizationComponent>;
+}): ProductCustomizationComponent | null {
+  if (!params.location.component_id) {
+    return null;
+  }
+
+  return params.componentsById.get(params.location.component_id) ?? null;
+}
+
+function getLocationImageUrl(
+  location: ProductCustomizationLocation,
+): string | null {
+  return (
+    location.printing_lines_storage_url ??
+    location.printing_lines_image_url ??
+    location.area_storage_url ??
+    location.area_image_url ??
+    location.location_storage_url ??
+    location.location_image_url ??
+    null
+  );
+}
+
+function getUniqueCustomizationLocations(
+  locations: ProductCustomizationLocation[],
+): ProductCustomizationLocation[] {
+  const map = new Map<string, ProductCustomizationLocation>();
+
+  for (const location of locations) {
     const key = [
-      option.customization_type_name ?? option.customization_type_code ?? "custom",
-      option.component_name ?? "component",
-      option.location_name ?? "location",
-      option.max_colors ?? "colors",
-      option.max_printing_area_mm ?? "area",
+      location.variant_id ?? "variant",
+      location.component_id ?? "component",
+      location.location_code ?? location.location_name ?? location.id,
+      location.max_printing_area_mm ?? "area",
     ].join(":");
 
     if (!map.has(key)) {
-      map.set(key, option);
+      map.set(key, location);
     }
   }
 
-  return Array.from(map.values()).slice(0, 12);
+  return Array.from(map.values())
+    .sort((a, b) => {
+      if (a.is_default && !b.is_default) {
+        return -1;
+      }
+
+      if (!a.is_default && b.is_default) {
+        return 1;
+      }
+
+      return getLocationIndex(a) - getLocationIndex(b);
+    })
+    .slice(0, 24);
 }
 
 export default async function ProductDetailPage({ params }: ProductPageProps) {
@@ -212,19 +341,31 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           optional_image_1_url,
           optional_image_2_url
         ),
-        product_customization_options (
+        product_customization_components (
           id,
-          service_code,
-          customization_type_code,
-          customization_type_name,
-          component_name,
+          variant_id,
+          component_code,
+          component_name
+        ),
+        product_customization_locations (
+          id,
+          variant_id,
+          component_id,
+          external_location_id,
+          location_code,
           location_name,
-          max_colors,
+          location_index,
           max_printing_area_mm,
-          final_price,
-          currency,
+          max_area_cm2,
+          location_image_url,
+          location_storage_url,
+          area_image_url,
+          area_storage_url,
+          printing_lines_image_url,
+          printing_lines_storage_url,
           is_default,
-          printing_lines_image_url
+          is_active,
+          raw_payload
         )
       `,
     )
@@ -246,8 +387,13 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   );
 
   const variants = product.product_variants ?? [];
-  const customizationOptions = getUniqueCustomizationOptions(
-    product.product_customization_options ?? [],
+  const components = product.product_customization_components ?? [];
+  const componentsById = buildComponentMap(components);
+
+  const customizationLocations = getUniqueCustomizationLocations(
+    (product.product_customization_locations ?? []).filter(
+      (location) => location.is_active,
+    ),
   );
 
   const totalStock = getTotalStock(product);
@@ -351,7 +497,9 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 <Palette className="h-5 w-5 text-neutral-500" />
                 <p className="mt-4 text-sm text-neutral-500">Personalização</p>
                 <p className="mt-1 font-semibold text-neutral-950">
-                  {product.is_customizable ? "Disponível" : "Sob consulta"}
+                  {customizationLocations.length > 0
+                    ? "Disponível"
+                    : "Sob consulta"}
                 </p>
               </div>
             </div>
@@ -364,10 +512,12 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
               {prices.length > 0 ? (
                 <div className="mt-5 divide-y divide-neutral-100">
                   {prices.slice(0, 8).map((price, index) => (
-  <div
-    key={`${price.quantity_min}-${price.quantity_max ?? "plus"}-${price.final_price}-${index}`}
-    className="flex items-center justify-between gap-4 py-3"
-  >
+                    <div
+                      key={`${price.quantity_min}-${
+                        price.quantity_max ?? "plus"
+                      }-${price.final_price}-${index}`}
+                      className="flex items-center justify-between gap-4 py-3"
+                    >
                       <p className="text-sm text-neutral-600">
                         {price.quantity_min.toLocaleString("pt-PT")}
                         {price.quantity_max
@@ -445,7 +595,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
 
           <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Variantes e personalização
+              Variantes disponíveis
             </h2>
 
             {variants.length > 0 ? (
@@ -470,62 +620,136 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                 Sem variantes registadas.
               </p>
             )}
+          </section>
+        </div>
 
-            <div className="mt-8">
-              <h3 className="font-semibold text-neutral-950">
-                Opções de personalização
-              </h3>
+        <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+                Simulador
+              </p>
 
-              {customizationOptions.length > 0 ? (
-                <div className="mt-4 space-y-3">
-                  {customizationOptions.map((option) => (
-                    <div
-                      key={option.id}
-                      className="rounded-2xl border border-neutral-200 p-4"
-                    >
-                      <p className="font-semibold text-neutral-950">
-                        {option.customization_type_name ??
-                          option.customization_type_code ??
-                          "Personalização"}
-                      </p>
+              <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
+                Personalização do produto
+              </h2>
 
-                      <p className="mt-2 text-sm leading-6 text-neutral-600">
-                        {option.component_name ?? "Componente"} ·{" "}
-                        {option.location_name ?? "Localização sob consulta"}
-                      </p>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                Escolhe a variante, o local de personalização e carrega o teu
+                logótipo para preparar a maquete. Nesta fase já mostramos os
+                locais técnicos importados da Stricker; a edição visual da
+                maquete será ligada no próximo passo.
+              </p>
+            </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {option.max_colors ? (
-                          <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
-                            Até {option.max_colors} cor
-                            {option.max_colors > 1 ? "es" : ""}
-                          </span>
-                        ) : null}
+            <div className="rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">
+              {customizationLocations.length} locais disponíveis
+            </div>
+          </div>
 
-                        {option.max_printing_area_mm ? (
-                          <span className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
-                            {option.max_printing_area_mm}
-                          </span>
-                        ) : null}
+          {customizationLocations.length > 0 ? (
+            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {customizationLocations.map((location) => {
+                const component = getComponentForLocation({
+                  location,
+                  componentsById,
+                });
 
-                        {option.is_default ? (
+                const image = getLocationImageUrl(location);
+                const tableCodes = getTableCodesForLocation(location);
+                const customizationTypes =
+                  getCustomizationTypesForLocation(location);
+
+                return (
+                  <article
+                    key={location.id}
+                    className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50"
+                  >
+                    <div className="aspect-[4/3] bg-white">
+                      {image ? (
+                        <img
+                          src={image}
+                          alt={
+                            location.location_name ??
+                            component?.component_name ??
+                            "Local de personalização"
+                          }
+                          className="h-full w-full object-contain p-6"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-neutral-400">
+                          <ImageIcon className="h-8 w-8" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-950">
+                            {location.location_name ??
+                              `Local ${getLocationIndex(location)}`}
+                          </p>
+
+                          <p className="mt-1 text-sm text-neutral-600">
+                            {component?.component_name ??
+                              component?.component_code ??
+                              "Componente do produto"}
+                          </p>
+                        </div>
+
+                        {location.is_default ? (
                           <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
                             <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Predefinida
+                            Default
                           </span>
                         ) : null}
                       </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {location.max_printing_area_mm ? (
+                          <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
+                            <Ruler className="mr-1 h-3 w-3" />
+                            {location.max_printing_area_mm}
+                          </span>
+                        ) : null}
+
+                        {location.max_area_cm2 ? (
+                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
+                            {location.max_area_cm2} cm²
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {customizationTypes.length > 0 ||
+                      tableCodes.length > 0 ? (
+                        <div className="mt-4 space-y-2">
+                          {customizationTypes.length > 0 ? (
+                            <p className="text-xs leading-5 text-neutral-500">
+                              Técnicas: {customizationTypes.join(", ")}
+                            </p>
+                          ) : null}
+
+                          {tableCodes.length > 0 ? (
+                            <p className="text-xs leading-5 text-neutral-500">
+                              Tabelas: {tableCodes.slice(0, 5).join(", ")}
+                              {tableCodes.length > 5 ? "…" : ""}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-neutral-600">
-                  Técnicas de personalização sob consulta.
-                </p>
-              )}
+                  </article>
+                );
+              })}
             </div>
-          </section>
-        </div>
+          ) : (
+            <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm leading-6 text-neutral-600">
+              Este produto ainda não tem locais de personalização importados. A
+              personalização poderá ser tratada por pedido de orçamento.
+            </div>
+          )}
+        </section>
       </section>
     </main>
   );
