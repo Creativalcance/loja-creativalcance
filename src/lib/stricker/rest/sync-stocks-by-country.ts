@@ -127,6 +127,21 @@ function toJsonRecord(value: unknown): JsonRecord {
   return value as JsonRecord;
 }
 
+function buildStockRawPayload(params: {
+  record: StrickerStockRecord;
+  lang: StrickerLanguage;
+  country: StrickerCountry;
+  warehouseCode: string;
+}): JsonRecord {
+  return {
+    ...toJsonRecord(params.record),
+    language: params.lang,
+    country: params.country,
+    warehouse_code: params.warehouseCode,
+    stock_scope: "country",
+  };
+}
+
 function normalizeDate(value: unknown): string | null {
   const rawValue = getNullableString(value);
 
@@ -151,6 +166,8 @@ function getFutureStockRows(params: {
   record: StrickerStockRecord;
   variant: ProductVariantRow;
   warehouseCode: string;
+  lang: StrickerLanguage;
+  country: StrickerCountry;
 }): ProductFutureStockUpsertRow[] {
   const rows: ProductFutureStockUpsertRow[] = [];
 
@@ -175,7 +192,17 @@ function getFutureStockRows(params: {
       warehouse_code: params.warehouseCode,
       expected_date: expectedDate,
       expected_quantity: quantity,
-      raw_payload: toJsonRecord(params.record),
+      raw_payload: {
+        ...buildStockRawPayload({
+          record: params.record,
+          lang: params.lang,
+          country: params.country,
+          warehouseCode: params.warehouseCode,
+        }),
+        future_stock_index: index,
+        expected_date: expectedDate,
+        expected_quantity: quantity,
+      },
     });
   }
 
@@ -442,6 +469,8 @@ export async function syncRestStocksByCountry(params: {
         record,
         variant,
         warehouseCode,
+        lang: params.lang,
+        country: params.country,
       });
 
       futureStockRows.push(...futureRowsForVariant);
@@ -467,7 +496,12 @@ export async function syncRestStocksByCountry(params: {
           warehouse_code: row.warehouse_code,
         })),
         stock_scope: "country",
-        raw_payload: toJsonRecord(record),
+        raw_payload: buildStockRawPayload({
+          record,
+          lang: params.lang,
+          country: params.country,
+          warehouseCode,
+        }),
       });
     }
 
@@ -516,8 +550,14 @@ export async function syncRestStocksByCountry(params: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        RequestedLanguage: params.lang,
         Country: params.country,
+        RequestedCountry: params.country,
         sample: records.slice(0, 5),
+        sampleSku: skus.slice(0, 10),
+        variantsMatched: variants.length,
+        stocksBuilt: stockRows.length,
+        futureStocksBuilt: futureStockRows.length,
       },
       errors,
     });
