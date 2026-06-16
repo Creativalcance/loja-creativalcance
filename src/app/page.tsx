@@ -5,12 +5,10 @@ import {
   CheckCircle2,
   Gift,
   LayoutGrid,
-  PackageCheck,
   Palette,
   Shirt,
   ShoppingCart,
   Sparkles,
-  Truck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import SiteHeader from "@/components/layout/SiteHeader";
@@ -35,6 +33,11 @@ type ProductStock = {
   available_quantity: number | null;
 };
 
+type ProductVariant = {
+  optional_image_1_url: string | null;
+  optional_image_2_url: string | null;
+};
+
 type HomepageProduct = {
   id: string;
   sku: string;
@@ -50,6 +53,7 @@ type HomepageProduct = {
   product_images: ProductImage[] | null;
   product_prices: ProductPrice[] | null;
   product_stocks: ProductStock[] | null;
+  product_variants: ProductVariant[] | null;
 };
 
 type CategoryDefinition = {
@@ -57,6 +61,12 @@ type CategoryDefinition = {
   description: string;
   keywords: string[];
   icon: LucideIcon;
+};
+
+type CategoryCard = CategoryDefinition & {
+  product: HomepageProduct | null;
+  imageUrl: string | null;
+  href: string;
 };
 
 const categoryDefinitions: CategoryDefinition[] = [
@@ -113,6 +123,7 @@ const categoryDefinitions: CategoryDefinition[] = [
       "casaco",
       "colete",
       "roupa",
+      "avental",
     ],
     icon: Shirt,
   },
@@ -159,7 +170,7 @@ const buyingSteps = [
     title: "Finaliza a encomenda",
     description:
       "Revê os dados no checkout e confirma a compra de forma simples e segura.",
-    icon: PackageCheck,
+    icon: CheckCircle2,
   },
 ];
 
@@ -177,6 +188,31 @@ function normalizeText(value: string | null | undefined): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase();
+}
+
+function getCleanUrl(value: string | null | undefined): string | null {
+  const cleanValue = value?.trim();
+
+  if (!cleanValue) {
+    return null;
+  }
+
+  const normalizedValue = normalizeText(cleanValue);
+
+  const isPlaceholder =
+    normalizedValue.includes("placeholder") ||
+    normalizedValue.includes("placehold") ||
+    normalizedValue.includes("dummy") ||
+    normalizedValue.includes("mock") ||
+    normalizedValue.includes("sem-imagem") ||
+    normalizedValue.includes("no-image") ||
+    normalizedValue.includes("fallback");
+
+  return isPlaceholder ? null : cleanValue;
+}
+
+function isDemoProduct(product: HomepageProduct): boolean {
+  return normalizeText(product.sku).startsWith("lc-");
 }
 
 function buildCategoryHref(product: HomepageProduct | null): string {
@@ -218,6 +254,22 @@ function getPrimaryImage(product: HomepageProduct): ProductImage | null {
   return [...images].sort((a, b) => a.sort_order - b.sort_order)[0] ?? null;
 }
 
+function getVariantImageUrl(product: HomepageProduct): string | null {
+  const variants = product.product_variants ?? [];
+
+  for (const variant of variants) {
+    const imageUrl =
+      getCleanUrl(variant.optional_image_1_url) ??
+      getCleanUrl(variant.optional_image_2_url);
+
+    if (imageUrl) {
+      return imageUrl;
+    }
+  }
+
+  return null;
+}
+
 function getImageUrl(product: HomepageProduct | null): string | null {
   if (!product) {
     return null;
@@ -225,7 +277,11 @@ function getImageUrl(product: HomepageProduct | null): string | null {
 
   const image = getPrimaryImage(product);
 
-  return image?.storage_url ?? image?.external_url ?? null;
+  return (
+    getCleanUrl(image?.storage_url) ??
+    getCleanUrl(image?.external_url) ??
+    getVariantImageUrl(product)
+  );
 }
 
 function getBestPrice(product: HomepageProduct): ProductPrice | null {
@@ -251,35 +307,76 @@ function getTotalStock(product: HomepageProduct): number {
   }, 0);
 }
 
+function productMatchesCategory(
+  product: HomepageProduct,
+  category: CategoryDefinition,
+): boolean {
+  const haystack = normalizeText(
+    [
+      product.name,
+      product.short_description,
+      product.type_name,
+      product.subtype_name,
+      product.material,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  );
+
+  return category.keywords.some((keyword) =>
+    haystack.includes(normalizeText(keyword)),
+  );
+}
+
 function findProductForCategory(params: {
   products: HomepageProduct[];
   category: CategoryDefinition;
   fallbackIndex: number;
+  usedProductIds: Set<string>;
 }): HomepageProduct | null {
-  const matchedProduct =
-    params.products.find((product) => {
-      const haystack = normalizeText(
-        [
-          product.name,
-          product.short_description,
-          product.type_name,
-          product.subtype_name,
-          product.material,
-        ]
-          .filter(Boolean)
-          .join(" "),
-      );
+  const availableProducts = params.products.filter(
+    (product) => !params.usedProductIds.has(product.id),
+  );
 
-      return params.category.keywords.some((keyword) =>
-        haystack.includes(normalizeText(keyword)),
-      );
-    }) ?? null;
+  const matchedProduct =
+    availableProducts.find((product) =>
+      productMatchesCategory(product, params.category),
+    ) ?? null;
 
   if (matchedProduct) {
     return matchedProduct;
   }
 
-  return params.products[params.fallbackIndex] ?? params.products[0] ?? null;
+  return (
+    availableProducts[params.fallbackIndex] ??
+    availableProducts[0] ??
+    params.products[0] ??
+    null
+  );
+}
+
+function buildCategoryCards(products: HomepageProduct[]): CategoryCard[] {
+  const usedProductIds = new Set<string>();
+
+  return categoryDefinitions.map((category, index) => {
+    const product = findProductForCategory({
+      products,
+      category,
+      fallbackIndex: index,
+      usedProductIds,
+    });
+
+    if (product) {
+      usedProductIds.add(product.id);
+    }
+
+    return {
+      ...category,
+      product,
+      imageUrl: getImageUrl(product),
+      href: buildCategoryHref(product),
+    };
+  });
 }
 
 function ProductMiniCard({ product }: { product: HomepageProduct }) {
@@ -369,6 +466,10 @@ export default async function HomePage() {
           sort_order,
           image_type
         ),
+        product_variants (
+          optional_image_1_url,
+          optional_image_2_url
+        ),
         product_prices (
           final_price,
           quantity_min,
@@ -381,44 +482,32 @@ export default async function HomePage() {
     )
     .eq("status", "active")
     .eq("is_active", true)
+    .not("type_name", "is", null)
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
-    .limit(120);
+    .limit(500);
 
-  const products = ((data ?? []) as unknown as HomepageProduct[]).filter(
-    (product) => product.slug,
+  const allProducts = ((data ?? []) as unknown as HomepageProduct[]).filter(
+    (product) => product.slug && !isDemoProduct(product),
   );
 
-  const categoryCards = categoryDefinitions.map((category, index) => {
-    const product = findProductForCategory({
-      products,
-      category,
-      fallbackIndex: index,
-    });
+  const productsWithImages = allProducts.filter((product) => getImageUrl(product));
+  const products = productsWithImages.length >= 4 ? productsWithImages : allProducts;
 
-    return {
-      ...category,
-      product,
-      imageUrl: getImageUrl(product),
-      href: buildCategoryHref(product),
-    };
-  });
-
+  const categoryCards = buildCategoryCards(products);
   const featuredProducts = products.filter((product) => product.is_featured);
   const productHighlights =
     featuredProducts.length >= 4
       ? featuredProducts.slice(0, 8)
       : products.slice(0, 8);
 
-  const heroProducts = products.slice(0, 3);
-
   return (
     <>
       <SiteHeader />
 
       <main className="min-h-screen bg-neutral-950 text-white">
-        <section className="mx-auto grid min-h-[calc(100vh-80px)] w-full max-w-7xl items-center gap-14 px-6 py-20 lg:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="max-w-4xl">
+        <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-14 lg:pb-12 lg:pt-16">
+          <div className="max-w-5xl">
             <p className="mb-5 inline-flex rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
               Loja Creativ — plataforma B2B premium para marcas exigentes
             </p>
@@ -452,56 +541,9 @@ export default async function HomePage() {
               </Link>
             </div>
           </div>
-
-          <div className="hidden lg:block">
-            <div className="grid gap-4">
-              {heroProducts.map((product, index) => {
-                const imageUrl = getImageUrl(product);
-
-                return (
-                  <Link
-                    key={product.id}
-                    href={`/produto/${product.slug}`}
-                    className={`group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-white/30 ${
-                      index === 1 ? "ml-10" : index === 2 ? "mr-10" : ""
-                    }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl bg-white">
-                        {imageUrl ? (
-                          <img
-                            src={imageUrl}
-                            alt={product.name}
-                            className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-105"
-                          />
-                        ) : (
-                          <PackageCheck className="h-8 w-8 text-neutral-300" />
-                        )}
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/40">
-                          {product.sku}
-                        </p>
-
-                        <p className="mt-2 line-clamp-2 text-sm font-semibold text-white">
-                          {product.name}
-                        </p>
-
-                        <span className="mt-3 inline-flex items-center text-xs font-semibold text-white/70">
-                          Ver produto
-                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                        </span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-6 pb-24">
+        <section id="categorias" className="mx-auto w-full max-w-7xl px-6 pb-20">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
@@ -511,6 +553,11 @@ export default async function HomePage() {
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
                 Explora por objectivo de compra
               </h2>
+
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/55">
+                Cada área apresenta uma fotografia real de um produto associado
+                a essa categoria.
+              </p>
             </div>
 
             <Link
@@ -522,7 +569,7 @@ export default async function HomePage() {
             </Link>
           </div>
 
-          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
             {categoryCards.map((category) => {
               const Icon = category.icon;
 
@@ -570,7 +617,7 @@ export default async function HomePage() {
         </section>
 
         <section className="border-y border-white/10 bg-white/[0.03]">
-          <div className="mx-auto w-full max-w-7xl px-6 py-24">
+          <div className="mx-auto w-full max-w-7xl px-6 py-20">
             <div className="max-w-3xl">
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
                 Como comprar
@@ -581,7 +628,7 @@ export default async function HomePage() {
               </h2>
             </div>
 
-            <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
               {buyingSteps.map((step, index) => {
                 const Icon = step.icon;
 
@@ -616,7 +663,7 @@ export default async function HomePage() {
 
         <section
           id="produtos-em-destaque"
-          className="mx-auto w-full max-w-7xl px-6 py-24"
+          className="mx-auto w-full max-w-7xl px-6 py-20"
         >
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
@@ -639,7 +686,7 @@ export default async function HomePage() {
           </div>
 
           {productHighlights.length > 0 ? (
-            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {productHighlights.map((product) => (
                 <ProductMiniCard key={product.id} product={product} />
               ))}
@@ -651,7 +698,7 @@ export default async function HomePage() {
           )}
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-6 pb-24">
+        <section className="mx-auto w-full max-w-7xl px-6 pb-20">
           <div className="grid gap-10 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 md:p-10 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
@@ -684,7 +731,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-6 pb-28">
+        <section className="mx-auto w-full max-w-7xl px-6 pb-24">
           <div className="rounded-[2rem] bg-white p-8 text-neutral-950 md:p-12">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div>
@@ -700,10 +747,10 @@ export default async function HomePage() {
 
               <Link
                 href="/categorias"
-                className="inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-950 px-7 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                className="inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-950 px-7 py-4 text-sm font-semibold !text-white transition hover:bg-neutral-800"
               >
-                Ver categorias
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <span className="!text-white">Ver categorias</span>
+                <ArrowRight className="ml-2 h-4 w-4 !text-white" />
               </Link>
             </div>
           </div>
