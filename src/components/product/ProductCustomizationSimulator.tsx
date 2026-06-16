@@ -54,14 +54,12 @@ const initialPosition: LogoPosition = {
   rotation: 0,
 };
 
-function getVariantLabel(variant: ProductSimulatorVariant): string {
-  const parts = [variant.color_name, variant.size].filter(Boolean);
-
-  if (parts.length > 0) {
-    return parts.join(" · ");
+function getColorLabel(variant: ProductSimulatorVariant): string {
+  if (variant.color_name && variant.size) {
+    return `${variant.color_name} · ${variant.size}`;
   }
 
-  return variant.sku;
+  return variant.color_name ?? variant.size ?? variant.sku;
 }
 
 function getLocationLabel(location: ProductSimulatorLocation): string {
@@ -69,7 +67,7 @@ function getLocationLabel(location: ProductSimulatorLocation): string {
     location.location_name ??
     location.component_name ??
     location.max_printing_area_mm ??
-    "Local de personalização"
+    "Área de personalização"
   );
 }
 
@@ -77,12 +75,12 @@ function getAvailableLocations(params: {
   selectedVariantId: string | null;
   locations: ProductSimulatorLocation[];
 }): ProductSimulatorLocation[] {
-  const variantLocations = params.locations.filter(
+  const colorLocations = params.locations.filter(
     (location) => location.variant_id === params.selectedVariantId,
   );
 
-  if (variantLocations.length > 0) {
-    return variantLocations;
+  if (colorLocations.length > 0) {
+    return colorLocations;
   }
 
   return params.locations;
@@ -98,16 +96,18 @@ export default function ProductCustomizationSimulator({
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     variants[0]?.id ?? null,
   );
+
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
     locations.find((location) => location.is_default)?.id ??
       locations[0]?.id ??
       null,
   );
+
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
 
-  const selectedVariant = useMemo(
+  const selectedColor = useMemo(
     () =>
       variants.find((variant) => variant.id === selectedVariantId) ??
       variants[0] ??
@@ -126,7 +126,9 @@ export default function ProductCustomizationSimulator({
 
   const selectedLocation = useMemo(
     () =>
-      availableLocations.find((location) => location.id === selectedLocationId) ??
+      availableLocations.find(
+        (location) => location.id === selectedLocationId,
+      ) ??
       availableLocations.find((location) => location.is_default) ??
       availableLocations[0] ??
       null,
@@ -134,7 +136,7 @@ export default function ProductCustomizationSimulator({
   );
 
   const previewBaseImage =
-    selectedVariant?.image_url ?? selectedLocation?.image_url ?? productImageUrl;
+    selectedColor?.image_url ?? selectedLocation?.image_url ?? productImageUrl;
 
   useEffect(() => {
     if (
@@ -189,16 +191,16 @@ export default function ProductCustomizationSimulator({
     return (
       <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Simulador
+          Personalização
         </p>
 
         <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-          Personalização do produto
+          Cria a tua maquete
         </h2>
 
         <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm leading-6 text-neutral-600">
-          Este produto ainda não tem locais de personalização importados. A
-          personalização poderá ser tratada por pedido de orçamento.
+          Este produto pode ser analisado pela nossa equipa para personalização.
+          Envia-nos o teu pedido e confirmamos a melhor solução para a tua marca.
         </div>
       </section>
     );
@@ -209,28 +211,27 @@ export default function ProductCustomizationSimulator({
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            Simulador
+            Personalização
           </p>
 
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-            Personalização do produto
+            Cria a tua maquete
           </h2>
 
           <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
-            Escolhe a variante, selecciona o local de personalização, carrega o
-            logótipo e posiciona-o sobre a maquete. Esta pré-visualização serve
-            como base para o pedido de orçamento e validação técnica.
+            Escolhe a cor do produto, selecciona a área de personalização e
+            carrega o teu logótipo para visualizar uma primeira maquete.
           </p>
         </div>
 
         <div className="rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">
-          {locations.length} locais disponíveis
+          {locations.length} áreas disponíveis
         </div>
       </div>
 
       <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
-          <div className="relative aspect-square overflow-hidden rounded-2xl bg-white">
+          <div className="relative mx-auto aspect-[4/3] max-h-[560px] overflow-hidden rounded-2xl bg-white">
             {previewBaseImage ? (
               <img
                 src={previewBaseImage}
@@ -244,7 +245,7 @@ export default function ProductCustomizationSimulator({
             )}
 
             <div
-              className="pointer-events-none absolute rounded-xl border-2 border-dashed border-neutral-950/40 bg-neutral-950/5"
+              className="pointer-events-none absolute rounded-xl border-2 border-dashed border-neutral-950/40 bg-white/60 backdrop-blur-[1px]"
               style={{
                 left: `${position.x}%`,
                 top: `${position.y}%`,
@@ -267,21 +268,63 @@ export default function ProductCustomizationSimulator({
             </div>
           </div>
 
+          {variants.length > 0 ? (
+            <div className="mt-5 rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-neutral-500" />
+                <p className="text-sm font-semibold text-neutral-950">
+                  Cores disponíveis
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {variants.map((variant) => {
+                  const isSelected = variant.id === selectedVariantId;
+
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedVariantId(variant.id);
+                      }}
+                      className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
+                        isSelected
+                          ? "border-neutral-950 bg-neutral-950 text-white"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                      }`}
+                      title={getColorLabel(variant)}
+                    >
+                      {variant.color_hex ? (
+                        <span
+                          className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
+                          style={{ backgroundColor: variant.color_hex }}
+                        />
+                      ) : null}
+
+                      {getColorLabel(variant)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-4 grid gap-3 text-sm text-neutral-600 md:grid-cols-3">
             <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
-              <p className="font-semibold text-neutral-950">Produto</p>
+              <p className="font-semibold text-neutral-950">Referência</p>
               <p className="mt-1">{productSku}</p>
             </div>
 
             <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
-              <p className="font-semibold text-neutral-950">Variante</p>
+              <p className="font-semibold text-neutral-950">Cor escolhida</p>
               <p className="mt-1">
-                {selectedVariant ? getVariantLabel(selectedVariant) : "—"}
+                {selectedColor ? getColorLabel(selectedColor) : "—"}
               </p>
             </div>
 
             <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
-              <p className="font-semibold text-neutral-950">Local</p>
+              <p className="font-semibold text-neutral-950">Área escolhida</p>
               <p className="mt-1">
                 {selectedLocation ? getLocationLabel(selectedLocation) : "—"}
               </p>
@@ -292,34 +335,10 @@ export default function ProductCustomizationSimulator({
         <aside className="space-y-5">
           <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <label
-              htmlFor="simulator-variant"
-              className="text-sm font-semibold text-neutral-950"
-            >
-              1. Variante / cor
-            </label>
-
-            <select
-              id="simulator-variant"
-              value={selectedVariantId ?? ""}
-              onChange={(event) => {
-                setSelectedVariantId(event.target.value || null);
-              }}
-              className="mt-3 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-            >
-              {variants.map((variant) => (
-                <option key={variant.id} value={variant.id}>
-                  {getVariantLabel(variant)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-            <label
               htmlFor="simulator-location"
               className="text-sm font-semibold text-neutral-950"
             >
-              2. Local de personalização
+              1. Escolhe a área de personalização
             </label>
 
             <select
@@ -342,20 +361,14 @@ export default function ProductCustomizationSimulator({
                 {selectedLocation.max_printing_area_mm ? (
                   <p className="inline-flex items-center">
                     <Ruler className="mr-1.5 h-3.5 w-3.5" />
-                    Área: {selectedLocation.max_printing_area_mm}
+                    Área máxima: {selectedLocation.max_printing_area_mm}
                   </p>
                 ) : null}
 
                 {selectedLocation.customization_types.length > 0 ? (
                   <p>
-                    Técnicas: {selectedLocation.customization_types.join(", ")}
-                  </p>
-                ) : null}
-
-                {selectedLocation.table_codes.length > 0 ? (
-                  <p>
-                    Tabelas: {selectedLocation.table_codes.slice(0, 4).join(", ")}
-                    {selectedLocation.table_codes.length > 4 ? "…" : ""}
+                    Técnicas possíveis:{" "}
+                    {selectedLocation.customization_types.join(", ")}
                   </p>
                 ) : null}
               </div>
@@ -364,7 +377,7 @@ export default function ProductCustomizationSimulator({
 
           <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <p className="text-sm font-semibold text-neutral-950">
-              3. Carregar logótipo
+              2. Carrega o teu logótipo
             </p>
 
             <label
@@ -376,7 +389,7 @@ export default function ProductCustomizationSimulator({
                 Escolher ficheiro
               </span>
               <span className="mt-1 text-xs text-neutral-500">
-                PNG, JPG ou SVG para pré-visualização
+                PNG, JPG, SVG ou WEBP
               </span>
             </label>
 
@@ -398,7 +411,7 @@ export default function ProductCustomizationSimulator({
           <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <p className="text-sm font-semibold text-neutral-950">
-                4. Ajustar maquete
+                3. Ajusta a maquete
               </p>
 
               <button
@@ -414,7 +427,7 @@ export default function ProductCustomizationSimulator({
             <div className="mt-5 space-y-5">
               <label className="block">
                 <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                  Posição horizontal
+                  Horizontal
                   <span>{position.x}%</span>
                 </span>
                 <input
@@ -431,7 +444,7 @@ export default function ProductCustomizationSimulator({
 
               <label className="block">
                 <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                  Posição vertical
+                  Vertical
                   <span>{position.y}%</span>
                 </span>
                 <input
@@ -448,7 +461,7 @@ export default function ProductCustomizationSimulator({
 
               <label className="block">
                 <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                  Escala
+                  Tamanho
                   <span>{position.scale}%</span>
                 </span>
                 <input
@@ -490,14 +503,14 @@ export default function ProductCustomizationSimulator({
 
             <dl className="mt-4 space-y-3 text-sm text-neutral-300">
               <div className="flex justify-between gap-4">
-                <dt>Variante</dt>
+                <dt>Cor</dt>
                 <dd className="text-right text-white">
-                  {selectedVariant ? getVariantLabel(selectedVariant) : "—"}
+                  {selectedColor ? getColorLabel(selectedColor) : "—"}
                 </dd>
               </div>
 
               <div className="flex justify-between gap-4">
-                <dt>Local</dt>
+                <dt>Área</dt>
                 <dd className="text-right text-white">
                   {selectedLocation ? getLocationLabel(selectedLocation) : "—"}
                 </dd>
@@ -512,9 +525,9 @@ export default function ProductCustomizationSimulator({
             </dl>
 
             <div className="mt-5 rounded-2xl bg-white/10 p-4 text-xs leading-5 text-neutral-300">
-              Esta maquete é uma pré-visualização visual. A validação final da
-              área de impressão, técnica e preço será feita no pedido de
-              orçamento.
+              A maquete apresentada é uma simulação visual. A disponibilidade,
+              técnica de personalização, área de impressão e preço final serão
+              confirmados pela nossa equipa antes da produção.
             </div>
           </div>
         </aside>

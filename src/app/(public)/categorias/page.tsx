@@ -1,22 +1,60 @@
 import Link from "next/link";
 import { ArrowRight, Boxes, Search } from "lucide-react";
+import SiteHeader from "@/components/layout/SiteHeader";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+type ProductImage = {
+  external_url: string | null;
+  storage_url: string | null;
+  alt_text: string | null;
+  is_primary: boolean;
+  sort_order: number;
+  image_type?: string | null;
+};
+
 type CategoryRow = {
+  name: string | null;
   type_name: string | null;
+  product_images: ProductImage[] | null;
 };
 
 type CatalogCategory = {
   name: string;
   count: number;
+  imageUrl: string | null;
+  imageAlt: string;
 };
 
 function buildCategoryHref(categoryName: string): string {
   return `/categorias/${encodeURIComponent(categoryName)}`;
 }
 
+function getPrimaryImage(images: ProductImage[] | null): ProductImage | null {
+  const validImages = images ?? [];
+
+  if (validImages.length === 0) {
+    return null;
+  }
+
+  const primaryImage = validImages.find((image) => image.is_primary);
+
+  if (primaryImage) {
+    return primaryImage;
+  }
+
+  return (
+    [...validImages].sort((a, b) => a.sort_order - b.sort_order)[0] ?? null
+  );
+}
+
+function getImageUrl(images: ProductImage[] | null): string | null {
+  const image = getPrimaryImage(images);
+
+  return image?.storage_url ?? image?.external_url ?? null;
+}
+
 function getCatalogCategories(rows: CategoryRow[]): CatalogCategory[] {
-  const categoryMap = new Map<string, number>();
+  const categoryMap = new Map<string, CatalogCategory>();
 
   rows.forEach((row) => {
     const categoryName = row.type_name?.trim();
@@ -25,15 +63,34 @@ function getCatalogCategories(rows: CategoryRow[]): CatalogCategory[] {
       return;
     }
 
-    categoryMap.set(categoryName, (categoryMap.get(categoryName) ?? 0) + 1);
+    const existingCategory = categoryMap.get(categoryName);
+    const imageUrl = getImageUrl(row.product_images);
+
+    if (existingCategory) {
+      categoryMap.set(categoryName, {
+        ...existingCategory,
+        count: existingCategory.count + 1,
+        imageUrl: existingCategory.imageUrl ?? imageUrl,
+        imageAlt:
+          existingCategory.imageAlt !== categoryName
+            ? existingCategory.imageAlt
+            : row.name ?? categoryName,
+      });
+
+      return;
+    }
+
+    categoryMap.set(categoryName, {
+      name: categoryName,
+      count: 1,
+      imageUrl,
+      imageAlt: row.name ?? categoryName,
+    });
   });
 
-  return Array.from(categoryMap.entries())
-    .map(([name, count]) => ({
-      name,
-      count,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-PT"));
+  return Array.from(categoryMap.values()).sort((a, b) =>
+    a.name.localeCompare(b.name, "pt-PT"),
+  );
 }
 
 export default async function CategoriesPage() {
@@ -41,99 +98,133 @@ export default async function CategoriesPage() {
 
   const { data, error } = await supabase
     .from("products")
-    .select("type_name")
+    .select(
+      `
+        name,
+        type_name,
+        product_images (
+          external_url,
+          storage_url,
+          alt_text,
+          is_primary,
+          sort_order,
+          image_type
+        )
+      `,
+    )
     .eq("status", "active")
     .eq("is_active", true)
     .not("type_name", "is", null)
+    .order("is_featured", { ascending: false })
+    .order("updated_at", { ascending: false })
     .limit(5000);
 
   const categories = error
     ? []
-    : getCatalogCategories((data ?? []) as CategoryRow[]);
+    : getCatalogCategories((data ?? []) as unknown as CategoryRow[]);
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-6 py-12">
-      <section className="mx-auto max-w-7xl">
-        <Link
-          href="/"
-          className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
-        >
-          ← Voltar à página inicial
-        </Link>
+    <>
 
-        <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-              Catálogo
-            </p>
-
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
-              Categorias de produtos
-            </h1>
-
-            <p className="mt-4 max-w-3xl text-neutral-600">
-              Explora o catálogo por categorias reais importadas da Stricker e
-              encontra rapidamente os produtos certos para campanhas, eventos,
-              equipas e clientes empresariais.
-            </p>
-          </div>
-
+      <main className="min-h-screen bg-neutral-950 text-white">
+        <section className="mx-auto w-full max-w-7xl px-6 py-12">
           <Link
-            href="/pesquisa"
-            className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            href="/"
+            className="text-sm font-medium text-white/50 transition hover:text-white"
           >
-            <Search className="mr-2 h-4 w-4" />
-            Pesquisar produtos
+            ← Voltar à página inicial
           </Link>
-        </div>
 
-        {error ? (
-          <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-            Não foi possível carregar as categorias. Tenta novamente.
+          <div className="mt-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
+                Catálogo
+              </p>
+
+              <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
+                Categorias de produtos
+              </h1>
+
+              <p className="mt-5 max-w-3xl text-base leading-8 text-white/65">
+                Explora o catálogo por categorias e encontra rapidamente
+                produtos para campanhas, eventos, equipas, clientes e ações
+                empresariais.
+              </p>
+            </div>
+
+            <Link
+              href="/pesquisa"
+              className="inline-flex items-center justify-center rounded-full border border-white/20 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/40 hover:!bg-white/10"
+            >
+              <Search className="mr-2 h-4 w-4" />
+              Pesquisar produtos
+            </Link>
           </div>
-        ) : null}
 
-        {categories.length > 0 ? (
-          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {categories.map((category) => (
-              <Link
-                key={category.name}
-                href={buildCategoryHref(category.name)}
-                className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-neutral-950 text-white">
-                  <Boxes className="h-5 w-5" />
-                </div>
+          {error ? (
+            <div className="mt-10 rounded-3xl border border-red-400/30 bg-red-500/10 p-6 text-sm text-red-100">
+              Não foi possível carregar as categorias. Tenta novamente.
+            </div>
+          ) : null}
 
-                <h2 className="mt-6 line-clamp-2 text-xl font-semibold tracking-tight text-neutral-950">
-                  {category.name}
-                </h2>
+          {categories.length > 0 ? (
+            <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {categories.map((category) => (
+                <Link
+                  key={category.name}
+                  href={buildCategoryHref(category.name)}
+                  className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
+                >
+                  <div className="aspect-[4/3] bg-white">
+                    {category.imageUrl ? (
+                      <img
+                        src={category.imageUrl}
+                        alt={category.imageAlt}
+                        className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-400">
+                        <Boxes className="h-10 w-10" />
+                      </div>
+                    )}
+                  </div>
 
-                <p className="mt-3 text-sm text-neutral-500">
-                  {category.count.toLocaleString("pt-PT")} produto(s)
-                  disponíveis
-                </p>
+                  <div className="p-6">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white">
+                      <Boxes className="h-5 w-5" />
+                    </div>
 
-                <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">
-                  Ver produtos
-                  <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
-                </span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
-            <h2 className="text-xl font-semibold text-neutral-950">
-              Ainda não existem categorias disponíveis
-            </h2>
+                    <h2 className="mt-6 line-clamp-2 text-xl font-semibold tracking-tight text-white">
+                      {category.name}
+                    </h2>
 
-            <p className="mt-3 text-neutral-600">
-              Confirma se os produtos importados têm o campo type_name
-              preenchido e se estão activos.
-            </p>
-          </div>
-        )}
-      </section>
-    </main>
+                    <p className="mt-3 text-sm text-white/55">
+                      {category.count.toLocaleString("pt-PT")} produto(s)
+                      disponíveis
+                    </p>
+
+                    <span className="mt-6 inline-flex items-center text-sm font-semibold text-white">
+                      Ver produtos
+                      <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
+              <h2 className="text-xl font-semibold text-white">
+                Ainda não existem categorias disponíveis
+              </h2>
+
+              <p className="mt-3 text-white/60">
+                Confirma se os produtos importados têm o campo type_name
+                preenchido e se estão activos.
+              </p>
+            </div>
+          )}
+        </section>
+      </main>
+    </>
   );
 }

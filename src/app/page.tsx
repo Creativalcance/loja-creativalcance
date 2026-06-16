@@ -2,50 +2,422 @@ import Link from "next/link";
 import {
   ArrowRight,
   Building2,
+  CheckCircle2,
   Gift,
-  Search,
+  LayoutGrid,
+  PackageCheck,
+  Palette,
   Shirt,
+  ShoppingCart,
   Sparkles,
+  Truck,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import SiteHeader from "@/components/layout/SiteHeader";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-const categories = [
+type ProductImage = {
+  external_url: string | null;
+  storage_url: string | null;
+  alt_text: string | null;
+  is_primary: boolean;
+  sort_order: number;
+  image_type?: string | null;
+};
+
+type ProductPrice = {
+  final_price: number | string | null;
+  quantity_min: number | null;
+  currency: string | null;
+};
+
+type ProductStock = {
+  available_quantity: number | null;
+};
+
+type HomepageProduct = {
+  id: string;
+  sku: string;
+  name: string;
+  slug: string;
+  short_description: string | null;
+  type_name: string | null;
+  subtype_name: string | null;
+  material: string | null;
+  is_featured: boolean;
+  is_customizable: boolean;
+  min_order_quantity: number | null;
+  product_images: ProductImage[] | null;
+  product_prices: ProductPrice[] | null;
+  product_stocks: ProductStock[] | null;
+};
+
+type CategoryDefinition = {
+  title: string;
+  description: string;
+  keywords: string[];
+  icon: LucideIcon;
+};
+
+const categoryDefinitions: CategoryDefinition[] = [
   {
     title: "Brindes Promocionais",
     description:
-      "Produtos personalizados para campanhas, eventos e activações de marca.",
-    href: "/categorias",
+      "Produtos personalizados para campanhas, eventos, feiras e ativações de marca.",
+    keywords: [
+      "brinde",
+      "promocional",
+      "caneta",
+      "esferografica",
+      "garrafa",
+      "caderno",
+      "bloco",
+      "saco",
+      "lanyard",
+      "porta chaves",
+      "porta-chaves",
+    ],
     icon: Gift,
   },
   {
     title: "Merchandising Corporativo",
     description:
-      "Soluções de branding para empresas, equipas e clientes estratégicos.",
-    href: "/categorias",
+      "Soluções de branding para empresas, equipas, clientes e ações comerciais.",
+    keywords: [
+      "merchandising",
+      "corporativo",
+      "empresa",
+      "office",
+      "escritorio",
+      "mochila",
+      "powerbank",
+      "tecnologia",
+      "agenda",
+      "usb",
+    ],
     icon: Building2,
   },
   {
     title: "Vestuário Promocional",
-    description: "T-shirts, polos, sweats, casacos e uniformes personalizados.",
-    href: "/categorias",
+    description:
+      "T-shirts, polos, sweats, casacos e vestuário personalizado para empresas.",
+    keywords: [
+      "vestuario",
+      "vestuário",
+      "textil",
+      "t-shirt",
+      "tshirt",
+      "shirt",
+      "polo",
+      "sweat",
+      "casaco",
+      "colete",
+      "roupa",
+    ],
     icon: Shirt,
   },
   {
     title: "Gifts Empresariais",
     description:
-      "Presentes corporativos premium para clientes, equipas e parceiros.",
-    href: "/categorias",
+      "Presentes corporativos para clientes, equipas, eventos e campanhas especiais.",
+    keywords: [
+      "gift",
+      "gifts",
+      "presente",
+      "premium",
+      "executivo",
+      "caixa",
+      "conjunto",
+      "garrafa",
+      "gourmet",
+      "vinho",
+    ],
     icon: Sparkles,
   },
 ];
 
-export default function HomePage() {
+const buyingSteps = [
+  {
+    title: "Escolhe a categoria",
+    description:
+      "Explora o catálogo por famílias de produto e encontra rapidamente opções para a tua campanha.",
+    icon: LayoutGrid,
+  },
+  {
+    title: "Define cor e quantidade",
+    description:
+      "Consulta stock, escalões de preço e disponibilidade antes de avançar com a encomenda.",
+    icon: Palette,
+  },
+  {
+    title: "Cria maquete ou compra direto",
+    description:
+      "Personaliza o produto quando aplicável ou adiciona diretamente ao carrinho.",
+    icon: ShoppingCart,
+  },
+  {
+    title: "Finaliza a encomenda",
+    description:
+      "Revê os dados no checkout e confirma a compra de forma simples e segura.",
+    icon: PackageCheck,
+  },
+];
+
+const benefits = [
+  "Compra directa online para empresas",
+  "Escalões de preço por quantidade",
+  "Stock e cores por produto",
+  "Produtos com personalização disponível",
+  "Catálogo B2B em permanente evolução",
+  "Experiência premium orientada à conversão",
+];
+
+function normalizeText(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function buildCategoryHref(product: HomepageProduct | null): string {
+  const categoryName = product?.type_name?.trim();
+
+  if (!categoryName) {
+    return "/categorias";
+  }
+
+  return `/categorias/${encodeURIComponent(categoryName)}`;
+}
+
+function formatPrice(value: number | string | null, currency: string | null) {
+  const numericValue = Number(value);
+
+  if (!Number.isFinite(numericValue)) {
+    return "Sob consulta";
+  }
+
+  return new Intl.NumberFormat("pt-PT", {
+    style: "currency",
+    currency: currency ?? "EUR",
+  }).format(numericValue);
+}
+
+function getPrimaryImage(product: HomepageProduct): ProductImage | null {
+  const images = product.product_images ?? [];
+
+  if (images.length === 0) {
+    return null;
+  }
+
+  const primaryImage = images.find((image) => image.is_primary);
+
+  if (primaryImage) {
+    return primaryImage;
+  }
+
+  return [...images].sort((a, b) => a.sort_order - b.sort_order)[0] ?? null;
+}
+
+function getImageUrl(product: HomepageProduct | null): string | null {
+  if (!product) {
+    return null;
+  }
+
+  const image = getPrimaryImage(product);
+
+  return image?.storage_url ?? image?.external_url ?? null;
+}
+
+function getBestPrice(product: HomepageProduct): ProductPrice | null {
+  const prices = product.product_prices ?? [];
+
+  if (prices.length === 0) {
+    return null;
+  }
+
+  return (
+    [...prices].sort((a, b) => {
+      const quantityA = a.quantity_min ?? 0;
+      const quantityB = b.quantity_min ?? 0;
+
+      return quantityA - quantityB;
+    })[0] ?? null
+  );
+}
+
+function getTotalStock(product: HomepageProduct): number {
+  return (product.product_stocks ?? []).reduce((total, stock) => {
+    return total + (stock.available_quantity ?? 0);
+  }, 0);
+}
+
+function findProductForCategory(params: {
+  products: HomepageProduct[];
+  category: CategoryDefinition;
+  fallbackIndex: number;
+}): HomepageProduct | null {
+  const matchedProduct =
+    params.products.find((product) => {
+      const haystack = normalizeText(
+        [
+          product.name,
+          product.short_description,
+          product.type_name,
+          product.subtype_name,
+          product.material,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+
+      return params.category.keywords.some((keyword) =>
+        haystack.includes(normalizeText(keyword)),
+      );
+    }) ?? null;
+
+  if (matchedProduct) {
+    return matchedProduct;
+  }
+
+  return params.products[params.fallbackIndex] ?? params.products[0] ?? null;
+}
+
+function ProductMiniCard({ product }: { product: HomepageProduct }) {
+  const imageUrl = getImageUrl(product);
+  const bestPrice = getBestPrice(product);
+
+  return (
+    <Link
+      href={`/produto/${product.slug}`}
+      className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:-translate-y-1 hover:border-white/25 hover:bg-white/[0.07]"
+    >
+      <div className="aspect-square bg-white">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={product.name}
+            className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-400">
+            Produto disponível
+          </div>
+        )}
+      </div>
+
+      <div className="p-5">
+        <p className="text-xs font-medium uppercase tracking-[0.16em] text-white/40">
+          {product.sku}
+        </p>
+
+        <h3 className="mt-3 line-clamp-2 text-base font-semibold text-white">
+          {product.name}
+        </h3>
+
+        <div className="mt-5 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs text-white/45">Desde</p>
+
+            <p className="mt-1 text-base font-semibold text-white">
+              {bestPrice
+                ? formatPrice(bestPrice.final_price, bestPrice.currency)
+                : "Sob consulta"}
+            </p>
+          </div>
+
+          <div className="text-right">
+            <p className="text-xs text-white/45">Stock</p>
+
+            <p className="mt-1 text-sm font-semibold text-white">
+              {getTotalStock(product).toLocaleString("pt-PT")}
+            </p>
+          </div>
+        </div>
+
+        <span className="mt-5 inline-flex items-center text-sm font-semibold text-white">
+          Ver produto
+          <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+export default async function HomePage() {
+  const supabase = await createSupabaseServerClient();
+
+  const { data } = await supabase
+    .from("products")
+    .select(
+      `
+        id,
+        sku,
+        name,
+        slug,
+        short_description,
+        type_name,
+        subtype_name,
+        material,
+        is_featured,
+        is_customizable,
+        min_order_quantity,
+        product_images (
+          external_url,
+          storage_url,
+          alt_text,
+          is_primary,
+          sort_order,
+          image_type
+        ),
+        product_prices (
+          final_price,
+          quantity_min,
+          currency
+        ),
+        product_stocks (
+          available_quantity
+        )
+      `,
+    )
+    .eq("status", "active")
+    .eq("is_active", true)
+    .order("is_featured", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(120);
+
+  const products = ((data ?? []) as unknown as HomepageProduct[]).filter(
+    (product) => product.slug,
+  );
+
+  const categoryCards = categoryDefinitions.map((category, index) => {
+    const product = findProductForCategory({
+      products,
+      category,
+      fallbackIndex: index,
+    });
+
+    return {
+      ...category,
+      product,
+      imageUrl: getImageUrl(product),
+      href: buildCategoryHref(product),
+    };
+  });
+
+  const featuredProducts = products.filter((product) => product.is_featured);
+  const productHighlights =
+    featuredProducts.length >= 4
+      ? featuredProducts.slice(0, 8)
+      : products.slice(0, 8);
+
+  const heroProducts = products.slice(0, 3);
+
   return (
     <>
       <SiteHeader />
 
       <main className="min-h-screen bg-neutral-950 text-white">
-        <section className="mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-7xl flex-col justify-center px-6 py-20">
+        <section className="mx-auto grid min-h-[calc(100vh-80px)] w-full max-w-7xl items-center gap-14 px-6 py-20 lg:grid-cols-[minmax(0,1fr)_420px]">
           <div className="max-w-4xl">
             <p className="mb-5 inline-flex rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
               Loja Creativ — plataforma B2B premium para marcas exigentes
@@ -57,57 +429,283 @@ export default function HomePage() {
             </h1>
 
             <p className="mt-8 max-w-2xl text-lg leading-8 text-white/70">
-              A Loja Creativ ajuda empresas a comprar produtos personalizados,
-              merchandising, vestuário promocional e gifts empresariais com uma
-              experiência digital simples, premium e orientada à venda directa.
+              Compra produtos personalizados, merchandising, vestuário
+              promocional e gifts empresariais de forma simples, rápida e
+              orientada à encomenda online.
             </p>
 
             <div className="mt-10 flex flex-col gap-4 sm:flex-row">
               <Link
-                href="/pesquisa"
-                className="inline-flex items-center justify-center rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-white/90"
+                href="/categorias"
+                className="inline-flex items-center justify-center rounded-full border border-white/30 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/60 hover:!bg-white/10"
               >
-                Procurar produtos
-                <Search className="ml-2 h-4 w-4" />
+                Ver categorias
+                <LayoutGrid className="ml-2 h-4 w-4" />
               </Link>
 
               <Link
-                href="/contacto"
-                className="inline-flex items-center justify-center rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                href="#produtos-em-destaque"
+                className="inline-flex items-center justify-center rounded-full border border-white/20 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/40 hover:!bg-white/10"
               >
-                Pedido personalizado
+                Produtos em destaque
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </div>
           </div>
 
-          <div className="mt-20 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-            {categories.map((category) => {
+          <div className="hidden lg:block">
+            <div className="grid gap-4">
+              {heroProducts.map((product, index) => {
+                const imageUrl = getImageUrl(product);
+
+                return (
+                  <Link
+                    key={product.id}
+                    href={`/produto/${product.slug}`}
+                    className={`group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-4 transition hover:border-white/30 ${
+                      index === 1 ? "ml-10" : index === 2 ? "mr-10" : ""
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl bg-white">
+                        {imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={product.name}
+                            className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <PackageCheck className="h-8 w-8 text-neutral-300" />
+                        )}
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/40">
+                          {product.sku}
+                        </p>
+
+                        <p className="mt-2 line-clamp-2 text-sm font-semibold text-white">
+                          {product.name}
+                        </p>
+
+                        <span className="mt-3 inline-flex items-center text-xs font-semibold text-white/70">
+                          Ver produto
+                          <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-7xl px-6 pb-24">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
+                Categorias
+              </p>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Explora por objectivo de compra
+              </h2>
+            </div>
+
+            <Link
+              href="/categorias"
+              className="inline-flex items-center text-sm font-semibold text-white"
+            >
+              Ver todas as categorias
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-10 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            {categoryCards.map((category) => {
               const Icon = category.icon;
 
               return (
                 <Link
                   key={category.title}
                   href={category.href}
-                  className="group rounded-3xl border border-white/10 bg-white/[0.03] p-6 transition hover:border-white/30 hover:bg-white/[0.06]"
+                  aria-label={`Explorar ${category.title}`}
+                  className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
                 >
-                  <Icon className="h-7 w-7 text-white" />
+                  <div className="aspect-[4/3] bg-white">
+                    {category.imageUrl ? (
+                      <img
+                        src={category.imageUrl}
+                        alt={category.product?.name ?? category.title}
+                        className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center bg-neutral-100 text-neutral-400">
+                        <Icon className="h-10 w-10" />
+                      </div>
+                    )}
+                  </div>
 
-                  <h2 className="mt-8 text-xl font-semibold text-white">
-                    {category.title}
-                  </h2>
+                  <div className="p-6">
+                    <Icon className="h-6 w-6 text-white/70" />
 
-                  <p className="mt-3 text-sm leading-6 text-white/60">
-                    {category.description}
-                  </p>
+                    <h3 className="mt-5 text-xl font-semibold text-white">
+                      {category.title}
+                    </h3>
 
-                  <span className="mt-6 inline-flex items-center text-sm font-medium text-white">
-                    Explorar
-                    <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
-                  </span>
+                    <p className="mt-3 text-sm leading-6 text-white/60">
+                      {category.description}
+                    </p>
+
+                    <span className="mt-6 inline-flex items-center text-sm font-medium text-white">
+                      Ver produtos
+                      <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
+                    </span>
+                  </div>
                 </Link>
               );
             })}
+          </div>
+        </section>
+
+        <section className="border-y border-white/10 bg-white/[0.03]">
+          <div className="mx-auto w-full max-w-7xl px-6 py-24">
+            <div className="max-w-3xl">
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
+                Como comprar
+              </p>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Da escolha do produto à encomenda em poucos passos.
+              </h2>
+            </div>
+
+            <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+              {buyingSteps.map((step, index) => {
+                const Icon = step.icon;
+
+                return (
+                  <div
+                    key={step.title}
+                    className="rounded-3xl border border-white/10 bg-neutral-950 p-6"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-neutral-950">
+                        <Icon className="h-5 w-5" />
+                      </div>
+
+                      <span className="text-sm font-semibold text-white/30">
+                        0{index + 1}
+                      </span>
+                    </div>
+
+                    <h3 className="mt-6 text-xl font-semibold text-white">
+                      {step.title}
+                    </h3>
+
+                    <p className="mt-3 text-sm leading-6 text-white/60">
+                      {step.description}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="produtos-em-destaque"
+          className="mx-auto w-full max-w-7xl px-6 py-24"
+        >
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
+                Produtos
+              </p>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Produtos em destaque
+              </h2>
+            </div>
+
+            <Link
+              href="/categorias"
+              className="inline-flex items-center text-sm font-semibold text-white"
+            >
+              Explorar catálogo
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
+          </div>
+
+          {productHighlights.length > 0 ? (
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {productHighlights.map((product) => (
+                <ProductMiniCard key={product.id} product={product} />
+              ))}
+            </div>
+          ) : (
+            <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
+              O catálogo está a ser preparado.
+            </div>
+          )}
+        </section>
+
+        <section className="mx-auto w-full max-w-7xl px-6 pb-24">
+          <div className="grid gap-10 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 md:p-10 lg:grid-cols-[0.8fr_1.2fr]">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
+                Vantagens B2B
+              </p>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Uma experiência pensada para empresas.
+              </h2>
+
+              <p className="mt-5 text-sm leading-7 text-white/60">
+                A Loja Creativ foi desenhada para acelerar a compra de produtos
+                promocionais, reduzindo pedidos manuais e facilitando a escolha
+                por categoria, cor, stock, quantidade e personalização.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {benefits.map((benefit) => (
+                <div
+                  key={benefit}
+                  className="flex items-start gap-3 rounded-2xl border border-white/10 bg-neutral-950 p-4"
+                >
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" />
+
+                  <p className="text-sm leading-6 text-white/70">{benefit}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-7xl px-6 pb-28">
+          <div className="rounded-[2rem] bg-white p-8 text-neutral-950 md:p-12">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                  Catálogo
+                </p>
+
+                <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">
+                  Encontra o produto certo para a próxima campanha da tua
+                  empresa.
+                </h2>
+              </div>
+
+              <Link
+                href="/categorias"
+                className="inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-950 px-7 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              >
+                Ver categorias
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </section>
       </main>

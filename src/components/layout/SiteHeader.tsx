@@ -56,10 +56,6 @@ export default async function SiteHeader() {
           <Link href="/ajuda" className="transition hover:text-neutral-950">
             Ajuda
           </Link>
-
-          <Link href="/contacto" className="transition hover:text-neutral-950">
-            Pedido personalizado
-          </Link>
         </nav>
 
         <div className="flex items-center gap-3">
