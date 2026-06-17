@@ -66,7 +66,6 @@ type CategoryDefinition = {
 type CategoryCard = CategoryDefinition & {
   product: HomepageProduct | null;
   imageUrl: string | null;
-  href: string;
 };
 
 const categoryDefinitions: CategoryDefinition[] = [
@@ -212,17 +211,15 @@ function getCleanUrl(value: string | null | undefined): string | null {
 }
 
 function isDemoProduct(product: HomepageProduct): boolean {
-  return normalizeText(product.sku).startsWith("lc-");
-}
+  const sku = normalizeText(product.sku);
+  const name = normalizeText(product.name);
 
-function buildCategoryHref(product: HomepageProduct | null): string {
-  const categoryName = product?.type_name?.trim();
-
-  if (!categoryName) {
-    return "/categorias";
-  }
-
-  return `/categorias/${encodeURIComponent(categoryName)}`;
+  return (
+    sku.startsWith("lc-") ||
+    name.includes("caneca ceramica personalizada") ||
+    name.includes("esferografica metalica premium") ||
+    name.includes("garrafa termica em aco inox")
+  );
 }
 
 function formatPrice(value: number | string | null, currency: string | null) {
@@ -374,7 +371,6 @@ function buildCategoryCards(products: HomepageProduct[]): CategoryCard[] {
       ...category,
       product,
       imageUrl: getImageUrl(product),
-      href: buildCategoryHref(product),
     };
   });
 }
@@ -482,7 +478,6 @@ export default async function HomePage() {
     )
     .eq("status", "active")
     .eq("is_active", true)
-    .not("type_name", "is", null)
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(500);
@@ -495,11 +490,15 @@ export default async function HomePage() {
   const products = productsWithImages.length >= 4 ? productsWithImages : allProducts;
 
   const categoryCards = buildCategoryCards(products);
-  const featuredProducts = products.filter((product) => product.is_featured);
+
+  const featuredProducts = products.filter(
+    (product) => product.is_featured && getImageUrl(product),
+  );
+
   const productHighlights =
     featuredProducts.length >= 4
       ? featuredProducts.slice(0, 8)
-      : products.slice(0, 8);
+      : productsWithImages.slice(0, 8);
 
   return (
     <>
@@ -555,8 +554,8 @@ export default async function HomePage() {
               </h2>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/55">
-                Cada área apresenta uma fotografia real de um produto associado
-                a essa categoria.
+                Cada área apresenta um produto real do catálogo para tornar a
+                escolha mais rápida e visual.
               </p>
             </div>
 
@@ -576,7 +575,7 @@ export default async function HomePage() {
               return (
                 <Link
                   key={category.title}
-                  href={category.href}
+                  href="/categorias"
                   aria-label={`Explorar ${category.title}`}
                   className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
                 >
@@ -605,8 +604,14 @@ export default async function HomePage() {
                       {category.description}
                     </p>
 
+                    {category.product ? (
+                      <p className="mt-4 line-clamp-1 text-xs font-medium text-white/40">
+                        Produto em destaque: {category.product.name}
+                      </p>
+                    ) : null}
+
                     <span className="mt-6 inline-flex items-center text-sm font-medium text-white">
-                      Ver produtos
+                      Ver categorias
                       <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
                     </span>
                   </div>
