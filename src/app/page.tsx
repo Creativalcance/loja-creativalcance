@@ -503,13 +503,6 @@ export default async function HomePage() {
   return (
     <>
       <SiteHeader />
-      <main className="min-h-screen bg-neutral-950 text-white">
-  <div className="fixed bottom-4 left-4 z-[9999] rounded-full bg-red-600 px-4 py-2 text-xs font-bold text-white">
-    HOME NOVA A534CC4
-  </div>
-
-  ...
-</main>
 
       <main className="min-h-screen bg-neutral-950 text-white">
         <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-14 lg:pb-12 lg:pt-16">
