@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Ruler } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import ProductDirectPurchasePanel, {
   type ProductPurchaseColor,
   type ProductPurchasePrice,
   type ProductPurchaseStock,
 } from "@/components/product/ProductDirectPurchasePanel";
-import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
+import ProductCustomizationOptions, {
+  type ProductCustomizationOption,
+} from "@/components/product/ProductCustomizationOptions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
@@ -221,35 +223,103 @@ function getLocationImageCandidates(
   ].filter((url): url is string => Boolean(url?.trim()));
 }
 
-function getUniqueCustomizationLocations(
-  locations: ProductCustomizationLocation[],
-): ProductCustomizationLocation[] {
-  const map = new Map<string, ProductCustomizationLocation>();
+function getCustomizationKey(params: {
+  technique: string;
+  componentName: string | null;
+  locationName: string;
+  maxPrintingAreaMm: string | null;
+}): string {
+  return [
+    params.technique,
+    params.componentName ?? "component",
+    params.locationName,
+    params.maxPrintingAreaMm ?? "area",
+  ]
+    .join(":")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
 
-  for (const location of locations) {
-    const key = [
-      location.variant_id ?? "color",
-      location.component_id ?? "component",
-      location.location_code ?? location.location_name ?? location.id,
-      location.max_printing_area_mm ?? "area",
-    ].join(":");
+function buildCustomizationOptions(params: {
+  productSlug: string;
+  locations: ProductCustomizationLocation[];
+  componentsById: Map<string, ProductCustomizationComponent>;
+}): ProductCustomizationOption[] {
+  const map = new Map<string, ProductCustomizationOption>();
 
-    if (!map.has(key)) {
-      map.set(key, location);
+  for (const location of params.locations) {
+    const component = getComponentForLocation({
+      location,
+      componentsById: params.componentsById,
+    });
+
+    const customizationTypes = getCustomizationTypesForLocation(location);
+
+    const technique = customizationTypes[0] ?? "Personalização";
+    const componentName =
+      component?.component_name ?? component?.component_code ?? null;
+    const locationName =
+      location.location_name ?? location.location_code ?? `Local ${getLocationIndex(location)}`;
+    const imageUrls = getLocationImageCandidates(location);
+
+    const option: ProductCustomizationOption = {
+      id: location.id,
+      technique,
+      componentName,
+      locationName,
+      maxPrintingAreaMm: location.max_printing_area_mm,
+      maxAreaCm2: location.max_area_cm2,
+      imageUrls,
+      isRecommended: location.is_default,
+      href: `/produto/${params.productSlug}/personalizar?local=${encodeURIComponent(
+        location.id,
+      )}`,
+    };
+
+    const key = getCustomizationKey({
+      technique: option.technique,
+      componentName: option.componentName,
+      locationName: option.locationName,
+      maxPrintingAreaMm: option.maxPrintingAreaMm,
+    });
+
+    const existingOption = map.get(key);
+
+    if (!existingOption) {
+      map.set(key, option);
+      continue;
+    }
+
+    const shouldReplace =
+      (!existingOption.isRecommended && option.isRecommended) ||
+      (existingOption.imageUrls.length === 0 && option.imageUrls.length > 0);
+
+    if (shouldReplace) {
+      map.set(key, option);
     }
   }
 
   return Array.from(map.values())
     .sort((a, b) => {
-      if (a.is_default && !b.is_default) {
+      if (a.isRecommended && !b.isRecommended) {
         return -1;
       }
 
-      if (!a.is_default && b.is_default) {
+      if (!a.isRecommended && b.isRecommended) {
         return 1;
       }
 
-      return getLocationIndex(a) - getLocationIndex(b);
+      const techniqueComparison = a.technique.localeCompare(
+        b.technique,
+        "pt-PT",
+      );
+
+      if (techniqueComparison !== 0) {
+        return techniqueComparison;
+      }
+
+      return a.locationName.localeCompare(b.locationName, "pt-PT");
     })
     .slice(0, 24);
 }
@@ -357,11 +427,15 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   const components = product.product_customization_components ?? [];
   const componentsById = buildComponentMap(components);
 
-  const customizationLocations = getUniqueCustomizationLocations(
-    (product.product_customization_locations ?? []).filter(
-      (location) => location.is_active,
-    ),
-  );
+  const activeCustomizationLocations = (
+    product.product_customization_locations ?? []
+  ).filter((location) => location.is_active);
+
+  const customizationOptions = buildCustomizationOptions({
+    productSlug: product.slug,
+    locations: activeCustomizationLocations,
+    componentsById,
+  });
 
   const purchaseColors: ProductPurchaseColor[] = colors.map((color) => ({
     id: color.id,
@@ -410,7 +484,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           productImageUrl={imageUrl ?? null}
           minimumQuantity={product.min_order_quantity}
           totalStock={getTotalStock(product)}
-          isCustomizable={customizationLocations.length > 0}
+          isCustomizable={customizationOptions.length > 0}
           prices={purchasePrices}
           colors={purchaseColors}
           stocks={purchaseStocks}
@@ -489,96 +563,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           </section>
         </div>
 
-        <section className="mt-10 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <div className="text-center">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-              Personalização
-            </p>
-
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-              Possibilidades de personalização do produto
-            </h2>
-          </div>
-
-          {customizationLocations.length > 0 ? (
-            <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-              {customizationLocations.map((location) => {
-                const component = getComponentForLocation({
-                  location,
-                  componentsById,
-                });
-
-                const customizationTypes =
-                  getCustomizationTypesForLocation(location);
-
-                const imageAlt =
-                  location.location_name ??
-                  component?.component_name ??
-                  "Personalização";
-
-                return (
-                  <article
-                    key={location.id}
-                    className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50"
-                  >
-                    <div className="aspect-[4/3] bg-white">
-                      <CustomizationLocationImage
-                        urls={getLocationImageCandidates(location)}
-                        alt={imageAlt}
-                      />
-                    </div>
-
-                    <div className="p-5">
-                      <p className="text-sm font-semibold uppercase tracking-[0.12em] text-neutral-950">
-                        {customizationTypes[0] ?? "Personalização"}
-                      </p>
-
-                      <p className="mt-2 text-sm leading-6 text-neutral-600">
-                        {component?.component_name ??
-                          component?.component_code ??
-                          "Área do produto"}{" "}
-                        ·{" "}
-                        {location.location_name ??
-                          `Local ${getLocationIndex(location)}`}
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {location.max_printing_area_mm ? (
-                          <span className="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-neutral-600 ring-1 ring-neutral-200">
-                            <Ruler className="mr-1 h-3 w-3" />
-                            {location.max_printing_area_mm}
-                          </span>
-                        ) : null}
-
-                        {location.is_default ? (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                            Recomendada
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <Link
-                        href={`/produto/${product.slug}/personalizar?local=${encodeURIComponent(
-                          location.id,
-                        )}`}
-                        className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold !text-white transition hover:bg-neutral-800"
-                      >
-                        Criar maquete
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="mt-8 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm leading-6 text-neutral-600">
-              Este produto pode ser encomendado online. A personalização será
-              apresentada quando existir informação técnica disponível para este
-              artigo.
-            </div>
-          )}
-        </section>
+        <ProductCustomizationOptions options={customizationOptions} />
       </section>
     </main>
   );

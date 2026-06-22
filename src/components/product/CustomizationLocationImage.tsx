@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ImageIcon } from "lucide-react";
 
 type CustomizationLocationImageProps = {
   urls: Array<string | null | undefined>;
   alt: string;
+  className?: string;
 };
 
 function getValidUrls(urls: Array<string | null | undefined>): string[] {
@@ -27,9 +28,15 @@ function getValidUrls(urls: Array<string | null | undefined>): string[] {
 export default function CustomizationLocationImage({
   urls,
   alt,
+  className = "h-full w-full object-contain p-6",
 }: CustomizationLocationImageProps) {
   const imageUrls = useMemo(() => getValidUrls(urls), [urls]);
+  const imageUrlsKey = imageUrls.join("|");
   const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [imageUrlsKey]);
 
   const activeUrl = imageUrls[activeIndex] ?? null;
 
@@ -47,7 +54,7 @@ export default function CustomizationLocationImage({
       alt={alt}
       referrerPolicy="no-referrer"
       loading="lazy"
-      className="h-full w-full object-contain p-6"
+      className={className}
       onError={() => {
         setActiveIndex((currentIndex) => currentIndex + 1);
       }}
