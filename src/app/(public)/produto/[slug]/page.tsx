@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ImageIcon, Ruler } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Ruler } from "lucide-react";
 import ProductDirectPurchasePanel, {
   type ProductPurchaseColor,
   type ProductPurchasePrice,
   type ProductPurchaseStock,
 } from "@/components/product/ProductDirectPurchasePanel";
+import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
@@ -207,18 +208,17 @@ function getComponentForLocation(params: {
   return params.componentsById.get(params.location.component_id) ?? null;
 }
 
-function getLocationImageUrl(
+function getLocationImageCandidates(
   location: ProductCustomizationLocation,
-): string | null {
-  return (
-    location.printing_lines_storage_url ??
-    location.printing_lines_image_url ??
-    location.area_storage_url ??
-    location.area_image_url ??
-    location.location_storage_url ??
-    location.location_image_url ??
-    null
-  );
+): string[] {
+  return [
+    location.location_storage_url,
+    location.area_storage_url,
+    location.printing_lines_storage_url,
+    location.location_image_url,
+    location.area_image_url,
+    location.printing_lines_image_url,
+  ].filter((url): url is string => Boolean(url?.trim()));
 }
 
 function getUniqueCustomizationLocations(
@@ -508,9 +508,13 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                   componentsById,
                 });
 
-                const image = getLocationImageUrl(location);
                 const customizationTypes =
                   getCustomizationTypesForLocation(location);
+
+                const imageAlt =
+                  location.location_name ??
+                  component?.component_name ??
+                  "Personalização";
 
                 return (
                   <article
@@ -518,21 +522,10 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                     className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50"
                   >
                     <div className="aspect-[4/3] bg-white">
-                      {image ? (
-                        <img
-                          src={image}
-                          alt={
-                            location.location_name ??
-                            component?.component_name ??
-                            "Personalização"
-                          }
-                          className="h-full w-full object-contain p-6"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-neutral-400">
-                          <ImageIcon className="h-8 w-8" />
-                        </div>
-                      )}
+                      <CustomizationLocationImage
+                        urls={getLocationImageCandidates(location)}
+                        alt={imageAlt}
+                      />
                     </div>
 
                     <div className="p-5">
@@ -569,7 +562,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
                         href={`/produto/${product.slug}/personalizar?local=${encodeURIComponent(
                           location.id,
                         )}`}
-                        className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                        className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold !text-white transition hover:bg-neutral-800"
                       >
                         Criar maquete
                       </Link>
