@@ -41,7 +41,12 @@ type ProductDirectPurchasePanelProps = {
   productSku: string;
   productName: string;
   shortDescription: string | null;
+  productDescription: string | null;
   productImageUrl: string | null;
+  brand: string | null;
+  material: string | null;
+  dimensions: string | null;
+  weight: number | null;
   minimumQuantity: number;
   totalStock: number;
   isCustomizable: boolean;
@@ -161,7 +166,12 @@ export default function ProductDirectPurchasePanel({
   productSku,
   productName,
   shortDescription,
+  productDescription,
   productImageUrl,
+  brand,
+  material,
+  dimensions,
+  weight,
   minimumQuantity,
   totalStock,
   isCustomizable,
@@ -258,77 +268,123 @@ export default function ProductDirectPurchasePanel({
 
   return (
     <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.85fr)]">
-      <div className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="mx-auto flex aspect-[4/3] max-h-[560px] items-center justify-center overflow-hidden rounded-3xl bg-neutral-50">
-          {displayImageUrl ? (
-            <img
-              src={displayImageUrl}
-              alt={productName}
-              className="h-full w-full object-contain p-8"
-            />
-          ) : (
-            <div className="text-sm text-neutral-400">Imagem indisponível</div>
-          )}
+      <div className="space-y-6">
+        <div className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="mx-auto flex aspect-[4/3] max-h-[560px] items-center justify-center overflow-hidden rounded-3xl bg-neutral-50">
+            {displayImageUrl ? (
+              <img
+                src={displayImageUrl}
+                alt={productName}
+                className="h-full w-full object-contain p-8"
+              />
+            ) : (
+              <div className="text-sm text-neutral-400">
+                Imagem indisponível
+              </div>
+            )}
+          </div>
+
+          {colors.length > 0 ? (
+            <div className="mt-6">
+              <div className="flex items-center gap-2">
+                <Palette className="h-4 w-4 text-neutral-500" />
+
+                <p className="text-sm font-semibold text-neutral-950">
+                  Cores disponíveis
+                </p>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {colors.map((color) => {
+                  const isSelected = color.id === selectedColorId;
+                  const stock = getStockForColor({
+                    stocks,
+                    colorId: color.id,
+                  });
+
+                  return (
+                    <button
+                      key={color.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedColorId(color.id);
+                      }}
+                      className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
+                        isSelected
+                          ? "border-neutral-950 bg-neutral-950 text-white"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                      }`}
+                      title={getColorLabel(color)}
+                    >
+                      {color.color_hex ? (
+                        <span
+                          className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
+                          style={{ backgroundColor: color.color_hex }}
+                        />
+                      ) : null}
+
+                      {getColorLabel(color)}
+
+                      {stock.available <= 0 ? (
+                        <span
+                          className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                            isSelected
+                              ? "bg-white/15 text-white"
+                              : "bg-neutral-100 text-neutral-500"
+                          }`}
+                        >
+                          Brevemente
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        {colors.length > 0 ? (
-          <div className="mt-6">
-            <div className="flex items-center gap-2">
-              <Palette className="h-4 w-4 text-neutral-500" />
+        <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-neutral-950">
+            Informação adicional
+          </h2>
 
-              <p className="text-sm font-semibold text-neutral-950">
-                Cores disponíveis
-              </p>
+          <p className="mt-4 leading-8 text-neutral-600">
+            {productDescription ??
+              shortDescription ??
+              "Produto disponível para encomenda online."}
+          </p>
+
+          <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2">
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Marca</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {brand ?? "—"}
+              </dd>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {colors.map((color) => {
-                const isSelected = color.id === selectedColorId;
-                const stock = getStockForColor({
-                  stocks,
-                  colorId: color.id,
-                });
-
-                return (
-                  <button
-                    key={color.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedColorId(color.id);
-                    }}
-                    className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
-                      isSelected
-                        ? "border-neutral-950 bg-neutral-950 text-white"
-                        : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-                    }`}
-                    title={getColorLabel(color)}
-                  >
-                    {color.color_hex ? (
-                      <span
-                        className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
-                        style={{ backgroundColor: color.color_hex }}
-                      />
-                    ) : null}
-
-                    {getColorLabel(color)}
-
-                    {stock.available <= 0 ? (
-                      <span
-                        className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
-                          isSelected
-                            ? "bg-white/15 text-white"
-                            : "bg-neutral-100 text-neutral-500"
-                        }`}
-                      >
-                        Brevemente
-                      </span>
-                    ) : null}
-                  </button>
-                );
-              })}
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Material</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {material ?? "—"}
+              </dd>
             </div>
-          </div>
-        ) : null}
+
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Dimensões</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {dimensions ?? "—"}
+              </dd>
+            </div>
+
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Peso</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {weight ? `${weight} g` : "—"}
+              </dd>
+            </div>
+          </dl>
+        </section>
       </div>
 
       <div>
