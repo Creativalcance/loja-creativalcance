@@ -514,7 +514,7 @@ export default async function HomePage() {
         <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-14 lg:pb-12 lg:pt-16">
           <div className="max-w-5xl">
             <p className="mb-5 inline-flex rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
-              Loja Creativ — plataforma B2B premium para marcas exigentes
+              Loja Creativ — Brindes e Gifts com e sem personalização
             </p>
 
             <h1 className="text-5xl font-semibold tracking-tight text-white md:text-7xl">
@@ -556,12 +556,11 @@ export default async function HomePage() {
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                Explora por objectivo de compra
+                Brindes & Gifts? Temos.
               </h2>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/55">
-                Cada área apresenta uma fotografia real de um produto associado
-                a essa categoria.
+                Explore as nossas categorias.
               </p>
             </div>
 
