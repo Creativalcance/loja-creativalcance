@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import SiteHeader from "@/components/layout/SiteHeader";
 import ProductDirectPurchasePanel, {
   type ProductPurchaseColor,
   type ProductPurchasePrice,
@@ -487,110 +486,73 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
     : "Voltar às categorias";
 
   return (
-    <>
-      <SiteHeader />
+    <main className="min-h-screen bg-neutral-50 px-6 py-12">
+      <section className="mx-auto max-w-7xl">
+        <Link
+          href={categoryHref}
+          className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          {backLabel}
+        </Link>
 
-      <main className="min-h-screen bg-neutral-50 px-6 py-12">
-        <section className="mx-auto max-w-7xl">
-          <Link
-            href={categoryHref}
-            className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            {backLabel}
-          </Link>
+        <ProductDirectPurchasePanel
+          productId={product.id}
+          productSlug={product.slug}
+          productSku={product.sku}
+          productName={product.name}
+          shortDescription={product.short_description}
+          productImageUrl={imageUrl ?? null}
+          minimumQuantity={product.min_order_quantity}
+          totalStock={getTotalStock(product)}
+          isCustomizable={customizationOptions.length > 0}
+          prices={purchasePrices}
+          colors={purchaseColors}
+          stocks={purchaseStocks}
+        />
 
-          <ProductDirectPurchasePanel
-            productId={product.id}
-            productSlug={product.slug}
-            productSku={product.sku}
-            productName={product.name}
-            shortDescription={product.short_description}
-            productImageUrl={imageUrl ?? null}
-            minimumQuantity={product.min_order_quantity}
-            totalStock={getTotalStock(product)}
-            isCustomizable={customizationOptions.length > 0}
-            prices={purchasePrices}
-            colors={purchaseColors}
-            stocks={purchaseStocks}
-          />
+        <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <h2 className="text-xl font-semibold text-neutral-950">
+            Informação adicional
+          </h2>
 
-          <div className="mt-10 grid gap-8 lg:grid-cols-2">
-            <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-neutral-950">
-                Informação adicional
-              </h2>
+          <p className="mt-4 max-w-5xl leading-8 text-neutral-600">
+            {product.description ?? "Produto disponível para encomenda online."}
+          </p>
 
-              <p className="mt-4 leading-8 text-neutral-600">
-                {product.description ??
-                  "Produto disponível para encomenda online."}
-              </p>
+          <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Marca</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {product.brand ?? "—"}
+              </dd>
+            </div>
 
-              <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-neutral-500">Marca</dt>
-                  <dd className="mt-1 font-medium text-neutral-950">
-                    {product.brand ?? "—"}
-                  </dd>
-                </div>
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Material</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {product.material ?? "—"}
+              </dd>
+            </div>
 
-                <div>
-                  <dt className="text-neutral-500">Material</dt>
-                  <dd className="mt-1 font-medium text-neutral-950">
-                    {product.material ?? "—"}
-                  </dd>
-                </div>
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Dimensões</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {product.dimensions ?? "—"}
+              </dd>
+            </div>
 
-                <div>
-                  <dt className="text-neutral-500">Dimensões</dt>
-                  <dd className="mt-1 font-medium text-neutral-950">
-                    {product.dimensions ?? "—"}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt className="text-neutral-500">Peso</dt>
-                  <dd className="mt-1 font-medium text-neutral-950">
-                    {product.weight ? `${product.weight} g` : "—"}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-
-            <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-semibold text-neutral-950">
-                Cores disponíveis
-              </h2>
-
-              {colors.length > 0 ? (
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {colors.slice(0, 60).map((color) => (
-                    <span
-                      key={color.id}
-                      className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-1.5 text-sm font-medium text-neutral-700 ring-1 ring-neutral-200"
-                    >
-                      {color.color_hex ? (
-                        <span
-                          className="mr-2 h-3 w-3 rounded-full border border-neutral-300"
-                          style={{ backgroundColor: color.color_hex }}
-                        />
-                      ) : null}
-
-                      {color.color_name ?? color.size ?? color.sku}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-4 text-sm text-neutral-600">
-                  Cores disponíveis mediante confirmação.
-                </p>
-              )}
-            </section>
-          </div>
-
-          <ProductCustomizationOptions options={customizationOptions} />
+            <div className="rounded-2xl bg-neutral-50 p-4">
+              <dt className="text-neutral-500">Peso</dt>
+              <dd className="mt-1 font-medium text-neutral-950">
+                {product.weight ? `${product.weight} g` : "—"}
+              </dd>
+            </div>
+          </dl>
         </section>
-      </main>
-    </>
+
+        <ProductCustomizationOptions options={customizationOptions} />
+      </section>
+    </main>
   );
 }

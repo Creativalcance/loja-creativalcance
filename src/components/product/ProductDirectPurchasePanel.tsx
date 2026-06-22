@@ -257,8 +257,8 @@ export default function ProductDirectPurchasePanel({
   }
 
   return (
-    <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.85fr)]">
-      <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+    <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.85fr)]">
+      <div className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
         <div className="mx-auto flex aspect-[4/3] max-h-[560px] items-center justify-center overflow-hidden rounded-3xl bg-neutral-50">
           {displayImageUrl ? (
             <img
