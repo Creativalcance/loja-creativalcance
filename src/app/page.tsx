@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import SiteHeader from "@/components/layout/SiteHeader";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type ProductImage = {
   external_url: string | null;
@@ -441,9 +444,9 @@ function ProductMiniCard({ product }: { product: HomepageProduct }) {
 }
 
 export default async function HomePage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = createSupabaseAdminClient();
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("products")
     .select(
       `
@@ -482,14 +485,16 @@ export default async function HomePage() {
     )
     .eq("status", "active")
     .eq("is_active", true)
-    .not("type_name", "is", null)
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(500);
 
-  const allProducts = ((data ?? []) as unknown as HomepageProduct[]).filter(
+  const allProducts = (error ? [] : ((data ?? []) as unknown as HomepageProduct[])).filter(
     (product) => product.slug && !isDemoProduct(product),
   );
+  if (error) {
+  console.error("Homepage products query error:", error);
+}
 
   const productsWithImages = allProducts.filter((product) => getImageUrl(product));
   const products = productsWithImages.length >= 4 ? productsWithImages : allProducts;
