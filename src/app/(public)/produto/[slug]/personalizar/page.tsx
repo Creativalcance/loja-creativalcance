@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
+import SiteHeader from "@/components/layout/SiteHeader";
 import ProductCustomizationSimulator, {
   type ProductSimulatorLocation,
   type ProductSimulatorVariant,
@@ -195,12 +196,12 @@ function getLocationImageUrl(
   location: ProductCustomizationLocation,
 ): string | null {
   return (
-    location.printing_lines_storage_url ??
-    location.printing_lines_image_url ??
-    location.area_storage_url ??
-    location.area_image_url ??
     location.location_storage_url ??
     location.location_image_url ??
+    location.area_storage_url ??
+    location.area_image_url ??
+    location.printing_lines_storage_url ??
+    location.printing_lines_image_url ??
     null
   );
 }
@@ -318,7 +319,8 @@ export default async function ProductPersonalizePage({
 
   const product = data as unknown as ProductDetail;
   const primaryImage = getPrimaryImage(product);
-  const productImageUrl = primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
+  const productImageUrl =
+    primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
 
   const variants = product.product_variants ?? [];
   const components = product.product_customization_components ?? [];
@@ -365,93 +367,97 @@ export default async function ProductPersonalizePage({
     });
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-6 py-12">
-      <section className="mx-auto max-w-7xl">
-        <Link
-          href={`/produto/${product.slug}`}
-          className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar ao produto
-        </Link>
+    <>
+      <SiteHeader />
 
-        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                Criar maquete
-              </p>
+      <main className="min-h-screen bg-neutral-50 px-6 py-12">
+        <section className="mx-auto max-w-7xl">
+          <Link
+            href={`/produto/${product.slug}`}
+            className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar ao produto
+          </Link>
 
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
-                {product.name}
-              </h1>
+          <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+                  Criar maquete
+                </p>
 
-              <p className="mt-4 max-w-3xl text-neutral-600">
-                Carrega o logótipo, escolhe a área de personalização e prepara
-                uma pré-visualização antes de avançares com a encomenda.
-              </p>
-            </div>
+                <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
+                  {product.name}
+                </h1>
 
-            <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
-              <p>
-                Referência:{" "}
-                <span className="font-semibold text-neutral-950">
-                  {product.sku}
-                </span>
-              </p>
+                <p className="mt-4 max-w-3xl text-neutral-600">
+                  Carrega o logótipo, escolhe a área de personalização e prepara
+                  uma pré-visualização antes de avançares com a encomenda.
+                </p>
+              </div>
 
-              {selectedQuantity > 0 ? (
-                <p className="mt-1">
-                  Quantidade:{" "}
+              <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
+                <p>
+                  Referência:{" "}
                   <span className="font-semibold text-neutral-950">
-                    {selectedQuantity.toLocaleString("pt-PT")} un.
+                    {product.sku}
                   </span>
                 </p>
-              ) : null}
 
-              {selectedColorId ? (
-                <p className="mt-1">
-                  Cor seleccionada:{" "}
-                  <span className="font-semibold text-neutral-950">
-                    {selectedColorId}
-                  </span>
-                </p>
-              ) : null}
+                {selectedQuantity > 0 ? (
+                  <p className="mt-1">
+                    Quantidade:{" "}
+                    <span className="font-semibold text-neutral-950">
+                      {selectedQuantity.toLocaleString("pt-PT")} un.
+                    </span>
+                  </p>
+                ) : null}
+
+                {selectedColorId ? (
+                  <p className="mt-1">
+                    Cor seleccionada:{" "}
+                    <span className="font-semibold text-neutral-950">
+                      {selectedColorId}
+                    </span>
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
 
-        {simulatorLocations.length > 0 ? (
-          <div className="mt-8">
-            <ProductCustomizationSimulator
-              productName={product.name}
-              productSku={product.sku}
-              productImageUrl={productImageUrl}
-              variants={simulatorVariants}
-              locations={simulatorLocations}
-            />
-          </div>
-        ) : (
-          <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
-            <h2 className="text-xl font-semibold text-neutral-950">
-              Este produto ainda não tem áreas de personalização disponíveis
-            </h2>
+          {simulatorLocations.length > 0 ? (
+            <div className="mt-8">
+              <ProductCustomizationSimulator
+                productName={product.name}
+                productSku={product.sku}
+                productImageUrl={productImageUrl}
+                variants={simulatorVariants}
+                locations={simulatorLocations}
+              />
+            </div>
+          ) : (
+            <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
+              <h2 className="text-xl font-semibold text-neutral-950">
+                Este produto ainda não tem áreas de personalização disponíveis
+              </h2>
 
-            <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
-              Podes voltar ao produto e adicionar ao carrinho sem maquete. A
-              personalização será confirmada antes da conclusão da encomenda.
-            </p>
+              <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
+                Podes voltar ao produto e adicionar ao carrinho sem maquete. A
+                personalização será confirmada antes da conclusão da encomenda.
+              </p>
 
-            <Link
-              href={`/produto/${product.slug}`}
-              className="mt-6 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
-              <ShoppingCart className="mr-2 h-4 w-4" />
-              Voltar ao produto
-            </Link>
-          </div>
-        )}
-      </section>
-    </main>
+              <Link
+                href={`/produto/${product.slug}`}
+                className="mt-6 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              >
+                <ShoppingCart className="mr-2 h-4 w-4" />
+                Voltar ao produto
+              </Link>
+            </div>
+          )}
+        </section>
+      </main>
+    </>
   );
 }
