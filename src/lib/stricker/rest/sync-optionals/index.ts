@@ -1,4 +1,9 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  findBestPricingRule,
+} from "@/lib/pricing/apply-pricing-rule";
+import { calculateProductSellingPrice } from "@/lib/pricing/calculate-product-price";
+import { type PricingRule } from "@/lib/pricing/types";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import {
   buildStrickerComponentImageUrl,
@@ -157,6 +162,7 @@ type ProductRow = {
   supplier_id: string;
   external_id: string;
   material: string | null;
+  type_name: string | null;
 };
 
 type ProductVariantUpsertRow = {
@@ -214,10 +220,20 @@ type ProductPriceInsertRow = {
   supplier_price: number;
   base_price: number;
   margin_percentage: number;
+  margin_rate: number | null;
+  markup_rate: number | null;
+  fixed_fee: number;
+  minimum_profit: number;
+  pricing_rule_id: string | null;
   final_price: number;
   catalog_price: number | null;
   your_price: number | null;
   price_source: string;
+  source_sku: string | null;
+  source_web_sku: string | null;
+  source_price_field: string | null;
+  source_updated_at: string;
+  calculated_at: string;
 };
 
 type ProductImageInsertRow = {
@@ -294,6 +310,7 @@ export type SyncRestOptionalsResult = {
 const UPSERT_CHUNK_SIZE = 500;
 const QUERY_CHUNK_SIZE = 400;
 const MAX_CUSTOMIZATION_SLOTS = 8;
+const DEFAULT_MARGIN_RATE = 0.35;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
   const chunks: TValue[][] = [];
@@ -368,6 +385,14 @@ function toJsonRecord(value: unknown): JsonRecord {
 
 function getOptionalSku(record: StrickerOptionalRecord): string | null {
   return getNullableString(record.WebSku) ?? getNullableString(record.Sku);
+}
+
+function getSourceSku(record: StrickerOptionalRecord): string | null {
+  return getNullableString(record.Sku);
+}
+
+function getSourceWebSku(record: StrickerOptionalRecord): string | null {
+  return getNullableString(record.WebSku);
 }
 
 function getProdReference(record: StrickerOptionalRecord): string | null {
@@ -455,6 +480,41 @@ async function finishDatasetImport(params: {
   }
 }
 
+async function fetchPricingRules(params: {
+  supabaseAdmin: SupabaseAdminClient;
+}): Promise<PricingRule[]> {
+  const { data, error } = await params.supabaseAdmin
+    .from("pricing_rules")
+    .select(
+      `
+        id,
+        supplier_id,
+        scope,
+        category_name,
+        product_id,
+        variant_id,
+        customer_group,
+        min_quantity,
+        max_quantity,
+        margin_rate,
+        markup_rate,
+        fixed_fee,
+        minimum_profit,
+        rounding_mode,
+        priority,
+        is_active
+      `,
+    )
+    .eq("is_active", true)
+    .returns<PricingRule[]>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? [];
+}
+
 async function fetchProductsByReferences(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
@@ -466,7 +526,7 @@ async function fetchProductsByReferences(params: {
   for (const referenceChunk of chunkArray(uniqueReferences, QUERY_CHUNK_SIZE)) {
     const { data, error } = await params.supabaseAdmin
       .from("products")
-      .select("id,supplier_id,external_id,material")
+      .select("id,supplier_id,external_id,material,type_name")
       .eq("supplier_id", params.supplierId)
       .in("external_id", referenceChunk)
       .returns<ProductRow[]>();
@@ -485,6 +545,10 @@ async function fetchProductsByReferences(params: {
 
 function buildProductMap(products: ProductRow[]): Map<string, ProductRow> {
   return new Map(products.map((product) => [product.external_id, product]));
+}
+
+function buildProductIdMap(products: ProductRow[]): Map<string, ProductRow> {
+  return new Map(products.map((product) => [product.id, product]));
 }
 
 function buildVariantRows(params: {
@@ -632,8 +696,11 @@ async function upsertVariantTranslations(params: {
 function buildPriceRows(params: {
   records: StrickerOptionalRecord[];
   variantsBySku: Map<string, ImportedVariantRow>;
+  productsById: Map<string, ProductRow>;
+  pricingRules: PricingRule[];
 }): ProductPriceInsertRow[] {
   const rows: ProductPriceInsertRow[] = [];
+  const calculatedAt = new Date().toISOString();
 
   for (const record of params.records) {
     const sku = getOptionalSku(record);
@@ -648,34 +715,41 @@ function buildPriceRows(params: {
       continue;
     }
 
+    const product = params.productsById.get(variant.product_id);
+    const sourceSku = getSourceSku(record);
+    const sourceWebSku = getSourceWebSku(record);
+    const yourPrice = getNumber(record.YourPrice);
+
     const tiers: {
       quantityMin: number;
+      quantityMax: number | null;
       supplierPrice: number;
+      sourcePriceField: string;
     }[] = [];
 
     for (let index = 1; index <= 10; index += 1) {
       const quantityMin = getRecordSlotNumber(record, "MinQt", index);
       const price = getRecordSlotNumber(record, "Price", index);
 
-      if (!quantityMin || quantityMin <= 0 || price === null || price < 0) {
+      if (!quantityMin || quantityMin <= 0 || price === null || price <= 0) {
         continue;
       }
 
       tiers.push({
         quantityMin: Math.round(quantityMin),
+        quantityMax: null,
         supplierPrice: price,
+        sourcePriceField: `Price${index}`,
       });
     }
 
-    if (tiers.length === 0) {
-      const yourPrice = getNumber(record.YourPrice);
-
-      if (yourPrice !== null && yourPrice >= 0) {
-        tiers.push({
-          quantityMin: 1,
-          supplierPrice: yourPrice,
-        });
-      }
+    if (tiers.length === 0 && yourPrice !== null && yourPrice > 0) {
+      tiers.push({
+        quantityMin: 1,
+        quantityMax: null,
+        supplierPrice: yourPrice,
+        sourcePriceField: "YourPrice",
+      });
     }
 
     tiers.sort((a, b) => a.quantityMin - b.quantityMin);
@@ -683,7 +757,27 @@ function buildPriceRows(params: {
     for (let index = 0; index < tiers.length; index += 1) {
       const currentTier = tiers[index];
       const nextTier = tiers[index + 1] ?? null;
-      const quantityMax = nextTier ? nextTier.quantityMin - 1 : null;
+      const quantityMax = nextTier
+        ? Math.max(currentTier.quantityMin, nextTier.quantityMin - 1)
+        : null;
+
+      const pricingRule = findBestPricingRule(params.pricingRules, {
+        supplierId: variant.supplier_id,
+        categoryName: product?.type_name ?? null,
+        productId: variant.product_id,
+        variantId: variant.id,
+        customerGroup: "default",
+        quantity: currentTier.quantityMin,
+      });
+
+      const calculatedPrice = calculateProductSellingPrice({
+        supplierPrice: currentTier.supplierPrice,
+        marginRate: pricingRule?.margin_rate ?? DEFAULT_MARGIN_RATE,
+        markupRate: pricingRule?.markup_rate ?? null,
+        fixedFee: pricingRule?.fixed_fee ?? 0,
+        minimumProfit: pricingRule?.minimum_profit ?? 0,
+        roundingMode: pricingRule?.rounding_mode ?? "commercial_05",
+      });
 
       rows.push({
         product_id: variant.product_id,
@@ -694,11 +788,23 @@ function buildPriceRows(params: {
         quantity_max: quantityMax,
         supplier_price: currentTier.supplierPrice,
         base_price: currentTier.supplierPrice,
-        margin_percentage: 0,
-        final_price: currentTier.supplierPrice,
+        margin_percentage: calculatedPrice.marginRate
+          ? Number((calculatedPrice.marginRate * 100).toFixed(4))
+          : 0,
+        margin_rate: calculatedPrice.marginRate,
+        markup_rate: calculatedPrice.markupRate,
+        fixed_fee: calculatedPrice.fixedFee,
+        minimum_profit: calculatedPrice.minimumProfit,
+        pricing_rule_id: pricingRule?.id ?? null,
+        final_price: calculatedPrice.finalPrice,
         catalog_price: currentTier.supplierPrice,
-        your_price: getNumber(record.YourPrice),
-        price_source: "your_price",
+        your_price: yourPrice,
+        price_source: "stricker_optionals",
+        source_sku: sourceSku,
+        source_web_sku: sourceWebSku,
+        source_price_field: currentTier.sourcePriceField,
+        source_updated_at: calculatedAt,
+        calculated_at: calculatedAt,
       });
     }
   }
@@ -1098,6 +1204,11 @@ export async function syncRestOptionals(params: {
     });
 
     const productsByReference = buildProductMap(products);
+    const productsById = buildProductIdMap(products);
+
+    const pricingRules = await fetchPricingRules({
+      supabaseAdmin,
+    });
 
     const variantRows = buildVariantRows({
       records,
@@ -1137,6 +1248,8 @@ export async function syncRestOptionals(params: {
     const priceRows = buildPriceRows({
       records,
       variantsBySku,
+      productsById,
+      pricingRules,
     });
 
     if (priceRows.length > 0) {
@@ -1207,6 +1320,8 @@ export async function syncRestOptionals(params: {
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
         variantTranslationsImported,
+        pricesImported: priceRows.length,
+        pricingRulesLoaded: pricingRules.length,
         sample: records.slice(0, 5),
       },
       errors,
