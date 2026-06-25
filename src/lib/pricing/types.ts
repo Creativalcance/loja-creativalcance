@@ -5,6 +5,12 @@ export type PricingScope =
   | "product"
   | "variant";
 
+export type PricingPriceType =
+  | "product"
+  | "personalization"
+  | "setup"
+  | "shipping";
+
 export type PricingRoundingMode =
   | "none"
   | "ceil_01"
@@ -19,6 +25,7 @@ export type PricingRule = {
   id?: string | null;
   supplier_id?: string | null;
   scope: PricingScope;
+  price_type?: PricingPriceType | null;
   category_name?: string | null;
   product_id?: string | null;
   variant_id?: string | null;
@@ -40,6 +47,7 @@ export type PricingRuleContext = {
   productId?: string | null;
   variantId?: string | null;
   customerGroup?: string | null;
+  priceType?: PricingPriceType | null;
   quantity: number;
 };
 

@@ -1,4 +1,5 @@
 import type {
+  PricingPriceType,
   PricingRule,
   PricingRuleContext,
 } from "@/lib/pricing/types";
@@ -36,8 +37,22 @@ function isCustomerGroupMatch(
   return ruleGroup === "default" || ruleGroup === contextGroup;
 }
 
+function isPriceTypeMatch(
+  rule: PricingRule,
+  context: PricingRuleContext,
+): boolean {
+  const rulePriceType: PricingPriceType = rule.price_type ?? "product";
+  const contextPriceType: PricingPriceType = context.priceType ?? "product";
+
+  return rulePriceType === contextPriceType;
+}
+
 function isRuleMatch(rule: PricingRule, context: PricingRuleContext): boolean {
   if (rule.is_active === false) {
+    return false;
+  }
+
+  if (!isPriceTypeMatch(rule, context)) {
     return false;
   }
 

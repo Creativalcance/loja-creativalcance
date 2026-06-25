@@ -1,4 +1,7 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { findBestPricingRule } from "@/lib/pricing/apply-pricing-rule";
+import { calculateProductSellingPrice } from "@/lib/pricing/calculate-product-price";
+import { type PricingRule } from "@/lib/pricing/types";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
@@ -72,13 +75,26 @@ type PrintingPriceTableUpsertRow = {
   additional_stitches: number | null;
   handling_cost_code: string | null;
   handling_cost: number;
+  supplier_handling_cost: number;
   currency: string;
   quantity_min: number;
   quantity_max: number | null;
   supplier_price: number;
   base_price: number;
   margin_percentage: number;
+  margin_rate: number | null;
+  markup_rate: number | null;
+  fixed_fee: number;
+  minimum_profit: number;
+  pricing_rule_id: string | null;
+  handling_margin_rate: number | null;
+  handling_markup_rate: number | null;
+  handling_pricing_rule_id: string | null;
   final_price: number;
+  price_source: string;
+  source_price_field: string | null;
+  source_updated_at: string;
+  calculated_at: string;
   is_active: boolean;
   raw_payload: JsonRecord;
 };
@@ -93,6 +109,8 @@ export type SyncRestCustomizationTablesResult = {
 };
 
 const UPSERT_CHUNK_SIZE = 500;
+const DEFAULT_PERSONALIZATION_MARGIN_RATE = 0.5;
+const DEFAULT_SETUP_MARGIN_RATE = 0.3;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
   const chunks: TValue[][] = [];
@@ -207,12 +225,104 @@ function buildRawPayload(params: {
   lang: StrickerLanguage;
   techniqueCode: string | null;
   techniqueName: string | null;
+  supplierHandlingCost: number;
+  finalHandlingCost: number;
+  supplierPrice: number;
+  finalPrice: number;
+  priceRuleId: string | null;
+  handlingRuleId: string | null;
 }): JsonRecord {
   return {
     ...toJsonRecord(params.record),
     language: params.lang,
     technique_code: params.techniqueCode,
     technique_name: params.techniqueName,
+    supplier_handling_cost: params.supplierHandlingCost,
+    final_handling_cost: params.finalHandlingCost,
+    supplier_price: params.supplierPrice,
+    final_price: params.finalPrice,
+    pricing_rule_id: params.priceRuleId,
+    handling_pricing_rule_id: params.handlingRuleId,
+  };
+}
+
+async function fetchPricingRules(params: {
+  supabaseAdmin: SupabaseAdminClient;
+}): Promise<PricingRule[]> {
+  const { data, error } = await params.supabaseAdmin
+    .from("pricing_rules")
+    .select(
+      `
+        id,
+        supplier_id,
+        scope,
+        price_type,
+        category_name,
+        product_id,
+        variant_id,
+        customer_group,
+        min_quantity,
+        max_quantity,
+        margin_rate,
+        markup_rate,
+        fixed_fee,
+        minimum_profit,
+        rounding_mode,
+        priority,
+        is_active
+      `,
+    )
+    .eq("is_active", true)
+    .returns<PricingRule[]>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? [];
+}
+
+function calculateFinalHandlingCost(params: {
+  supplierId: string;
+  supplierHandlingCost: number;
+  quantity: number;
+  pricingRules: PricingRule[];
+}): {
+  finalHandlingCost: number;
+  marginRate: number | null;
+  markupRate: number | null;
+  pricingRuleId: string | null;
+} {
+  if (params.supplierHandlingCost <= 0) {
+    return {
+      finalHandlingCost: 0,
+      marginRate: null,
+      markupRate: null,
+      pricingRuleId: null,
+    };
+  }
+
+  const pricingRule = findBestPricingRule(params.pricingRules, {
+    supplierId: params.supplierId,
+    customerGroup: "default",
+    priceType: "setup",
+    quantity: params.quantity,
+  });
+
+  const calculatedPrice = calculateProductSellingPrice({
+    supplierPrice: params.supplierHandlingCost,
+    marginRate: pricingRule?.margin_rate ?? DEFAULT_SETUP_MARGIN_RATE,
+    markupRate: pricingRule?.markup_rate ?? null,
+    fixedFee: pricingRule?.fixed_fee ?? 0,
+    minimumProfit: pricingRule?.minimum_profit ?? 0,
+    roundingMode: pricingRule?.rounding_mode ?? "commercial_05",
+  });
+
+  return {
+    finalHandlingCost: calculatedPrice.finalPrice,
+    marginRate: calculatedPrice.marginRate,
+    markupRate: calculatedPrice.markupRate,
+    pricingRuleId: pricingRule?.id ?? null,
   };
 }
 
@@ -220,8 +330,10 @@ function buildPrintingPriceTableRows(params: {
   supplierId: string;
   lang: StrickerLanguage;
   records: StrickerCustomizationTableRecord[];
+  pricingRules: PricingRule[];
 }): PrintingPriceTableUpsertRow[] {
   const rows: PrintingPriceTableUpsertRow[] = [];
+  const calculatedAt = new Date().toISOString();
 
   for (const record of params.records) {
     const tableCode = getNullableString(record.TableCode);
@@ -237,11 +349,12 @@ function buildPrintingPriceTableRows(params: {
       getTechniqueCode(tableCode);
 
     const techniqueName = getNullableString(record.CustomizationTypeName);
-    const handlingCost = getNumber(record.HandlingCost) ?? 0;
+    const supplierHandlingCost = getNumber(record.HandlingCost) ?? 0;
 
     const tiers: {
       quantityMin: number;
       supplierPrice: number;
+      sourcePriceField: string;
     }[] = [];
 
     for (let index = 1; index <= 10; index += 1) {
@@ -255,6 +368,7 @@ function buildPrintingPriceTableRows(params: {
       tiers.push({
         quantityMin: Math.round(quantityMin),
         supplierPrice: price,
+        sourcePriceField: `Price${index}`,
       });
     }
 
@@ -267,6 +381,34 @@ function buildPrintingPriceTableRows(params: {
     for (let index = 0; index < tiers.length; index += 1) {
       const currentTier = tiers[index];
       const nextTier = tiers[index + 1] ?? null;
+      const quantityMax = nextTier
+        ? Math.max(currentTier.quantityMin, nextTier.quantityMin - 1)
+        : null;
+
+      const personalizationRule = findBestPricingRule(params.pricingRules, {
+        supplierId: params.supplierId,
+        customerGroup: "default",
+        priceType: "personalization",
+        quantity: currentTier.quantityMin,
+      });
+
+      const calculatedPersonalizationPrice = calculateProductSellingPrice({
+        supplierPrice: currentTier.supplierPrice,
+        marginRate:
+          personalizationRule?.margin_rate ??
+          DEFAULT_PERSONALIZATION_MARGIN_RATE,
+        markupRate: personalizationRule?.markup_rate ?? null,
+        fixedFee: personalizationRule?.fixed_fee ?? 0,
+        minimumProfit: personalizationRule?.minimum_profit ?? 0,
+        roundingMode: personalizationRule?.rounding_mode ?? "commercial_05",
+      });
+
+      const calculatedHandlingCost = calculateFinalHandlingCost({
+        supplierId: params.supplierId,
+        supplierHandlingCost,
+        quantity: currentTier.quantityMin,
+        pricingRules: params.pricingRules,
+      });
 
       rows.push({
         supplier_id: params.supplierId,
@@ -291,20 +433,41 @@ function buildPrintingPriceTableRows(params: {
         stitches: getInteger(record.Stitches),
         additional_stitches: getInteger(record.AdditionalStitches),
         handling_cost_code: getNullableString(record.HandlingCostCode),
-        handling_cost: handlingCost,
+        supplier_handling_cost: supplierHandlingCost,
+        handling_cost: calculatedHandlingCost.finalHandlingCost,
         currency: "EUR",
         quantity_min: currentTier.quantityMin,
-        quantity_max: nextTier ? nextTier.quantityMin - 1 : null,
+        quantity_max: quantityMax,
         supplier_price: currentTier.supplierPrice,
         base_price: currentTier.supplierPrice,
-        margin_percentage: 0,
-        final_price: currentTier.supplierPrice + handlingCost,
+        margin_percentage: calculatedPersonalizationPrice.marginRate
+          ? Number((calculatedPersonalizationPrice.marginRate * 100).toFixed(4))
+          : 0,
+        margin_rate: calculatedPersonalizationPrice.marginRate,
+        markup_rate: calculatedPersonalizationPrice.markupRate,
+        fixed_fee: calculatedPersonalizationPrice.fixedFee,
+        minimum_profit: calculatedPersonalizationPrice.minimumProfit,
+        pricing_rule_id: personalizationRule?.id ?? null,
+        handling_margin_rate: calculatedHandlingCost.marginRate,
+        handling_markup_rate: calculatedHandlingCost.markupRate,
+        handling_pricing_rule_id: calculatedHandlingCost.pricingRuleId,
+        final_price: calculatedPersonalizationPrice.finalPrice,
+        price_source: "stricker_customization_tables",
+        source_price_field: currentTier.sourcePriceField,
+        source_updated_at: calculatedAt,
+        calculated_at: calculatedAt,
         is_active: true,
         raw_payload: buildRawPayload({
           record,
           lang: params.lang,
           techniqueCode,
           techniqueName,
+          supplierHandlingCost,
+          finalHandlingCost: calculatedHandlingCost.finalHandlingCost,
+          supplierPrice: currentTier.supplierPrice,
+          finalPrice: calculatedPersonalizationPrice.finalPrice,
+          priceRuleId: personalizationRule?.id ?? null,
+          handlingRuleId: calculatedHandlingCost.pricingRuleId,
         }),
       });
     }
@@ -443,10 +606,15 @@ export async function syncRestCustomizationTables(params: {
       ? (payload.CustomizationTables as StrickerCustomizationTableRecord[])
       : [];
 
+    const pricingRules = await fetchPricingRules({
+      supabaseAdmin,
+    });
+
     const rows = buildPrintingPriceTableRows({
       supplierId,
       lang: params.lang,
       records,
+      pricingRules,
     });
 
     if (rows.length > 0) {
@@ -456,7 +624,8 @@ export async function syncRestCustomizationTables(params: {
       });
     }
 
-    const techniqueTranslationsImported = countUniqueTechniqueTranslations(records);
+    const techniqueTranslationsImported =
+      countUniqueTechniqueTranslations(records);
     const status = rows.length > 0 ? "success" : "partial_success";
 
     await finishDatasetImport({
@@ -470,6 +639,7 @@ export async function syncRestCustomizationTables(params: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        pricingRulesLoaded: pricingRules.length,
         techniqueTranslationsImported,
         sample: records.slice(0, 5),
       },
