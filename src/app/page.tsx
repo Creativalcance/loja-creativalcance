@@ -178,12 +178,12 @@ const buyingSteps = [
 ];
 
 const benefits = [
-  "Compra directa online para empresas",
+  "Compra directa online",
   "Escalões de preço por quantidade",
   "Stock e cores por produto",
   "Produtos com personalização disponível",
-  "Catálogo B2B em permanente evolução",
-  "Experiência premium orientada à conversão",
+  "Catálogo permanente evolução",
+  "Envios em 24H*",
 ];
 
 function normalizeText(value: string | null | undefined): string {
@@ -714,8 +714,8 @@ export default async function HomePage() {
               </h2>
 
               <p className="mt-5 text-sm leading-7 text-white/60">
-                A Loja Creativ foi desenhada para acelerar a compra de produtos
-                promocionais, reduzindo pedidos manuais e facilitando a escolha
+                A Loja Creativ foi desenhada para acelerar a compra e a personalização de produtos
+                promocionais, reduzindo pedidos manuais, facilitando a escolha
                 por categoria, cor, stock, quantidade e personalização.
               </p>
             </div>

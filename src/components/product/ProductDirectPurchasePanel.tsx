@@ -72,7 +72,7 @@ function getColorLabel(color: ProductPurchaseColor): string {
     return `${color.color_name} · ${color.size}`;
   }
 
-  return color.color_name ?? color.size ?? color.sku;
+  return color.color_name ?? color.size ?? "Cor disponível";
 }
 
 function dedupePriceTiers(
@@ -163,7 +163,6 @@ function getQuantityLabel(price: ProductPurchasePrice): string {
 export default function ProductDirectPurchasePanel({
   productId,
   productSlug,
-  productSku,
   productName,
   shortDescription,
   productDescription,
@@ -388,9 +387,15 @@ export default function ProductDirectPurchasePanel({
       </div>
 
       <div>
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          {productSku}
-        </p>
+        {brand ? (
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+            {brand}
+          </p>
+        ) : (
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+            Produto
+          </p>
+        )}
 
         <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
           {productName}
@@ -732,10 +737,6 @@ export default function ProductDirectPurchasePanel({
               </button>
             </div>
           </form>
-
-          <p className="mt-5 text-xs leading-5 text-neutral-500">
-            Produto: {productName} · Referência: {productSku}
-          </p>
         </div>
       </div>
     </div>

@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
-import SiteHeader from "@/components/layout/SiteHeader";
-import ProductCustomizationSimulator, {
-  type ProductSimulatorLocation,
-  type ProductSimulatorVariant,
-} from "@/components/product/ProductCustomizationSimulator";
+import ProductCustomizationEditor, {
+  type ProductEditorLocation,
+  type ProductEditorVariant,
+} from "@/components/product/ProductCustomizationEditor";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -195,13 +194,33 @@ function getComponentForLocation(params: {
 function getLocationImageUrl(
   location: ProductCustomizationLocation,
 ): string | null {
+  return location.location_storage_url ?? location.location_image_url ?? null;
+}
+
+function getAreaImageUrl(
+  location: ProductCustomizationLocation,
+): string | null {
+  return location.area_storage_url ?? location.area_image_url ?? null;
+}
+
+function getPrintingLinesImageUrl(
+  location: ProductCustomizationLocation,
+): string | null {
   return (
-    location.location_storage_url ??
-    location.location_image_url ??
-    location.area_storage_url ??
-    location.area_image_url ??
+    location.printing_lines_storage_url ?? location.printing_lines_image_url
+  );
+}
+
+function getPreferredLocationPreviewUrl(
+  location: ProductCustomizationLocation,
+): string | null {
+  return (
     location.printing_lines_storage_url ??
     location.printing_lines_image_url ??
+    location.area_storage_url ??
+    location.area_image_url ??
+    location.location_storage_url ??
+    location.location_image_url ??
     null
   );
 }
@@ -224,19 +243,74 @@ function getUniqueCustomizationLocations(
     }
   }
 
-  return Array.from(map.values())
-    .sort((a, b) => {
-      if (a.is_default && !b.is_default) {
-        return -1;
-      }
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.is_default && !b.is_default) {
+      return -1;
+    }
 
-      if (!a.is_default && b.is_default) {
-        return 1;
-      }
+    if (!a.is_default && b.is_default) {
+      return 1;
+    }
 
-      return getLocationIndex(a) - getLocationIndex(b);
-    })
-    .slice(0, 48);
+    return getLocationIndex(a) - getLocationIndex(b);
+  });
+}
+
+function getVariantLabel(variant: ProductVariant | null): string | null {
+  if (!variant) {
+    return null;
+  }
+
+  if (variant.color_name && variant.size) {
+    return `${variant.color_name} · ${variant.size}`;
+  }
+
+  return variant.color_name ?? variant.size ?? null;
+}
+
+function buildEditorLocations(params: {
+  locations: ProductCustomizationLocation[];
+  componentsById: Map<string, ProductCustomizationComponent>;
+}): ProductEditorLocation[] {
+  const rows: ProductEditorLocation[] = [];
+
+  for (const location of params.locations) {
+    const component = getComponentForLocation({
+      location,
+      componentsById: params.componentsById,
+    });
+
+    const techniques = getCustomizationTypesForLocation(location);
+    const safeTechniques =
+      techniques.length > 0 ? techniques : ["Personalização"];
+
+    for (const technique of safeTechniques) {
+      const locationName =
+        location.location_name ??
+        location.location_code ??
+        `Local ${getLocationIndex(location)}`;
+
+      rows.push({
+        id: `${location.id}:${technique}`,
+        source_location_id: location.id,
+        variant_id: location.variant_id,
+        technique,
+        component_name:
+          component?.component_name ?? component?.component_code ?? null,
+        location_name: locationName,
+        preview_image_url: getPreferredLocationPreviewUrl(location),
+        location_image_url: getLocationImageUrl(location),
+        area_image_url: getAreaImageUrl(location),
+        printing_lines_image_url: getPrintingLinesImageUrl(location),
+        max_printing_area_mm: location.max_printing_area_mm,
+        max_area_cm2: location.max_area_cm2,
+        table_codes: getTableCodesForLocation(location),
+        is_recommended: location.is_default,
+      });
+    }
+  }
+
+  return rows;
 }
 
 export default async function ProductPersonalizePage({
@@ -323,6 +397,9 @@ export default async function ProductPersonalizePage({
     primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
 
   const variants = product.product_variants ?? [];
+  const selectedVariant =
+    variants.find((variant) => variant.id === selectedColorId) ?? null;
+
   const components = product.product_customization_components ?? [];
   const componentsById = buildComponentMap(components);
 
@@ -332,132 +409,102 @@ export default async function ProductPersonalizePage({
     ),
   );
 
-  const simulatorVariants: ProductSimulatorVariant[] = variants.map(
-    (variant) => ({
-      id: variant.id,
-      sku: variant.sku,
-      color_name: variant.color_name,
-      color_hex: variant.color_hex,
-      size: variant.size,
-      image_url: variant.optional_image_1_url ?? variant.optional_image_2_url,
-    }),
-  );
+  const editorVariants: ProductEditorVariant[] = variants.map((variant) => ({
+    id: variant.id,
+    sku: variant.sku,
+    color_name: variant.color_name,
+    color_hex: variant.color_hex,
+    size: variant.size,
+    image_url: variant.optional_image_1_url ?? variant.optional_image_2_url,
+  }));
 
-  const simulatorLocations: ProductSimulatorLocation[] =
-    customizationLocations.map((location) => {
-      const component = getComponentForLocation({
-        location,
-        componentsById,
-      });
-
-      return {
-        id: location.id,
-        variant_id: location.variant_id,
-        component_name:
-          component?.component_name ?? component?.component_code ?? null,
-        location_name: location.location_name,
-        image_url: getLocationImageUrl(location),
-        max_printing_area_mm: location.max_printing_area_mm,
-        max_area_cm2: location.max_area_cm2,
-        table_codes: getTableCodesForLocation(location),
-        customization_types: getCustomizationTypesForLocation(location),
-        is_default:
-          selectedLocationId === location.id ? true : location.is_default,
-      };
-    });
+  const editorLocations = buildEditorLocations({
+    locations: customizationLocations,
+    componentsById,
+  });
 
   return (
-    <>
-      <SiteHeader />
+    <main className="min-h-screen bg-neutral-50 px-6 py-12">
+      <section className="mx-auto max-w-7xl">
+        <Link
+          href={`/produto/${product.slug}`}
+          className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar ao produto
+        </Link>
 
-      <main className="min-h-screen bg-neutral-50 px-6 py-12">
-        <section className="mx-auto max-w-7xl">
-          <Link
-            href={`/produto/${product.slug}`}
-            className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar ao produto
-          </Link>
-
-          <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                  Criar maquete
-                </p>
-
-                <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
-                  {product.name}
-                </h1>
-
-                <p className="mt-4 max-w-3xl text-neutral-600">
-                  Carrega o logótipo, escolhe a área de personalização e prepara
-                  uma pré-visualização antes de avançares com a encomenda.
-                </p>
-              </div>
-
-              <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
-                <p>
-                  Referência:{" "}
-                  <span className="font-semibold text-neutral-950">
-                    {product.sku}
-                  </span>
-                </p>
-
-                {selectedQuantity > 0 ? (
-                  <p className="mt-1">
-                    Quantidade:{" "}
-                    <span className="font-semibold text-neutral-950">
-                      {selectedQuantity.toLocaleString("pt-PT")} un.
-                    </span>
-                  </p>
-                ) : null}
-
-                {selectedColorId ? (
-                  <p className="mt-1">
-                    Cor seleccionada:{" "}
-                    <span className="font-semibold text-neutral-950">
-                      {selectedColorId}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </div>
-
-          {simulatorLocations.length > 0 ? (
-            <div className="mt-8">
-              <ProductCustomizationSimulator
-                productName={product.name}
-                productSku={product.sku}
-                productImageUrl={productImageUrl}
-                variants={simulatorVariants}
-                locations={simulatorLocations}
-              />
-            </div>
-          ) : (
-            <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
-              <h2 className="text-xl font-semibold text-neutral-950">
-                Este produto ainda não tem áreas de personalização disponíveis
-              </h2>
-
-              <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
-                Podes voltar ao produto e adicionar ao carrinho sem maquete. A
-                personalização será confirmada antes da conclusão da encomenda.
+        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+                Personalização com logótipo
               </p>
 
-              <Link
-                href={`/produto/${product.slug}`}
-                className="mt-6 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-              >
-                <ShoppingCart className="mr-2 h-4 w-4" />
-                Voltar ao produto
-              </Link>
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
+                {product.name}
+              </h1>
+
+              <p className="mt-4 max-w-3xl text-neutral-600">
+                Escolha a localização, técnica e área de personalização, carregue
+                o logótipo e prepare a maquete numa única experiência.
+              </p>
             </div>
-          )}
-        </section>
-      </main>
-    </>
+
+            <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
+              {selectedQuantity > 0 ? (
+                <p>
+                  Quantidade:{" "}
+                  <span className="font-semibold text-neutral-950">
+                    {selectedQuantity.toLocaleString("pt-PT")} un.
+                  </span>
+                </p>
+              ) : null}
+
+              {selectedVariant ? (
+                <p className="mt-1">
+                  Cor:{" "}
+                  <span className="font-semibold text-neutral-950">
+                    {getVariantLabel(selectedVariant) ?? "Seleccionada"}
+                  </span>
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        {editorLocations.length > 0 ? (
+          <ProductCustomizationEditor
+            productName={product.name}
+            productSlug={product.slug}
+            productImageUrl={productImageUrl}
+            variants={editorVariants}
+            locations={editorLocations}
+            initialVariantId={selectedColorId}
+            initialLocationId={selectedLocationId}
+            initialQuantity={selectedQuantity > 0 ? selectedQuantity : 1}
+          />
+        ) : (
+          <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
+            <h2 className="text-xl font-semibold text-neutral-950">
+              Este produto ainda não tem áreas de personalização disponíveis
+            </h2>
+
+            <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
+              Pode voltar ao produto e adicionar ao carrinho sem maquete. A
+              personalização será confirmada antes da conclusão da encomenda.
+            </p>
+
+            <Link
+              href={`/produto/${product.slug}`}
+              className="mt-6 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+            >
+              <ShoppingCart className="mr-2 h-4 w-4" />
+              Voltar ao produto
+            </Link>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }

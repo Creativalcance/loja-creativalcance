@@ -84,6 +84,11 @@ const adminModules = [
     href: "/admin/configuracoes",
     icon: Settings,
   },
+  {
+  label: "Gestão de preços",
+  href: "/admin/precos",
+  icon: "prices",
+}
 ];
 
 export default async function AdminPage() {

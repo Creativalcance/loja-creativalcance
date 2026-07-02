@@ -6,9 +6,7 @@ import ProductDirectPurchasePanel, {
   type ProductPurchasePrice,
   type ProductPurchaseStock,
 } from "@/components/product/ProductDirectPurchasePanel";
-import ProductCustomizationOptions, {
-  type ProductCustomizationOption,
-} from "@/components/product/ProductCustomizationOptions";
+import { type ProductCustomizationOption } from "@/components/product/ProductCustomizationOptions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type JsonRecord = Record<string, unknown>;
@@ -497,26 +495,24 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
         </Link>
 
         <ProductDirectPurchasePanel
-          productId={product.id}
-          productSlug={product.slug}
-          productSku={product.sku}
-          productName={product.name}
-          shortDescription={product.short_description}
-          productDescription={product.description}
-          productImageUrl={imageUrl ?? null}
-          brand={product.brand}
-          material={product.material}
-          dimensions={product.dimensions}
-          weight={product.weight}
-          minimumQuantity={product.min_order_quantity}
-          totalStock={getTotalStock(product)}
-          isCustomizable={customizationOptions.length > 0}
-          prices={purchasePrices}
-          colors={purchaseColors}
-          stocks={purchaseStocks}
-        />
-
-        <ProductCustomizationOptions options={customizationOptions} />
+  productId={product.id}
+  productSlug={product.slug}
+  productSku={product.sku}
+  productName={product.name}
+  shortDescription={product.short_description}
+  productDescription={product.description}
+  productImageUrl={imageUrl ?? null}
+  brand={product.brand}
+  material={product.material}
+  dimensions={product.dimensions}
+  weight={product.weight}
+  minimumQuantity={product.min_order_quantity}
+  totalStock={getTotalStock(product)}
+  isCustomizable={customizationOptions.length > 0}
+  prices={purchasePrices}
+  colors={purchaseColors}
+  stocks={purchaseStocks}
+/>
       </section>
     </main>
   );

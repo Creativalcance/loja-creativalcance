@@ -26,6 +26,8 @@ export type ProductCustomizationOption = {
 
 type ProductCustomizationOptionsProps = {
   options: ProductCustomizationOption[];
+  selectedColorId?: string | null;
+  selectedQuantity?: number | null;
 };
 
 function getOptionSubtitle(option: ProductCustomizationOption): string {
@@ -38,8 +40,34 @@ function getOptionSubtitle(option: ProductCustomizationOption): string {
   return details.join(" · ");
 }
 
+function buildPersonalizationHref(params: {
+  href: string;
+  selectedColorId?: string | null;
+  selectedQuantity?: number | null;
+}): string {
+  const url = new URL(params.href, "https://loja-creativ.local");
+
+  if (params.selectedColorId) {
+    url.searchParams.set("cor", params.selectedColorId);
+  }
+
+  if (
+    typeof params.selectedQuantity === "number" &&
+    Number.isFinite(params.selectedQuantity) &&
+    params.selectedQuantity > 0
+  ) {
+    url.searchParams.set("quantidade", String(params.selectedQuantity));
+  }
+
+  const search = url.searchParams.toString();
+
+  return `${url.pathname}${search ? `?${search}` : ""}`;
+}
+
 export default function ProductCustomizationOptions({
   options,
+  selectedColorId,
+  selectedQuantity,
 }: ProductCustomizationOptionsProps) {
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(
     options[0]?.id ?? null,
@@ -89,6 +117,12 @@ export default function ProductCustomizationOptions({
       </section>
     );
   }
+
+  const selectedOptionHref = buildPersonalizationHref({
+    href: selectedOption.href,
+    selectedColorId,
+    selectedQuantity,
+  });
 
   return (
     <section className="mt-10 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
@@ -249,7 +283,7 @@ export default function ProductCustomizationOptions({
               </div>
 
               <Link
-                href={selectedOption.href}
+                href={selectedOptionHref}
                 className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-5 py-4 text-sm font-semibold !text-white transition hover:bg-neutral-800"
               >
                 Criar maquete

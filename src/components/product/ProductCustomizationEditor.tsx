@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useEffect,
   useMemo,
@@ -9,6 +8,7 @@ import {
   type ChangeEvent,
   type PointerEvent,
 } from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
@@ -18,12 +18,12 @@ import {
   Move,
   Plus,
   RotateCcw,
-  Ruler,
   Upload,
   X,
 } from "lucide-react";
+import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
 
-export type ProductSimulatorVariant = {
+export type ProductEditorVariant = {
   id: string;
   sku: string;
   color_name: string | null;
@@ -32,9 +32,11 @@ export type ProductSimulatorVariant = {
   image_url: string | null;
 };
 
-export type ProductSimulatorLocation = {
+export type ProductEditorLocation = {
   id: string;
+  source_location_id: string;
   variant_id: string | null;
+  technique: string;
   component_name: string | null;
   location_name: string | null;
   preview_image_url: string | null;
@@ -44,8 +46,7 @@ export type ProductSimulatorLocation = {
   max_printing_area_mm: string | null;
   max_area_cm2: number | null;
   table_codes: string[];
-  customization_types: string[];
-  is_default: boolean;
+  is_recommended: boolean;
 };
 
 type LogoPosition = {
@@ -60,12 +61,12 @@ type PrintAreaDimensions = {
   heightMm: number;
 };
 
-type ProductCustomizationSimulatorProps = {
+type ProductCustomizationEditorProps = {
   productName: string;
   productSlug: string;
   productImageUrl: string | null;
-  variants: ProductSimulatorVariant[];
-  locations: ProductSimulatorLocation[];
+  variants: ProductEditorVariant[];
+  locations: ProductEditorLocation[];
   initialVariantId?: string | null;
   initialLocationId?: string | null;
   initialQuantity?: number;
@@ -95,7 +96,7 @@ const quantityBreaks = [
   "2.500",
 ];
 
-function getColorLabel(variant: ProductSimulatorVariant): string {
+function getColorLabel(variant: ProductEditorVariant): string {
   if (variant.color_name && variant.size) {
     return `${variant.color_name} · ${variant.size}`;
   }
@@ -103,7 +104,7 @@ function getColorLabel(variant: ProductSimulatorVariant): string {
   return variant.color_name ?? variant.size ?? "Cor disponível";
 }
 
-function getLocationLabel(location: ProductSimulatorLocation): string {
+function getLocationLabel(location: ProductEditorLocation): string {
   return (
     location.location_name ??
     location.component_name ??
@@ -112,10 +113,35 @@ function getLocationLabel(location: ProductSimulatorLocation): string {
   );
 }
 
+function getOptionSubtitle(location: ProductEditorLocation): string {
+  return [
+    location.component_name,
+    location.location_name,
+    location.max_printing_area_mm,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getPreviewImageCandidates(params: {
+  selectedLocation: ProductEditorLocation | null;
+  selectedColor: ProductEditorVariant | null;
+  productImageUrl: string | null;
+}): string[] {
+  return [
+    params.selectedLocation?.printing_lines_image_url,
+    params.selectedLocation?.area_image_url,
+    params.selectedLocation?.location_image_url,
+    params.selectedLocation?.preview_image_url,
+    params.selectedColor?.image_url,
+    params.productImageUrl,
+  ].filter((url): url is string => Boolean(url?.trim()));
+}
+
 function getAvailableLocations(params: {
   selectedVariantId: string | null;
-  locations: ProductSimulatorLocation[];
-}): ProductSimulatorLocation[] {
+  locations: ProductEditorLocation[];
+}): ProductEditorLocation[] {
   const colorLocations = params.locations.filter(
     (location) => location.variant_id === params.selectedVariantId,
   );
@@ -194,41 +220,6 @@ function getSafeLogoPosition(params: {
   };
 }
 
-function getPreferredPreviewImage(params: {
-  selectedLocation: ProductSimulatorLocation | null;
-  selectedColor: ProductSimulatorVariant | null;
-  productImageUrl: string | null;
-}): string | null {
-  return (
-    params.selectedLocation?.printing_lines_image_url ??
-    params.selectedLocation?.area_image_url ??
-    params.selectedLocation?.location_image_url ??
-    params.selectedLocation?.preview_image_url ??
-    params.selectedColor?.image_url ??
-    params.productImageUrl
-  );
-}
-
-function getBackToOptionsHref(params: {
-  productSlug: string;
-  selectedVariantId: string | null;
-  quantity: number;
-}): string {
-  const searchParams = new URLSearchParams();
-
-  if (params.selectedVariantId) {
-    searchParams.set("cor", params.selectedVariantId);
-  }
-
-  if (Number.isFinite(params.quantity) && params.quantity > 0) {
-    searchParams.set("quantidade", String(params.quantity));
-  }
-
-  const query = searchParams.toString();
-
-  return `/produto/${params.productSlug}/personalizar${query ? `?${query}` : ""}`;
-}
-
 function getTechniqueEstimatedUnitPrice(technique: string | null): number {
   const normalized = technique?.normalize("NFD").toLowerCase() ?? "";
 
@@ -277,7 +268,56 @@ function getEstimatedProductionDays(technique: string | null): string {
   return "3 a 6 dias úteis";
 }
 
-export default function ProductCustomizationSimulator({
+function getPrintAreaPlacement(location: ProductEditorLocation): {
+  left: number;
+  top: number;
+  width: number;
+} {
+  const label = `${location.location_name ?? ""} ${location.component_name ?? ""}`
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+
+  if (label.includes("verso") || label.includes("costas") || label.includes("trase")) {
+    return {
+      left: 50,
+      top: 52,
+      width: 24,
+    };
+  }
+
+  if (label.includes("frente") || label.includes("front")) {
+    return {
+      left: 50,
+      top: 48,
+      width: 26,
+    };
+  }
+
+  if (label.includes("lateral") || label.includes("lado")) {
+    return {
+      left: 58,
+      top: 50,
+      width: 22,
+    };
+  }
+
+  if (label.includes("fita")) {
+    return {
+      left: 50,
+      top: 42,
+      width: 28,
+    };
+  }
+
+  return {
+    left: 50,
+    top: 50,
+    width: 25,
+  };
+}
+
+export default function ProductCustomizationEditor({
   productName,
   productSlug,
   productImageUrl,
@@ -286,7 +326,7 @@ export default function ProductCustomizationSimulator({
   initialVariantId,
   initialLocationId,
   initialQuantity = 1,
-}: ProductCustomizationSimulatorProps) {
+}: ProductCustomizationEditorProps) {
   const printAreaRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<{
     pointerId: number;
@@ -300,22 +340,21 @@ export default function ProductCustomizationSimulator({
     ? initialVariantId ?? null
     : variants[0]?.id ?? null;
 
-  const initialValidLocationId = locations.some(
-    (location) => location.id === initialLocationId,
-  )
-    ? initialLocationId ?? null
-    : locations.find((location) => location.is_default)?.id ??
-      locations[0]?.id ??
-      null;
+  const initialValidLocationId =
+    locations.find(
+      (location) =>
+        location.id === initialLocationId ||
+        location.source_location_id === initialLocationId,
+    )?.id ??
+    locations.find((location) => location.is_recommended)?.id ??
+    locations[0]?.id ??
+    null;
 
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     initialValidVariantId,
   );
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
     initialValidLocationId,
-  );
-  const [selectedTechnique, setSelectedTechnique] = useState<string | null>(
-    null,
   );
   const [quantity, setQuantity] = useState(Math.max(1, initialQuantity));
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
@@ -353,13 +392,12 @@ export default function ProductCustomizationSimulator({
       availableLocations.find(
         (location) => location.id === selectedLocationId,
       ) ??
-      availableLocations.find((location) => location.is_default) ??
+      availableLocations.find((location) => location.is_recommended) ??
       availableLocations[0] ??
       null,
     [availableLocations, selectedLocationId],
   );
 
-  const availableTechniques = selectedLocation?.customization_types ?? [];
   const printAreaDimensions = parsePrintAreaDimensions(
     selectedLocation?.max_printing_area_mm ?? null,
   );
@@ -378,20 +416,14 @@ export default function ProductCustomizationSimulator({
     logoAspectRatio,
   });
 
-  const previewBaseImage = getPreferredPreviewImage({
+  const previewImageUrls = getPreviewImageCandidates({
     selectedLocation,
     selectedColor,
     productImageUrl,
   });
 
-  const backToOptionsHref = getBackToOptionsHref({
-    productSlug,
-    selectedVariantId,
-    quantity,
-  });
-
   const personalizationUnitPrice = getTechniqueEstimatedUnitPrice(
-    selectedTechnique,
+    selectedLocation?.technique ?? null,
   );
   const personalizationSubtotal = roundMoney(personalizationUnitPrice * quantity);
   const extrasTotal = roundMoney(
@@ -400,7 +432,9 @@ export default function ProductCustomizationSimulator({
       (nominative ? 0.7 * quantity : 0),
   );
   const estimatedTotal = roundMoney(personalizationSubtotal + extrasTotal);
-  const productionDays = getEstimatedProductionDays(selectedTechnique);
+  const productionDays = getEstimatedProductionDays(
+    selectedLocation?.technique ?? null,
+  );
 
   useEffect(() => {
     if (
@@ -411,24 +445,11 @@ export default function ProductCustomizationSimulator({
     }
 
     setSelectedLocationId(
-      availableLocations.find((location) => location.is_default)?.id ??
+      availableLocations.find((location) => location.is_recommended)?.id ??
         availableLocations[0]?.id ??
         null,
     );
   }, [availableLocations, selectedLocationId]);
-
-  useEffect(() => {
-    const nextTechnique = availableTechniques[0] ?? null;
-
-    if (
-      selectedTechnique &&
-      availableTechniques.some((technique) => technique === selectedTechnique)
-    ) {
-      return;
-    }
-
-    setSelectedTechnique(nextTechnique);
-  }, [availableTechniques, selectedTechnique]);
 
   useEffect(() => {
     setPosition(initialPosition);
@@ -600,165 +621,332 @@ export default function ProductCustomizationSimulator({
     }
   }
 
-  if (locations.length === 0) {
+  if (locations.length === 0 || !selectedLocation) {
     return (
-      <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Personalização
-        </p>
-
-        <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-          Maquete indisponível para este produto
+      <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
+        <h2 className="text-xl font-semibold text-neutral-950">
+          Este produto ainda não tem áreas de personalização disponíveis
         </h2>
 
-        <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm leading-6 text-neutral-600">
-          A nossa equipa pode analisar este produto e confirmar a melhor solução
-          de personalização.
-        </div>
+        <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
+          Pode voltar ao produto e adicionar ao carrinho sem maquete. A
+          personalização será confirmada antes da conclusão da encomenda.
+        </p>
+
+        <Link
+          href={`/produto/${productSlug}`}
+          className="mt-6 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+        >
+          Voltar ao produto
+        </Link>
       </section>
     );
   }
 
   return (
     <>
-      <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-              Editor da maquete
-            </p>
+      <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="text-center">
+          <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+            Personalização
+          </p>
 
-            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-              Personalize dentro da área permitida
-            </h2>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
+            Escolha a área e crie a maquete
+          </h2>
 
-            <p className="mt-2 text-sm leading-6 text-neutral-600">
-              Carregue o logótipo, arraste-o dentro da zona delimitada e confirme
-              a maquete antes de avançar.
-            </p>
-          </div>
-
-          <Link
-            href={backToOptionsHref}
-            className="inline-flex w-fit items-center justify-center rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
-          >
-            Alterar área
-          </Link>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
+            Seleccione a localização, carregue o logótipo e ajuste-o dentro da
+            área técnica permitida.
+          </p>
         </div>
 
-        <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-5">
-            <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <div className="flex min-h-[520px] items-center justify-center rounded-2xl bg-white">
-                  {previewBaseImage ? (
-                    <img
-                      src={previewBaseImage}
-                      alt={productName}
-                      className="max-h-[620px] w-full object-contain p-8"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-neutral-400">
-                      <ImageIcon className="h-10 w-10" />
-                    </div>
-                  )}
-                </div>
+        <div className="mt-8 grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)_360px]">
+          <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-3">
+            <div className="mb-3 px-2 pt-2">
+              <p className="text-sm font-semibold text-neutral-950">
+                Opções disponíveis
+              </p>
+            </div>
 
-                <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Área técnica
-                      </p>
+            <div className="max-h-[780px] space-y-2 overflow-y-auto pr-1">
+              {availableLocations.map((location) => {
+                const isSelected = location.id === selectedLocation.id;
 
-                      <p className="mt-1 text-sm font-semibold text-neutral-950">
-                        {selectedLocation
-                          ? getLocationLabel(selectedLocation)
-                          : "Área de personalização"}
-                      </p>
-                    </div>
-
-                    <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  </div>
-
-                  <div
-                    ref={printAreaRef}
-                    className="relative mt-5 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
-                    style={{
-                      aspectRatio: `${printAreaDimensions.widthMm} / ${printAreaDimensions.heightMm}`,
-                    }}
+                return (
+                  <button
+                    key={location.id}
+                    type="button"
+                    onClick={() => setSelectedLocationId(location.id)}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                      isSelected
+                        ? "border-neutral-950 bg-white shadow-sm"
+                        : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
+                    }`}
                   >
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onPointerDown={handleLogoPointerDown}
-                      onPointerMove={handleLogoPointerMove}
-                      onPointerUp={handleLogoPointerUp}
-                      onPointerCancel={handleLogoPointerUp}
-                      className="absolute cursor-grab touch-none active:cursor-grabbing"
-                      style={{
-                        left: `${safePosition.x}%`,
-                        top: `${safePosition.y}%`,
-                        width: `${safePosition.width}%`,
-                        height: `${logoHeightPercent}%`,
-                        transform: `rotate(${safePosition.rotation}deg)`,
-                        transformOrigin: "center center",
-                      }}
-                    >
-                      {logoPreviewUrl ? (
-                        <img
-                          src={logoPreviewUrl}
-                          alt="Logótipo carregado"
-                          draggable={false}
-                          className="h-full w-full select-none object-contain"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-lg border border-neutral-300 bg-white/80 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                          Arraste o logótipo
-                        </div>
-                      )}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-500">
+                          {location.technique}
+                        </p>
+
+                        <p className="mt-2 text-base font-semibold text-neutral-950">
+                          {getLocationLabel(location)}
+                        </p>
+                      </div>
+
+                      {location.is_recommended ? (
+                        <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                          Recomendada
+                        </span>
+                      ) : null}
                     </div>
+
+                    <div className="mt-3 space-y-1 text-sm text-neutral-600">
+                      {location.component_name ? (
+                        <p>{location.component_name}</p>
+                      ) : null}
+
+                      {location.max_printing_area_mm ? (
+                        <p>{location.max_printing_area_mm}</p>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-white">
+  <div className="border-b border-neutral-200 px-6 py-5">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
+          Preview da maquete
+        </p>
+
+        <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
+          {getLocationLabel(selectedLocation)}
+        </h3>
+
+        <p className="mt-1 text-sm text-neutral-600">
+          {getOptionSubtitle(selectedLocation)}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-xs font-semibold text-neutral-600">
+        <span className="rounded-full bg-neutral-100 px-3 py-1.5">
+          {selectedLocation.technique}
+        </span>
+
+        {selectedLocation.max_printing_area_mm ? (
+          <span className="rounded-full bg-neutral-100 px-3 py-1.5">
+            {selectedLocation.max_printing_area_mm}
+          </span>
+        ) : null}
+
+        <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 ring-1 ring-emerald-200">
+          Área bloqueada
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div className="bg-white px-6 py-8">
+    <div className="relative mx-auto flex min-h-[680px] max-w-5xl items-center justify-center overflow-hidden rounded-3xl bg-white">
+      {previewImageUrls.length > 0 ? (
+        <CustomizationLocationImage
+          urls={previewImageUrls}
+          alt={productName}
+          className="h-full max-h-[680px] w-full object-contain p-6"
+        />
+      ) : (
+        <div className="flex h-[600px] w-full items-center justify-center rounded-3xl bg-neutral-50 text-neutral-400">
+          <ImageIcon className="h-10 w-10" />
+        </div>
+      )}
+
+      {(() => {
+        const placement = getPrintAreaPlacement(selectedLocation);
+
+        return (
+          <div
+            className="pointer-events-none absolute"
+            style={{
+              left: `${placement.left}%`,
+              top: `${placement.top}%`,
+              width: `${placement.width}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+          >
+            <div
+              ref={printAreaRef}
+              className="pointer-events-auto relative overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-white/50 shadow-[0_0_0_9999px_rgba(255,255,255,0.02)] backdrop-blur-[1px]"
+              style={{
+                aspectRatio: `${printAreaDimensions.widthMm} / ${printAreaDimensions.heightMm}`,
+              }}
+            >
+              <div
+                role="button"
+                tabIndex={0}
+                onPointerDown={handleLogoPointerDown}
+                onPointerMove={handleLogoPointerMove}
+                onPointerUp={handleLogoPointerUp}
+                onPointerCancel={handleLogoPointerUp}
+                className="absolute cursor-grab touch-none active:cursor-grabbing"
+                style={{
+                  left: `${safePosition.x}%`,
+                  top: `${safePosition.y}%`,
+                  width: `${safePosition.width}%`,
+                  height: `${logoHeightPercent}%`,
+                  transform: `rotate(${safePosition.rotation}deg)`,
+                  transformOrigin: "center center",
+                }}
+              >
+                {logoPreviewUrl ? (
+                  <img
+                    src={logoPreviewUrl}
+                    alt="Logótipo carregado"
+                    draggable={false}
+                    className="h-full w-full select-none object-contain"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center rounded-lg border border-neutral-300 bg-white/90 px-2 text-center text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                    Logótipo
                   </div>
-
-                  <div className="mt-4 rounded-xl bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
-                    Área máxima:{" "}
-                    <span className="font-semibold text-neutral-950">
-                      {selectedLocation?.max_printing_area_mm ?? "não definida"}
-                    </span>
-                    . O elemento fica bloqueado dentro desta zona.
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 grid gap-3 text-sm text-neutral-600 md:grid-cols-3">
-                <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
-                  <p className="font-semibold text-neutral-950">Produto</p>
-                  <p className="mt-1 line-clamp-2">{productName}</p>
-                </div>
-
-                <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
-                  <p className="font-semibold text-neutral-950">Cor</p>
-                  <p className="mt-1">
-                    {selectedColor ? getColorLabel(selectedColor) : "—"}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
-                  <p className="font-semibold text-neutral-950">Quantidade</p>
-                  <p className="mt-1">{quantity.toLocaleString("pt-PT")} un.</p>
-                </div>
+                )}
               </div>
             </div>
           </div>
+        );
+      })()}
+    </div>
+  </div>
+
+  <div className="border-t border-neutral-200 bg-neutral-50 px-6 py-5">
+    <div className="grid gap-4 md:grid-cols-4">
+      <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+          Técnica
+        </p>
+        <p className="mt-1 font-semibold text-neutral-950">
+          {selectedLocation.technique}
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+          Localização
+        </p>
+        <p className="mt-1 font-semibold text-neutral-950">
+          {getLocationLabel(selectedLocation)}
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+          Componente
+        </p>
+        <p className="mt-1 font-semibold text-neutral-950">
+          {selectedLocation.component_name ?? "—"}
+        </p>
+      </div>
+
+      <div className="rounded-2xl bg-white p-4 ring-1 ring-neutral-200">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+          Área máxima
+        </p>
+        <p className="mt-1 font-semibold text-neutral-950">
+          {selectedLocation.max_printing_area_mm ?? "—"}
+        </p>
+      </div>
+    </div>
+
+    <p className="mt-4 text-xs leading-5 text-neutral-500">
+      O logótipo é apresentado diretamente sobre o produto e fica bloqueado
+      dentro da área técnica permitida. A posição final será validada antes da
+      produção.
+    </p>
+  </div>
+</div>
 
           <aside className="space-y-5">
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
-                1. Logótipo
+                1. Cor e quantidade
+              </p>
+
+              {variants.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {variants.map((variant) => {
+                    const isSelected = variant.id === selectedVariantId;
+
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => setSelectedVariantId(variant.id)}
+                        className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
+                          isSelected
+                            ? "border-neutral-950 bg-neutral-950 text-white"
+                            : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                        }`}
+                      >
+                        {variant.color_hex ? (
+                          <span
+                            className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
+                            style={{ backgroundColor: variant.color_hex }}
+                          />
+                        ) : null}
+
+                        {getColorLabel(variant)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="mt-4 flex overflow-hidden rounded-2xl border border-neutral-300 bg-white">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setQuantity((current) => Math.max(1, current - 1))
+                  }
+                  className="flex h-12 w-12 items-center justify-center border-r border-neutral-200 text-lg font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  −
+                </button>
+
+                <input
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    setQuantity(
+                      Number.isFinite(value) ? Math.max(1, value) : 1,
+                    );
+                  }}
+                  className="h-12 min-w-0 flex-1 border-0 bg-white px-3 text-center text-sm font-semibold text-neutral-950 outline-none"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => setQuantity((current) => current + 1)}
+                  className="flex h-12 w-12 items-center justify-center border-l border-neutral-200 text-lg font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold text-neutral-950">
+                2. Logótipo
               </p>
 
               <label
-                htmlFor="simulator-logo"
+                htmlFor="editor-logo"
                 className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-8 text-center transition hover:border-neutral-400 hover:bg-white"
               >
                 <Upload className="h-6 w-6 text-neutral-500" />
@@ -771,7 +959,7 @@ export default function ProductCustomizationSimulator({
               </label>
 
               <input
-                id="simulator-logo"
+                id="editor-logo"
                 type="file"
                 accept="image/png,image/jpeg,image/svg+xml,image/webp,application/pdf"
                 onChange={handleLogoChange}
@@ -784,54 +972,8 @@ export default function ProductCustomizationSimulator({
                   <span className="font-semibold text-neutral-950">
                     {logoFileName}
                   </span>
-                  {!logoPreviewUrl ? (
-                    <p className="mt-1">
-                      Este formato será validado pela nossa equipa antes da
-                      produção.
-                    </p>
-                  ) : null}
                 </div>
               ) : null}
-            </div>
-
-            <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
-              <p className="text-sm font-semibold text-neutral-950">
-                2. Técnica de personalização
-              </p>
-
-              {availableTechniques.length > 0 ? (
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {availableTechniques.map((technique) => {
-                    const isSelected = technique === selectedTechnique;
-
-                    return (
-                      <button
-                        key={technique}
-                        type="button"
-                        onClick={() => setSelectedTechnique(technique)}
-                        className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                          isSelected
-                            ? "border-neutral-950 bg-neutral-950 text-white"
-                            : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-                        }`}
-                      >
-                        {technique}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-neutral-600">
-                  Técnica a confirmar pela nossa equipa.
-                </p>
-              )}
-
-              <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-600">
-                Produção estimada:{" "}
-                <span className="font-semibold text-neutral-950">
-                  {productionDays}
-                </span>
-              </div>
             </div>
 
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
@@ -981,7 +1123,9 @@ export default function ProductCustomizationSimulator({
                   <input
                     type="checkbox"
                     checked={needsDesignHelp}
-                    onChange={(event) => setNeedsDesignHelp(event.target.checked)}
+                    onChange={(event) =>
+                      setNeedsDesignHelp(event.target.checked)
+                    }
                     className="mt-1"
                   />
                   <span>
@@ -1063,10 +1207,7 @@ export default function ProductCustomizationSimulator({
             </div>
 
             <div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-5 text-white shadow-sm">
-              <div className="flex items-center gap-2">
-                <Move className="h-5 w-5 text-neutral-300" />
-                <p className="text-sm font-semibold">Resumo da maquete</p>
-              </div>
+              <p className="text-sm font-semibold">Resumo da maquete</p>
 
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
@@ -1079,14 +1220,14 @@ export default function ProductCustomizationSimulator({
                 <div className="flex justify-between gap-4">
                   <dt>Área</dt>
                   <dd className="text-right text-white">
-                    {selectedLocation ? getLocationLabel(selectedLocation) : "—"}
+                    {getLocationLabel(selectedLocation)}
                   </dd>
                 </div>
 
                 <div className="flex justify-between gap-4">
                   <dt>Técnica</dt>
                   <dd className="text-right text-white">
-                    {selectedTechnique ?? "A confirmar"}
+                    {selectedLocation.technique}
                   </dd>
                 </div>
 
@@ -1136,7 +1277,7 @@ export default function ProductCustomizationSimulator({
                   onClick={() => setShowPriceTable(true)}
                   className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
-                  Ver tabela de preços
+                  Ver tabela
                 </button>
 
                 <button
@@ -1144,14 +1285,12 @@ export default function ProductCustomizationSimulator({
                   onClick={() => setShowProductionTimes(true)}
                   className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
-                  Tempos de produção
+                  Produção
                 </button>
               </div>
 
               <div className="mt-5 rounded-2xl bg-white/10 p-4 text-xs leading-5 text-neutral-300">
-                Valores sem IVA. A maquete apresentada é uma simulação visual. A
-                nossa equipa confirma a técnica, área de impressão e preço final
-                antes da produção.
+                Valores sem IVA. A maquete apresentada é uma simulação visual.
               </div>
 
               <Link
@@ -1175,7 +1314,7 @@ export default function ProductCustomizationSimulator({
                   Tabela de preços
                 </h3>
                 <p className="mt-1 text-sm text-neutral-500">
-                  Técnica: {selectedTechnique ?? "A confirmar"}
+                  Técnica: {selectedLocation.technique}
                 </p>
               </div>
 
@@ -1195,6 +1334,7 @@ export default function ProductCustomizationSimulator({
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
                       Quantidade
                     </th>
+
                     {quantityBreaks.map((item) => (
                       <th
                         key={item}
@@ -1205,18 +1345,23 @@ export default function ProductCustomizationSimulator({
                     ))}
                   </tr>
                 </thead>
+
                 <tbody>
                   <tr>
                     <td className="border-b border-neutral-100 px-4 py-3 font-medium text-neutral-500">
                       Preço / un.
                     </td>
+
                     {quantityBreaks.map((item, index) => (
                       <td
                         key={item}
                         className="border-b border-neutral-100 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
                         {formatPrice(
-                          Math.max(0.12, personalizationUnitPrice - index * 0.035),
+                          Math.max(
+                            0.12,
+                            personalizationUnitPrice - index * 0.035,
+                          ),
                         )}
                       </td>
                     ))}
@@ -1225,8 +1370,8 @@ export default function ProductCustomizationSimulator({
               </table>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-                Tabela indicativa para apoio à simulação. Os valores finais serão
-                confirmados com base na técnica, área e ficheiro recebido.
+                Tabela indicativa para apoio à simulação. Os valores finais
+                serão confirmados com base na técnica, área e ficheiro recebido.
               </p>
             </div>
           </div>
@@ -1278,27 +1423,32 @@ export default function ProductCustomizationSimulator({
                 </thead>
 
                 <tbody>
-                  {["UV Digital", "Laser", "Laser circular", "Tampografia", "Bordado"].map(
-                    (technique) => (
-                      <tr key={technique}>
-                        <td className="border-b border-neutral-100 px-4 py-3 font-medium text-neutral-950">
-                          {technique}
-                        </td>
-                        <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                          1-3 dias
-                        </td>
-                        <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                          2-5 dias
-                        </td>
-                        <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                          4-8 dias
-                        </td>
-                        <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                          Sob consulta
-                        </td>
-                      </tr>
-                    ),
-                  )}
+                  {[
+                    "UV Digital",
+                    "Laser",
+                    "Laser circular",
+                    "Tampografia",
+                    "Bordado",
+                    "Transfer Digital",
+                  ].map((technique) => (
+                    <tr key={technique}>
+                      <td className="border-b border-neutral-100 px-4 py-3 font-medium text-neutral-950">
+                        {technique}
+                      </td>
+                      <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
+                        1-3 dias
+                      </td>
+                      <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
+                        2-5 dias
+                      </td>
+                      <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
+                        4-8 dias
+                      </td>
+                      <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
+                        Sob consulta
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
 
