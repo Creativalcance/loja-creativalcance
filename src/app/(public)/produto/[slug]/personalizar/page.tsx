@@ -20,6 +20,14 @@ type ProductImage = {
   image_type: string;
 };
 
+type ProductPrice = {
+  variant_id: string | null;
+  final_price: number;
+  quantity_min: number;
+  quantity_max: number | null;
+  currency: string;
+};
+
 type ProductVariant = {
   id: string;
   sku: string;
@@ -68,6 +76,7 @@ type ProductDetail = {
   is_customizable: boolean;
   product_images: ProductImage[] | null;
   product_variants: ProductVariant[] | null;
+  product_prices: ProductPrice[] | null;
   product_customization_components: ProductCustomizationComponent[] | null;
   product_customization_locations: ProductCustomizationLocation[] | null;
 };
@@ -354,6 +363,13 @@ export default async function ProductPersonalizePage({
           optional_image_1_url,
           optional_image_2_url
         ),
+        product_prices (
+  variant_id,
+  final_price,
+  quantity_min,
+  quantity_max,
+  currency
+),
         product_customization_components (
           id,
           variant_id,
@@ -423,6 +439,14 @@ export default async function ProductPersonalizePage({
     componentsById,
   });
 
+  const editorPrices = (product.product_prices ?? []).map((price) => ({
+  variant_id: price.variant_id,
+  final_price: price.final_price,
+  quantity_min: price.quantity_min,
+  quantity_max: price.quantity_max,
+  currency: price.currency,
+}));
+
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
@@ -473,17 +497,17 @@ export default async function ProductPersonalizePage({
           </div>
         </div>
 
-        {editorLocations.length > 0 ? (
-          <ProductCustomizationEditor
-            productName={product.name}
-            productSlug={product.slug}
-            productImageUrl={productImageUrl}
-            variants={editorVariants}
-            locations={editorLocations}
-            initialVariantId={selectedColorId}
-            initialLocationId={selectedLocationId}
-            initialQuantity={selectedQuantity > 0 ? selectedQuantity : 1}
-          />
+       <ProductCustomizationEditor
+  productName={product.name}
+  productSlug={product.slug}
+  productImageUrl={productImageUrl}
+  variants={editorVariants}
+  locations={editorLocations}
+  productPrices={editorPrices}
+  initialVariantId={selectedColorId}
+  initialLocationId={selectedLocationId}
+  initialQuantity={selectedQuantity > 0 ? selectedQuantity : 1}
+/>
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
@@ -503,7 +527,7 @@ export default async function ProductPersonalizePage({
               Voltar ao produto
             </Link>
           </div>
-        )}
+        )
       </section>
     </main>
   );
