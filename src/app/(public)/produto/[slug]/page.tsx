@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import ProductDirectPurchasePanel, {
   type ProductPurchaseColor,
+  type ProductPurchaseCustomizationDraft,
   type ProductPurchasePrice,
   type ProductPurchaseStock,
 } from "@/components/product/ProductDirectPurchasePanel";
 import { type ProductCustomizationOption } from "@/components/product/ProductCustomizationOptions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -104,7 +107,34 @@ type ProductPageProps = {
   params: Promise<{
     slug: string;
   }>;
+  searchParams?: Promise<{
+    maquete?: string;
+  }>;
 };
+
+type CustomizationDraftRecord = {
+  id: string;
+  user_id: string | null;
+  session_id: string | null;
+  product_id: string;
+  variant_id: string | null;
+  quantity: number;
+  component_name: string | null;
+  location_name: string | null;
+  technique_name: string | null;
+  logo_file_name: string | null;
+  technical_preview_url: string | null;
+  product_unit_price: number;
+  personalization_unit_price: number;
+  setup_cost: number;
+  extras_total: number;
+  estimated_total: number;
+  currency: string;
+  artwork_status: string;
+  status: string;
+};
+
+const CART_SESSION_COOKIE = "loja_creativ_cart_session";
 
 function getPrimaryImage(product: ProductDetail): ProductImage | null {
   const images = [...(product.product_images ?? [])];
@@ -336,8 +366,14 @@ function buildCustomizationOptions(params: {
     .slice(0, 24);
 }
 
-export default async function ProductDetailPage({ params }: ProductPageProps) {
+export default async function ProductDetailPage({
+  params,
+  searchParams,
+}: ProductPageProps) {
   const { slug } = await params;
+  const resolvedSearchParams = await searchParams;
+  const customizationDraftId =
+    resolvedSearchParams?.maquete?.trim() ?? null;
   const supabase = await createSupabaseServerClient();
 
   const { data } = await supabase
@@ -430,6 +466,79 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   }
 
   const product = data as unknown as ProductDetail;
+    let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
+
+  if (customizationDraftId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const cookieStore = await cookies();
+    const sessionId =
+      cookieStore.get(CART_SESSION_COOKIE)?.value ?? null;
+
+    const supabaseAdmin = createSupabaseAdminClient();
+
+    const { data: draftData } = await supabaseAdmin
+      .from("product_customization_drafts")
+      .select(
+        `
+          id,
+          user_id,
+          session_id,
+          product_id,
+          variant_id,
+          quantity,
+          component_name,
+          location_name,
+          technique_name,
+          logo_file_name,
+          technical_preview_url,
+          product_unit_price,
+          personalization_unit_price,
+          setup_cost,
+          extras_total,
+          estimated_total,
+          currency,
+          artwork_status,
+          status
+        `,
+      )
+      .eq("id", customizationDraftId)
+      .eq("product_id", product.id)
+      .maybeSingle<CustomizationDraftRecord>();
+
+    const belongsToUser =
+      Boolean(user?.id) && draftData?.user_id === user?.id;
+
+    const belongsToSession =
+      Boolean(sessionId) && draftData?.session_id === sessionId;
+
+    if (
+      draftData &&
+      (belongsToUser || belongsToSession) &&
+      ["draft", "ready"].includes(draftData.status)
+    ) {
+      customizationDraft = {
+        id: draftData.id,
+        variant_id: draftData.variant_id,
+        quantity: draftData.quantity,
+        component_name: draftData.component_name,
+        location_name: draftData.location_name,
+        technique_name: draftData.technique_name,
+        logo_file_name: draftData.logo_file_name,
+        technical_preview_url: draftData.technical_preview_url,
+        product_unit_price: draftData.product_unit_price,
+        personalization_unit_price:
+          draftData.personalization_unit_price,
+        setup_cost: draftData.setup_cost,
+        extras_total: draftData.extras_total,
+        estimated_total: draftData.estimated_total,
+        currency: draftData.currency,
+        artwork_status: draftData.artwork_status,
+      };
+    }
+  }
   const primaryImage = getPrimaryImage(product);
   const imageUrl = primaryImage?.storage_url ?? primaryImage?.external_url;
 
@@ -494,7 +603,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
           {backLabel}
         </Link>
 
-        <ProductDirectPurchasePanel
+       <ProductDirectPurchasePanel
   productId={product.id}
   productSlug={product.slug}
   productSku={product.sku}
@@ -512,6 +621,7 @@ export default async function ProductDetailPage({ params }: ProductPageProps) {
   prices={purchasePrices}
   colors={purchaseColors}
   stocks={purchaseStocks}
+  customizationDraft={customizationDraft}
 />
       </section>
     </main>

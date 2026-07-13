@@ -31,6 +31,24 @@ export type ProductPurchaseStock = {
   expected_restock_date: string | null;
 };
 
+export type ProductPurchaseCustomizationDraft = {
+  id: string;
+  variant_id: string | null;
+  quantity: number;
+  component_name: string | null;
+  location_name: string | null;
+  technique_name: string | null;
+  logo_file_name: string | null;
+  technical_preview_url: string | null;
+  product_unit_price: number;
+  personalization_unit_price: number;
+  setup_cost: number;
+  extras_total: number;
+  estimated_total: number;
+  currency: string;
+  artwork_status: string;
+};
+
 type StockSummary = {
   available: number;
 };
@@ -59,6 +77,7 @@ type ProductDirectPurchasePanelProps = {
   minimumQuantity: number;
   totalStock: number;
   isCustomizable: boolean;
+  customizationDraft: ProductPurchaseCustomizationDraft | null;
   prices: ProductPurchasePrice[];
   colors: ProductPurchaseColor[];
   stocks: ProductPurchaseStock[];
@@ -343,6 +362,7 @@ export default function ProductDirectPurchasePanel({
   prices,
   colors,
   stocks,
+  customizationDraft,
 }: ProductDirectPurchasePanelProps) {
   const hasSizes = useMemo(
     () => colors.some((color) => Boolean(color.size?.trim())),
@@ -359,7 +379,8 @@ export default function ProductDirectPurchasePanel({
   );
 
   const firstColorGroupKey = colorGroups[0]?.key ?? null;
-  const firstVariantId = colors[0]?.id ?? null;
+  const firstVariantId =
+  customizationDraft?.variant_id ?? colors[0]?.id ?? null;
 
   const [selectedColorGroupKey, setSelectedColorGroupKey] = useState<
     string | null
@@ -370,8 +391,21 @@ export default function ProductDirectPurchasePanel({
   );
 
   const [quantitiesByVariant, setQuantitiesByVariant] = useState<
-    Record<string, number>
-  >({});
+  Record<string, number>
+>(() => {
+  if (!customizationDraft?.variant_id) {
+    return {};
+  }
+
+  return {
+    [customizationDraft.variant_id]: customizationDraft.quantity,
+  };
+});
+
+const [activeCustomizationDraft, setActiveCustomizationDraft] =
+  useState<ProductPurchaseCustomizationDraft | null>(
+    customizationDraft,
+  );
 
   const [state, formAction, isPending] = useActionState(
     addToCartAction,
@@ -443,6 +477,30 @@ export default function ProductDirectPurchasePanel({
     [selectedQuantity, activePrices],
   );
 
+  const customizationPersonalizationTotal = activeCustomizationDraft
+  ? Number(
+      (
+        activeCustomizationDraft.personalization_unit_price *
+        selectedQuantity
+      ).toFixed(2),
+    )
+  : 0;
+
+const customizationSetupCost =
+  activeCustomizationDraft?.setup_cost ?? 0;
+
+const customizationExtrasTotal =
+  activeCustomizationDraft?.extras_total ?? 0;
+
+const displayedTotal = Number(
+  (
+    pricing.subtotal +
+    customizationPersonalizationTotal +
+    customizationSetupCost +
+    customizationExtrasTotal
+  ).toFixed(2),
+);
+
   const displayImageUrl =
     selectedColorGroup?.image_url ?? selectedVariant?.image_url ?? productImageUrl;
 
@@ -456,6 +514,7 @@ export default function ProductDirectPurchasePanel({
   )}&quantidade=${encodeURIComponent(String(selectedQuantity))}`;
 
   function selectColorGroup(group: ColorGroup) {
+    setActiveCustomizationDraft(null);
     setSelectedColorGroupKey(group.key);
 
     const firstAvailableVariant =
@@ -472,7 +531,10 @@ export default function ProductDirectPurchasePanel({
   }
 
   function selectVariant(variant: ProductPurchaseColor) {
-    setSelectedVariantId(variant.id);
+    if (variant.id !== activeCustomizationDraft?.variant_id) {
+  setActiveCustomizationDraft(null);
+}
+setSelectedVariantId(variant.id);
 
     if (hasSizes) {
       setSelectedColorGroupKey(getColorKey(variant));
@@ -485,6 +547,14 @@ export default function ProductDirectPurchasePanel({
     stockAvailable: number;
   }) {
     setSelectedVariantId(params.variantId);
+
+    if (
+  activeCustomizationDraft &&
+  (params.variantId !== activeCustomizationDraft.variant_id ||
+    params.quantity !== activeCustomizationDraft.quantity)
+) {
+  setActiveCustomizationDraft(null);
+}
 
     const variant = colors.find((color) => color.id === params.variantId);
 
@@ -805,6 +875,74 @@ export default function ProductDirectPurchasePanel({
             </div>
           ) : null}
 
+          {activeCustomizationDraft ? (
+  <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-sm font-semibold text-emerald-950">
+          Maquete preparada
+        </p>
+
+        <p className="mt-1 text-sm leading-6 text-emerald-800">
+          A personalização será associada a esta linha da encomenda.
+        </p>
+      </div>
+
+      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+        Guardada
+      </span>
+    </div>
+
+    <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+      <div>
+        <dt className="text-emerald-700">Localização</dt>
+        <dd className="mt-1 font-semibold text-emerald-950">
+          {activeCustomizationDraft.location_name ?? "A confirmar"}
+        </dd>
+      </div>
+
+      <div>
+        <dt className="text-emerald-700">Técnica</dt>
+        <dd className="mt-1 font-semibold text-emerald-950">
+          {activeCustomizationDraft.technique_name ?? "A confirmar"}
+        </dd>
+      </div>
+
+      <div>
+        <dt className="text-emerald-700">Logótipo</dt>
+        <dd className="mt-1 font-semibold text-emerald-950">
+          {activeCustomizationDraft.logo_file_name ??
+            "Ainda não carregado"}
+        </dd>
+      </div>
+
+      <div>
+        <dt className="text-emerald-700">Quantidade</dt>
+        <dd className="mt-1 font-semibold text-emerald-950">
+          {activeCustomizationDraft.quantity.toLocaleString("pt-PT")} un.
+        </dd>
+      </div>
+    </dl>
+
+    <Link
+      href={`/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
+        activeCustomizationDraft.variant_id ?? "",
+      )}&quantidade=${encodeURIComponent(
+        String(activeCustomizationDraft.quantity),
+      )}`}
+      className="mt-5 inline-flex text-sm font-semibold text-emerald-950 underline-offset-4 hover:underline"
+    >
+      Editar ou criar nova maquete
+    </Link>
+  </div>
+) : customizationDraft ? (
+  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+    A cor, o tamanho ou a quantidade foram alterados. A maquete anterior
+    deixou de estar associada. Cria uma nova maquete antes de adicionar a
+    personalização ao carrinho.
+  </div>
+) : null}
+
           <form action={formAction} className="mt-6 space-y-5">
             <input type="hidden" name="productId" value={productId} />
             <input
@@ -812,6 +950,11 @@ export default function ProductDirectPurchasePanel({
               name="variantId"
               value={selectedVariant?.id ?? ""}
             />
+            <input
+  type="hidden"
+  name="customizationDraftId"
+  value={activeCustomizationDraft?.id ?? ""}
+/>
             <input type="hidden" name="quantity" value={selectedQuantity} />
             <input type="hidden" name="printingTechniqueId" value="" />
             <input type="hidden" name="personalizationNotes" value="" />
@@ -975,6 +1118,43 @@ export default function ProductDirectPurchasePanel({
                 <div className="flex justify-between gap-4">
                   <span>Produto</span>
 
+                  {activeCustomizationDraft ? (
+  <>
+    <div className="flex justify-between gap-4">
+      <span>Personalização</span>
+
+      <span className="font-medium text-neutral-950">
+        {formatPrice(
+          customizationPersonalizationTotal,
+          activeCustomizationDraft.currency,
+        )}
+      </span>
+    </div>
+
+    <div className="flex justify-between gap-4">
+      <span>Preparação</span>
+
+      <span className="font-medium text-neutral-950">
+        {formatPrice(
+          customizationSetupCost,
+          activeCustomizationDraft.currency,
+        )}
+      </span>
+    </div>
+
+    <div className="flex justify-between gap-4">
+      <span>Extras</span>
+
+      <span className="font-medium text-neutral-950">
+        {formatPrice(
+          customizationExtrasTotal,
+          activeCustomizationDraft.currency,
+        )}
+      </span>
+    </div>
+  </>
+) : null}
+
                   <span className="font-medium text-neutral-950">
                     {formatPrice(pricing.subtotal, pricing.currency)}
                   </span>
@@ -987,7 +1167,10 @@ export default function ProductDirectPurchasePanel({
                     </span>
 
                     <span className="font-semibold text-neutral-950">
-                      {formatPrice(pricing.total, pricing.currency)}
+                      {formatPrice(
+  displayedTotal,
+  activeCustomizationDraft?.currency ?? pricing.currency,
+)}
                     </span>
                   </div>
 
@@ -1045,7 +1228,11 @@ export default function ProductDirectPurchasePanel({
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
-                {isPending ? "A adicionar..." : "Adicionar ao carrinho"}
+                {isPending
+  ? "A adicionar..."
+  : activeCustomizationDraft
+    ? "Adicionar encomenda personalizada"
+    : "Adicionar ao carrinho"}
               </button>
             </div>
           </form>
