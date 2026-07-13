@@ -35,6 +35,15 @@ type StockSummary = {
   available: number;
 };
 
+type ColorGroup = {
+  key: string;
+  label: string;
+  hex: string | null;
+  image_url: string | null;
+  variants: ProductPurchaseColor[];
+  stockAvailable: number;
+};
+
 type ProductDirectPurchasePanelProps = {
   productId: string;
   productSlug: string;
@@ -60,6 +69,21 @@ const initialState: AddToCartActionState = {
   message: "",
 };
 
+const SIZE_ORDER = [
+  "XXS",
+  "XS",
+  "S",
+  "M",
+  "L",
+  "XL",
+  "XXL",
+  "2XL",
+  "3XL",
+  "4XL",
+  "5XL",
+  "6XL",
+];
+
 function formatPrice(value: number, currency: string): string {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -68,11 +92,174 @@ function formatPrice(value: number, currency: string): string {
 }
 
 function getColorLabel(color: ProductPurchaseColor): string {
+  return color.color_name ?? "Cor disponível";
+}
+
+function getVariantLabel(color: ProductPurchaseColor): string {
   if (color.color_name && color.size) {
     return `${color.color_name} · ${color.size}`;
   }
 
-  return color.color_name ?? color.size ?? "Cor disponível";
+  return color.color_name ?? color.size ?? "Opção disponível";
+}
+
+function getSizeLabel(color: ProductPurchaseColor): string {
+  return color.size ?? "Tamanho único";
+}
+
+function getColorKey(color: ProductPurchaseColor): string {
+  const colorName = color.color_name?.trim().toLowerCase() ?? "sem-cor";
+  const colorHex = color.color_hex?.trim().toLowerCase() ?? "sem-hex";
+
+  return `${colorName}:${colorHex}`;
+}
+
+function getSizeOrderValue(size: string | null): number {
+  if (!size) {
+    return 999;
+  }
+
+  const normalizedSize = size.trim().toUpperCase();
+  const index = SIZE_ORDER.indexOf(normalizedSize);
+
+  if (index >= 0) {
+    return index;
+  }
+
+  return 500 + normalizedSize.localeCompare("ZZZ");
+}
+
+function dedupeVariantsBySize(params: {
+  variants: ProductPurchaseColor[];
+  stocks: ProductPurchaseStock[];
+}): ProductPurchaseColor[] {
+  const map = new Map<string, ProductPurchaseColor>();
+
+  for (const variant of params.variants) {
+    const sizeKey = getSizeLabel(variant).trim().toLowerCase();
+    const existingVariant = map.get(sizeKey);
+
+    if (!existingVariant) {
+      map.set(sizeKey, variant);
+      continue;
+    }
+
+    const existingStock = getStockForVariant({
+      stocks: params.stocks,
+      variantId: existingVariant.id,
+    });
+
+    const currentStock = getStockForVariant({
+      stocks: params.stocks,
+      variantId: variant.id,
+    });
+
+    const shouldReplace =
+      currentStock.available > existingStock.available ||
+      (!existingVariant.image_url && Boolean(variant.image_url));
+
+    if (shouldReplace) {
+      map.set(sizeKey, variant);
+    }
+  }
+
+  return Array.from(map.values());
+}
+
+function sortVariantsBySize(
+  variants: ProductPurchaseColor[],
+): ProductPurchaseColor[] {
+  return [...variants].sort((a, b) => {
+    const sizeComparison =
+      getSizeOrderValue(a.size) - getSizeOrderValue(b.size);
+
+    if (sizeComparison !== 0) {
+      return sizeComparison;
+    }
+
+    return getSizeLabel(a).localeCompare(getSizeLabel(b), "pt-PT");
+  });
+}
+
+function getStockForVariant(params: {
+  stocks: ProductPurchaseStock[];
+  variantId: string | null;
+}): StockSummary {
+  if (!params.variantId) {
+    const productStocks = params.stocks.filter((stock) => !stock.variant_id);
+
+    return {
+      available: productStocks.reduce(
+        (total, stock) => total + stock.available_quantity,
+        0,
+      ),
+    };
+  }
+
+  const variantStocks = params.stocks.filter(
+    (stock) => stock.variant_id === params.variantId,
+  );
+
+  return {
+    available: variantStocks.reduce(
+      (total, stock) => total + stock.available_quantity,
+      0,
+    ),
+  };
+}
+
+function buildColorGroups(params: {
+  colors: ProductPurchaseColor[];
+  stocks: ProductPurchaseStock[];
+}): ColorGroup[] {
+  const groups = new Map<string, ColorGroup>();
+
+  for (const color of params.colors) {
+    const key = getColorKey(color);
+    const existingGroup = groups.get(key);
+    const stock = getStockForVariant({
+      stocks: params.stocks,
+      variantId: color.id,
+    });
+
+    if (!existingGroup) {
+      groups.set(key, {
+        key,
+        label: getColorLabel(color),
+        hex: color.color_hex,
+        image_url: color.image_url,
+        variants: [color],
+        stockAvailable: stock.available,
+      });
+
+      continue;
+    }
+
+    existingGroup.variants.push(color);
+    existingGroup.stockAvailable += stock.available;
+
+    if (!existingGroup.image_url && color.image_url) {
+      existingGroup.image_url = color.image_url;
+    }
+
+    if (!existingGroup.hex && color.color_hex) {
+      existingGroup.hex = color.color_hex;
+    }
+  }
+
+  return Array.from(groups.values())
+    .map((group) => {
+      const uniqueVariants = dedupeVariantsBySize({
+        variants: group.variants,
+        stocks: params.stocks,
+      });
+
+      return {
+        ...group,
+        variants: sortVariantsBySize(uniqueVariants),
+      };
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-PT"));
 }
 
 function dedupePriceTiers(
@@ -94,20 +281,20 @@ function dedupePriceTiers(
   );
 }
 
-function getPricesForColor(params: {
+function getPricesForVariant(params: {
   prices: ProductPurchasePrice[];
-  selectedColorId: string | null;
+  selectedVariantId: string | null;
 }): ProductPurchasePrice[] {
-  if (!params.selectedColorId) {
+  if (!params.selectedVariantId) {
     return dedupePriceTiers(params.prices);
   }
 
-  const colorPrices = params.prices.filter(
-    (price) => price.variant_id === params.selectedColorId,
+  const variantPrices = params.prices.filter(
+    (price) => price.variant_id === params.selectedVariantId,
   );
 
-  if (colorPrices.length > 0) {
-    return dedupePriceTiers(colorPrices);
+  if (variantPrices.length > 0) {
+    return dedupePriceTiers(variantPrices);
   }
 
   const productPrices = params.prices.filter((price) => !price.variant_id);
@@ -127,27 +314,6 @@ function getLowestPrice(
   }
 
   return [...prices].sort((a, b) => a.final_price - b.final_price)[0] ?? null;
-}
-
-function getStockForColor(params: {
-  stocks: ProductPurchaseStock[];
-  colorId: string | null;
-}): StockSummary {
-  const colorStocks = params.stocks.filter(
-    (stock) => stock.variant_id === params.colorId,
-  );
-
-  const activeStocks =
-    colorStocks.length > 0
-      ? colorStocks
-      : params.stocks.filter((stock) => !stock.variant_id);
-
-  return {
-    available: activeStocks.reduce(
-      (total, stock) => total + stock.available_quantity,
-      0,
-    ),
-  };
 }
 
 function getQuantityLabel(price: ProductPurchasePrice): string {
@@ -178,13 +344,32 @@ export default function ProductDirectPurchasePanel({
   colors,
   stocks,
 }: ProductDirectPurchasePanelProps) {
-  const firstColorId = colors[0]?.id ?? null;
-
-  const [selectedColorId, setSelectedColorId] = useState<string | null>(
-    firstColorId,
+  const hasSizes = useMemo(
+    () => colors.some((color) => Boolean(color.size?.trim())),
+    [colors],
   );
 
-  const [quantitiesByColor, setQuantitiesByColor] = useState<
+  const colorGroups = useMemo(
+    () =>
+      buildColorGroups({
+        colors,
+        stocks,
+      }),
+    [colors, stocks],
+  );
+
+  const firstColorGroupKey = colorGroups[0]?.key ?? null;
+  const firstVariantId = colors[0]?.id ?? null;
+
+  const [selectedColorGroupKey, setSelectedColorGroupKey] = useState<
+    string | null
+  >(firstColorGroupKey);
+
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+    firstVariantId,
+  );
+
+  const [quantitiesByVariant, setQuantitiesByVariant] = useState<
     Record<string, number>
   >({});
 
@@ -193,35 +378,57 @@ export default function ProductDirectPurchasePanel({
     initialState,
   );
 
-  const selectedColor = useMemo(
+  const selectedColorGroup = useMemo(
     () =>
-      colors.find((color) => color.id === selectedColorId) ?? colors[0] ?? null,
-    [colors, selectedColorId],
+      colorGroups.find((group) => group.key === selectedColorGroupKey) ??
+      colorGroups[0] ??
+      null,
+    [colorGroups, selectedColorGroupKey],
   );
+
+  const visibleVariants = useMemo(() => {
+    if (!hasSizes) {
+      return colors;
+    }
+
+    return selectedColorGroup?.variants ?? [];
+  }, [colors, hasSizes, selectedColorGroup]);
+
+  const selectedVariant = useMemo(() => {
+    const variantInVisibleGroup =
+      visibleVariants.find((variant) => variant.id === selectedVariantId) ??
+      null;
+
+    if (variantInVisibleGroup) {
+      return variantInVisibleGroup;
+    }
+
+    return visibleVariants[0] ?? colors[0] ?? null;
+  }, [colors, selectedVariantId, visibleVariants]);
 
   const selectedStock = useMemo(
     () =>
-      getStockForColor({
+      getStockForVariant({
         stocks,
-        colorId: selectedColorId,
+        variantId: selectedVariant?.id ?? null,
       }),
-    [stocks, selectedColorId],
+    [stocks, selectedVariant],
   );
 
   const activePrices = useMemo(
     () =>
-      getPricesForColor({
+      getPricesForVariant({
         prices,
-        selectedColorId,
+        selectedVariantId: selectedVariant?.id ?? null,
       }),
-    [prices, selectedColorId],
+    [prices, selectedVariant],
   );
 
   const lowestPrice = getLowestPrice(activePrices);
 
   const selectedQuantity =
-    selectedColorId && quantitiesByColor[selectedColorId]
-      ? quantitiesByColor[selectedColorId]
+    selectedVariant && quantitiesByVariant[selectedVariant.id]
+      ? quantitiesByVariant[selectedVariant.id]
       : selectedStock.available > 0
         ? minimumQuantity
         : 0;
@@ -236,32 +443,63 @@ export default function ProductDirectPurchasePanel({
     [selectedQuantity, activePrices],
   );
 
-  const displayImageUrl = selectedColor?.image_url ?? productImageUrl;
+  const displayImageUrl =
+    selectedColorGroup?.image_url ?? selectedVariant?.image_url ?? productImageUrl;
 
   const canProceed =
-    Boolean(selectedColorId) &&
+    Boolean(selectedVariant?.id) &&
     selectedStock.available > 0 &&
     selectedQuantity >= minimumQuantity;
 
   const personalizeHref = `/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
-    selectedColorId ?? "",
+    selectedVariant?.id ?? "",
   )}&quantidade=${encodeURIComponent(String(selectedQuantity))}`;
 
-  function updateColorQuantity(params: {
-    colorId: string;
+  function selectColorGroup(group: ColorGroup) {
+    setSelectedColorGroupKey(group.key);
+
+    const firstAvailableVariant =
+      group.variants.find((variant) => {
+        const stock = getStockForVariant({
+          stocks,
+          variantId: variant.id,
+        });
+
+        return stock.available > 0;
+      }) ?? group.variants[0] ?? null;
+
+    setSelectedVariantId(firstAvailableVariant?.id ?? null);
+  }
+
+  function selectVariant(variant: ProductPurchaseColor) {
+    setSelectedVariantId(variant.id);
+
+    if (hasSizes) {
+      setSelectedColorGroupKey(getColorKey(variant));
+    }
+  }
+
+  function updateVariantQuantity(params: {
+    variantId: string;
     quantity: number;
     stockAvailable: number;
   }) {
-    setSelectedColorId(params.colorId);
+    setSelectedVariantId(params.variantId);
+
+    const variant = colors.find((color) => color.id === params.variantId);
+
+    if (variant && hasSizes) {
+      setSelectedColorGroupKey(getColorKey(variant));
+    }
 
     const safeQuantity =
       params.stockAvailable > 0 && Number.isFinite(params.quantity)
         ? Math.max(0, params.quantity)
         : 0;
 
-    setQuantitiesByColor((current) => ({
+    setQuantitiesByVariant((current) => ({
       ...current,
-      [params.colorId]: safeQuantity,
+      [params.variantId]: safeQuantity,
     }));
   }
 
@@ -283,62 +521,106 @@ export default function ProductDirectPurchasePanel({
             )}
           </div>
 
-          {colors.length > 0 ? (
-            <div className="mt-6">
-              <div className="flex items-center gap-2">
-                <Palette className="h-4 w-4 text-neutral-500" />
+          {colorGroups.length > 0 ? (
+            <div className="mt-6 space-y-6">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-neutral-500" />
 
-                <p className="text-sm font-semibold text-neutral-950">
-                  Cores disponíveis
-                </p>
+                  <p className="text-sm font-semibold text-neutral-950">
+                    Cores disponíveis
+                  </p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {colorGroups.map((group) => {
+                    const isSelected = group.key === selectedColorGroup?.key;
+
+                    return (
+                      <button
+                        key={group.key}
+                        type="button"
+                        onClick={() => selectColorGroup(group)}
+                        className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
+                          isSelected
+                            ? "border-neutral-950 bg-neutral-950 text-white"
+                            : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                        }`}
+                        title={group.label}
+                      >
+                        {group.hex ? (
+                          <span
+                            className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
+                            style={{ backgroundColor: group.hex }}
+                          />
+                        ) : (
+                          <span className="mr-2 h-4 w-4 rounded-full border border-neutral-300 bg-white" />
+                        )}
+
+                        {group.label}
+
+                        {group.stockAvailable <= 0 ? (
+                          <span
+                            className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                              isSelected
+                                ? "bg-white/15 text-white"
+                                : "bg-neutral-100 text-neutral-500"
+                            }`}
+                          >
+                            Brevemente
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
-                {colors.map((color) => {
-                  const isSelected = color.id === selectedColorId;
-                  const stock = getStockForColor({
-                    stocks,
-                    colorId: color.id,
-                  });
+              {hasSizes && selectedColorGroup ? (
+                <div>
+                  <p className="text-sm font-semibold text-neutral-950">
+                    Tamanhos disponíveis em {selectedColorGroup.label}
+                  </p>
 
-                  return (
-                    <button
-                      key={color.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedColorId(color.id);
-                      }}
-                      className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
-                        isSelected
-                          ? "border-neutral-950 bg-neutral-950 text-white"
-                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-                      }`}
-                      title={getColorLabel(color)}
-                    >
-                      {color.color_hex ? (
-                        <span
-                          className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
-                          style={{ backgroundColor: color.color_hex }}
-                        />
-                      ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {selectedColorGroup.variants.map((variant) => {
+                      const stock = getStockForVariant({
+                        stocks,
+                        variantId: variant.id,
+                      });
+                      const isSelected = variant.id === selectedVariant?.id;
 
-                      {getColorLabel(color)}
-
-                      {stock.available <= 0 ? (
-                        <span
-                          className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                      return (
+                        <button
+                          key={variant.id}
+                          type="button"
+                          onClick={() => selectVariant(variant)}
+                          disabled={stock.available <= 0}
+                          className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition ${
                             isSelected
-                              ? "bg-white/15 text-white"
-                              : "bg-neutral-100 text-neutral-500"
-                          }`}
+                              ? "border-neutral-950 bg-neutral-950 text-white"
+                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                          } disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400`}
                         >
-                          Brevemente
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </div>
+                          {getSizeLabel(variant)}
+
+                          {stock.available <= 0 ? (
+                            <span
+                              className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                                isSelected
+                                  ? "bg-white/15 text-white"
+                                  : "bg-white text-neutral-400"
+                              }`}
+                            >
+                              Brevemente
+                            </span>
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -509,24 +791,38 @@ export default function ProductDirectPurchasePanel({
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-neutral-600">
-            Indique a quantidade pretendida na cor desejada. Pode adicionar
-            directamente ao carrinho ou criar uma maquete antes de avançar.
+            {hasSizes
+              ? "Escolha primeiro a cor e indique a quantidade no tamanho pretendido."
+              : "Indique a quantidade pretendida na cor desejada. Pode adicionar directamente ao carrinho ou criar uma maquete antes de avançar."}
           </p>
+
+          {hasSizes && selectedColorGroup ? (
+            <div className="mt-5 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600">
+              Cor selecionada:{" "}
+              <span className="font-semibold text-neutral-950">
+                {selectedColorGroup.label}
+              </span>
+            </div>
+          ) : null}
 
           <form action={formAction} className="mt-6 space-y-5">
             <input type="hidden" name="productId" value={productId} />
-            <input type="hidden" name="variantId" value={selectedColorId ?? ""} />
+            <input
+              type="hidden"
+              name="variantId"
+              value={selectedVariant?.id ?? ""}
+            />
             <input type="hidden" name="quantity" value={selectedQuantity} />
             <input type="hidden" name="printingTechniqueId" value="" />
             <input type="hidden" name="personalizationNotes" value="" />
 
-            {colors.length > 0 ? (
+            {visibleVariants.length > 0 ? (
               <div className="overflow-x-auto rounded-2xl border border-neutral-200">
                 <table className="min-w-full border-separate border-spacing-0 text-sm">
                   <thead className="bg-neutral-50">
                     <tr>
                       <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                        Cor
+                        {hasSizes ? "Tamanho" : "Cor"}
                       </th>
 
                       <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
@@ -540,43 +836,45 @@ export default function ProductDirectPurchasePanel({
                   </thead>
 
                   <tbody>
-                    {colors.map((color) => {
-                      const stock = getStockForColor({
+                    {visibleVariants.map((variant) => {
+                      const stock = getStockForVariant({
                         stocks,
-                        colorId: color.id,
+                        variantId: variant.id,
                       });
 
                       const quantity =
                         stock.available > 0
-                          ? quantitiesByColor[color.id] ??
-                            (color.id === selectedColorId ? minimumQuantity : 0)
+                          ? quantitiesByVariant[variant.id] ??
+                            (variant.id === selectedVariant?.id
+                              ? minimumQuantity
+                              : 0)
                           : 0;
 
-                      const isSelected = color.id === selectedColorId;
+                      const isSelected = variant.id === selectedVariant?.id;
 
                       return (
                         <tr
-                          key={color.id}
+                          key={variant.id}
                           className={`cursor-pointer transition ${
                             isSelected ? "bg-neutral-950/[0.03]" : "bg-white"
                           }`}
-                          onClick={() => {
-                            setSelectedColorId(color.id);
-                          }}
+                          onClick={() => selectVariant(variant)}
                         >
                           <td className="border-b border-neutral-100 px-4 py-3">
                             <div className="flex items-center gap-2">
-                              {color.color_hex ? (
+                              {variant.color_hex ? (
                                 <span
                                   className="h-4 w-4 rounded-sm border border-neutral-300"
-                                  style={{ backgroundColor: color.color_hex }}
+                                  style={{ backgroundColor: variant.color_hex }}
                                 />
                               ) : (
                                 <span className="h-4 w-4 rounded-sm border border-neutral-300 bg-white" />
                               )}
 
                               <span className="font-medium text-neutral-950">
-                                {getColorLabel(color)}
+                                {hasSizes
+                                  ? getSizeLabel(variant)
+                                  : getVariantLabel(variant)}
                               </span>
                             </div>
                           </td>
@@ -593,12 +891,10 @@ export default function ProductDirectPurchasePanel({
                               min={0}
                               value={quantity}
                               disabled={stock.available <= 0}
-                              onFocus={() => {
-                                setSelectedColorId(color.id);
-                              }}
+                              onFocus={() => selectVariant(variant)}
                               onChange={(event) => {
-                                updateColorQuantity({
-                                  colorId: color.id,
+                                updateVariantQuantity({
+                                  variantId: variant.id,
                                   quantity: Number(event.target.value),
                                   stockAvailable: stock.available,
                                 });
@@ -627,8 +923,12 @@ export default function ProductDirectPurchasePanel({
                   min={minimumQuantity}
                   value={selectedQuantity}
                   onChange={(event) => {
-                    updateColorQuantity({
-                      colorId: "default",
+                    if (!selectedVariant) {
+                      return;
+                    }
+
+                    updateVariantQuantity({
+                      variantId: selectedVariant.id,
                       quantity: Number(event.target.value),
                       stockAvailable: totalStock,
                     });
@@ -645,12 +945,24 @@ export default function ProductDirectPurchasePanel({
 
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>Cor seleccionada</span>
+                  <span>Cor selecionada</span>
 
                   <span className="font-medium text-neutral-950">
-                    {selectedColor ? getColorLabel(selectedColor) : "—"}
+                    {selectedColorGroup?.label ??
+                      selectedVariant?.color_name ??
+                      "—"}
                   </span>
                 </div>
+
+                {hasSizes ? (
+                  <div className="flex justify-between gap-4">
+                    <span>Tamanho</span>
+
+                    <span className="font-medium text-neutral-950">
+                      {selectedVariant ? getSizeLabel(selectedVariant) : "—"}
+                    </span>
+                  </div>
+                ) : null}
 
                 <div className="flex justify-between gap-4">
                   <span>Quantidade</span>
