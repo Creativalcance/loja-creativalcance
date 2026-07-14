@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  BadgeEuro,
   BarChart3,
   Boxes,
   Building2,
@@ -11,6 +12,7 @@ import {
   Settings,
   ShoppingBag,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -20,7 +22,14 @@ type Profile = {
   role: string;
 };
 
-const adminModules = [
+type AdminModule = {
+  title: string;
+  description: string;
+  href: string;
+  icon: LucideIcon;
+};
+
+const adminModules: AdminModule[] = [
   {
     title: "Sincronização",
     description:
@@ -34,6 +43,13 @@ const adminModules = [
       "Gerir catálogo, produtos, variantes, imagens, preços, stocks e destaques.",
     href: "/admin/produtos",
     icon: PackageSearch,
+  },
+  {
+    title: "Gestão de preços",
+    description:
+      "Consultar custos dos fornecedores, margens, regras comerciais e preços finais da loja.",
+    href: "/admin/precos",
+    icon: BadgeEuro,
   },
   {
     title: "Fornecedores",
@@ -52,7 +68,7 @@ const adminModules = [
   {
     title: "Encomendas",
     description:
-      "Acompanhar encomendas, produção, pagamento, estados e referências externas.",
+      "Acompanhar pagamentos, maquetes, produção, submissão à Stricker, expedição e faturação.",
     href: "/admin/encomendas",
     icon: ShoppingBag,
   },
@@ -66,7 +82,7 @@ const adminModules = [
   {
     title: "Comerciais",
     description:
-      "Gerir equipa comercial, leads, pipeline, objectivos e desempenho.",
+      "Gerir equipa comercial, leads, pipeline, objetivos e desempenho.",
     href: "/admin/comerciais",
     icon: Users,
   },
@@ -84,11 +100,6 @@ const adminModules = [
     href: "/admin/configuracoes",
     icon: Settings,
   },
-  {
-  label: "Gestão de preços",
-  href: "/admin/precos",
-  icon: "prices",
-}
 ];
 
 export default async function AdminPage() {
@@ -127,7 +138,7 @@ export default async function AdminPage() {
 
             <p className="mt-4 max-w-2xl text-white/60">
               Gestão de produtos, fornecedores, sincronização Stricker,
-              clientes, encomendas, campanhas, SEO e logs operacionais.
+              clientes, encomendas, pagamentos, preços e operação comercial.
             </p>
           </div>
 
@@ -135,14 +146,16 @@ export default async function AdminPage() {
             <p className="font-semibold text-white">
               {profile.full_name || "Administrador"}
             </p>
+
             <p className="mt-1">{profile.email}</p>
+
             <p className="mt-2 inline-flex rounded-full border border-white/10 px-3 py-1 text-xs uppercase tracking-[0.16em] text-white/60">
               {profile.role}
             </p>
 
             <Link
               href="/logout"
-              className="mt-4 inline-flex items-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              className="mt-4 flex items-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <LogOut className="mr-2 h-4 w-4" />
               Sair
