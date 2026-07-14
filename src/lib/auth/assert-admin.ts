@@ -35,7 +35,7 @@ function getSafeNextPath(value: string): string {
     return "/admin";
   }
 
-  return trimmed;
+  return trimmed || "/admin";
 }
 
 function buildLoginUrl(nextPath: string): string {

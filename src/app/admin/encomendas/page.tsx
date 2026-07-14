@@ -1,10 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
-  Banknote,
-  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
@@ -14,11 +11,9 @@ import {
   Search,
   ShoppingBag,
   Truck,
-  UserRound,
-  XCircle,
 } from "lucide-react";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
@@ -31,13 +26,6 @@ type AdminOrdersPageProps = {
     expedicao?: string;
     pagina?: string;
   }>;
-};
-
-type ProfileRecord = {
-  id: string;
-  full_name: string | null;
-  email: string;
-  role: string;
 };
 
 type OrderRecord = {
@@ -278,10 +266,16 @@ function formatDateTime(
     return "—";
   }
 
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "—";
+  }
+
   return new Intl.DateTimeFormat("pt-PT", {
     dateStyle: "medium",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(parsedDate);
 }
 
 function formatNumber(
@@ -548,11 +542,24 @@ async function getOrderStatistics(): Promise<OrderStatistics> {
       ]),
   ]);
 
+  const firstError =
+    totalResult.error ??
+    pendingResult.error ??
+    paidResult.error ??
+    supplierErrorResult.error ??
+    productionResult.error ??
+    shippedResult.error;
+
+  if (firstError) {
+    throw new Error(firstError.message);
+  }
+
   return {
     total: totalResult.count ?? 0,
     pendingPayment: pendingResult.count ?? 0,
     paid: paidResult.count ?? 0,
-    supplierErrors: supplierErrorResult.count ?? 0,
+    supplierErrors:
+      supplierErrorResult.count ?? 0,
     inProduction: productionResult.count ?? 0,
     shipped: shippedResult.count ?? 0,
   };
@@ -713,32 +720,33 @@ async function getOrders(params: {
     }
   }
 
-  const orders = orderRows.map((order) => {
-    const items =
-      itemsByOrder.get(order.id) ?? [];
+  const orders: OrderListItem[] =
+    orderRows.map((order) => {
+      const items =
+        itemsByOrder.get(order.id) ?? [];
 
-    return {
-      ...order,
-      itemsCount: items.length,
-      totalQuantity: items.reduce(
-        (total, item) =>
-          total + Number(item.quantity ?? 0),
-        0,
-      ),
-      personalizedItemsCount: items.filter(
-        (item) =>
-          item.personalization_required,
-      ).length,
-      approvedArtworkCount: items.filter(
-        (item) => item.artwork_approved,
-      ).length,
-      submittedItemsCount: items.filter(
-        (item) =>
-          item.supplier_submission_status ===
-          "submitted",
-      ).length,
-    };
-  });
+      return {
+        ...order,
+        itemsCount: items.length,
+        totalQuantity: items.reduce(
+          (total, item) =>
+            total + Number(item.quantity ?? 0),
+          0,
+        ),
+        personalizedItemsCount: items.filter(
+          (item) =>
+            item.personalization_required,
+        ).length,
+        approvedArtworkCount: items.filter(
+          (item) => item.artwork_approved,
+        ).length,
+        submittedItemsCount: items.filter(
+          (item) =>
+            item.supplier_submission_status ===
+            "submitted",
+        ).length,
+      };
+    });
 
   return {
     orders,
@@ -804,31 +812,7 @@ function StatisticsCard({
 export default async function AdminOrdersPage({
   searchParams,
 }: AdminOrdersPageProps) {
-  const supabase =
-    await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, role")
-    .eq("id", user.id)
-    .maybeSingle<ProfileRecord>();
-
-  if (
-    !profile ||
-    !["admin", "super_admin"].includes(
-      profile.role,
-    )
-  ) {
-    redirect("/");
-  }
+  await assertAdminAccess("/admin/encomendas");
 
   const resolvedSearchParams =
     await searchParams;
@@ -1131,8 +1115,8 @@ export default async function AdminOrdersPage({
                     : "border-neutral-200"
                 }`}
               >
-                {(hasSupplierError ||
-                  hasPaymentError) && (
+                {hasSupplierError ||
+                hasPaymentError ? (
                   <div className="flex items-start gap-3 border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
 
@@ -1142,7 +1126,7 @@ export default async function AdminOrdersPage({
                         : "A submissão desta encomenda à Stricker requer atenção."}
                     </p>
                   </div>
-                )}
+                ) : null}
 
                 <div className="grid gap-6 p-5 xl:grid-cols-[minmax(280px,1.3fr)_minmax(220px,1fr)_repeat(4,minmax(135px,0.7fr))_auto] xl:items-center">
                   <div>
@@ -1318,8 +1302,13 @@ export default async function AdminOrdersPage({
                     Personalização e setup:{" "}
                     <span className="font-semibold text-neutral-950">
                       {formatPrice(
-                        order.personalization_total +
-                          order.setup_total,
+                        Number(
+                          order.personalization_total ??
+                            0,
+                        ) +
+                          Number(
+                            order.setup_total ?? 0,
+                          ),
                         order.currency,
                       )}
                     </span>
@@ -1329,8 +1318,12 @@ export default async function AdminOrdersPage({
                     Expedição + IVA:{" "}
                     <span className="font-semibold text-neutral-950">
                       {formatPrice(
-                        order.shipping_total +
-                          order.tax_total,
+                        Number(
+                          order.shipping_total ?? 0,
+                        ) +
+                          Number(
+                            order.tax_total ?? 0,
+                          ),
                         order.currency,
                       )}
                     </span>
