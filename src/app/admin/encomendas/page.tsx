@@ -2,18 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowRight,
   Banknote,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
   Clock3,
-  ExternalLink,
-  PackageCheck,
-  PackageOpen,
+  Package,
   RefreshCw,
   Search,
   ShoppingBag,
+  Truck,
   UserRound,
   XCircle,
 } from "lucide-react";
@@ -22,126 +22,105 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-type OrderStatus =
-  | "pending_payment"
-  | "paid"
-  | "processing"
-  | "sent_to_supplier"
-  | "supplier_confirmed"
-  | "in_production"
-  | "shipped"
-  | "delivered"
-  | "cancelled"
-  | "refunded"
-  | "failed";
+type AdminOrdersPageProps = {
+  searchParams?: Promise<{
+    q?: string;
+    estado?: string;
+    pagamento?: string;
+    stricker?: string;
+    expedicao?: string;
+    pagina?: string;
+  }>;
+};
 
-type PaymentStatus =
-  | "pending"
-  | "authorized"
-  | "paid"
-  | "failed"
-  | "refunded"
-  | "partially_refunded"
-  | "cancelled";
-
-type SupplierSubmissionStatus =
-  | "not_submitted"
-  | "ready_for_review"
-  | "approved_for_submission"
-  | "submitting"
-  | "submitted"
-  | "partially_submitted"
-  | "failed"
-  | "cancelled";
-
-type AdminProfile = {
+type ProfileRecord = {
   id: string;
   full_name: string | null;
   email: string;
   role: string;
 };
 
-type OrderItemSummary = {
-  id: string;
-  quantity: number;
-  total: number;
-  personalization_required: boolean;
-  artwork_status: string;
-  artwork_approved: boolean;
-  supplier_submission_status: string;
-};
-
-type OrderRow = {
+type OrderRecord = {
   id: string;
   order_number: string;
+
   customer_name: string;
   customer_email: string;
   customer_phone: string | null;
+
   company_name: string | null;
   company_tax_id: string | null;
-  status: OrderStatus;
-  payment_status: PaymentStatus;
+
+  status: string;
+  payment_status: string;
   fulfillment_status: string;
-  supplier_submission_status: SupplierSubmissionStatus;
-  supplier_order_stamp: string | null;
-  supplier_submission_error: string | null;
+  supplier_submission_status: string;
+
   currency: string;
   subtotal: number;
   personalization_total: number;
   setup_total: number;
   shipping_total: number;
-  discount_total: number;
   tax_total: number;
   grand_total: number;
+
   stripe_checkout_session_id: string | null;
   stripe_payment_intent_id: string | null;
-  shipping_method: string | null;
-  shipping_carrier: string | null;
+
+  supplier_order_stamp: string | null;
+  supplier_submission_error: string | null;
+
   tracking_number: string | null;
   tracking_url: string | null;
-  invoice_number: string | null;
-  invoice_url: string | null;
-  invoice_status: string | null;
-  internal_reference: string | null;
+
   paid_at: string | null;
+  supplier_submitted_at: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+
   created_at: string;
   updated_at: string;
-  order_items: OrderItemSummary[] | null;
 };
 
-type OrdersPageSearchParams = {
-  q?: string;
-  estado?: string;
-  pagamento?: string;
-  stricker?: string;
-  pagina?: string;
+type OrderItemSummaryRecord = {
+  order_id: string;
+  quantity: number;
+  personalization_required: boolean;
+  artwork_approved: boolean;
+  supplier_submission_status: string;
 };
 
-type AdminOrdersPageProps = {
-  searchParams?: Promise<OrdersPageSearchParams>;
+type OrderListItem = OrderRecord & {
+  itemsCount: number;
+  totalQuantity: number;
+  personalizedItemsCount: number;
+  approvedArtworkCount: number;
+  submittedItemsCount: number;
 };
 
-type OrderStats = {
+type OrderStatistics = {
   total: number;
   pendingPayment: number;
   paid: number;
-  needsReview: number;
-  supplierFailed: number;
+  supplierErrors: number;
+  inProduction: number;
+  shipped: number;
 };
 
 const PAGE_SIZE = 25;
 
-const ORDER_STATUS_OPTIONS: Array<{
-  value: OrderStatus;
-  label: string;
-}> = [
+const ORDER_STATUS_OPTIONS = [
+  {
+    value: "",
+    label: "Todos os estados",
+  },
   {
     value: "pending_payment",
     label: "A aguardar pagamento",
   },
   {
     value: "paid",
-    label: "Paga",
+    label: "Pago",
   },
   {
     value: "processing",
@@ -149,7 +128,7 @@ const ORDER_STATUS_OPTIONS: Array<{
   },
   {
     value: "sent_to_supplier",
-    label: "Enviada ao fornecedor",
+    label: "Enviada à Stricker",
   },
   {
     value: "supplier_confirmed",
@@ -172,19 +151,16 @@ const ORDER_STATUS_OPTIONS: Array<{
     label: "Cancelada",
   },
   {
-    value: "refunded",
-    label: "Reembolsada",
-  },
-  {
     value: "failed",
-    label: "Com erro",
+    label: "Falhou",
   },
 ];
 
-const PAYMENT_STATUS_OPTIONS: Array<{
-  value: PaymentStatus;
-  label: string;
-}> = [
+const PAYMENT_STATUS_OPTIONS = [
+  {
+    value: "",
+    label: "Todos os pagamentos",
+  },
   {
     value: "pending",
     label: "Pendente",
@@ -215,10 +191,11 @@ const PAYMENT_STATUS_OPTIONS: Array<{
   },
 ];
 
-const SUPPLIER_STATUS_OPTIONS: Array<{
-  value: SupplierSubmissionStatus;
-  label: string;
-}> = [
+const SUPPLIER_STATUS_OPTIONS = [
+  {
+    value: "",
+    label: "Todos os estados Stricker",
+  },
   {
     value: "not_submitted",
     label: "Não submetida",
@@ -245,7 +222,38 @@ const SUPPLIER_STATUS_OPTIONS: Array<{
   },
   {
     value: "failed",
-    label: "Erro de submissão",
+    label: "Falhou",
+  },
+  {
+    value: "cancelled",
+    label: "Cancelada",
+  },
+];
+
+const FULFILLMENT_STATUS_OPTIONS = [
+  {
+    value: "",
+    label: "Todos os estados de expedição",
+  },
+  {
+    value: "unfulfilled",
+    label: "Por preparar",
+  },
+  {
+    value: "partially_fulfilled",
+    label: "Parcialmente preparada",
+  },
+  {
+    value: "fulfilled",
+    label: "Preparada",
+  },
+  {
+    value: "shipped",
+    label: "Expedida",
+  },
+  {
+    value: "delivered",
+    label: "Entregue",
   },
   {
     value: "cancelled",
@@ -254,7 +262,7 @@ const SUPPLIER_STATUS_OPTIONS: Array<{
 ];
 
 function formatPrice(
-  value: number,
+  value: number | null | undefined,
   currency = "EUR",
 ): string {
   return new Intl.NumberFormat("pt-PT", {
@@ -263,217 +271,175 @@ function formatPrice(
   }).format(Number(value ?? 0));
 }
 
-function formatDateTime(value: string | null): string {
+function formatDateTime(
+  value: string | null | undefined,
+): string {
   if (!value) {
     return "—";
   }
 
   return new Intl.DateTimeFormat("pt-PT", {
-    dateStyle: "short",
+    dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "Europe/Lisbon",
   }).format(new Date(value));
 }
 
-function getOrderStatusLabel(status: OrderStatus): string {
-  return (
-    ORDER_STATUS_OPTIONS.find(
-      (option) => option.value === status,
-    )?.label ?? status
-  );
-}
-
-function getPaymentStatusLabel(
-  status: PaymentStatus,
+function formatNumber(
+  value: number | null | undefined,
 ): string {
-  return (
-    PAYMENT_STATUS_OPTIONS.find(
-      (option) => option.value === status,
-    )?.label ?? status
-  );
+  return Number(value ?? 0).toLocaleString("pt-PT");
 }
 
-function getSupplierStatusLabel(
-  status: SupplierSubmissionStatus,
+function getStatusLabel(
+  status: string | null | undefined,
 ): string {
-  return (
-    SUPPLIER_STATUS_OPTIONS.find(
-      (option) => option.value === status,
-    )?.label ?? status
-  );
-}
-
-function getOrderStatusClasses(status: OrderStatus): string {
   switch (status) {
-    case "paid":
-      return "bg-blue-50 text-blue-700 ring-blue-200";
-
-    case "processing":
-    case "sent_to_supplier":
-    case "supplier_confirmed":
-    case "in_production":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
-
-    case "shipped":
-      return "bg-violet-50 text-violet-700 ring-violet-200";
-
-    case "delivered":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-
-    case "cancelled":
-    case "refunded":
-      return "bg-neutral-100 text-neutral-600 ring-neutral-200";
-
-    case "failed":
-      return "bg-red-50 text-red-700 ring-red-200";
-
     case "pending_payment":
-    default:
-      return "bg-orange-50 text-orange-700 ring-orange-200";
-  }
-}
-
-function getPaymentStatusClasses(
-  status: PaymentStatus,
-): string {
-  switch (status) {
-    case "paid":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
-
-    case "authorized":
-      return "bg-blue-50 text-blue-700 ring-blue-200";
+      return "A aguardar pagamento";
 
     case "pending":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
+      return "Pendente";
+
+    case "authorized":
+      return "Autorizado";
+
+    case "paid":
+      return "Pago";
+
+    case "processing":
+      return "Em processamento";
+
+    case "sent_to_supplier":
+      return "Enviada à Stricker";
+
+    case "supplier_confirmed":
+      return "Confirmada pela Stricker";
+
+    case "in_production":
+      return "Em produção";
+
+    case "shipped":
+      return "Expedida";
+
+    case "delivered":
+      return "Entregue";
+
+    case "cancelled":
+      return "Cancelada";
 
     case "refunded":
+      return "Reembolsada";
+
     case "partially_refunded":
-      return "bg-violet-50 text-violet-700 ring-violet-200";
+      return "Parcialmente reembolsada";
 
     case "failed":
-    case "cancelled":
-    default:
-      return "bg-red-50 text-red-700 ring-red-200";
-  }
-}
+      return "Falhou";
 
-function getSupplierStatusClasses(
-  status: SupplierSubmissionStatus,
-): string {
-  switch (status) {
-    case "submitted":
-      return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+    case "unfulfilled":
+      return "Por preparar";
 
-    case "submitting":
-      return "bg-blue-50 text-blue-700 ring-blue-200";
+    case "partially_fulfilled":
+      return "Parcialmente preparada";
 
-    case "approved_for_submission":
-      return "bg-cyan-50 text-cyan-700 ring-cyan-200";
-
-    case "ready_for_review":
-      return "bg-amber-50 text-amber-700 ring-amber-200";
-
-    case "partially_submitted":
-      return "bg-orange-50 text-orange-700 ring-orange-200";
-
-    case "failed":
-      return "bg-red-50 text-red-700 ring-red-200";
-
-    case "cancelled":
-      return "bg-neutral-100 text-neutral-600 ring-neutral-200";
+    case "fulfilled":
+      return "Preparada";
 
     case "not_submitted":
+      return "Não submetida";
+
+    case "ready_for_review":
+      return "Pronta para validação";
+
+    case "approved_for_submission":
+      return "Aprovada para submissão";
+
+    case "submitting":
+      return "A submeter";
+
+    case "submitted":
+      return "Submetida";
+
+    case "partially_submitted":
+      return "Parcialmente submetida";
+
     default:
-      return "bg-neutral-100 text-neutral-600 ring-neutral-200";
+      return status
+        ? status.replaceAll("_", " ")
+        : "Sem estado";
   }
 }
 
-function getOrderUnits(order: OrderRow): number {
-  return (order.order_items ?? []).reduce(
-    (total, item) => total + Number(item.quantity ?? 0),
-    0,
-  );
-}
+function getStatusClasses(
+  status: string | null | undefined,
+): string {
+  const normalizedStatus = status ?? "";
 
-function getPersonalizedItemCount(order: OrderRow): number {
-  return (order.order_items ?? []).filter(
-    (item) => item.personalization_required,
-  ).length;
-}
-
-function hasArtworkPending(order: OrderRow): boolean {
-  return (order.order_items ?? []).some(
-    (item) =>
-      item.personalization_required &&
-      (!item.artwork_approved ||
-        !["approved", "production_ready"].includes(
-          item.artwork_status,
-        )),
-  );
-}
-
-function needsOperationalAttention(order: OrderRow): boolean {
   if (
-    order.status === "failed" ||
-    order.payment_status === "failed" ||
-    order.supplier_submission_status === "failed"
+    [
+      "paid",
+      "submitted",
+      "supplier_confirmed",
+      "fulfilled",
+      "shipped",
+      "delivered",
+    ].includes(normalizedStatus)
   ) {
-    return true;
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
   }
 
   if (
-    order.payment_status === "paid" &&
-    order.supplier_submission_status === "ready_for_review"
+    [
+      "failed",
+      "cancelled",
+      "refunded",
+    ].includes(normalizedStatus)
   ) {
-    return true;
+    return "bg-red-50 text-red-700 ring-red-200";
   }
 
-  return hasArtworkPending(order);
+  if (
+    [
+      "pending",
+      "pending_payment",
+      "authorized",
+      "ready_for_review",
+      "approved_for_submission",
+      "submitting",
+      "partially_submitted",
+      "partially_fulfilled",
+      "processing",
+      "in_production",
+    ].includes(normalizedStatus)
+  ) {
+    return "bg-amber-50 text-amber-700 ring-amber-200";
+  }
+
+  return "bg-neutral-100 text-neutral-700 ring-neutral-200";
 }
 
-function sanitizeSearchQuery(value: string): string {
-  return value
-    .replace(/[%_(),]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 100);
+function StatusBadge({
+  status,
+}: {
+  status: string | null | undefined;
+}) {
+  return (
+    <span
+      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${getStatusClasses(
+        status,
+      )}`}
+    >
+      {getStatusLabel(status)}
+    </span>
+  );
 }
 
-function parseOrderStatus(
-  value: string | undefined,
-): OrderStatus | null {
-  return ORDER_STATUS_OPTIONS.some(
-    (option) => option.value === value,
-  )
-    ? (value as OrderStatus)
-    : null;
-}
-
-function parsePaymentStatus(
-  value: string | undefined,
-): PaymentStatus | null {
-  return PAYMENT_STATUS_OPTIONS.some(
-    (option) => option.value === value,
-  )
-    ? (value as PaymentStatus)
-    : null;
-}
-
-function parseSupplierStatus(
-  value: string | undefined,
-): SupplierSubmissionStatus | null {
-  return SUPPLIER_STATUS_OPTIONS.some(
-    (option) => option.value === value,
-  )
-    ? (value as SupplierSubmissionStatus)
-    : null;
-}
-
-function buildPageHref(params: {
+function buildOrdersPageHref(params: {
   query: string;
-  orderStatus: OrderStatus | null;
-  paymentStatus: PaymentStatus | null;
-  supplierStatus: SupplierSubmissionStatus | null;
+  status: string;
+  paymentStatus: string;
+  supplierStatus: string;
+  fulfillmentStatus: string;
   page: number;
 }): string {
   const searchParams = new URLSearchParams();
@@ -482,8 +448,8 @@ function buildPageHref(params: {
     searchParams.set("q", params.query);
   }
 
-  if (params.orderStatus) {
-    searchParams.set("estado", params.orderStatus);
+  if (params.status) {
+    searchParams.set("estado", params.status);
   }
 
   if (params.paymentStatus) {
@@ -494,57 +460,42 @@ function buildPageHref(params: {
   }
 
   if (params.supplierStatus) {
-    searchParams.set("stricker", params.supplierStatus);
+    searchParams.set(
+      "stricker",
+      params.supplierStatus,
+    );
   }
 
-  if (params.page > 1) {
-    searchParams.set("pagina", String(params.page));
+  if (params.fulfillmentStatus) {
+    searchParams.set(
+      "expedicao",
+      params.fulfillmentStatus,
+    );
   }
 
-  const queryString = searchParams.toString();
+  searchParams.set("pagina", String(params.page));
 
-  return queryString
-    ? `/admin/encomendas?${queryString}`
-    : "/admin/encomendas";
+  return `/admin/encomendas?${searchParams.toString()}`;
 }
 
-async function requireAdmin(): Promise<AdminProfile> {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, role")
-    .eq("id", user.id)
-    .maybeSingle<AdminProfile>();
-
-  if (
-    error ||
-    !profile ||
-    !["admin", "super_admin"].includes(profile.role)
-  ) {
-    redirect("/");
-  }
-
-  return profile;
+function sanitizeSearchQuery(value: string): string {
+  return value
+    .replace(/[%_(),]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
 }
 
-async function getOrderStats(): Promise<OrderStats> {
+async function getOrderStatistics(): Promise<OrderStatistics> {
   const supabaseAdmin = createSupabaseAdminClient();
 
   const [
     totalResult,
-    pendingPaymentResult,
+    pendingResult,
     paidResult,
-    reviewResult,
-    failedResult,
+    supplierErrorResult,
+    productionResult,
+    shippedResult,
   ] = await Promise.all([
     supabaseAdmin
       .from("orders")
@@ -575,10 +526,7 @@ async function getOrderStats(): Promise<OrderStats> {
         count: "exact",
         head: true,
       })
-      .eq(
-        "supplier_submission_status",
-        "ready_for_review",
-      ),
+      .eq("supplier_submission_status", "failed"),
 
     supabaseAdmin
       .from("orders")
@@ -586,26 +534,39 @@ async function getOrderStats(): Promise<OrderStats> {
         count: "exact",
         head: true,
       })
-      .eq("supplier_submission_status", "failed"),
+      .eq("status", "in_production"),
+
+    supabaseAdmin
+      .from("orders")
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
+      .in("fulfillment_status", [
+        "shipped",
+        "delivered",
+      ]),
   ]);
 
   return {
     total: totalResult.count ?? 0,
-    pendingPayment: pendingPaymentResult.count ?? 0,
+    pendingPayment: pendingResult.count ?? 0,
     paid: paidResult.count ?? 0,
-    needsReview: reviewResult.count ?? 0,
-    supplierFailed: failedResult.count ?? 0,
+    supplierErrors: supplierErrorResult.count ?? 0,
+    inProduction: productionResult.count ?? 0,
+    shipped: shippedResult.count ?? 0,
   };
 }
 
 async function getOrders(params: {
   query: string;
-  orderStatus: OrderStatus | null;
-  paymentStatus: PaymentStatus | null;
-  supplierStatus: SupplierSubmissionStatus | null;
+  status: string;
+  paymentStatus: string;
+  supplierStatus: string;
+  fulfillmentStatus: string;
   page: number;
 }): Promise<{
-  orders: OrderRow[];
+  orders: OrderListItem[];
   count: number;
 }> {
   const supabaseAdmin = createSupabaseAdminClient();
@@ -628,38 +589,25 @@ async function getOrders(params: {
         payment_status,
         fulfillment_status,
         supplier_submission_status,
-        supplier_order_stamp,
-        supplier_submission_error,
         currency,
         subtotal,
         personalization_total,
         setup_total,
         shipping_total,
-        discount_total,
         tax_total,
         grand_total,
         stripe_checkout_session_id,
         stripe_payment_intent_id,
-        shipping_method,
-        shipping_carrier,
+        supplier_order_stamp,
+        supplier_submission_error,
         tracking_number,
         tracking_url,
-        invoice_number,
-        invoice_url,
-        invoice_status,
-        internal_reference,
         paid_at,
+        supplier_submitted_at,
+        shipped_at,
+        delivered_at,
         created_at,
-        updated_at,
-        order_items (
-          id,
-          quantity,
-          total,
-          personalization_required,
-          artwork_status,
-          artwork_approved,
-          supplier_submission_status
-        )
+        updated_at
       `,
       {
         count: "exact",
@@ -677,16 +625,17 @@ async function getOrders(params: {
         `customer_name.ilike.%${params.query}%`,
         `customer_email.ilike.%${params.query}%`,
         `company_name.ilike.%${params.query}%`,
-        `internal_reference.ilike.%${params.query}%`,
+        `company_tax_id.ilike.%${params.query}%`,
         `supplier_order_stamp.ilike.%${params.query}%`,
+        `tracking_number.ilike.%${params.query}%`,
       ].join(","),
     );
   }
 
-  if (params.orderStatus) {
+  if (params.status) {
     queryBuilder = queryBuilder.eq(
       "status",
-      params.orderStatus,
+      params.status,
     );
   }
 
@@ -704,125 +653,227 @@ async function getOrders(params: {
     );
   }
 
-  const { data, error, count } =
-    await queryBuilder.returns<OrderRow[]>();
-
-  if (error) {
-    throw new Error(
-      `Não foi possível carregar as encomendas: ${error.message}`,
+  if (params.fulfillmentStatus) {
+    queryBuilder = queryBuilder.eq(
+      "fulfillment_status",
+      params.fulfillmentStatus,
     );
   }
 
+  const {
+    data,
+    error,
+    count,
+  } = await queryBuilder.returns<OrderRecord[]>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const orderRows = data ?? [];
+  const orderIds = orderRows.map(
+    (order) => order.id,
+  );
+
+  const itemsByOrder = new Map<
+    string,
+    OrderItemSummaryRecord[]
+  >();
+
+  if (orderIds.length > 0) {
+    const { data: itemRows, error: itemError } =
+      await supabaseAdmin
+        .from("order_items")
+        .select(
+          `
+            order_id,
+            quantity,
+            personalization_required,
+            artwork_approved,
+            supplier_submission_status
+          `,
+        )
+        .in("order_id", orderIds)
+        .returns<OrderItemSummaryRecord[]>();
+
+    if (itemError) {
+      throw new Error(itemError.message);
+    }
+
+    for (const item of itemRows ?? []) {
+      const existingItems =
+        itemsByOrder.get(item.order_id) ?? [];
+
+      existingItems.push(item);
+
+      itemsByOrder.set(
+        item.order_id,
+        existingItems,
+      );
+    }
+  }
+
+  const orders = orderRows.map((order) => {
+    const items =
+      itemsByOrder.get(order.id) ?? [];
+
+    return {
+      ...order,
+      itemsCount: items.length,
+      totalQuantity: items.reduce(
+        (total, item) =>
+          total + Number(item.quantity ?? 0),
+        0,
+      ),
+      personalizedItemsCount: items.filter(
+        (item) =>
+          item.personalization_required,
+      ).length,
+      approvedArtworkCount: items.filter(
+        (item) => item.artwork_approved,
+      ).length,
+      submittedItemsCount: items.filter(
+        (item) =>
+          item.supplier_submission_status ===
+          "submitted",
+      ).length,
+    };
+  });
+
   return {
-    orders: data ?? [],
+    orders,
     count: count ?? 0,
   };
 }
 
-function StatCard({
-  title,
+function StatisticsCard({
+  label,
   value,
   description,
   icon: Icon,
-  alert = false,
+  variant = "neutral",
 }: {
-  title: string;
+  label: string;
   value: number;
   description: string;
-  icon: typeof ShoppingBag;
-  alert?: boolean;
+  icon: React.ComponentType<{
+    className?: string;
+  }>;
+  variant?:
+    | "neutral"
+    | "success"
+    | "warning"
+    | "error";
 }) {
+  const iconClasses =
+    variant === "success"
+      ? "bg-emerald-100 text-emerald-700"
+      : variant === "warning"
+        ? "bg-amber-100 text-amber-700"
+        : variant === "error"
+          ? "bg-red-100 text-red-700"
+          : "bg-neutral-100 text-neutral-700";
+
   return (
-    <article
-      className={`rounded-3xl border p-5 shadow-sm ${
-        alert
-          ? "border-red-200 bg-red-50"
-          : "border-neutral-200 bg-white"
-      }`}
-    >
+    <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p
-            className={`text-sm font-medium ${
-              alert ? "text-red-700" : "text-neutral-500"
-            }`}
-          >
-            {title}
+          <p className="text-sm text-neutral-500">
+            {label}
           </p>
 
-          <p
-            className={`mt-3 text-3xl font-semibold tracking-tight ${
-              alert ? "text-red-950" : "text-neutral-950"
-            }`}
-          >
+          <p className="mt-2 text-3xl font-semibold tracking-tight text-neutral-950">
             {value.toLocaleString("pt-PT")}
           </p>
         </div>
 
         <div
-          className={`rounded-2xl p-3 ${
-            alert
-              ? "bg-red-100 text-red-700"
-              : "bg-neutral-100 text-neutral-700"
-          }`}
+          className={`flex h-11 w-11 items-center justify-center rounded-2xl ${iconClasses}`}
         >
           <Icon className="h-5 w-5" />
         </div>
       </div>
 
-      <p
-        className={`mt-4 text-xs leading-5 ${
-          alert ? "text-red-700" : "text-neutral-500"
-        }`}
-      >
+      <p className="mt-4 text-xs leading-5 text-neutral-500">
         {description}
       </p>
-    </article>
+    </div>
   );
 }
 
 export default async function AdminOrdersPage({
   searchParams,
 }: AdminOrdersPageProps) {
-  await requireAdmin();
+  const supabase =
+    await createSupabaseServerClient();
 
-  const resolvedSearchParams = await searchParams;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, email, role")
+    .eq("id", user.id)
+    .maybeSingle<ProfileRecord>();
+
+  if (
+    !profile ||
+    !["admin", "super_admin"].includes(
+      profile.role,
+    )
+  ) {
+    redirect("/");
+  }
+
+  const resolvedSearchParams =
+    await searchParams;
 
   const query = sanitizeSearchQuery(
     resolvedSearchParams?.q ?? "",
   );
 
-  const orderStatus = parseOrderStatus(
-    resolvedSearchParams?.estado,
-  );
+  const status =
+    resolvedSearchParams?.estado?.trim() ?? "";
 
-  const paymentStatus = parsePaymentStatus(
-    resolvedSearchParams?.pagamento,
-  );
+  const paymentStatus =
+    resolvedSearchParams?.pagamento?.trim() ??
+    "";
 
-  const supplierStatus = parseSupplierStatus(
-    resolvedSearchParams?.stricker,
-  );
+  const supplierStatus =
+    resolvedSearchParams?.stricker?.trim() ??
+    "";
+
+  const fulfillmentStatus =
+    resolvedSearchParams?.expedicao?.trim() ??
+    "";
 
   const requestedPage = Number(
-    resolvedSearchParams?.pagina ?? "1",
+    resolvedSearchParams?.pagina ?? 1,
   );
 
   const page =
-    Number.isFinite(requestedPage) && requestedPage > 0
+    Number.isFinite(requestedPage) &&
+    requestedPage > 0
       ? Math.floor(requestedPage)
       : 1;
 
-  const [stats, result] = await Promise.all([
-    getOrderStats(),
-    getOrders({
-      query,
-      orderStatus,
-      paymentStatus,
-      supplierStatus,
-      page,
-    }),
-  ]);
+  const [statistics, result] =
+    await Promise.all([
+      getOrderStatistics(),
+      getOrders({
+        query,
+        status,
+        paymentStatus,
+        supplierStatus,
+        fulfillmentStatus,
+        page,
+      }),
+    ]);
 
   const totalPages = Math.max(
     1,
@@ -831,93 +882,88 @@ export default async function AdminOrdersPage({
 
   const hasActiveFilters = Boolean(
     query ||
-      orderStatus ||
+      status ||
       paymentStatus ||
-      supplierStatus,
+      supplierStatus ||
+      fulfillmentStatus,
   );
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-6 py-10">
+    <main className="min-h-screen bg-neutral-50 px-5 py-8 lg:px-8">
       <section className="mx-auto max-w-[1700px]">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <Link
-              href="/admin"
-              className="inline-flex text-sm font-semibold text-neutral-500 transition hover:text-neutral-950"
-            >
-              ← Voltar ao backoffice
-            </Link>
-
-            <p className="mt-6 text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">
-              Operações
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">
+              Backoffice
             </p>
 
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-neutral-950">
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-neutral-950 lg:text-4xl">
               Encomendas
             </h1>
 
-            <p className="mt-4 max-w-3xl text-sm leading-6 text-neutral-600">
-              Acompanhe o pagamento, a personalização, a
-              aprovação da arte, a submissão à Stricker, a
-              produção, a expedição e a faturação de cada
-              encomenda.
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+              Acompanhe pagamentos, produtos,
+              personalizações, aprovação de artes,
+              submissão automática à Stricker,
+              produção, expedição, tracking e
+              faturação.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/admin/encomendas"
-              className="inline-flex items-center rounded-2xl border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold text-neutral-700 shadow-sm transition hover:border-neutral-400"
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Atualizar
-            </Link>
-
-            <Link
-              href="/admin"
-              className="inline-flex items-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-            >
-              Painel principal
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </Link>
-          </div>
+          <Link
+            href="/admin"
+            className="inline-flex items-center justify-center rounded-2xl border border-neutral-300 bg-white px-5 py-3 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950"
+          >
+            Voltar ao backoffice
+          </Link>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <StatCard
-            title="Total de encomendas"
-            value={stats.total}
-            description="Todas as encomendas registadas na plataforma."
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+          <StatisticsCard
+            label="Total"
+            value={statistics.total}
+            description="Todas as encomendas registadas."
             icon={ShoppingBag}
           />
 
-          <StatCard
-            title="A aguardar pagamento"
-            value={stats.pendingPayment}
-            description="Encomendas criadas que ainda não foram pagas."
+          <StatisticsCard
+            label="A aguardar pagamento"
+            value={statistics.pendingPayment}
+            description="Encomendas ainda não liquidadas."
             icon={Clock3}
+            variant="warning"
           />
 
-          <StatCard
-            title="Pagas"
-            value={stats.paid}
-            description="Pagamentos confirmados pela Stripe."
+          <StatisticsCard
+            label="Pagas"
+            value={statistics.paid}
+            description="Pagamentos confirmados."
             icon={CircleDollarSign}
+            variant="success"
           />
 
-          <StatCard
-            title="A validar"
-            value={stats.needsReview}
-            description="Pagas e prontas para validação operacional."
-            icon={PackageCheck}
-          />
-
-          <StatCard
-            title="Erros Stricker"
-            value={stats.supplierFailed}
-            description="Submissões que necessitam de intervenção."
+          <StatisticsCard
+            label="Erros Stricker"
+            value={statistics.supplierErrors}
+            description="Submissões que exigem atenção."
             icon={AlertTriangle}
-            alert={stats.supplierFailed > 0}
+            variant="error"
+          />
+
+          <StatisticsCard
+            label="Em produção"
+            value={statistics.inProduction}
+            description="Encomendas atualmente em produção."
+            icon={RefreshCw}
+            variant="warning"
+          />
+
+          <StatisticsCard
+            label="Expedidas"
+            value={statistics.shipped}
+            description="Expedidas ou já entregues."
+            icon={Truck}
+            variant="success"
           />
         </div>
 
@@ -926,7 +972,7 @@ export default async function AdminOrdersPage({
           method="get"
           className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm"
         >
-          <div className="grid gap-4 xl:grid-cols-[minmax(320px,1fr)_230px_230px_250px_auto]">
+          <div className="grid gap-4 xl:grid-cols-[minmax(280px,1.5fr)_repeat(4,minmax(170px,1fr))_auto]">
             <div className="relative">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
 
@@ -934,67 +980,97 @@ export default async function AdminOrdersPage({
                 type="search"
                 name="q"
                 defaultValue={query}
-                placeholder="Número, cliente, email, empresa ou referência"
+                placeholder="Número, cliente, empresa, e-mail, NIF ou tracking"
                 className="w-full rounded-2xl border border-neutral-300 bg-white py-3 pl-11 pr-4 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               />
             </div>
 
             <select
               name="estado"
-              defaultValue={orderStatus ?? ""}
-              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-700 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
+              defaultValue={status}
+              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
             >
-              <option value="">Todos os estados</option>
-
-              {ORDER_STATUS_OPTIONS.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
+              {ORDER_STATUS_OPTIONS.map(
+                (option) => (
+                  <option
+                    key={
+                      option.value ||
+                      "all-orders"
+                    }
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ),
+              )}
             </select>
 
             <select
               name="pagamento"
-              defaultValue={paymentStatus ?? ""}
-              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-700 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
+              defaultValue={paymentStatus}
+              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
             >
-              <option value="">Todos os pagamentos</option>
-
-              {PAYMENT_STATUS_OPTIONS.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
+              {PAYMENT_STATUS_OPTIONS.map(
+                (option) => (
+                  <option
+                    key={
+                      option.value ||
+                      "all-payments"
+                    }
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ),
+              )}
             </select>
 
             <select
               name="stricker"
-              defaultValue={supplierStatus ?? ""}
-              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-700 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
+              defaultValue={supplierStatus}
+              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
             >
-              <option value="">Todos os estados Stricker</option>
+              {SUPPLIER_STATUS_OPTIONS.map(
+                (option) => (
+                  <option
+                    key={
+                      option.value ||
+                      "all-supplier-statuses"
+                    }
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ),
+              )}
+            </select>
 
-              {SUPPLIER_STATUS_OPTIONS.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
+            <select
+              name="expedicao"
+              defaultValue={fulfillmentStatus}
+              className="rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
+            >
+              {FULFILLMENT_STATUS_OPTIONS.map(
+                (option) => (
+                  <option
+                    key={
+                      option.value ||
+                      "all-fulfillment-statuses"
+                    }
+                    value={option.value}
+                  >
+                    {option.label}
+                  </option>
+                ),
+              )}
             </select>
 
             <button
               type="submit"
-              className="rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
             >
-              Aplicar filtros
+              <Search className="mr-2 h-4 w-4" />
+              Filtrar
             </button>
           </div>
 
@@ -1002,292 +1078,307 @@ export default async function AdminOrdersPage({
             <div className="mt-4 flex justify-end">
               <Link
                 href="/admin/encomendas"
-                className="inline-flex items-center text-sm font-semibold text-neutral-500 transition hover:text-neutral-950"
+                className="text-sm font-semibold text-neutral-500 underline-offset-4 transition hover:text-neutral-950 hover:underline"
               >
-                <XCircle className="mr-2 h-4 w-4" />
                 Limpar filtros
               </Link>
             </div>
           ) : null}
         </form>
 
-        <div className="mt-6 flex flex-col gap-2 text-sm text-neutral-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            {result.count.toLocaleString("pt-PT")}{" "}
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-neutral-500">
+            {result.count.toLocaleString(
+              "pt-PT",
+            )}{" "}
             encomendas encontradas
           </p>
 
-          <p>
+          <p className="text-sm text-neutral-500">
             Página {page} de {totalPages}
           </p>
         </div>
 
-        {result.orders.length > 0 ? (
-          <div className="mt-4 space-y-4">
-            {result.orders.map((order) => {
-              const itemCount =
-                order.order_items?.length ?? 0;
+        <div className="mt-4 space-y-4">
+          {result.orders.map((order) => {
+            const hasSupplierError =
+              order.supplier_submission_status ===
+                "failed" ||
+              Boolean(
+                order.supplier_submission_error,
+              );
 
-              const units = getOrderUnits(order);
+            const hasPaymentError =
+              order.payment_status === "failed";
 
-              const personalizedItems =
-                getPersonalizedItemCount(order);
+            const personalizedProgress =
+              order.personalizedItemsCount > 0
+                ? `${order.approvedArtworkCount}/${order.personalizedItemsCount}`
+                : "—";
 
-              const artworkPending =
-                hasArtworkPending(order);
+            const supplierProgress =
+              order.itemsCount > 0
+                ? `${order.submittedItemsCount}/${order.itemsCount}`
+                : "—";
 
-              const attention =
-                needsOperationalAttention(order);
+            return (
+              <article
+                key={order.id}
+                className={`overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:shadow-md ${
+                  hasSupplierError ||
+                  hasPaymentError
+                    ? "border-red-200"
+                    : "border-neutral-200"
+                }`}
+              >
+                {(hasSupplierError ||
+                  hasPaymentError) && (
+                  <div className="flex items-start gap-3 border-b border-red-200 bg-red-50 px-5 py-3 text-sm text-red-800">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
 
-              return (
-                <article
-                  key={order.id}
-                  className={`overflow-hidden rounded-3xl border bg-white shadow-sm transition hover:shadow-md ${
-                    attention
-                      ? "border-amber-300"
-                      : "border-neutral-200"
-                  }`}
-                >
-                  {attention ? (
-                    <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-5 py-3 text-xs font-semibold text-amber-800">
-                      <AlertTriangle className="h-4 w-4" />
-                      Esta encomenda necessita de atenção
-                      operacional.
-                    </div>
-                  ) : null}
+                    <p>
+                      {hasPaymentError
+                        ? "O pagamento desta encomenda falhou."
+                        : "A submissão desta encomenda à Stricker requer atenção."}
+                    </p>
+                  </div>
+                )}
 
-                  <div className="grid gap-6 p-5 xl:grid-cols-[minmax(270px,1.2fr)_minmax(220px,1fr)_180px_180px_220px_160px] xl:items-center">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                          href={`/admin/encomendas/${order.id}`}
-                          className="text-lg font-semibold text-neutral-950 transition hover:underline"
-                        >
-                          {order.order_number}
-                        </Link>
-
-                        {order.internal_reference ? (
-                          <span className="rounded-full bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-600">
-                            {order.internal_reference}
-                          </span>
-                        ) : null}
-                      </div>
-
-                      <p className="mt-2 text-sm text-neutral-500">
-                        Criada em{" "}
-                        {formatDateTime(order.created_at)}
+                <div className="grid gap-6 p-5 xl:grid-cols-[minmax(280px,1.3fr)_minmax(220px,1fr)_repeat(4,minmax(135px,0.7fr))_auto] xl:items-center">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        {order.order_number}
                       </p>
 
-                      {order.paid_at ? (
-                        <p className="mt-1 text-xs text-emerald-700">
-                          Pagamento confirmado em{" "}
-                          {formatDateTime(order.paid_at)}
-                        </p>
-                      ) : null}
+                      <StatusBadge
+                        status={order.status}
+                      />
                     </div>
 
-                    <div>
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-2xl bg-neutral-100 p-2.5 text-neutral-600">
-                          <UserRound className="h-4 w-4" />
-                        </div>
+                    <h2 className="mt-3 text-lg font-semibold text-neutral-950">
+                      {order.company_name ??
+                        order.customer_name}
+                    </h2>
 
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-neutral-950">
-                            {order.customer_name}
-                          </p>
+                    {order.company_name ? (
+                      <p className="mt-1 text-sm text-neutral-600">
+                        {order.customer_name}
+                      </p>
+                    ) : null}
 
-                          {order.company_name ? (
-                            <p className="mt-1 truncate text-sm text-neutral-600">
-                              {order.company_name}
-                            </p>
-                          ) : null}
+                    <p className="mt-2 text-sm text-neutral-500">
+                      {order.customer_email}
+                    </p>
 
-                          <p className="mt-1 truncate text-xs text-neutral-500">
-                            {order.customer_email}
-                          </p>
-                        </div>
-                      </div>
+                    <p className="mt-3 text-xs text-neutral-400">
+                      Criada em{" "}
+                      {formatDateTime(
+                        order.created_at,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-neutral-50 p-4">
+                      <Package className="h-4 w-4 text-neutral-500" />
+
+                      <p className="mt-3 text-xs text-neutral-500">
+                        Produtos
+                      </p>
+
+                      <p className="mt-1 font-semibold text-neutral-950">
+                        {order.itemsCount}
+                      </p>
                     </div>
 
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                        Conteúdo
+                    <div className="rounded-2xl bg-neutral-50 p-4">
+                      <ShoppingBag className="h-4 w-4 text-neutral-500" />
+
+                      <p className="mt-3 text-xs text-neutral-500">
+                        Unidades
                       </p>
 
-                      <p className="mt-2 font-semibold text-neutral-950">
-                        {itemCount.toLocaleString("pt-PT")}{" "}
-                        {itemCount === 1 ? "produto" : "produtos"}
-                      </p>
-
-                      <p className="mt-1 text-xs text-neutral-500">
-                        {units.toLocaleString("pt-PT")} unidades
-                      </p>
-
-                      {personalizedItems > 0 ? (
-                        <p
-                          className={`mt-1 text-xs ${
-                            artworkPending
-                              ? "text-amber-700"
-                              : "text-emerald-700"
-                          }`}
-                        >
-                          {personalizedItems} com personalização
-                        </p>
-                      ) : null}
-                    </div>
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                        Valor
-                      </p>
-
-                      <p className="mt-2 text-lg font-semibold text-neutral-950">
-                        {formatPrice(
-                          order.grand_total,
-                          order.currency,
+                      <p className="mt-1 font-semibold text-neutral-950">
+                        {formatNumber(
+                          order.totalQuantity,
                         )}
                       </p>
-
-                      <div className="mt-2 space-y-1 text-xs text-neutral-500">
-                        <p>
-                          Produto:{" "}
-                          {formatPrice(
-                            order.subtotal,
-                            order.currency,
-                          )}
-                        </p>
-
-                        <p>
-                          Personalização:{" "}
-                          {formatPrice(
-                            order.personalization_total,
-                            order.currency,
-                          )}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${getOrderStatusClasses(
-                            order.status,
-                          )}`}
-                        >
-                          {getOrderStatusLabel(order.status)}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${getPaymentStatusClasses(
-                            order.payment_status,
-                          )}`}
-                        >
-                          Stripe:{" "}
-                          {getPaymentStatusLabel(
-                            order.payment_status,
-                          )}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${getSupplierStatusClasses(
-                            order.supplier_submission_status,
-                          )}`}
-                        >
-                          Stricker:{" "}
-                          {getSupplierStatusLabel(
-                            order.supplier_submission_status,
-                          )}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Link
-                        href={`/admin/encomendas/${order.id}`}
-                        className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-                      >
-                        Abrir
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                      </Link>
-
-                      {order.tracking_url ? (
-                        <a
-                          href={order.tracking_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
-                        >
-                          Tracking
-                          <ExternalLink className="ml-2 h-4 w-4" />
-                        </a>
-                      ) : null}
                     </div>
                   </div>
 
-                  {order.supplier_submission_error ? (
-                    <div className="border-t border-red-200 bg-red-50 px-5 py-4">
-                      <div className="flex items-start gap-3">
-                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                      Pagamento
+                    </p>
 
-                        <div>
-                          <p className="text-sm font-semibold text-red-900">
-                            Erro de submissão à Stricker
-                          </p>
-
-                          <p className="mt-1 text-xs leading-5 text-red-700">
-                            {order.supplier_submission_error}
-                          </p>
-                        </div>
-                      </div>
+                    <div className="mt-2">
+                      <StatusBadge
+                        status={
+                          order.payment_status
+                        }
+                      />
                     </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="mt-6 rounded-3xl border border-dashed border-neutral-300 bg-white p-14 text-center">
-            <PackageOpen className="mx-auto h-10 w-10 text-neutral-400" />
 
-            <h2 className="mt-5 text-xl font-semibold text-neutral-950">
+                    {order.paid_at ? (
+                      <p className="mt-2 text-xs text-neutral-400">
+                        {formatDateTime(
+                          order.paid_at,
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                      Artes
+                    </p>
+
+                    <p className="mt-2 font-semibold text-neutral-950">
+                      {personalizedProgress}
+                    </p>
+
+                    <p className="mt-1 text-xs text-neutral-500">
+                      aprovadas
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                      Stricker
+                    </p>
+
+                    <div className="mt-2">
+                      <StatusBadge
+                        status={
+                          order.supplier_submission_status
+                        }
+                      />
+                    </div>
+
+                    <p className="mt-2 text-xs text-neutral-500">
+                      Linhas: {supplierProgress}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                      Expedição
+                    </p>
+
+                    <div className="mt-2">
+                      <StatusBadge
+                        status={
+                          order.fulfillment_status
+                        }
+                      />
+                    </div>
+
+                    {order.tracking_number ? (
+                      <p className="mt-2 truncate text-xs text-neutral-500">
+                        {order.tracking_number}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="xl:text-right">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                      Total
+                    </p>
+
+                    <p className="mt-2 text-xl font-semibold text-neutral-950">
+                      {formatPrice(
+                        order.grand_total,
+                        order.currency,
+                      )}
+                    </p>
+
+                    <Link
+                      href={`/admin/encomendas/${order.id}`}
+                      className="mt-4 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                    >
+                      Abrir
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="grid border-t border-neutral-200 bg-neutral-50 sm:grid-cols-3">
+                  <div className="border-b border-neutral-200 px-5 py-3 text-xs text-neutral-500 sm:border-b-0 sm:border-r">
+                    Produtos:{" "}
+                    <span className="font-semibold text-neutral-950">
+                      {formatPrice(
+                        order.subtotal,
+                        order.currency,
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="border-b border-neutral-200 px-5 py-3 text-xs text-neutral-500 sm:border-b-0 sm:border-r">
+                    Personalização e setup:{" "}
+                    <span className="font-semibold text-neutral-950">
+                      {formatPrice(
+                        order.personalization_total +
+                          order.setup_total,
+                        order.currency,
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="px-5 py-3 text-xs text-neutral-500">
+                    Expedição + IVA:{" "}
+                    <span className="font-semibold text-neutral-950">
+                      {formatPrice(
+                        order.shipping_total +
+                          order.tax_total,
+                        order.currency,
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+
+        {result.orders.length === 0 ? (
+          <div className="mt-6 rounded-3xl border border-dashed border-neutral-300 bg-white p-12 text-center">
+            <ShoppingBag className="mx-auto h-9 w-9 text-neutral-400" />
+
+            <h2 className="mt-5 text-lg font-semibold text-neutral-950">
               Nenhuma encomenda encontrada
             </h2>
 
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-neutral-600">
-              Não existem encomendas que correspondam aos
-              filtros selecionados. Altere os filtros ou
-              confirme se o checkout e o webhook da Stripe
-              estão a criar corretamente os registos.
+            <p className="mt-2 text-sm leading-6 text-neutral-600">
+              Altere os filtros de pesquisa ou
+              confirme se já existem encomendas
+              concluídas no checkout.
             </p>
 
             {hasActiveFilters ? (
               <Link
                 href="/admin/encomendas"
-                className="mt-6 inline-flex rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
+                className="mt-5 inline-flex rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
               >
                 Limpar filtros
               </Link>
             ) : null}
           </div>
-        )}
+        ) : null}
 
         {totalPages > 1 ? (
           <nav className="mt-8 flex items-center justify-center gap-3">
             {page > 1 ? (
               <Link
-                href={buildPageHref({
+                href={buildOrdersPageHref({
                   query,
-                  orderStatus,
+                  status,
                   paymentStatus,
                   supplierStatus,
+                  fulfillmentStatus,
                   page: page - 1,
                 })}
-                className="inline-flex items-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 shadow-sm transition hover:border-neutral-400"
+                className="inline-flex items-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
               >
                 <ChevronLeft className="mr-1 h-4 w-4" />
                 Anterior
@@ -1299,20 +1390,21 @@ export default async function AdminOrdersPage({
               </span>
             )}
 
-            <span className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white">
+            <span className="rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">
               {page} / {totalPages}
             </span>
 
             {page < totalPages ? (
               <Link
-                href={buildPageHref({
+                href={buildOrdersPageHref({
                   query,
-                  orderStatus,
+                  status,
                   paymentStatus,
                   supplierStatus,
+                  fulfillmentStatus,
                   page: page + 1,
                 })}
-                className="inline-flex items-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 shadow-sm transition hover:border-neutral-400"
+                className="inline-flex items-center rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
               >
                 Seguinte
                 <ChevronRight className="ml-1 h-4 w-4" />
