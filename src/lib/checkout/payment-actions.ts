@@ -240,20 +240,54 @@ function createOrderNumber(orderId: string): string {
   return `LC-${datePart}-${referencePart}`;
 }
 
+function normalizeSiteUrl(value: string): string {
+  const trimmedValue = value.trim().replace(/\/+$/, "");
+
+  if (/^https?:\/\//i.test(trimmedValue)) {
+    return trimmedValue;
+  }
+
+  return `https://${trimmedValue}`;
+}
+
 function getSiteUrl(): string {
   const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
   if (configuredSiteUrl) {
-    return configuredSiteUrl.replace(/\/$/, "");
+    const normalizedConfiguredUrl = normalizeSiteUrl(configuredSiteUrl);
+
+    if (
+      process.env.NODE_ENV === "production" &&
+      /^http:\/\/localhost(?::\d+)?$/i.test(normalizedConfiguredUrl)
+    ) {
+      throw new Error(
+        "NEXT_PUBLIC_SITE_URL não pode apontar para localhost em produção.",
+      );
+    }
+
+    return normalizedConfiguredUrl;
   }
 
-  const vercelUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const vercelProductionUrl =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
 
-  if (vercelUrl) {
-    return `https://${vercelUrl.replace(/\/$/, "")}`;
+  if (vercelProductionUrl) {
+    return normalizeSiteUrl(vercelProductionUrl);
   }
 
-  return "http://localhost:3000";
+  const vercelDeploymentUrl = process.env.VERCEL_URL?.trim();
+
+  if (vercelDeploymentUrl) {
+    return normalizeSiteUrl(vercelDeploymentUrl);
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    return "http://localhost:3000";
+  }
+
+  throw new Error(
+    "Não foi possível determinar o endereço público da loja. Configura NEXT_PUBLIC_SITE_URL na Vercel.",
+  );
 }
 
 function buildStripeLineItems(params: {
@@ -552,7 +586,7 @@ export async function createPaymentCheckoutSessionAction(
       };
     }
 
-    await supabaseAdmin
+    const { error: cartUpdateError } = await supabaseAdmin
       .from("carts")
       .update({
         subtotal: productsTotal,
@@ -569,6 +603,15 @@ export async function createPaymentCheckoutSessionAction(
       })
       .eq("id", cart.id)
       .eq("status", "active");
+
+    if (cartUpdateError) {
+      return {
+        success: false,
+        message:
+          cartUpdateError.message ??
+          "Não foi possível atualizar os totais do carrinho.",
+      };
+    }
 
     const { data: existingOrderData } = await supabaseAdmin
       .from("orders")
@@ -879,7 +922,9 @@ export async function createPaymentCheckoutSessionAction(
         currency: cart.currency,
         checkout_url: checkoutSession.url,
         expires_at: checkoutSession.expires_at
-          ? new Date(checkoutSession.expires_at * 1000).toISOString()
+          ? new Date(
+              checkoutSession.expires_at * 1000,
+            ).toISOString()
           : null,
         raw_payload:
           checkoutSession as unknown as Record<string, unknown>,
@@ -895,13 +940,22 @@ export async function createPaymentCheckoutSessionAction(
       };
     }
 
-    await supabaseAdmin
+    const { error: orderStripeUpdateError } = await supabaseAdmin
       .from("orders")
       .update({
         stripe_checkout_session_id: checkoutSession.id,
         stripe_payment_intent_id: paymentIntentId,
       })
       .eq("id", order.id);
+
+    if (orderStripeUpdateError) {
+      return {
+        success: false,
+        message:
+          orderStripeUpdateError.message ??
+          "Não foi possível associar o pagamento à encomenda.",
+      };
+    }
 
     checkoutUrl = checkoutSession.url;
   } catch (error) {
