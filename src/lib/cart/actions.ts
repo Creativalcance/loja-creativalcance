@@ -91,10 +91,14 @@ type InsertedCartItem = {
 
 const CART_SESSION_COOKIE = "loja_creativ_cart_session";
 
-function parseQuantity(value: FormDataEntryValue | null): number {
+function parseQuantity(
+  value: FormDataEntryValue | null,
+): number {
   const quantity = Number(value);
 
-  return Number.isFinite(quantity) ? Math.floor(quantity) : 0;
+  return Number.isFinite(quantity)
+    ? Math.floor(quantity)
+    : 0;
 }
 
 function parseOptionalString(
@@ -125,12 +129,16 @@ function getRecordString(
 
   const trimmedValue = value.trim();
 
-  return trimmedValue.length > 0 ? trimmedValue : null;
+  return trimmedValue.length > 0
+    ? trimmedValue
+    : null;
 }
 
 async function getCartSessionId(): Promise<string> {
   const cookieStore = await cookies();
-  const existingSessionId = cookieStore.get(CART_SESSION_COOKIE)?.value;
+
+  const existingSessionId =
+    cookieStore.get(CART_SESSION_COOKIE)?.value;
 
   if (existingSessionId) {
     return existingSessionId;
@@ -163,7 +171,8 @@ async function getOrCreateActiveCart(params: {
   userId: string | null;
   sessionId: string;
 }): Promise<CartRecord> {
-  const supabaseAdmin = createSupabaseAdminClient();
+  const supabaseAdmin =
+    createSupabaseAdminClient();
 
   const query = supabaseAdmin
     .from("carts")
@@ -172,7 +181,9 @@ async function getOrCreateActiveCart(params: {
     .limit(1);
 
   const { data: existingCart } = params.userId
-    ? await query.eq("user_id", params.userId).maybeSingle<CartRecord>()
+    ? await query
+        .eq("user_id", params.userId)
+        .maybeSingle<CartRecord>()
     : await query
         .eq("session_id", params.sessionId)
         .maybeSingle<CartRecord>();
@@ -181,81 +192,103 @@ async function getOrCreateActiveCart(params: {
     return existingCart;
   }
 
-  const { data: createdCart, error } = await supabaseAdmin
-    .from("carts")
-    .insert({
-      user_id: params.userId,
-      session_id: params.userId ? null : params.sessionId,
-      status: "active",
-      currency: "EUR",
-    })
-    .select("id")
-    .single<CartRecord>();
+  const { data: createdCart, error } =
+    await supabaseAdmin
+      .from("carts")
+      .insert({
+        user_id: params.userId,
+        session_id: params.userId
+          ? null
+          : params.sessionId,
+        status: "active",
+        currency: "EUR",
+      })
+      .select("id")
+      .single<CartRecord>();
 
   if (error || !createdCart) {
-    throw new Error(error?.message ?? "Não foi possível criar o carrinho.");
+    throw new Error(
+      error?.message ??
+        "Não foi possível criar o carrinho.",
+    );
   }
 
   return createdCart;
 }
 
-async function recalculateCartTotals(cartId: string): Promise<void> {
-  const supabaseAdmin = createSupabaseAdminClient();
+async function recalculateCartTotals(
+  cartId: string,
+): Promise<void> {
+  const supabaseAdmin =
+    createSupabaseAdminClient();
 
-  const { data: items, error } = await supabaseAdmin
-    .from("cart_items")
-    .select(
-      `
-        subtotal,
-        personalization_total,
-        setup_cost,
-        extras_total,
-        total
-      `,
-    )
-    .eq("cart_id", cartId);
+  const { data: items, error } =
+    await supabaseAdmin
+      .from("cart_items")
+      .select(
+        `
+          subtotal,
+          personalization_total,
+          setup_cost,
+          extras_total,
+          total
+        `,
+      )
+      .eq("cart_id", cartId);
 
   if (error) {
     throw new Error(error.message);
   }
 
   const subtotal = (items ?? []).reduce(
-    (total, item) => total + Number(item.subtotal ?? 0),
+    (total, item) =>
+      total + Number(item.subtotal ?? 0),
     0,
   );
 
   const personalizationTotal = (items ?? []).reduce(
-    (total, item) => total + Number(item.personalization_total ?? 0),
+    (total, item) =>
+      total +
+      Number(item.personalization_total ?? 0),
     0,
   );
 
   const setupTotal = (items ?? []).reduce(
-    (total, item) => total + Number(item.setup_cost ?? 0),
+    (total, item) =>
+      total + Number(item.setup_cost ?? 0),
     0,
   );
 
   const extrasTotal = (items ?? []).reduce(
-    (total, item) => total + Number(item.extras_total ?? 0),
+    (total, item) =>
+      total + Number(item.extras_total ?? 0),
     0,
   );
 
   const grandTotal = (items ?? []).reduce(
-    (total, item) => total + Number(item.total ?? 0),
+    (total, item) =>
+      total + Number(item.total ?? 0),
     0,
   );
 
-  const { error: updateError } = await supabaseAdmin
-    .from("carts")
-    .update({
-      subtotal: roundMoney(subtotal),
-      personalization_total: roundMoney(personalizationTotal),
-      setup_total: roundMoney(setupTotal + extrasTotal),
-      tax_total: 0,
-      shipping_total: 0,
-      discount_total: 0,
-      grand_total: roundMoney(grandTotal),
-    })
-    .eq("id", cartId);
+  const { error: updateError } =
+    await supabaseAdmin
+      .from("carts")
+      .update({
+        subtotal: roundMoney(subtotal),
+
+        personalization_total:
+          roundMoney(personalizationTotal),
+
+        setup_total:
+          roundMoney(setupTotal + extrasTotal),
+
+        tax_total: 0,
+        shipping_total: 0,
+        discount_total: 0,
+        grand_total: roundMoney(grandTotal),
+      })
+      .eq("id", cartId);
 
   if (updateError) {
     throw new Error(updateError.message);
@@ -270,7 +303,8 @@ function getActivePrices(params: {
 
   if (params.variantId) {
     const variantPrices = prices.filter(
-      (price) => price.variant_id === params.variantId,
+      (price) =>
+        price.variant_id === params.variantId,
     );
 
     if (variantPrices.length > 0) {
@@ -278,9 +312,13 @@ function getActivePrices(params: {
     }
   }
 
-  const productPrices = prices.filter((price) => !price.variant_id);
+  const productPrices = prices.filter(
+    (price) => !price.variant_id,
+  );
 
-  return productPrices.length > 0 ? productPrices : prices;
+  return productPrices.length > 0
+    ? productPrices
+    : prices;
 }
 
 function draftBelongsToIdentity(params: {
@@ -288,32 +326,48 @@ function draftBelongsToIdentity(params: {
   userId: string | null;
   sessionId: string;
 }): boolean {
-  if (params.userId && params.draft.user_id === params.userId) {
+  if (
+    params.userId &&
+    params.draft.user_id === params.userId
+  ) {
     return true;
   }
 
-  return params.draft.session_id === params.sessionId;
+  return (
+    params.draft.session_id === params.sessionId
+  );
 }
 
 export async function addToCartAction(
   _previousState: AddToCartActionState,
   formData: FormData,
 ): Promise<AddToCartActionState> {
-  const productId = String(formData.get("productId") || "").trim();
-  const variantId = parseOptionalString(formData.get("variantId"));
-  const customizationDraftId = parseOptionalString(
-    formData.get("customizationDraftId"),
+  const productId = String(
+    formData.get("productId") || "",
+  ).trim();
+
+  const variantId = parseOptionalString(
+    formData.get("variantId"),
   );
 
-  const printingTechniqueId = parseOptionalString(
-    formData.get("printingTechniqueId"),
-  );
+  const customizationDraftId =
+    parseOptionalString(
+      formData.get("customizationDraftId"),
+    );
 
-  const personalizationNotes = parseOptionalString(
-    formData.get("personalizationNotes"),
-  );
+  const printingTechniqueId =
+    parseOptionalString(
+      formData.get("printingTechniqueId"),
+    );
 
-  const quantity = parseQuantity(formData.get("quantity"));
+  const personalizationNotes =
+    parseOptionalString(
+      formData.get("personalizationNotes"),
+    );
+
+  const quantity = parseQuantity(
+    formData.get("quantity"),
+  );
 
   if (!productId) {
     return {
@@ -330,37 +384,41 @@ export async function addToCartAction(
   }
 
   try {
-    const supabaseAdmin = createSupabaseAdminClient();
+    const supabaseAdmin =
+      createSupabaseAdminClient();
+
     const userId = await getCurrentUserId();
     const sessionId = await getCartSessionId();
 
-    const { data: product, error: productError } = await supabaseAdmin
-      .from("products")
-      .select(
-        `
-          id,
-          supplier_id,
-          sku,
-          name,
-          min_order_quantity,
-          product_prices (
-            variant_id,
-            quantity_min,
-            quantity_max,
-            final_price,
-            currency
-          )
-        `,
-      )
-      .eq("id", productId)
-      .eq("status", "active")
-      .eq("is_active", true)
-      .maybeSingle<ProductForCart>();
+    const { data: product, error: productError } =
+      await supabaseAdmin
+        .from("products")
+        .select(
+          `
+            id,
+            supplier_id,
+            sku,
+            name,
+            min_order_quantity,
+            product_prices (
+              variant_id,
+              quantity_min,
+              quantity_max,
+              final_price,
+              currency
+            )
+          `,
+        )
+        .eq("id", productId)
+        .eq("status", "active")
+        .eq("is_active", true)
+        .maybeSingle<ProductForCart>();
 
     if (productError || !product) {
       return {
         success: false,
-        message: "Produto não encontrado ou indisponível.",
+        message:
+          "Produto não encontrado ou indisponível.",
       };
     }
 
@@ -376,28 +434,36 @@ export async function addToCartAction(
     let variant: ProductVariantForCart = null;
 
     if (variantId) {
-      const { data: variantData, error: variantError } =
-        await supabaseAdmin
-          .from("product_variants")
-          .select("id, sku")
-          .eq("id", variantId)
-          .eq("product_id", product.id)
-          .maybeSingle<ProductVariantForCart>();
+      const {
+        data: variantData,
+        error: variantError,
+      } = await supabaseAdmin
+        .from("product_variants")
+        .select("id, sku")
+        .eq("id", variantId)
+        .eq("product_id", product.id)
+        .maybeSingle<ProductVariantForCart>();
 
       if (variantError || !variantData) {
         return {
           success: false,
-          message: "A variante selecionada não é válida.",
+          message:
+            "A variante selecionada não é válida.",
         };
       }
 
       variant = variantData;
     }
 
-    let customizationDraft: CustomizationDraft | null = null;
+    let customizationDraft:
+      | CustomizationDraft
+      | null = null;
 
     if (customizationDraftId) {
-      const { data: draftData, error: draftError } = await supabaseAdmin
+      const {
+        data: draftData,
+        error: draftError,
+      } = await supabaseAdmin
         .from("product_customization_drafts")
         .select(
           `
@@ -450,7 +516,8 @@ export async function addToCartAction(
       if (draftError || !draftData) {
         return {
           success: false,
-          message: "A maquete selecionada não foi encontrada.",
+          message:
+            "A maquete selecionada não foi encontrada.",
         };
       }
 
@@ -463,14 +530,24 @@ export async function addToCartAction(
       ) {
         return {
           success: false,
-          message: "Não tens acesso a esta maquete.",
+          message:
+            "Não tens acesso a esta maquete.",
         };
       }
 
-      if (!["draft", "ready"].includes(draftData.status)) {
+      if (
+        ![
+          "draft",
+          "ready",
+          "characteristics",
+          "personalizing",
+          "ready_for_review",
+        ].includes(draftData.status)
+      ) {
         return {
           success: false,
-          message: "Esta maquete já não está disponível.",
+          message:
+            "Esta maquete já não está disponível.",
         };
       }
 
@@ -496,15 +573,23 @@ export async function addToCartAction(
       customizationDraft = draftData;
     }
 
-    let printingTechnique: PrintingTechniqueForCart = null;
+    let printingTechnique:
+      | PrintingTechniqueForCart
+      | null = null;
 
-    if (!customizationDraft && printingTechniqueId) {
-      const { data: techniqueData } = await supabaseAdmin
-        .from("printing_techniques")
-        .select("id, name, setup_cost, price_per_unit")
-        .eq("id", printingTechniqueId)
-        .eq("is_active", true)
-        .maybeSingle<PrintingTechniqueForCart>();
+    if (
+      !customizationDraft &&
+      printingTechniqueId
+    ) {
+      const { data: techniqueData } =
+        await supabaseAdmin
+          .from("printing_techniques")
+          .select(
+            "id, name, setup_cost, price_per_unit",
+          )
+          .eq("id", printingTechniqueId)
+          .eq("is_active", true)
+          .maybeSingle<PrintingTechniqueForCart>();
 
       printingTechnique = techniqueData ?? null;
     }
@@ -514,13 +599,15 @@ export async function addToCartAction(
       variantId: variant?.id ?? null,
     });
 
-    const productPricing = calculateCartItemPricing({
-      quantity,
-      prices: activePrices,
-      selectedPrintingTechnique: customizationDraft
-        ? null
-        : printingTechnique,
-    });
+    const productPricing =
+      calculateCartItemPricing({
+        quantity,
+        prices: activePrices,
+        selectedPrintingTechnique:
+          customizationDraft
+            ? null
+            : printingTechnique,
+      });
 
     if (productPricing.unitPrice <= 0) {
       return {
@@ -530,26 +617,37 @@ export async function addToCartAction(
       };
     }
 
-    const personalizationUnitPrice = customizationDraft
-      ? Number(customizationDraft.personalization_unit_price ?? 0)
-      : productPricing.personalizationUnitPrice;
+    const personalizationUnitPrice =
+      customizationDraft
+        ? Number(
+            customizationDraft.personalization_unit_price ??
+              0,
+          )
+        : productPricing.personalizationUnitPrice;
 
     const setupCost = customizationDraft
       ? Number(customizationDraft.setup_cost ?? 0)
       : productPricing.setupCost;
 
     const extrasTotal = customizationDraft
-      ? Number(customizationDraft.extras_total ?? 0)
+      ? Number(
+          customizationDraft.extras_total ?? 0,
+        )
       : 0;
 
-    const subtotal = roundMoney(productPricing.unitPrice * quantity);
+    const subtotal = roundMoney(
+      productPricing.unitPrice * quantity,
+    );
 
     const personalizationTotal = roundMoney(
       personalizationUnitPrice * quantity,
     );
 
     const total = roundMoney(
-      subtotal + personalizationTotal + setupCost + extrasTotal,
+      subtotal +
+        personalizationTotal +
+        setupCost +
+        extrasTotal,
     );
 
     const cart = await getOrCreateActiveCart({
@@ -564,155 +662,195 @@ export async function addToCartAction(
         )
       : null;
 
-    const personalizationData = customizationDraft
-      ? {
-          ...customizationDraft.personalization_data,
-          draftId: customizationDraft.id,
-          techniqueName: customizationDraft.technique_name,
-          componentName: customizationDraft.component_name,
-          locationName: customizationDraft.location_name,
-          logoFileName: customizationDraft.logo_file_name,
-          artworkStatus: customizationDraft.artwork_status,
-        }
-      : {
-          techniqueName: printingTechnique?.name ?? null,
-        };
+    const personalizationData =
+      customizationDraft
+        ? {
+            ...customizationDraft.personalization_data,
 
-    const { data: insertedItem, error: insertError } =
-      await supabaseAdmin
-        .from("cart_items")
-        .insert({
-          cart_id: cart.id,
-          product_id: product.id,
-          variant_id: variant?.id ?? null,
-          supplier_id:
-            customizationDraft?.supplier_id ?? product.supplier_id,
+            draftId: customizationDraft.id,
 
-          product_sku: variant?.sku ?? product.sku,
-          product_name: product.name,
-          quantity,
+            techniqueName:
+              customizationDraft.technique_name,
 
-          unit_price: productPricing.unitPrice,
-          personalization_unit_price: personalizationUnitPrice,
-          setup_cost: setupCost,
-          extras_total: extrasTotal,
+            componentName:
+              customizationDraft.component_name,
 
-          subtotal,
-          personalization_total: personalizationTotal,
-          total,
+            locationName:
+              customizationDraft.location_name,
 
-          personalization_required: Boolean(
-            customizationDraft || printingTechnique,
-          ),
+            logoFileName:
+              customizationDraft.logo_file_name,
 
-          personalization_technique_id:
-            customizationDraft?.printing_technique_id ??
-            printingTechnique?.id ??
-            null,
+            artworkStatus:
+              customizationDraft.artwork_status,
+          }
+        : {
+            techniqueName:
+              printingTechnique?.name ?? null,
+          };
 
-          personalization_notes:
-            draftNotes ?? personalizationNotes,
+    const {
+      data: insertedItem,
+      error: insertError,
+    } = await supabaseAdmin
+      .from("cart_items")
+      .insert({
+        cart_id: cart.id,
+        product_id: product.id,
+        variant_id: variant?.id ?? null,
 
-          personalization_data: personalizationData,
+        supplier_id:
+          customizationDraft?.supplier_id ??
+          product.supplier_id,
 
-          customization_draft_id:
+        product_sku:
+          variant?.sku ?? product.sku,
+
+        product_name: product.name,
+        quantity,
+
+        unit_price: productPricing.unitPrice,
+
+        personalization_unit_price:
+          personalizationUnitPrice,
+
+        setup_cost: setupCost,
+        extras_total: extrasTotal,
+
+        subtotal,
+        personalization_total: personalizationTotal,
+        total,
+
+        personalization_required: Boolean(
+          customizationDraft ||
+            printingTechnique,
+        ),
+
+        personalization_technique_id:
+          customizationDraft?.printing_technique_id ??
+          printingTechnique?.id ??
+          null,
+
+        personalization_notes:
+          draftNotes ?? personalizationNotes,
+
+        personalization_data:
+          personalizationData,
+
+        customization_draft_id:
+          customizationDraft?.id ?? null,
+
+        customization_location_id:
+          customizationDraft?.location_id ?? null,
+
+        customization_component_name:
+          customizationDraft?.component_name ?? null,
+
+        customization_location_name:
+          customizationDraft?.location_name ?? null,
+
+        customization_technique_name:
+          customizationDraft?.technique_name ??
+          printingTechnique?.name ??
+          null,
+
+        supplier_product_reference:
+          customizationDraft
+            ?.supplier_product_reference ?? null,
+
+        supplier_sku:
+          customizationDraft?.supplier_sku ??
+          variant?.sku ??
+          product.sku,
+
+        service_code:
+          customizationDraft?.service_code ?? null,
+
+        table_code:
+          customizationDraft?.table_code ?? null,
+
+        table_code_option:
+          customizationDraft?.table_code_option ??
+          null,
+
+        handling_cost_code:
+          customizationDraft?.handling_cost_code ??
+          null,
+
+        printing_area_label:
+          customizationDraft?.printing_area_label ??
+          null,
+
+        printing_width_mm:
+          customizationDraft?.printing_width_mm ??
+          null,
+
+        printing_height_mm:
+          customizationDraft?.printing_height_mm ??
+          null,
+
+        printing_area_mm2:
+          customizationDraft?.printing_area_mm2 ??
+          null,
+
+        logo_file_name:
+          customizationDraft?.logo_file_name ?? null,
+
+        logo_storage_path:
+          customizationDraft?.logo_storage_path ??
+          null,
+
+        logo_url:
+          customizationDraft?.logo_url ?? null,
+
+        technical_preview_url:
+          customizationDraft
+            ?.technical_preview_url ?? null,
+
+        logo_position_x:
+          customizationDraft?.logo_position_x ??
+          null,
+
+        logo_position_y:
+          customizationDraft?.logo_position_y ??
+          null,
+
+        logo_scale:
+          customizationDraft?.logo_scale ?? null,
+
+        logo_rotation:
+          customizationDraft?.logo_rotation ?? 0,
+
+        logo_width_mm:
+          customizationDraft?.logo_width_mm ??
+          null,
+
+        logo_height_mm:
+          customizationDraft?.logo_height_mm ??
+          null,
+
+        logo_area:
+          customizationDraft?.logo_area ?? null,
+
+        artwork_status:
+          customizationDraft?.artwork_status ??
+          "draft",
+
+        artwork_approved:
+          customizationDraft?.artwork_approved ??
+          false,
+
+        metadata: {
+          source: customizationDraft
+            ? "customization_draft"
+            : "direct_purchase",
+
+          customizationDraftId:
             customizationDraft?.id ?? null,
-
-          customization_location_id:
-            customizationDraft?.location_id ?? null,
-
-          customization_component_name:
-            customizationDraft?.component_name ?? null,
-
-          customization_location_name:
-            customizationDraft?.location_name ?? null,
-
-          customization_technique_name:
-            customizationDraft?.technique_name ??
-            printingTechnique?.name ??
-            null,
-
-          supplier_product_reference:
-            customizationDraft?.supplier_product_reference ?? null,
-
-          supplier_sku:
-            customizationDraft?.supplier_sku ??
-            variant?.sku ??
-            product.sku,
-
-          service_code:
-            customizationDraft?.service_code ?? null,
-
-          table_code:
-            customizationDraft?.table_code ?? null,
-
-          table_code_option:
-            customizationDraft?.table_code_option ?? null,
-
-          handling_cost_code:
-            customizationDraft?.handling_cost_code ?? null,
-
-          printing_area_label:
-            customizationDraft?.printing_area_label ?? null,
-
-          printing_width_mm:
-            customizationDraft?.printing_width_mm ?? null,
-
-          printing_height_mm:
-            customizationDraft?.printing_height_mm ?? null,
-
-          printing_area_mm2:
-            customizationDraft?.printing_area_mm2 ?? null,
-
-          logo_file_name:
-            customizationDraft?.logo_file_name ?? null,
-
-          logo_storage_path:
-            customizationDraft?.logo_storage_path ?? null,
-
-          logo_url:
-            customizationDraft?.logo_url ?? null,
-
-          technical_preview_url:
-            customizationDraft?.technical_preview_url ?? null,
-
-          logo_position_x:
-            customizationDraft?.logo_position_x ?? null,
-
-          logo_position_y:
-            customizationDraft?.logo_position_y ?? null,
-
-          logo_scale:
-            customizationDraft?.logo_scale ?? null,
-
-          logo_rotation:
-            customizationDraft?.logo_rotation ?? 0,
-
-          logo_width_mm:
-            customizationDraft?.logo_width_mm ?? null,
-
-          logo_height_mm:
-            customizationDraft?.logo_height_mm ?? null,
-
-          logo_area:
-            customizationDraft?.logo_area ?? null,
-
-          artwork_status:
-            customizationDraft?.artwork_status ?? "draft",
-
-          artwork_approved:
-            customizationDraft?.artwork_approved ?? false,
-
-          metadata: {
-            source: customizationDraft
-              ? "customization_draft"
-              : "direct_purchase",
-            customizationDraftId:
-              customizationDraft?.id ?? null,
-          },
-        })
-        .select("id")
-        .single<InsertedCartItem>();
+        },
+      })
+      .select("id")
+      .single<InsertedCartItem>();
 
     if (insertError || !insertedItem) {
       return {
@@ -724,15 +862,27 @@ export async function addToCartAction(
     }
 
     if (customizationDraft) {
-      const { error: draftUpdateError } = await supabaseAdmin
-        .from("product_customization_drafts")
-        .update({
-          status: "converted",
-          converted_cart_item_id: insertedItem.id,
-          converted_at: new Date().toISOString(),
-        })
-        .eq("id", customizationDraft.id)
-        .in("status", ["draft", "ready"]);
+      const { error: draftUpdateError } =
+        await supabaseAdmin
+          .from("product_customization_drafts")
+          .update({
+            status: "converted",
+            flow_step: "converted",
+
+            converted_cart_item_id:
+              insertedItem.id,
+
+            converted_at:
+              new Date().toISOString(),
+          })
+          .eq("id", customizationDraft.id)
+          .in("status", [
+            "draft",
+            "ready",
+            "characteristics",
+            "personalizing",
+            "ready_for_review",
+          ]);
 
       if (draftUpdateError) {
         await supabaseAdmin
@@ -755,6 +905,7 @@ export async function addToCartAction(
 
     return {
       success: true,
+
       message: customizationDraft
         ? "Produto personalizado adicionado ao carrinho."
         : "Produto adicionado ao carrinho.",
@@ -762,6 +913,7 @@ export async function addToCartAction(
   } catch (error) {
     return {
       success: false,
+
       message:
         error instanceof Error
           ? `Erro técnico ao adicionar ao carrinho: ${error.message}`

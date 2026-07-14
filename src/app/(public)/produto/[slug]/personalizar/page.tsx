@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import ProductCustomizationEditor, {
   type ProductEditorLocation,
+  type ProductEditorPrice,
   type ProductEditorVariant,
 } from "@/components/product/ProductCustomizationEditor";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -69,6 +70,7 @@ type ProductCustomizationLocation = {
 
 type ProductDetail = {
   id: string;
+  supplier_id: string | null;
   sku: string;
   name: string;
   slug: string;
@@ -77,8 +79,12 @@ type ProductDetail = {
   product_images: ProductImage[] | null;
   product_variants: ProductVariant[] | null;
   product_prices: ProductPrice[] | null;
-  product_customization_components: ProductCustomizationComponent[] | null;
-  product_customization_locations: ProductCustomizationLocation[] | null;
+  product_customization_components:
+    | ProductCustomizationComponent[]
+    | null;
+  product_customization_locations:
+    | ProductCustomizationLocation[]
+    | null;
 };
 
 type ProductPersonalizePageProps = {
@@ -86,6 +92,7 @@ type ProductPersonalizePageProps = {
     slug: string;
   }>;
   searchParams?: Promise<{
+    draft?: string;
     cor?: string;
     quantidade?: string;
     local?: string;
@@ -117,6 +124,7 @@ function getPayloadRecord(value: unknown): JsonRecord {
 function getNullableString(value: unknown): string | null {
   if (typeof value === "string") {
     const trimmed = value.trim();
+
     return trimmed.length > 0 ? trimmed : null;
   }
 
@@ -146,7 +154,9 @@ function splitCodes(value: string | null): string[] {
     .filter((item) => item.length > 0);
 }
 
-function getLocationIndex(location: ProductCustomizationLocation): number {
+function getLocationIndex(
+  location: ProductCustomizationLocation,
+): number {
   if (location.location_index && location.location_index > 0) {
     return location.location_index;
   }
@@ -179,14 +189,18 @@ function getCustomizationTypesForLocation(
   const index = getLocationIndex(location);
 
   return Array.from(
-    new Set(splitCodes(getSlotString(payload, "CustomizationTypes", index))),
+    new Set(
+      splitCodes(getSlotString(payload, "CustomizationTypes", index)),
+    ),
   );
 }
 
 function buildComponentMap(
   components: ProductCustomizationComponent[],
 ): Map<string, ProductCustomizationComponent> {
-  return new Map(components.map((component) => [component.id, component]));
+  return new Map(
+    components.map((component) => [component.id, component]),
+  );
 }
 
 function getComponentForLocation(params: {
@@ -197,13 +211,19 @@ function getComponentForLocation(params: {
     return null;
   }
 
-  return params.componentsById.get(params.location.component_id) ?? null;
+  return (
+    params.componentsById.get(params.location.component_id) ?? null
+  );
 }
 
 function getLocationImageUrl(
   location: ProductCustomizationLocation,
 ): string | null {
-  return location.location_storage_url ?? location.location_image_url ?? null;
+  return (
+    location.location_storage_url ??
+    location.location_image_url ??
+    null
+  );
 }
 
 function getAreaImageUrl(
@@ -216,7 +236,8 @@ function getPrintingLinesImageUrl(
   location: ProductCustomizationLocation,
 ): string | null {
   return (
-    location.printing_lines_storage_url ?? location.printing_lines_image_url
+    location.printing_lines_storage_url ??
+    location.printing_lines_image_url
   );
 }
 
@@ -290,6 +311,7 @@ function buildEditorLocations(params: {
     });
 
     const techniques = getCustomizationTypesForLocation(location);
+
     const safeTechniques =
       techniques.length > 0 ? techniques : ["Personalização"];
 
@@ -305,12 +327,15 @@ function buildEditorLocations(params: {
         variant_id: location.variant_id,
         technique,
         component_name:
-          component?.component_name ?? component?.component_code ?? null,
+          component?.component_name ??
+          component?.component_code ??
+          null,
         location_name: locationName,
         preview_image_url: getPreferredLocationPreviewUrl(location),
         location_image_url: getLocationImageUrl(location),
         area_image_url: getAreaImageUrl(location),
-        printing_lines_image_url: getPrintingLinesImageUrl(location),
+        printing_lines_image_url:
+          getPrintingLinesImageUrl(location),
         max_printing_area_mm: location.max_printing_area_mm,
         max_area_cm2: location.max_area_cm2,
         table_codes: getTableCodesForLocation(location),
@@ -329,9 +354,18 @@ export default async function ProductPersonalizePage({
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
 
-  const selectedColorId = resolvedSearchParams?.cor?.trim() ?? null;
-  const selectedQuantity = Number(resolvedSearchParams?.quantidade ?? 0);
-  const selectedLocationId = resolvedSearchParams?.local?.trim() ?? null;
+  const selectedDraftId =
+    resolvedSearchParams?.draft?.trim() ?? null;
+
+  const selectedColorId =
+    resolvedSearchParams?.cor?.trim() ?? null;
+
+  const selectedQuantity = Number(
+    resolvedSearchParams?.quantidade ?? 0,
+  );
+
+  const selectedLocationId =
+    resolvedSearchParams?.local?.trim() ?? null;
 
   const supabase = await createSupabaseServerClient();
 
@@ -340,6 +374,7 @@ export default async function ProductPersonalizePage({
     .select(
       `
         id,
+        supplier_id,
         sku,
         name,
         slug,
@@ -364,12 +399,12 @@ export default async function ProductPersonalizePage({
           optional_image_2_url
         ),
         product_prices (
-  variant_id,
-  final_price,
-  quantity_min,
-  quantity_max,
-  currency
-),
+          variant_id,
+          final_price,
+          quantity_min,
+          quantity_max,
+          currency
+        ),
         product_customization_components (
           id,
           variant_id,
@@ -408,15 +443,23 @@ export default async function ProductPersonalizePage({
   }
 
   const product = data as unknown as ProductDetail;
+
   const primaryImage = getPrimaryImage(product);
+
   const productImageUrl =
-    primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
+    primaryImage?.storage_url ??
+    primaryImage?.external_url ??
+    null;
 
   const variants = product.product_variants ?? [];
-  const selectedVariant =
-    variants.find((variant) => variant.id === selectedColorId) ?? null;
 
-  const components = product.product_customization_components ?? [];
+  const selectedVariant =
+    variants.find((variant) => variant.id === selectedColorId) ??
+    null;
+
+  const components =
+    product.product_customization_components ?? [];
+
   const componentsById = buildComponentMap(components);
 
   const customizationLocations = getUniqueCustomizationLocations(
@@ -425,27 +468,33 @@ export default async function ProductPersonalizePage({
     ),
   );
 
-  const editorVariants: ProductEditorVariant[] = variants.map((variant) => ({
-    id: variant.id,
-    sku: variant.sku,
-    color_name: variant.color_name,
-    color_hex: variant.color_hex,
-    size: variant.size,
-    image_url: variant.optional_image_1_url ?? variant.optional_image_2_url,
-  }));
+  const editorVariants: ProductEditorVariant[] = variants.map(
+    (variant) => ({
+      id: variant.id,
+      sku: variant.sku,
+      color_name: variant.color_name,
+      color_hex: variant.color_hex,
+      size: variant.size,
+      image_url:
+        variant.optional_image_1_url ??
+        variant.optional_image_2_url,
+    }),
+  );
 
   const editorLocations = buildEditorLocations({
     locations: customizationLocations,
     componentsById,
   });
 
-  const editorPrices = (product.product_prices ?? []).map((price) => ({
-  variant_id: price.variant_id,
-  final_price: price.final_price,
-  quantity_min: price.quantity_min,
-  quantity_max: price.quantity_max,
-  currency: price.currency,
-}));
+  const editorPrices: ProductEditorPrice[] = (
+    product.product_prices ?? []
+  ).map((price) => ({
+    variant_id: price.variant_id,
+    final_price: price.final_price,
+    quantity_min: price.quantity_min,
+    quantity_max: price.quantity_max,
+    currency: price.currency,
+  }));
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
@@ -462,7 +511,7 @@ export default async function ProductPersonalizePage({
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                Personalização com logótipo
+                Passo 2 · Personalização
               </p>
 
               <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
@@ -470,8 +519,9 @@ export default async function ProductPersonalizePage({
               </h1>
 
               <p className="mt-4 max-w-3xl text-neutral-600">
-                Escolha a localização, técnica e área de personalização, carregue
-                o logótipo e prepare a maquete numa única experiência.
+                Escolhe a localização e a técnica, carrega o
+                logótipo e confirma a maquete para avançar
+                diretamente para o checkout.
               </p>
             </div>
 
@@ -487,9 +537,10 @@ export default async function ProductPersonalizePage({
 
               {selectedVariant ? (
                 <p className="mt-1">
-                  Cor:{" "}
+                  Cor / tamanho:{" "}
                   <span className="font-semibold text-neutral-950">
-                    {getVariantLabel(selectedVariant) ?? "Seleccionada"}
+                    {getVariantLabel(selectedVariant) ??
+                      "Selecionado"}
                   </span>
                 </p>
               ) : null}
@@ -497,26 +548,33 @@ export default async function ProductPersonalizePage({
           </div>
         </div>
 
-       <ProductCustomizationEditor
-  productName={product.name}
-  productSlug={product.slug}
-  productImageUrl={productImageUrl}
-  variants={editorVariants}
-  locations={editorLocations}
-  productPrices={editorPrices}
-  initialVariantId={selectedColorId}
-  initialLocationId={selectedLocationId}
-  initialQuantity={selectedQuantity > 0 ? selectedQuantity : 1}
-/>
+        {editorLocations.length > 0 ? (
+          <ProductCustomizationEditor
+            productId={product.id}
+            supplierId={product.supplier_id}
+            productName={product.name}
+            productSlug={product.slug}
+            productImageUrl={productImageUrl}
+            variants={editorVariants}
+            locations={editorLocations}
+            productPrices={editorPrices}
+            initialDraftId={selectedDraftId}
+            initialVariantId={selectedColorId}
+            initialLocationId={selectedLocationId}
+            initialQuantity={
+              selectedQuantity > 0 ? selectedQuantity : 1
+            }
+          />
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Este produto ainda não tem áreas de personalização disponíveis
+              Este produto ainda não tem áreas de personalização
+              disponíveis
             </h2>
 
             <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
-              Pode voltar ao produto e adicionar ao carrinho sem maquete. A
-              personalização será confirmada antes da conclusão da encomenda.
+              Pode voltar ao produto e adicionar ao carrinho sem
+              personalização.
             </p>
 
             <Link
@@ -527,7 +585,7 @@ export default async function ProductPersonalizePage({
               Voltar ao produto
             </Link>
           </div>
-        )
+        )}
       </section>
     </main>
   );

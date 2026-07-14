@@ -1,9 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useActionState } from "react";
-import { Package, Palette, ShoppingCart, Truck } from "lucide-react";
-import { addToCartAction, type AddToCartActionState } from "@/lib/cart/actions";
+import {
+  useActionState,
+  useMemo,
+  useState,
+} from "react";
+import {
+  Package,
+  Palette,
+  ShoppingCart,
+  Truck,
+} from "lucide-react";
+import {
+  addToCartAction,
+  type AddToCartActionState,
+} from "@/lib/cart/actions";
+import {
+  startCustomizationDraftAction,
+  type StartCustomizationDraftState,
+} from "@/lib/customization/actions";
 import { calculateCartItemPricing } from "@/lib/pricing/calculate-cart-item";
 
 export type ProductPurchaseColor = {
@@ -77,16 +93,24 @@ type ProductDirectPurchasePanelProps = {
   minimumQuantity: number;
   totalStock: number;
   isCustomizable: boolean;
-  customizationDraft: ProductPurchaseCustomizationDraft | null;
+  customizationDraft:
+    | ProductPurchaseCustomizationDraft
+    | null;
   prices: ProductPurchasePrice[];
   colors: ProductPurchaseColor[];
   stocks: ProductPurchaseStock[];
 };
 
-const initialState: AddToCartActionState = {
+const initialCartState: AddToCartActionState = {
   success: false,
   message: "",
 };
+
+const initialCustomizationState: StartCustomizationDraftState =
+  {
+    success: false,
+    message: "",
+  };
 
 const SIZE_ORDER = [
   "XXS",
@@ -103,79 +127,150 @@ const SIZE_ORDER = [
   "6XL",
 ];
 
-function formatPrice(value: number, currency: string): string {
+function formatPrice(
+  value: number,
+  currency: string,
+): string {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
     currency,
   }).format(value);
 }
 
-function getColorLabel(color: ProductPurchaseColor): string {
+function getColorLabel(
+  color: ProductPurchaseColor,
+): string {
   return color.color_name ?? "Cor disponível";
 }
 
-function getVariantLabel(color: ProductPurchaseColor): string {
+function getVariantLabel(
+  color: ProductPurchaseColor,
+): string {
   if (color.color_name && color.size) {
     return `${color.color_name} · ${color.size}`;
   }
 
-  return color.color_name ?? color.size ?? "Opção disponível";
+  return (
+    color.color_name ??
+    color.size ??
+    "Opção disponível"
+  );
 }
 
-function getSizeLabel(color: ProductPurchaseColor): string {
+function getSizeLabel(
+  color: ProductPurchaseColor,
+): string {
   return color.size ?? "Tamanho único";
 }
 
-function getColorKey(color: ProductPurchaseColor): string {
-  const colorName = color.color_name?.trim().toLowerCase() ?? "sem-cor";
-  const colorHex = color.color_hex?.trim().toLowerCase() ?? "sem-hex";
+function getColorKey(
+  color: ProductPurchaseColor,
+): string {
+  const colorName =
+    color.color_name?.trim().toLowerCase() ??
+    "sem-cor";
+
+  const colorHex =
+    color.color_hex?.trim().toLowerCase() ??
+    "sem-hex";
 
   return `${colorName}:${colorHex}`;
 }
 
-function getSizeOrderValue(size: string | null): number {
+function getSizeOrderValue(
+  size: string | null,
+): number {
   if (!size) {
     return 999;
   }
 
-  const normalizedSize = size.trim().toUpperCase();
-  const index = SIZE_ORDER.indexOf(normalizedSize);
+  const normalizedSize =
+    size.trim().toUpperCase();
+
+  const index =
+    SIZE_ORDER.indexOf(normalizedSize);
 
   if (index >= 0) {
     return index;
   }
 
-  return 500 + normalizedSize.localeCompare("ZZZ");
+  return (
+    500 +
+    normalizedSize.localeCompare("ZZZ")
+  );
+}
+
+function getStockForVariant(params: {
+  stocks: ProductPurchaseStock[];
+  variantId: string | null;
+}): StockSummary {
+  if (!params.variantId) {
+    const productStocks =
+      params.stocks.filter(
+        (stock) => !stock.variant_id,
+      );
+
+    return {
+      available: productStocks.reduce(
+        (total, stock) =>
+          total + stock.available_quantity,
+        0,
+      ),
+    };
+  }
+
+  const variantStocks =
+    params.stocks.filter(
+      (stock) =>
+        stock.variant_id === params.variantId,
+    );
+
+  return {
+    available: variantStocks.reduce(
+      (total, stock) =>
+        total + stock.available_quantity,
+      0,
+    ),
+  };
 }
 
 function dedupeVariantsBySize(params: {
   variants: ProductPurchaseColor[];
   stocks: ProductPurchaseStock[];
 }): ProductPurchaseColor[] {
-  const map = new Map<string, ProductPurchaseColor>();
+  const map =
+    new Map<string, ProductPurchaseColor>();
 
   for (const variant of params.variants) {
-    const sizeKey = getSizeLabel(variant).trim().toLowerCase();
-    const existingVariant = map.get(sizeKey);
+    const sizeKey = getSizeLabel(variant)
+      .trim()
+      .toLowerCase();
+
+    const existingVariant =
+      map.get(sizeKey);
 
     if (!existingVariant) {
       map.set(sizeKey, variant);
       continue;
     }
 
-    const existingStock = getStockForVariant({
-      stocks: params.stocks,
-      variantId: existingVariant.id,
-    });
+    const existingStock =
+      getStockForVariant({
+        stocks: params.stocks,
+        variantId: existingVariant.id,
+      });
 
-    const currentStock = getStockForVariant({
-      stocks: params.stocks,
-      variantId: variant.id,
-    });
+    const currentStock =
+      getStockForVariant({
+        stocks: params.stocks,
+        variantId: variant.id,
+      });
 
     const shouldReplace =
-      currentStock.available > existingStock.available ||
-      (!existingVariant.image_url && Boolean(variant.image_url));
+      currentStock.available >
+        existingStock.available ||
+      (!existingVariant.image_url &&
+        Boolean(variant.image_url));
 
     if (shouldReplace) {
       map.set(sizeKey, variant);
@@ -190,56 +285,38 @@ function sortVariantsBySize(
 ): ProductPurchaseColor[] {
   return [...variants].sort((a, b) => {
     const sizeComparison =
-      getSizeOrderValue(a.size) - getSizeOrderValue(b.size);
+      getSizeOrderValue(a.size) -
+      getSizeOrderValue(b.size);
 
     if (sizeComparison !== 0) {
       return sizeComparison;
     }
 
-    return getSizeLabel(a).localeCompare(getSizeLabel(b), "pt-PT");
+    return getSizeLabel(a).localeCompare(
+      getSizeLabel(b),
+      "pt-PT",
+    );
   });
-}
-
-function getStockForVariant(params: {
-  stocks: ProductPurchaseStock[];
-  variantId: string | null;
-}): StockSummary {
-  if (!params.variantId) {
-    const productStocks = params.stocks.filter((stock) => !stock.variant_id);
-
-    return {
-      available: productStocks.reduce(
-        (total, stock) => total + stock.available_quantity,
-        0,
-      ),
-    };
-  }
-
-  const variantStocks = params.stocks.filter(
-    (stock) => stock.variant_id === params.variantId,
-  );
-
-  return {
-    available: variantStocks.reduce(
-      (total, stock) => total + stock.available_quantity,
-      0,
-    ),
-  };
 }
 
 function buildColorGroups(params: {
   colors: ProductPurchaseColor[];
   stocks: ProductPurchaseStock[];
 }): ColorGroup[] {
-  const groups = new Map<string, ColorGroup>();
+  const groups =
+    new Map<string, ColorGroup>();
 
   for (const color of params.colors) {
     const key = getColorKey(color);
-    const existingGroup = groups.get(key);
-    const stock = getStockForVariant({
-      stocks: params.stocks,
-      variantId: color.id,
-    });
+
+    const existingGroup =
+      groups.get(key);
+
+    const stock =
+      getStockForVariant({
+        stocks: params.stocks,
+        variantId: color.id,
+      });
 
     if (!existingGroup) {
       groups.set(key, {
@@ -255,48 +332,70 @@ function buildColorGroups(params: {
     }
 
     existingGroup.variants.push(color);
-    existingGroup.stockAvailable += stock.available;
 
-    if (!existingGroup.image_url && color.image_url) {
-      existingGroup.image_url = color.image_url;
+    existingGroup.stockAvailable +=
+      stock.available;
+
+    if (
+      !existingGroup.image_url &&
+      color.image_url
+    ) {
+      existingGroup.image_url =
+        color.image_url;
     }
 
-    if (!existingGroup.hex && color.color_hex) {
-      existingGroup.hex = color.color_hex;
+    if (
+      !existingGroup.hex &&
+      color.color_hex
+    ) {
+      existingGroup.hex =
+        color.color_hex;
     }
   }
 
   return Array.from(groups.values())
     .map((group) => {
-      const uniqueVariants = dedupeVariantsBySize({
-        variants: group.variants,
-        stocks: params.stocks,
-      });
+      const uniqueVariants =
+        dedupeVariantsBySize({
+          variants: group.variants,
+          stocks: params.stocks,
+        });
 
       return {
         ...group,
-        variants: sortVariantsBySize(uniqueVariants),
+        variants:
+          sortVariantsBySize(uniqueVariants),
       };
     })
-    .sort((a, b) => a.label.localeCompare(b.label, "pt-PT"));
+    .sort((a, b) =>
+      a.label.localeCompare(b.label, "pt-PT"),
+    );
 }
 
 function dedupePriceTiers(
   prices: ProductPurchasePrice[],
 ): ProductPurchasePrice[] {
-  const map = new Map<string, ProductPurchasePrice>();
+  const map =
+    new Map<string, ProductPurchasePrice>();
 
   for (const price of prices) {
-    const key = `${price.quantity_min}-${price.quantity_max ?? "plus"}`;
+    const key =
+      `${price.quantity_min}-` +
+      `${price.quantity_max ?? "plus"}`;
+
     const existing = map.get(key);
 
-    if (!existing || price.final_price < existing.final_price) {
+    if (
+      !existing ||
+      price.final_price < existing.final_price
+    ) {
       map.set(key, price);
     }
   }
 
   return Array.from(map.values()).sort(
-    (a, b) => a.quantity_min - b.quantity_min,
+    (a, b) =>
+      a.quantity_min - b.quantity_min,
   );
 }
 
@@ -308,15 +407,21 @@ function getPricesForVariant(params: {
     return dedupePriceTiers(params.prices);
   }
 
-  const variantPrices = params.prices.filter(
-    (price) => price.variant_id === params.selectedVariantId,
-  );
+  const variantPrices =
+    params.prices.filter(
+      (price) =>
+        price.variant_id ===
+        params.selectedVariantId,
+    );
 
   if (variantPrices.length > 0) {
     return dedupePriceTiers(variantPrices);
   }
 
-  const productPrices = params.prices.filter((price) => !price.variant_id);
+  const productPrices =
+    params.prices.filter(
+      (price) => !price.variant_id,
+    );
 
   if (productPrices.length > 0) {
     return dedupePriceTiers(productPrices);
@@ -332,17 +437,28 @@ function getLowestPrice(
     return null;
   }
 
-  return [...prices].sort((a, b) => a.final_price - b.final_price)[0] ?? null;
+  return (
+    [...prices].sort(
+      (a, b) =>
+        a.final_price - b.final_price,
+    )[0] ?? null
+  );
 }
 
-function getQuantityLabel(price: ProductPurchasePrice): string {
+function getQuantityLabel(
+  price: ProductPurchasePrice,
+): string {
   if (price.quantity_max) {
     return `${price.quantity_min.toLocaleString(
       "pt-PT",
-    )} a ${price.quantity_max.toLocaleString("pt-PT")}`;
+    )} a ${price.quantity_max.toLocaleString(
+      "pt-PT",
+    )}`;
   }
 
-  return `${price.quantity_min.toLocaleString("pt-PT")}+`;
+  return `${price.quantity_min.toLocaleString(
+    "pt-PT",
+  )}+`;
 }
 
 export default function ProductDirectPurchasePanel({
@@ -365,7 +481,10 @@ export default function ProductDirectPurchasePanel({
   customizationDraft,
 }: ProductDirectPurchasePanelProps) {
   const hasSizes = useMemo(
-    () => colors.some((color) => Boolean(color.size?.trim())),
+    () =>
+      colors.some((color) =>
+        Boolean(color.size?.trim()),
+      ),
     [colors],
   );
 
@@ -378,46 +497,90 @@ export default function ProductDirectPurchasePanel({
     [colors, stocks],
   );
 
-  const firstColorGroupKey = colorGroups[0]?.key ?? null;
-  const firstVariantId =
-  customizationDraft?.variant_id ?? colors[0]?.id ?? null;
+  const initialVariantId =
+    customizationDraft?.variant_id ??
+    colors[0]?.id ??
+    null;
 
-  const [selectedColorGroupKey, setSelectedColorGroupKey] = useState<
-    string | null
-  >(firstColorGroupKey);
+  const initialVariant =
+    colors.find(
+      (color) =>
+        color.id === initialVariantId,
+    ) ??
+    colors[0] ??
+    null;
 
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    firstVariantId,
+  const initialColorGroupKey =
+    initialVariant
+      ? getColorKey(initialVariant)
+      : colorGroups[0]?.key ?? null;
+
+  const [
+    selectedColorGroupKey,
+    setSelectedColorGroupKey,
+  ] = useState<string | null>(
+    initialColorGroupKey,
   );
 
-  const [quantitiesByVariant, setQuantitiesByVariant] = useState<
-  Record<string, number>
->(() => {
-  if (!customizationDraft?.variant_id) {
-    return {};
-  }
-
-  return {
-    [customizationDraft.variant_id]: customizationDraft.quantity,
-  };
-});
-
-const [activeCustomizationDraft, setActiveCustomizationDraft] =
-  useState<ProductPurchaseCustomizationDraft | null>(
-    customizationDraft,
+  const [
+    selectedVariantId,
+    setSelectedVariantId,
+  ] = useState<string | null>(
+    initialVariantId,
   );
 
-  const [state, formAction, isPending] = useActionState(
+  const [
+    quantitiesByVariant,
+    setQuantitiesByVariant,
+  ] = useState<Record<string, number>>(() => {
+    if (!customizationDraft?.variant_id) {
+      return {};
+    }
+
+    return {
+      [customizationDraft.variant_id]:
+        customizationDraft.quantity,
+    };
+  });
+
+  const [
+    activeCustomizationDraft,
+    setActiveCustomizationDraft,
+  ] =
+    useState<ProductPurchaseCustomizationDraft | null>(
+      customizationDraft,
+    );
+
+  const [
+    cartState,
+    cartFormAction,
+    isAddingToCart,
+  ] = useActionState(
     addToCartAction,
-    initialState,
+    initialCartState,
+  );
+
+  const [
+    customizationState,
+    startCustomizationAction,
+    isStartingCustomization,
+  ] = useActionState(
+    startCustomizationDraftAction,
+    initialCustomizationState,
   );
 
   const selectedColorGroup = useMemo(
     () =>
-      colorGroups.find((group) => group.key === selectedColorGroupKey) ??
+      colorGroups.find(
+        (group) =>
+          group.key === selectedColorGroupKey,
+      ) ??
       colorGroups[0] ??
       null,
-    [colorGroups, selectedColorGroupKey],
+    [
+      colorGroups,
+      selectedColorGroupKey,
+    ],
   );
 
   const visibleVariants = useMemo(() => {
@@ -425,26 +588,43 @@ const [activeCustomizationDraft, setActiveCustomizationDraft] =
       return colors;
     }
 
-    return selectedColorGroup?.variants ?? [];
-  }, [colors, hasSizes, selectedColorGroup]);
+    return (
+      selectedColorGroup?.variants ?? []
+    );
+  }, [
+    colors,
+    hasSizes,
+    selectedColorGroup,
+  ]);
 
   const selectedVariant = useMemo(() => {
     const variantInVisibleGroup =
-      visibleVariants.find((variant) => variant.id === selectedVariantId) ??
-      null;
+      visibleVariants.find(
+        (variant) =>
+          variant.id === selectedVariantId,
+      ) ?? null;
 
     if (variantInVisibleGroup) {
       return variantInVisibleGroup;
     }
 
-    return visibleVariants[0] ?? colors[0] ?? null;
-  }, [colors, selectedVariantId, visibleVariants]);
+    return (
+      visibleVariants[0] ??
+      colors[0] ??
+      null
+    );
+  }, [
+    colors,
+    selectedVariantId,
+    visibleVariants,
+  ]);
 
   const selectedStock = useMemo(
     () =>
       getStockForVariant({
         stocks,
-        variantId: selectedVariant?.id ?? null,
+        variantId:
+          selectedVariant?.id ?? null,
       }),
     [stocks, selectedVariant],
   );
@@ -453,16 +633,21 @@ const [activeCustomizationDraft, setActiveCustomizationDraft] =
     () =>
       getPricesForVariant({
         prices,
-        selectedVariantId: selectedVariant?.id ?? null,
+        selectedVariantId:
+          selectedVariant?.id ?? null,
       }),
     [prices, selectedVariant],
   );
 
-  const lowestPrice = getLowestPrice(activePrices);
+  const lowestPrice =
+    getLowestPrice(activePrices);
 
   const selectedQuantity =
-    selectedVariant && quantitiesByVariant[selectedVariant.id]
-      ? quantitiesByVariant[selectedVariant.id]
+    selectedVariant &&
+    quantitiesByVariant[selectedVariant.id]
+      ? quantitiesByVariant[
+          selectedVariant.id
+        ]
       : selectedStock.available > 0
         ? minimumQuantity
         : 0;
@@ -474,70 +659,89 @@ const [activeCustomizationDraft, setActiveCustomizationDraft] =
         prices: activePrices,
         selectedPrintingTechnique: null,
       }),
-    [selectedQuantity, activePrices],
+    [
+      selectedQuantity,
+      activePrices,
+    ],
   );
 
-  const customizationPersonalizationTotal = activeCustomizationDraft
-  ? Number(
-      (
-        activeCustomizationDraft.personalization_unit_price *
-        selectedQuantity
-      ).toFixed(2),
-    )
-  : 0;
+  const customizationPersonalizationTotal =
+    activeCustomizationDraft
+      ? Number(
+          (
+            activeCustomizationDraft.personalization_unit_price *
+            selectedQuantity
+          ).toFixed(2),
+        )
+      : 0;
 
-const customizationSetupCost =
-  activeCustomizationDraft?.setup_cost ?? 0;
+  const customizationSetupCost =
+    activeCustomizationDraft?.setup_cost ??
+    0;
 
-const customizationExtrasTotal =
-  activeCustomizationDraft?.extras_total ?? 0;
+  const customizationExtrasTotal =
+    activeCustomizationDraft?.extras_total ??
+    0;
 
-const displayedTotal = Number(
-  (
-    pricing.subtotal +
-    customizationPersonalizationTotal +
-    customizationSetupCost +
-    customizationExtrasTotal
-  ).toFixed(2),
-);
+  const displayedTotal = Number(
+    (
+      pricing.subtotal +
+      customizationPersonalizationTotal +
+      customizationSetupCost +
+      customizationExtrasTotal
+    ).toFixed(2),
+  );
 
   const displayImageUrl =
-    selectedColorGroup?.image_url ?? selectedVariant?.image_url ?? productImageUrl;
+    selectedColorGroup?.image_url ??
+    selectedVariant?.image_url ??
+    productImageUrl;
 
   const canProceed =
     Boolean(selectedVariant?.id) &&
     selectedStock.available > 0 &&
     selectedQuantity >= minimumQuantity;
 
-  const personalizeHref = `/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
-    selectedVariant?.id ?? "",
-  )}&quantidade=${encodeURIComponent(String(selectedQuantity))}`;
-
-  function selectColorGroup(group: ColorGroup) {
+  function selectColorGroup(
+    group: ColorGroup,
+  ) {
     setActiveCustomizationDraft(null);
     setSelectedColorGroupKey(group.key);
 
     const firstAvailableVariant =
       group.variants.find((variant) => {
-        const stock = getStockForVariant({
-          stocks,
-          variantId: variant.id,
-        });
+        const stock =
+          getStockForVariant({
+            stocks,
+            variantId: variant.id,
+          });
 
         return stock.available > 0;
-      }) ?? group.variants[0] ?? null;
+      }) ??
+      group.variants[0] ??
+      null;
 
-    setSelectedVariantId(firstAvailableVariant?.id ?? null);
+    setSelectedVariantId(
+      firstAvailableVariant?.id ?? null,
+    );
   }
 
-  function selectVariant(variant: ProductPurchaseColor) {
-    if (variant.id !== activeCustomizationDraft?.variant_id) {
-  setActiveCustomizationDraft(null);
-}
-setSelectedVariantId(variant.id);
+  function selectVariant(
+    variant: ProductPurchaseColor,
+  ) {
+    if (
+      variant.id !==
+      activeCustomizationDraft?.variant_id
+    ) {
+      setActiveCustomizationDraft(null);
+    }
+
+    setSelectedVariantId(variant.id);
 
     if (hasSizes) {
-      setSelectedColorGroupKey(getColorKey(variant));
+      setSelectedColorGroupKey(
+        getColorKey(variant),
+      );
     }
   }
 
@@ -549,21 +753,29 @@ setSelectedVariantId(variant.id);
     setSelectedVariantId(params.variantId);
 
     if (
-  activeCustomizationDraft &&
-  (params.variantId !== activeCustomizationDraft.variant_id ||
-    params.quantity !== activeCustomizationDraft.quantity)
-) {
-  setActiveCustomizationDraft(null);
-}
+      activeCustomizationDraft &&
+      (params.variantId !==
+        activeCustomizationDraft.variant_id ||
+        params.quantity !==
+          activeCustomizationDraft.quantity)
+    ) {
+      setActiveCustomizationDraft(null);
+    }
 
-    const variant = colors.find((color) => color.id === params.variantId);
+    const variant = colors.find(
+      (color) =>
+        color.id === params.variantId,
+    );
 
     if (variant && hasSizes) {
-      setSelectedColorGroupKey(getColorKey(variant));
+      setSelectedColorGroupKey(
+        getColorKey(variant),
+      );
     }
 
     const safeQuantity =
-      params.stockAvailable > 0 && Number.isFinite(params.quantity)
+      params.stockAvailable > 0 &&
+      Number.isFinite(params.quantity)
         ? Math.max(0, params.quantity)
         : 0;
 
@@ -603,83 +815,49 @@ setSelectedVariantId(variant.id);
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {colorGroups.map((group) => {
-                    const isSelected = group.key === selectedColorGroup?.key;
-
-                    return (
-                      <button
-                        key={group.key}
-                        type="button"
-                        onClick={() => selectColorGroup(group)}
-                        className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
-                          isSelected
-                            ? "border-neutral-950 bg-neutral-950 text-white"
-                            : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-                        }`}
-                        title={group.label}
-                      >
-                        {group.hex ? (
-                          <span
-                            className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
-                            style={{ backgroundColor: group.hex }}
-                          />
-                        ) : (
-                          <span className="mr-2 h-4 w-4 rounded-full border border-neutral-300 bg-white" />
-                        )}
-
-                        {group.label}
-
-                        {group.stockAvailable <= 0 ? (
-                          <span
-                            className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
-                              isSelected
-                                ? "bg-white/15 text-white"
-                                : "bg-neutral-100 text-neutral-500"
-                            }`}
-                          >
-                            Brevemente
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {hasSizes && selectedColorGroup ? (
-                <div>
-                  <p className="text-sm font-semibold text-neutral-950">
-                    Tamanhos disponíveis em {selectedColorGroup.label}
-                  </p>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {selectedColorGroup.variants.map((variant) => {
-                      const stock = getStockForVariant({
-                        stocks,
-                        variantId: variant.id,
-                      });
-                      const isSelected = variant.id === selectedVariant?.id;
+                  {colorGroups.map(
+                    (group) => {
+                      const isSelected =
+                        group.key ===
+                        selectedColorGroup?.key;
 
                       return (
                         <button
-                          key={variant.id}
+                          key={group.key}
                           type="button"
-                          onClick={() => selectVariant(variant)}
-                          disabled={stock.available <= 0}
-                          className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                          onClick={() =>
+                            selectColorGroup(
+                              group,
+                            )
+                          }
+                          className={`inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition ${
                             isSelected
                               ? "border-neutral-950 bg-neutral-950 text-white"
                               : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-                          } disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400`}
+                          }`}
+                          title={group.label}
                         >
-                          {getSizeLabel(variant)}
+                          {group.hex ? (
+                            <span
+                              className="mr-2 h-4 w-4 rounded-full border border-neutral-300"
+                              style={{
+                                backgroundColor:
+                                  group.hex,
+                              }}
+                            />
+                          ) : (
+                            <span className="mr-2 h-4 w-4 rounded-full border border-neutral-300 bg-white" />
+                          )}
 
-                          {stock.available <= 0 ? (
+                          {group.label}
+
+                          {group.stockAvailable <=
+                          0 ? (
                             <span
                               className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
                                 isSelected
                                   ? "bg-white/15 text-white"
-                                  : "bg-white text-neutral-400"
+                                  : "bg-neutral-100 text-neutral-500"
                               }`}
                             >
                               Brevemente
@@ -687,7 +865,72 @@ setSelectedVariantId(variant.id);
                           ) : null}
                         </button>
                       );
-                    })}
+                    },
+                  )}
+                </div>
+              </div>
+
+              {hasSizes &&
+              selectedColorGroup ? (
+                <div>
+                  <p className="text-sm font-semibold text-neutral-950">
+                    Tamanhos disponíveis em{" "}
+                    {selectedColorGroup.label}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {selectedColorGroup.variants.map(
+                      (variant) => {
+                        const stock =
+                          getStockForVariant({
+                            stocks,
+                            variantId:
+                              variant.id,
+                          });
+
+                        const isSelected =
+                          variant.id ===
+                          selectedVariant?.id;
+
+                        return (
+                          <button
+                            key={variant.id}
+                            type="button"
+                            onClick={() =>
+                              selectVariant(
+                                variant,
+                              )
+                            }
+                            disabled={
+                              stock.available <=
+                              0
+                            }
+                            className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                              isSelected
+                                ? "border-neutral-950 bg-neutral-950 text-white"
+                                : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                            } disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400`}
+                          >
+                            {getSizeLabel(
+                              variant,
+                            )}
+
+                            {stock.available <=
+                            0 ? (
+                              <span
+                                className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
+                                  isSelected
+                                    ? "bg-white/15 text-white"
+                                    : "bg-white text-neutral-400"
+                                }`}
+                              >
+                                Brevemente
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
               ) : null}
@@ -708,30 +951,40 @@ setSelectedVariantId(variant.id);
 
           <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2">
             <div className="rounded-2xl bg-neutral-50 p-4">
-              <dt className="text-neutral-500">Marca</dt>
+              <dt className="text-neutral-500">
+                Marca
+              </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {brand ?? "—"}
               </dd>
             </div>
 
             <div className="rounded-2xl bg-neutral-50 p-4">
-              <dt className="text-neutral-500">Material</dt>
+              <dt className="text-neutral-500">
+                Material
+              </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {material ?? "—"}
               </dd>
             </div>
 
             <div className="rounded-2xl bg-neutral-50 p-4">
-              <dt className="text-neutral-500">Dimensões</dt>
+              <dt className="text-neutral-500">
+                Dimensões
+              </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {dimensions ?? "—"}
               </dd>
             </div>
 
             <div className="rounded-2xl bg-neutral-50 p-4">
-              <dt className="text-neutral-500">Peso</dt>
+              <dt className="text-neutral-500">
+                Peso
+              </dt>
               <dd className="mt-1 font-medium text-neutral-950">
-                {weight ? `${weight} g` : "—"}
+                {weight
+                  ? `${weight} g`
+                  : "—"}
               </dd>
             </div>
           </dl>
@@ -739,15 +992,9 @@ setSelectedVariantId(variant.id);
       </div>
 
       <div>
-        {brand ? (
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            {brand}
-          </p>
-        ) : (
-          <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            Produto
-          </p>
-        )}
+        <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
+          {brand ?? "Produto"}
+        </p>
 
         <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
           {productName}
@@ -763,7 +1010,10 @@ setSelectedVariantId(variant.id);
           <p className="mt-6 text-sm text-neutral-500">
             Desde{" "}
             <span className="text-2xl font-semibold text-neutral-950">
-              {formatPrice(lowestPrice.final_price, lowestPrice.currency)}
+              {formatPrice(
+                lowestPrice.final_price,
+                lowestPrice.currency,
+              )}
             </span>{" "}
             / un.
           </p>
@@ -773,30 +1023,44 @@ setSelectedVariantId(variant.id);
           <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <Package className="h-5 w-5 text-neutral-500" />
 
-            <p className="mt-4 text-sm text-neutral-500">Quantidade mín.</p>
+            <p className="mt-4 text-sm text-neutral-500">
+              Quantidade mín.
+            </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
-              {minimumQuantity.toLocaleString("pt-PT")} un.
+              {minimumQuantity.toLocaleString(
+                "pt-PT",
+              )}{" "}
+              un.
             </p>
           </div>
 
           <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <Truck className="h-5 w-5 text-neutral-500" />
 
-            <p className="mt-4 text-sm text-neutral-500">Stock disponível</p>
+            <p className="mt-4 text-sm text-neutral-500">
+              Stock disponível
+            </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
-              {totalStock.toLocaleString("pt-PT")} un.
+              {totalStock.toLocaleString(
+                "pt-PT",
+              )}{" "}
+              un.
             </p>
           </div>
 
           <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
             <Palette className="h-5 w-5 text-neutral-500" />
 
-            <p className="mt-4 text-sm text-neutral-500">Personalização</p>
+            <p className="mt-4 text-sm text-neutral-500">
+              Personalização
+            </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
-              {isCustomizable ? "Disponível" : "Não incluída"}
+              {isCustomizable
+                ? "Disponível"
+                : "Não incluída"}
             </p>
           </div>
         </div>
@@ -815,16 +1079,23 @@ setSelectedVariantId(variant.id);
                       Quantidade
                     </th>
 
-                    {activePrices.slice(0, 8).map((price, index) => (
-                      <th
-                        key={`${price.variant_id ?? "product"}-${
-                          price.quantity_min
-                        }-${price.quantity_max ?? "plus"}-${index}`}
-                        className="border-b border-neutral-200 px-4 py-3 text-center font-semibold text-neutral-950"
-                      >
-                        {getQuantityLabel(price)}
-                      </th>
-                    ))}
+                    {activePrices
+                      .slice(0, 8)
+                      .map(
+                        (
+                          price,
+                          index,
+                        ) => (
+                          <th
+                            key={`${price.variant_id ?? "product"}-${price.quantity_min}-${price.quantity_max ?? "plus"}-${index}`}
+                            className="border-b border-neutral-200 px-4 py-3 text-center font-semibold text-neutral-950"
+                          >
+                            {getQuantityLabel(
+                              price,
+                            )}
+                          </th>
+                        ),
+                      )}
                   </tr>
                 </thead>
 
@@ -834,23 +1105,32 @@ setSelectedVariantId(variant.id);
                       Preço / un.
                     </td>
 
-                    {activePrices.slice(0, 8).map((price, index) => (
-                      <td
-                        key={`${price.variant_id ?? "product"}-${
-                          price.quantity_min
-                        }-${price.final_price}-${index}`}
-                        className="border-b border-neutral-100 px-4 py-3 text-center font-semibold text-neutral-950"
-                      >
-                        {formatPrice(price.final_price, price.currency)}
-                      </td>
-                    ))}
+                    {activePrices
+                      .slice(0, 8)
+                      .map(
+                        (
+                          price,
+                          index,
+                        ) => (
+                          <td
+                            key={`${price.variant_id ?? "product"}-${price.quantity_min}-${price.final_price}-${index}`}
+                            className="border-b border-neutral-100 px-4 py-3 text-center font-semibold text-neutral-950"
+                          >
+                            {formatPrice(
+                              price.final_price,
+                              price.currency,
+                            )}
+                          </td>
+                        ),
+                      )}
                   </tr>
                 </tbody>
               </table>
             </div>
           ) : (
             <p className="mt-4 text-sm text-neutral-600">
-              O preço será apresentado antes da conclusão da encomenda.
+              O preço será apresentado antes da
+              conclusão da encomenda.
             </p>
           )}
         </div>
@@ -863,10 +1143,11 @@ setSelectedVariantId(variant.id);
           <p className="mt-2 text-sm leading-6 text-neutral-600">
             {hasSizes
               ? "Escolha primeiro a cor e indique a quantidade no tamanho pretendido."
-              : "Indique a quantidade pretendida na cor desejada. Pode adicionar directamente ao carrinho ou criar uma maquete antes de avançar."}
+              : "Indique a quantidade pretendida na cor desejada. Pode adicionar diretamente ao carrinho ou continuar para personalização."}
           </p>
 
-          {hasSizes && selectedColorGroup ? (
+          {hasSizes &&
+          selectedColorGroup ? (
             <div className="mt-5 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600">
               Cor selecionada:{" "}
               <span className="font-semibold text-neutral-950">
@@ -876,88 +1157,142 @@ setSelectedVariantId(variant.id);
           ) : null}
 
           {activeCustomizationDraft ? (
-  <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-semibold text-emerald-950">
-          Maquete preparada
-        </p>
+            <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-950">
+                    Maquete preparada
+                  </p>
 
-        <p className="mt-1 text-sm leading-6 text-emerald-800">
-          A personalização será associada a esta linha da encomenda.
-        </p>
-      </div>
+                  <p className="mt-1 text-sm leading-6 text-emerald-800">
+                    A personalização será associada a esta
+                    linha da encomenda.
+                  </p>
+                </div>
 
-      <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-        Guardada
-      </span>
-    </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                  Guardada
+                </span>
+              </div>
 
-    <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
-      <div>
-        <dt className="text-emerald-700">Localização</dt>
-        <dd className="mt-1 font-semibold text-emerald-950">
-          {activeCustomizationDraft.location_name ?? "A confirmar"}
-        </dd>
-      </div>
+              <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-emerald-700">
+                    Localização
+                  </dt>
 
-      <div>
-        <dt className="text-emerald-700">Técnica</dt>
-        <dd className="mt-1 font-semibold text-emerald-950">
-          {activeCustomizationDraft.technique_name ?? "A confirmar"}
-        </dd>
-      </div>
+                  <dd className="mt-1 font-semibold text-emerald-950">
+                    {activeCustomizationDraft.location_name ??
+                      "A confirmar"}
+                  </dd>
+                </div>
 
-      <div>
-        <dt className="text-emerald-700">Logótipo</dt>
-        <dd className="mt-1 font-semibold text-emerald-950">
-          {activeCustomizationDraft.logo_file_name ??
-            "Ainda não carregado"}
-        </dd>
-      </div>
+                <div>
+                  <dt className="text-emerald-700">
+                    Técnica
+                  </dt>
 
-      <div>
-        <dt className="text-emerald-700">Quantidade</dt>
-        <dd className="mt-1 font-semibold text-emerald-950">
-          {activeCustomizationDraft.quantity.toLocaleString("pt-PT")} un.
-        </dd>
-      </div>
-    </dl>
+                  <dd className="mt-1 font-semibold text-emerald-950">
+                    {activeCustomizationDraft.technique_name ??
+                      "A confirmar"}
+                  </dd>
+                </div>
 
-    <Link
-      href={`/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
-        activeCustomizationDraft.variant_id ?? "",
-      )}&quantidade=${encodeURIComponent(
-        String(activeCustomizationDraft.quantity),
-      )}`}
-      className="mt-5 inline-flex text-sm font-semibold text-emerald-950 underline-offset-4 hover:underline"
-    >
-      Editar ou criar nova maquete
-    </Link>
-  </div>
-) : customizationDraft ? (
-  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-    A cor, o tamanho ou a quantidade foram alterados. A maquete anterior
-    deixou de estar associada. Cria uma nova maquete antes de adicionar a
-    personalização ao carrinho.
-  </div>
-) : null}
+                <div>
+                  <dt className="text-emerald-700">
+                    Logótipo
+                  </dt>
 
-          <form action={formAction} className="mt-6 space-y-5">
-            <input type="hidden" name="productId" value={productId} />
+                  <dd className="mt-1 font-semibold text-emerald-950">
+                    {activeCustomizationDraft.logo_file_name ??
+                      "Ainda não carregado"}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt className="text-emerald-700">
+                    Quantidade
+                  </dt>
+
+                  <dd className="mt-1 font-semibold text-emerald-950">
+                    {activeCustomizationDraft.quantity.toLocaleString(
+                      "pt-PT",
+                    )}{" "}
+                    un.
+                  </dd>
+                </div>
+              </dl>
+
+              <Link
+                href={`/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
+                  activeCustomizationDraft.variant_id ??
+                    "",
+                )}&quantidade=${encodeURIComponent(
+                  String(
+                    activeCustomizationDraft.quantity,
+                  ),
+                )}`}
+                className="mt-5 inline-flex text-sm font-semibold text-emerald-950 underline-offset-4 hover:underline"
+              >
+                Editar ou criar nova maquete
+              </Link>
+            </div>
+          ) : customizationDraft ? (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
+              A cor, o tamanho ou a quantidade foram
+              alterados. A maquete anterior deixou de estar
+              associada. Cria uma nova maquete antes de
+              adicionar a personalização ao carrinho.
+            </div>
+          ) : null}
+
+          <form
+            action={cartFormAction}
+            className="mt-6 space-y-5"
+          >
+            <input
+              type="hidden"
+              name="productId"
+              value={productId}
+            />
+
+            <input
+              type="hidden"
+              name="productSlug"
+              value={productSlug}
+            />
+
             <input
               type="hidden"
               name="variantId"
               value={selectedVariant?.id ?? ""}
             />
+
             <input
-  type="hidden"
-  name="customizationDraftId"
-  value={activeCustomizationDraft?.id ?? ""}
-/>
-            <input type="hidden" name="quantity" value={selectedQuantity} />
-            <input type="hidden" name="printingTechniqueId" value="" />
-            <input type="hidden" name="personalizationNotes" value="" />
+              type="hidden"
+              name="customizationDraftId"
+              value={
+                activeCustomizationDraft?.id ?? ""
+              }
+            />
+
+            <input
+              type="hidden"
+              name="quantity"
+              value={selectedQuantity}
+            />
+
+            <input
+              type="hidden"
+              name="printingTechniqueId"
+              value=""
+            />
+
+            <input
+              type="hidden"
+              name="personalizationNotes"
+              value=""
+            />
 
             {visibleVariants.length > 0 ? (
               <div className="overflow-x-auto rounded-2xl border border-neutral-200">
@@ -965,7 +1300,9 @@ setSelectedVariantId(variant.id);
                   <thead className="bg-neutral-50">
                     <tr>
                       <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                        {hasSizes ? "Tamanho" : "Cor"}
+                        {hasSizes
+                          ? "Tamanho"
+                          : "Cor"}
                       </th>
 
                       <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
@@ -979,75 +1316,130 @@ setSelectedVariantId(variant.id);
                   </thead>
 
                   <tbody>
-                    {visibleVariants.map((variant) => {
-                      const stock = getStockForVariant({
-                        stocks,
-                        variantId: variant.id,
-                      });
+                    {visibleVariants.map(
+                      (variant) => {
+                        const stock =
+                          getStockForVariant({
+                            stocks,
+                            variantId:
+                              variant.id,
+                          });
 
-                      const quantity =
-                        stock.available > 0
-                          ? quantitiesByVariant[variant.id] ??
-                            (variant.id === selectedVariant?.id
-                              ? minimumQuantity
-                              : 0)
-                          : 0;
+                        const quantity =
+                          stock.available > 0
+                            ? quantitiesByVariant[
+                                variant.id
+                              ] ??
+                              (variant.id ===
+                              selectedVariant?.id
+                                ? minimumQuantity
+                                : 0)
+                            : 0;
 
-                      const isSelected = variant.id === selectedVariant?.id;
+                        const isSelected =
+                          variant.id ===
+                          selectedVariant?.id;
 
-                      return (
-                        <tr
-                          key={variant.id}
-                          className={`cursor-pointer transition ${
-                            isSelected ? "bg-neutral-950/[0.03]" : "bg-white"
-                          }`}
-                          onClick={() => selectVariant(variant)}
-                        >
-                          <td className="border-b border-neutral-100 px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              {variant.color_hex ? (
-                                <span
-                                  className="h-4 w-4 rounded-sm border border-neutral-300"
-                                  style={{ backgroundColor: variant.color_hex }}
-                                />
-                              ) : (
-                                <span className="h-4 w-4 rounded-sm border border-neutral-300 bg-white" />
-                              )}
+                        return (
+                          <tr
+                            key={variant.id}
+                            className={`cursor-pointer transition ${
+                              isSelected
+                                ? "bg-neutral-950/[0.03]"
+                                : "bg-white"
+                            }`}
+                            onClick={() =>
+                              selectVariant(
+                                variant,
+                              )
+                            }
+                          >
+                            <td className="border-b border-neutral-100 px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {variant.color_hex ? (
+                                  <span
+                                    className="h-4 w-4 rounded-sm border border-neutral-300"
+                                    style={{
+                                      backgroundColor:
+                                        variant.color_hex,
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="h-4 w-4 rounded-sm border border-neutral-300 bg-white" />
+                                )}
 
-                              <span className="font-medium text-neutral-950">
-                                {hasSizes
-                                  ? getSizeLabel(variant)
-                                  : getVariantLabel(variant)}
-                              </span>
-                            </div>
-                          </td>
+                                <span className="font-medium text-neutral-950">
+                                  {hasSizes
+                                    ? getSizeLabel(
+                                        variant,
+                                      )
+                                    : getVariantLabel(
+                                        variant,
+                                      )}
+                                </span>
+                              </div>
+                            </td>
 
-                          <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                            {stock.available > 0
-                              ? stock.available.toLocaleString("pt-PT")
-                              : "Brevemente"}
-                          </td>
+                            <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
+                              {stock.available > 0
+                                ? stock.available.toLocaleString(
+                                    "pt-PT",
+                                  )
+                                : "Brevemente"}
+                            </td>
 
-                          <td className="border-b border-neutral-100 px-4 py-3 text-right">
-                            <input
-                              type="number"
-                              min={0}
-                              value={quantity}
-                              disabled={stock.available <= 0}
-                              onFocus={() => selectVariant(variant)}
-                              onChange={(event) => {
-                                updateVariantQuantity({
-                                  variantId: variant.id,
-                                  quantity: Number(event.target.value),
-                                  stockAvailable: stock.available,
-                                });
-                              }}
-                              className="w-28 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-right text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
+                            <td className="border-b border-neutral-100 px-4 py-3 text-right">
+                              <input
+                                type="number"
+                                min={0}
+                                max={
+                                  stock.available >
+                                  0
+                                    ? stock.available
+                                    : undefined
+                                }
+                                value={quantity}
+                                disabled={
+                                  stock.available <=
+                                  0
+                                }
+                                onClick={(
+                                  event,
+                                ) =>
+                                  event.stopPropagation()
+                                }
+                                onFocus={() =>
+                                  selectVariant(
+                                    variant,
+                                  )
+                                }
+                                onChange={(
+                                  event,
+                                ) => {
+                                  updateVariantQuantity(
+                                    {
+                                      variantId:
+                                        variant.id,
+
+                                      quantity:
+                                        Number(
+                                          event
+                                            .target
+                                            .value,
+                                        ),
+
+                                      stockAvailable:
+                                        stock.available,
+                                    },
+                                  );
+                                }}
+                                className="w-28 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-right text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      },
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1064,6 +1456,11 @@ setSelectedVariantId(variant.id);
                   id="quantity"
                   type="number"
                   min={minimumQuantity}
+                  max={
+                    totalStock > 0
+                      ? totalStock
+                      : undefined
+                  }
                   value={selectedQuantity}
                   onChange={(event) => {
                     if (!selectedVariant) {
@@ -1071,9 +1468,15 @@ setSelectedVariantId(variant.id);
                     }
 
                     updateVariantQuantity({
-                      variantId: selectedVariant.id,
-                      quantity: Number(event.target.value),
-                      stockAvailable: totalStock,
+                      variantId:
+                        selectedVariant.id,
+
+                      quantity: Number(
+                        event.target.value,
+                      ),
+
+                      stockAvailable:
+                        totalStock,
                     });
                   }}
                   className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
@@ -1088,7 +1491,9 @@ setSelectedVariantId(variant.id);
 
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>Cor selecionada</span>
+                  <span>
+                    Cor selecionada
+                  </span>
 
                   <span className="font-medium text-neutral-950">
                     {selectedColorGroup?.label ??
@@ -1102,7 +1507,11 @@ setSelectedVariantId(variant.id);
                     <span>Tamanho</span>
 
                     <span className="font-medium text-neutral-950">
-                      {selectedVariant ? getSizeLabel(selectedVariant) : "—"}
+                      {selectedVariant
+                        ? getSizeLabel(
+                            selectedVariant,
+                          )
+                        : "—"}
                     </span>
                   </div>
                 ) : null}
@@ -1111,54 +1520,67 @@ setSelectedVariantId(variant.id);
                   <span>Quantidade</span>
 
                   <span className="font-medium text-neutral-950">
-                    {selectedQuantity.toLocaleString("pt-PT")} un.
+                    {selectedQuantity.toLocaleString(
+                      "pt-PT",
+                    )}{" "}
+                    un.
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
                   <span>Produto</span>
 
-                  {activeCustomizationDraft ? (
-  <>
-    <div className="flex justify-between gap-4">
-      <span>Personalização</span>
-
-      <span className="font-medium text-neutral-950">
-        {formatPrice(
-          customizationPersonalizationTotal,
-          activeCustomizationDraft.currency,
-        )}
-      </span>
-    </div>
-
-    <div className="flex justify-between gap-4">
-      <span>Preparação</span>
-
-      <span className="font-medium text-neutral-950">
-        {formatPrice(
-          customizationSetupCost,
-          activeCustomizationDraft.currency,
-        )}
-      </span>
-    </div>
-
-    <div className="flex justify-between gap-4">
-      <span>Extras</span>
-
-      <span className="font-medium text-neutral-950">
-        {formatPrice(
-          customizationExtrasTotal,
-          activeCustomizationDraft.currency,
-        )}
-      </span>
-    </div>
-  </>
-) : null}
-
                   <span className="font-medium text-neutral-950">
-                    {formatPrice(pricing.subtotal, pricing.currency)}
+                    {formatPrice(
+                      pricing.subtotal,
+                      pricing.currency,
+                    )}
                   </span>
                 </div>
+
+                {activeCustomizationDraft ? (
+                  <>
+                    <div className="flex justify-between gap-4">
+                      <span>
+                        Personalização
+                      </span>
+
+                      <span className="font-medium text-neutral-950">
+                        {formatPrice(
+                          customizationPersonalizationTotal,
+
+                          activeCustomizationDraft.currency,
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4">
+                      <span>
+                        Preparação
+                      </span>
+
+                      <span className="font-medium text-neutral-950">
+                        {formatPrice(
+                          customizationSetupCost,
+
+                          activeCustomizationDraft.currency,
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4">
+                      <span>Extras</span>
+
+                      <span className="font-medium text-neutral-950">
+                        {formatPrice(
+                          customizationExtrasTotal,
+
+                          activeCustomizationDraft.currency,
+                        )}
+                      </span>
+                    </div>
+                  </>
+                ) : null}
 
                 <div className="border-t border-neutral-200 pt-3">
                   <div className="flex justify-between gap-4 text-base">
@@ -1168,32 +1590,47 @@ setSelectedVariantId(variant.id);
 
                     <span className="font-semibold text-neutral-950">
                       {formatPrice(
-  displayedTotal,
-  activeCustomizationDraft?.currency ?? pricing.currency,
-)}
+                        displayedTotal,
+
+                        activeCustomizationDraft?.currency ??
+                          pricing.currency,
+                      )}
                     </span>
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    Valores sem IVA e sem portes. A disponibilidade,
-                    personalização e valor final são confirmados antes da
-                    conclusão da encomenda.
+                    Valores sem IVA e sem portes. A
+                    disponibilidade, personalização e valor
+                    final são confirmados antes da conclusão
+                    da encomenda.
                   </p>
                 </div>
               </div>
             </div>
 
-            {state.message ? (
+            {customizationState.message ? (
               <div
                 className={`rounded-2xl px-4 py-3 text-sm ${
-                  state.success
+                  customizationState.success
                     ? "bg-emerald-50 text-emerald-700"
                     : "bg-red-50 text-red-700"
                 }`}
               >
-                {state.message}
+                {customizationState.message}
+              </div>
+            ) : null}
 
-                {state.success ? (
+            {cartState.message ? (
+              <div
+                className={`rounded-2xl px-4 py-3 text-sm ${
+                  cartState.success
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-red-50 text-red-700"
+                }`}
+              >
+                {cartState.message}
+
+                {cartState.success ? (
                   <Link
                     href="/carrinho"
                     className="ml-2 font-semibold underline-offset-4 hover:underline"
@@ -1205,34 +1642,47 @@ setSelectedVariantId(variant.id);
             ) : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
-              {isCustomizable && canProceed ? (
-                <Link
-                  href={personalizeHref}
-                  className="inline-flex w-full items-center justify-center rounded-2xl border border-neutral-950 bg-white px-6 py-4 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50"
+              {isCustomizable &&
+              canProceed ? (
+                <button
+                  type="submit"
+                  formAction={
+                    startCustomizationAction
+                  }
+                  disabled={
+                    isStartingCustomization
+                  }
+                  className="inline-flex w-full items-center justify-center rounded-2xl border border-neutral-950 bg-white px-6 py-4 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Criar maquete
-                </Link>
+                  {isStartingCustomization
+                    ? "A preparar personalização..."
+                    : "Continuar para personalização"}
+                </button>
               ) : (
                 <button
                   type="button"
                   disabled
                   className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100 px-6 py-4 text-sm font-semibold text-neutral-400"
                 >
-                  Criar maquete
+                  Continuar para personalização
                 </button>
               )}
 
               <button
                 type="submit"
-                disabled={isPending || !canProceed}
+                disabled={
+                  isAddingToCart ||
+                  !canProceed
+                }
                 className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
-                {isPending
-  ? "A adicionar..."
-  : activeCustomizationDraft
-    ? "Adicionar encomenda personalizada"
-    : "Adicionar ao carrinho"}
+
+                {isAddingToCart
+                  ? "A adicionar..."
+                  : activeCustomizationDraft
+                    ? "Adicionar encomenda personalizada"
+                    : "Adicionar sem personalização"}
               </button>
             </div>
           </form>

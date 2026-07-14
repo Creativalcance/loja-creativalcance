@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useEffect,
   useMemo,
   useRef,
   useState,
+  useTransition,
   type ChangeEvent,
   type PointerEvent,
 } from "react";
 import {
   ArrowRight,
-  CheckCircle2,
-  ImageIcon,
   Maximize2,
   Minus,
   Move,
@@ -22,6 +22,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { saveCustomizationDraftAction } from "@/lib/customization/actions";
 
 export type ProductEditorVariant = {
   id: string;
@@ -79,12 +80,15 @@ type LocationGroup = {
 };
 
 type ProductCustomizationEditorProps = {
+  productId: string;
+  supplierId: string | null;
   productName: string;
   productSlug: string;
   productImageUrl: string | null;
   variants: ProductEditorVariant[];
   locations: ProductEditorLocation[];
   productPrices: ProductEditorPrice[];
+  initialDraftId?: string | null;
   initialVariantId?: string | null;
   initialLocationId?: string | null;
   initialQuantity?: number;
@@ -272,10 +276,10 @@ function roundMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 
-function formatPrice(value: number): string {
+function formatPrice(value: number, currency = "EUR"): string {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
-    currency: "EUR",
+    currency,
   }).format(value);
 }
 
@@ -418,22 +422,30 @@ function findProductPriceTier(params: {
 }
 
 export default function ProductCustomizationEditor({
+  productId,
+  supplierId,
   productName,
   productSlug,
   productImageUrl,
   variants,
   locations,
   productPrices,
+  initialDraftId,
   initialVariantId,
   initialLocationId,
   initialQuantity = 1,
 }: ProductCustomizationEditorProps) {
+  const router = useRouter();
+
   const printAreaRef = useRef<HTMLDivElement | null>(null);
+
   const dragStateRef = useRef<{
     pointerId: number;
     offsetX: number;
     offsetY: number;
   } | null>(null);
+
+  const [isSavingDraft, startSavingDraft] = useTransition();
 
   const selectedColor = useMemo(
     () =>
@@ -449,9 +461,9 @@ export default function ProductCustomizationEditor({
     () =>
       buildLocationGroups({
         locations,
-        selectedVariantId: initialVariantId ?? null,
+        selectedVariantId: selectedColor?.id ?? initialVariantId ?? null,
       }),
-    [initialVariantId, locations],
+    [initialVariantId, locations, selectedColor?.id],
   );
 
   const initialGroupId = useMemo(() => {
@@ -488,14 +500,18 @@ export default function ProductCustomizationEditor({
 
   const selectedLocation = useMemo(
     () =>
-      selectedGroup?.options.find((option) => option.id === selectedLocationId) ??
+      selectedGroup?.options.find(
+        (option) => option.id === selectedLocationId,
+      ) ??
       selectedGroup?.options[0] ??
       null,
     [selectedGroup, selectedLocationId],
   );
 
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
@@ -526,6 +542,14 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
   });
 
+  const logoWidthMm = roundMoney(
+    (safePosition.width / 100) * printAreaDimensions.widthMm,
+  );
+
+  const logoHeightMm = roundMoney(
+    (logoHeightPercent / 100) * printAreaDimensions.heightMm,
+  );
+
   const previewBaseImage = getPreferredPreviewImage({
     selectedLocation,
     selectedColor,
@@ -533,30 +557,32 @@ export default function ProductCustomizationEditor({
   });
 
   const productPriceTier = findProductPriceTier({
-  prices: productPrices,
-  selectedVariantId: selectedColor?.id ?? null,
-  quantity,
-});
+    prices: productPrices,
+    selectedVariantId: selectedColor?.id ?? null,
+    quantity,
+  });
 
-const productUnitPrice = productPriceTier?.final_price ?? 0;
-const productCurrency = productPriceTier?.currency ?? "EUR";
-const productSubtotal = roundMoney(productUnitPrice * quantity);
+  const productUnitPrice = productPriceTier?.final_price ?? 0;
+  const productCurrency = productPriceTier?.currency ?? "EUR";
+  const productSubtotal = roundMoney(productUnitPrice * quantity);
 
-const personalizationUnitPrice = getTechniqueEstimatedUnitPrice(
-  selectedLocation?.technique ?? null,
-);
+  const personalizationUnitPrice = getTechniqueEstimatedUnitPrice(
+    selectedLocation?.technique ?? null,
+  );
 
-const personalizationSubtotal = roundMoney(personalizationUnitPrice * quantity);
+  const personalizationSubtotal = roundMoney(
+    personalizationUnitPrice * quantity,
+  );
 
-const extrasTotal = roundMoney(
-  (needsDesignHelp ? 21 : 0) +
-    (extraProof ? 15 : 0) +
-    (nominative ? 0.7 * quantity : 0),
-);
+  const extrasTotal = roundMoney(
+    (needsDesignHelp ? 21 : 0) +
+      (extraProof ? 15 : 0) +
+      (nominative ? 0.7 * quantity : 0),
+  );
 
-const estimatedTotal = roundMoney(
-  productSubtotal + personalizationSubtotal + extrasTotal,
-);
+  const estimatedTotal = roundMoney(
+    productSubtotal + personalizationSubtotal + extrasTotal,
+  );
 
   const productionDays = getEstimatedProductionDays(
     selectedLocation?.technique ?? null,
@@ -575,7 +601,7 @@ const estimatedTotal = roundMoney(
 
   useEffect(() => {
     setSelectedLocationId(selectedGroup?.options[0]?.id ?? null);
-  }, [selectedGroup?.id]);
+  }, [selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
     setPosition(initialPosition);
@@ -606,6 +632,9 @@ const estimatedTotal = roundMoney(
       return;
     }
 
+    setLogoFile(file);
+    setSaveMessage(null);
+
     if (logoPreviewUrl) {
       URL.revokeObjectURL(logoPreviewUrl);
     }
@@ -627,7 +656,6 @@ const estimatedTotal = roundMoney(
     };
 
     image.src = objectUrl;
-
     setLogoPreviewUrl(objectUrl);
   }
 
@@ -665,6 +693,7 @@ const estimatedTotal = roundMoney(
 
   function centerLogo() {
     const centeredWidth = safePosition.width;
+
     const centeredHeight = getLogoHeightPercent({
       logoWidthPercent: centeredWidth,
       printAreaAspectRatio,
@@ -725,6 +754,7 @@ const estimatedTotal = roundMoney(
 
     const nextX =
       ((event.clientX - rect.left - dragState.offsetX) / rect.width) * 100;
+
     const nextY =
       ((event.clientY - rect.top - dragState.offsetY) / rect.height) * 100;
 
@@ -745,6 +775,114 @@ const estimatedTotal = roundMoney(
     if (dragStateRef.current?.pointerId === event.pointerId) {
       dragStateRef.current = null;
     }
+  }
+
+  function handleConfirmCustomization() {
+    if (!selectedColor) {
+      setSaveMessage("Não foi possível identificar a variante selecionada.");
+      return;
+    }
+
+    if (!selectedLocation) {
+      setSaveMessage("Seleciona uma localização e uma técnica.");
+      return;
+    }
+
+    if (productUnitPrice <= 0) {
+      setSaveMessage(
+        "Não foi possível determinar o preço do produto para esta quantidade.",
+      );
+      return;
+    }
+
+    setSaveMessage(null);
+
+    startSavingDraft(async () => {
+      const formData = new FormData();
+
+      if (initialDraftId) {
+        formData.set("draftId", initialDraftId);
+      }
+
+      formData.set("productId", productId);
+      formData.set("productSlug", productSlug);
+      formData.set("variantId", selectedColor.id);
+
+      formData.set(
+        "sourceLocationId",
+        selectedLocation.source_location_id,
+      );
+
+      formData.set("techniqueName", selectedLocation.technique);
+
+      formData.set(
+        "componentName",
+        selectedLocation.component_name ?? "",
+      );
+
+      formData.set(
+        "locationName",
+        selectedLocation.location_name ?? "",
+      );
+
+      formData.set("tableCode", selectedLocation.table_codes[0] ?? "");
+      formData.set("tableCodeOption", "");
+      formData.set("serviceCode", "");
+
+      formData.set("quantity", String(quantity));
+
+      formData.set(
+        "personalizationUnitPrice",
+        String(personalizationUnitPrice),
+      );
+
+      formData.set("setupCost", "0");
+      formData.set("extrasTotal", String(extrasTotal));
+
+      formData.set(
+        "printingWidthMm",
+        String(printAreaDimensions.widthMm),
+      );
+
+      formData.set(
+        "printingHeightMm",
+        String(printAreaDimensions.heightMm),
+      );
+
+      formData.set("logoPositionX", String(safePosition.x));
+      formData.set("logoPositionY", String(safePosition.y));
+      formData.set("logoScale", String(safePosition.width));
+      formData.set("logoRotation", String(safePosition.rotation));
+      formData.set("logoWidthMm", String(logoWidthMm));
+      formData.set("logoHeightMm", String(logoHeightMm));
+
+      formData.set("needsDesignHelp", String(needsDesignHelp));
+      formData.set("extraProof", String(extraProof));
+      formData.set("nominative", String(nominative));
+      formData.set("internalReference", internalReference);
+      formData.set("notes", notes);
+
+      formData.set(
+        "technicalPreviewUrl",
+        previewBaseImage ?? "",
+      );
+
+      formData.set("supplierId", supplierId ?? "");
+
+      if (logoFile) {
+        formData.set("logoFile", logoFile);
+      }
+
+      const result = await saveCustomizationDraftAction(formData);
+
+      if (!result.success || !result.redirectUrl) {
+        setSaveMessage(result.message);
+        return;
+      }
+
+      router.push(result.redirectUrl);
+      router.refresh();
+    });
   }
 
   if (locations.length === 0 || locationGroups.length === 0) {
@@ -831,11 +969,7 @@ const estimatedTotal = roundMoney(
                     alt={productName}
                     className="max-h-[700px] w-full object-contain p-8"
                   />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-neutral-400">
-                    <ImageIcon className="h-10 w-10" />
-                  </div>
-                )}
+                ) : null}
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-5">
@@ -844,6 +978,7 @@ const estimatedTotal = roundMoney(
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Técnica
                     </p>
+
                     <p className="mt-1 font-semibold text-neutral-950">
                       {selectedLocation?.technique ?? "A confirmar"}
                     </p>
@@ -853,6 +988,7 @@ const estimatedTotal = roundMoney(
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Localização
                     </p>
+
                     <p className="mt-1 font-semibold text-neutral-950">
                       {selectedLocation
                         ? getLocationLabel(selectedLocation)
@@ -864,6 +1000,7 @@ const estimatedTotal = roundMoney(
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Área máxima
                     </p>
+
                     <p className="mt-1 font-semibold text-neutral-950">
                       {selectedLocation?.max_printing_area_mm ?? "—"}
                     </p>
@@ -873,6 +1010,7 @@ const estimatedTotal = roundMoney(
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Quantidade
                     </p>
+
                     <p className="mt-1 font-semibold text-neutral-950">
                       {quantity.toLocaleString("pt-PT")} un.
                     </p>
@@ -896,6 +1034,7 @@ const estimatedTotal = roundMoney(
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
                   <span>Cor / tamanho</span>
+
                   <span className="text-right font-semibold text-neutral-950">
                     {getColorLabel(selectedColor)}
                   </span>
@@ -903,6 +1042,7 @@ const estimatedTotal = roundMoney(
 
                 <div className="flex justify-between gap-4">
                   <span>Quantidade</span>
+
                   <span className="text-right font-semibold text-neutral-950">
                     {quantity.toLocaleString("pt-PT")} un.
                   </span>
@@ -961,9 +1101,11 @@ const estimatedTotal = roundMoney(
                 className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-8 text-center transition hover:border-neutral-400 hover:bg-white"
               >
                 <Upload className="h-6 w-6 text-neutral-500" />
+
                 <span className="mt-3 text-sm font-semibold text-neutral-950">
                   Carregar ficheiro
                 </span>
+
                 <span className="mt-1 text-xs text-neutral-500">
                   SVG, PDF, PNG ou JPG
                 </span>
@@ -1092,14 +1234,15 @@ const estimatedTotal = roundMoney(
                         Horizontal
                         <span>{Math.round(safePosition.x)}%</span>
                       </span>
+
                       <input
                         type="range"
                         min="0"
                         max={Math.max(0, 100 - safePosition.width)}
                         value={safePosition.x}
-                        onChange={(event) => {
-                          updatePosition("x", Number(event.target.value));
-                        }}
+                        onChange={(event) =>
+                          updatePosition("x", Number(event.target.value))
+                        }
                         className="mt-3 w-full"
                       />
                     </label>
@@ -1109,14 +1252,15 @@ const estimatedTotal = roundMoney(
                         Vertical
                         <span>{Math.round(safePosition.y)}%</span>
                       </span>
+
                       <input
                         type="range"
                         min="0"
                         max={Math.max(0, 100 - logoHeightPercent)}
                         value={safePosition.y}
-                        onChange={(event) => {
-                          updatePosition("y", Number(event.target.value));
-                        }}
+                        onChange={(event) =>
+                          updatePosition("y", Number(event.target.value))
+                        }
                         className="mt-3 w-full"
                       />
                     </label>
@@ -1126,14 +1270,15 @@ const estimatedTotal = roundMoney(
                         Largura
                         <span>{Math.round(safePosition.width)}%</span>
                       </span>
+
                       <input
                         type="range"
                         min="10"
                         max="100"
                         value={safePosition.width}
-                        onChange={(event) => {
-                          updatePosition("width", Number(event.target.value));
-                        }}
+                        onChange={(event) =>
+                          updatePosition("width", Number(event.target.value))
+                        }
                         className="mt-3 w-full"
                       />
                     </label>
@@ -1152,13 +1297,17 @@ const estimatedTotal = roundMoney(
                   <input
                     type="checkbox"
                     checked={needsDesignHelp}
-                    onChange={(event) => setNeedsDesignHelp(event.target.checked)}
+                    onChange={(event) =>
+                      setNeedsDesignHelp(event.target.checked)
+                    }
                     className="mt-1"
                   />
+
                   <span>
                     <span className="block font-semibold text-neutral-950">
                       Preciso de ajuda a preparar o logótipo
                     </span>
+
                     <span className="text-xs text-neutral-500">
                       Tratamento gráfico estimado: {formatPrice(21)}
                     </span>
@@ -1172,10 +1321,12 @@ const estimatedTotal = roundMoney(
                     onChange={(event) => setExtraProof(event.target.checked)}
                     className="mt-1"
                   />
+
                   <span>
                     <span className="block font-semibold text-neutral-950">
                       Quero validação gráfica adicional
                     </span>
+
                     <span className="text-xs text-neutral-500">
                       Maquete extra estimada: {formatPrice(15)}
                     </span>
@@ -1189,10 +1340,12 @@ const estimatedTotal = roundMoney(
                     onChange={(event) => setNominative(event.target.checked)}
                     className="mt-1"
                   />
+
                   <span>
                     <span className="block font-semibold text-neutral-950">
                       Personalização nominativa
                     </span>
+
                     <span className="text-xs text-neutral-500">
                       Estimado: {formatPrice(0.7)} por unidade
                     </span>
@@ -1204,6 +1357,7 @@ const estimatedTotal = roundMoney(
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                   Referência interna
                 </span>
+
                 <input
                   type="text"
                   value={internalReference}
@@ -1217,6 +1371,7 @@ const estimatedTotal = roundMoney(
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                   Observações
                 </span>
+
                 <textarea
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
@@ -1230,88 +1385,105 @@ const estimatedTotal = roundMoney(
             <div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-5 text-white shadow-sm">
               <div className="flex items-center gap-2">
                 <Move className="h-5 w-5 text-neutral-300" />
-                <p className="text-sm font-semibold">Resumo da personalização</p>
+
+                <p className="text-sm font-semibold">
+                  Resumo da personalização
+                </p>
               </div>
 
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
-  <div className="flex justify-between gap-4">
-    <dt>Local</dt>
-    <dd className="text-right text-white">
-      {selectedLocation ? getLocationLabel(selectedLocation) : "—"}
-    </dd>
-  </div>
+                <div className="flex justify-between gap-4">
+                  <dt>Local</dt>
 
-  <div className="flex justify-between gap-4">
-    <dt>Técnica</dt>
-    <dd className="text-right text-white">
-      {selectedLocation?.technique ?? "A confirmar"}
-    </dd>
-  </div>
+                  <dd className="text-right text-white">
+                    {selectedLocation
+                      ? getLocationLabel(selectedLocation)
+                      : "—"}
+                  </dd>
+                </div>
 
-  <div className="flex justify-between gap-4">
-    <dt>Logótipo</dt>
-    <dd className="max-w-48 truncate text-right text-white">
-      {logoFileName ?? "Ainda não carregado"}
-    </dd>
-  </div>
+                <div className="flex justify-between gap-4">
+                  <dt>Técnica</dt>
 
-  <div className="border-t border-white/10 pt-3">
-    <div className="flex justify-between gap-4">
-      <dt>Quantidade</dt>
-      <dd className="text-right text-white">
-        {quantity.toLocaleString("pt-PT")} un.
-      </dd>
-    </div>
+                  <dd className="text-right text-white">
+                    {selectedLocation?.technique ?? "A confirmar"}
+                  </dd>
+                </div>
 
-    <div className="mt-2 flex justify-between gap-4">
-      <dt>Produto / un.</dt>
-      <dd className="text-right text-white">
-        {formatPrice(productUnitPrice)}
-      </dd>
-    </div>
+                <div className="flex justify-between gap-4">
+                  <dt>Logótipo</dt>
 
-    <div className="mt-2 flex justify-between gap-4">
-      <dt>Subtotal produto</dt>
-      <dd className="text-right text-white">
-        {formatPrice(productSubtotal)}
-      </dd>
-    </div>
+                  <dd className="max-w-48 truncate text-right text-white">
+                    {logoFileName ?? "Ainda não carregado"}
+                  </dd>
+                </div>
 
-    <div className="mt-2 flex justify-between gap-4">
-      <dt>Personalização / un.</dt>
-      <dd className="text-right text-white">
-        {formatPrice(personalizationUnitPrice)}
-      </dd>
-    </div>
+                <div className="border-t border-white/10 pt-3">
+                  <div className="flex justify-between gap-4">
+                    <dt>Quantidade</dt>
 
-    <div className="mt-2 flex justify-between gap-4">
-      <dt>Subtotal personalização</dt>
-      <dd className="text-right text-white">
-        {formatPrice(personalizationSubtotal)}
-      </dd>
-    </div>
+                    <dd className="text-right text-white">
+                      {quantity.toLocaleString("pt-PT")} un.
+                    </dd>
+                  </div>
 
-    <div className="mt-2 flex justify-between gap-4">
-      <dt>Extras</dt>
-      <dd className="text-right text-white">
-        {formatPrice(extrasTotal)}
-      </dd>
-    </div>
+                  <div className="mt-2 flex justify-between gap-4">
+                    <dt>Produto / un.</dt>
 
-    <div className="mt-4 border-t border-white/10 pt-4">
-      <div className="flex justify-between gap-4 text-base">
-        <dt className="font-semibold text-white">Total estimado</dt>
-        <dd className="font-semibold text-white">
-          {formatPrice(estimatedTotal)}
-        </dd>
-      </div>
+                    <dd className="text-right text-white">
+                      {formatPrice(productUnitPrice, productCurrency)}
+                    </dd>
+                  </div>
 
-      <p className="mt-1 text-xs text-neutral-400">
-        Produto + personalização + extras
-      </p>
-    </div>
-  </div>
-</dl>
+                  <div className="mt-2 flex justify-between gap-4">
+                    <dt>Subtotal produto</dt>
+
+                    <dd className="text-right text-white">
+                      {formatPrice(productSubtotal, productCurrency)}
+                    </dd>
+                  </div>
+
+                  <div className="mt-2 flex justify-between gap-4">
+                    <dt>Personalização / un.</dt>
+
+                    <dd className="text-right text-white">
+                      {formatPrice(personalizationUnitPrice, productCurrency)}
+                    </dd>
+                  </div>
+
+                  <div className="mt-2 flex justify-between gap-4">
+                    <dt>Subtotal personalização</dt>
+
+                    <dd className="text-right text-white">
+                      {formatPrice(personalizationSubtotal, productCurrency)}
+                    </dd>
+                  </div>
+
+                  <div className="mt-2 flex justify-between gap-4">
+                    <dt>Extras</dt>
+
+                    <dd className="text-right text-white">
+                      {formatPrice(extrasTotal, productCurrency)}
+                    </dd>
+                  </div>
+
+                  <div className="mt-4 border-t border-white/10 pt-4">
+                    <div className="flex justify-between gap-4 text-base">
+                      <dt className="font-semibold text-white">
+                        Total estimado
+                      </dt>
+
+                      <dd className="font-semibold text-white">
+                        {formatPrice(estimatedTotal, productCurrency)}
+                      </dd>
+                    </div>
+
+                    <p className="mt-1 text-xs text-neutral-400">
+                      Produto + personalização + extras
+                    </p>
+                  </div>
+                </div>
+              </dl>
 
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 <button
@@ -1337,13 +1509,26 @@ const estimatedTotal = roundMoney(
                 produção.
               </div>
 
-              <Link
-  href={`/produto/${productSlug}`}
-  className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-4 text-sm font-semibold !text-neutral-950 transition hover:bg-neutral-100"
->
-  <span className="!text-neutral-950">Confirmar maquete e voltar à encomenda</span>
-  <ArrowRight className="ml-2 h-4 w-4 !text-neutral-950" />
-</Link>
+              {saveMessage ? (
+                <div className="mt-5 rounded-2xl bg-red-500/15 px-4 py-3 text-sm leading-6 text-red-100 ring-1 ring-inset ring-red-400/20">
+                  {saveMessage}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={handleConfirmCustomization}
+                disabled={isSavingDraft}
+                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-4 text-sm font-semibold !text-neutral-950 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <span className="!text-neutral-950">
+                  {isSavingDraft
+                    ? "A confirmar maquete..."
+                    : "Confirmar maquete e avançar para checkout"}
+                </span>
+
+                <ArrowRight className="ml-2 h-4 w-4 !text-neutral-950" />
+              </button>
             </div>
           </aside>
         </div>
@@ -1357,6 +1542,7 @@ const estimatedTotal = roundMoney(
                 <h3 className="text-xl font-semibold text-neutral-950">
                   Tabela de preços
                 </h3>
+
                 <p className="mt-1 text-sm text-neutral-500">
                   Técnica: {selectedLocation?.technique ?? "A confirmar"}
                 </p>
@@ -1365,6 +1551,7 @@ const estimatedTotal = roundMoney(
               <button
                 type="button"
                 onClick={() => setShowPriceTable(false)}
+                aria-label="Fechar tabela de preços"
                 className="rounded-full bg-neutral-100 p-2 text-neutral-600 transition hover:bg-neutral-200"
               >
                 <X className="h-5 w-5" />
@@ -1378,6 +1565,7 @@ const estimatedTotal = roundMoney(
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
                       Quantidade
                     </th>
+
                     {quantityBreaks.map((item) => (
                       <th
                         key={item}
@@ -1394,13 +1582,18 @@ const estimatedTotal = roundMoney(
                     <td className="border-b border-neutral-100 px-4 py-3 font-medium text-neutral-500">
                       Preço / un.
                     </td>
+
                     {quantityBreaks.map((item, index) => (
                       <td
                         key={item}
                         className="border-b border-neutral-100 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
                         {formatPrice(
-                          Math.max(0.12, personalizationUnitPrice - index * 0.035),
+                          Math.max(
+                            0.12,
+                            personalizationUnitPrice - index * 0.035,
+                          ),
+                          productCurrency,
                         )}
                       </td>
                     ))}
@@ -1425,6 +1618,7 @@ const estimatedTotal = roundMoney(
                 <h3 className="text-xl font-semibold text-neutral-950">
                   Tempos de produção
                 </h3>
+
                 <p className="mt-1 text-sm text-neutral-500">
                   Estimativa por técnica e quantidade.
                 </p>
@@ -1433,6 +1627,7 @@ const estimatedTotal = roundMoney(
               <button
                 type="button"
                 onClick={() => setShowProductionTimes(false)}
+                aria-label="Fechar tempos de produção"
                 className="rounded-full bg-neutral-100 p-2 text-neutral-600 transition hover:bg-neutral-200"
               >
                 <X className="h-5 w-5" />
@@ -1446,15 +1641,19 @@ const estimatedTotal = roundMoney(
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
                       Técnica
                     </th>
+
                     <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950">
                       1-50
                     </th>
+
                     <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950">
                       51-250
                     </th>
+
                     <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950">
                       251-1000
                     </th>
+
                     <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950">
                       1000+
                     </th>
@@ -1473,15 +1672,19 @@ const estimatedTotal = roundMoney(
                       <td className="border-b border-neutral-100 px-4 py-3 font-medium text-neutral-950">
                         {technique}
                       </td>
+
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
                         1-3 dias
                       </td>
+
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
                         2-5 dias
                       </td>
+
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
                         4-8 dias
                       </td>
+
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
                         Sob consulta
                       </td>
