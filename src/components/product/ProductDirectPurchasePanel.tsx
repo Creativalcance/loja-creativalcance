@@ -47,6 +47,13 @@ export type ProductPurchaseStock = {
   expected_restock_date: string | null;
 };
 
+export type ProductPurchaseFutureStock = {
+  variant_id: string | null;
+  warehouse_code: string;
+  expected_date: string;
+  expected_quantity: number;
+};
+
 export type ProductPurchaseCustomizationDraft = {
   id: string;
   variant_id: string | null;
@@ -67,6 +74,9 @@ export type ProductPurchaseCustomizationDraft = {
 
 type StockSummary = {
   available: number;
+  incoming: number;
+  orderable: number;
+  nextEntries: ProductPurchaseFutureStock[];
 };
 
 type ColorGroup = {
@@ -99,6 +109,7 @@ type ProductDirectPurchasePanelProps = {
   prices: ProductPurchasePrice[];
   colors: ProductPurchaseColor[];
   stocks: ProductPurchaseStock[];
+  futureStocks: ProductPurchaseFutureStock[];
 };
 
 const initialCartState: AddToCartActionState = {
@@ -202,20 +213,39 @@ function getSizeOrderValue(
 
 function getStockForVariant(params: {
   stocks: ProductPurchaseStock[];
+  futureStocks?: ProductPurchaseFutureStock[];
   variantId: string | null;
 }): StockSummary {
+  const nextEntries = (params.futureStocks ?? [])
+    .filter((stock) =>
+      params.variantId
+        ? stock.variant_id === params.variantId
+        : !stock.variant_id,
+    )
+    .filter((stock) => stock.expected_quantity > 0)
+    .sort((a, b) => a.expected_date.localeCompare(b.expected_date));
+  const incoming = nextEntries.reduce(
+    (total, stock) => total + stock.expected_quantity,
+    0,
+  );
+
   if (!params.variantId) {
     const productStocks =
       params.stocks.filter(
         (stock) => !stock.variant_id,
       );
 
-    return {
-      available: productStocks.reduce(
+    const available = productStocks.reduce(
         (total, stock) =>
           total + stock.available_quantity,
         0,
-      ),
+      );
+
+    return {
+      available,
+      incoming,
+      orderable: available + incoming,
+      nextEntries,
     };
   }
 
@@ -225,13 +255,38 @@ function getStockForVariant(params: {
         stock.variant_id === params.variantId,
     );
 
-  return {
-    available: variantStocks.reduce(
+  const available = variantStocks.reduce(
       (total, stock) =>
         total + stock.available_quantity,
       0,
-    ),
+    );
+
+  return {
+    available,
+    incoming,
+    orderable: available + incoming,
+    nextEntries,
   };
+}
+
+function formatStockDate(value: string): string {
+  return new Intl.DateTimeFormat("pt-PT", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}T00:00:00Z`));
+}
+
+function formatNextEntries(entries: ProductPurchaseFutureStock[]): string {
+  if (entries.length === 0) return "—";
+
+  return entries
+    .map(
+      (entry) =>
+        `${entry.warehouse_code}: ${formatStockDate(entry.expected_date)} / ${entry.expected_quantity.toLocaleString("pt-PT")}`,
+    )
+    .join(" · ");
 }
 
 function dedupeVariantsBySize(params: {
@@ -302,6 +357,7 @@ function sortVariantsBySize(
 function buildColorGroups(params: {
   colors: ProductPurchaseColor[];
   stocks: ProductPurchaseStock[];
+  futureStocks: ProductPurchaseFutureStock[];
 }): ColorGroup[] {
   const groups =
     new Map<string, ColorGroup>();
@@ -315,6 +371,7 @@ function buildColorGroups(params: {
     const stock =
       getStockForVariant({
         stocks: params.stocks,
+        futureStocks: params.futureStocks,
         variantId: color.id,
       });
 
@@ -325,7 +382,7 @@ function buildColorGroups(params: {
         hex: color.color_hex,
         image_url: color.image_url,
         variants: [color],
-        stockAvailable: stock.available,
+        stockAvailable: stock.orderable,
       });
 
       continue;
@@ -334,7 +391,7 @@ function buildColorGroups(params: {
     existingGroup.variants.push(color);
 
     existingGroup.stockAvailable +=
-      stock.available;
+      stock.orderable;
 
     if (
       !existingGroup.image_url &&
@@ -478,6 +535,7 @@ export default function ProductDirectPurchasePanel({
   prices,
   colors,
   stocks,
+  futureStocks,
   customizationDraft,
 }: ProductDirectPurchasePanelProps) {
   const hasSizes = useMemo(
@@ -493,8 +551,9 @@ export default function ProductDirectPurchasePanel({
       buildColorGroups({
         colors,
         stocks,
+        futureStocks,
       }),
-    [colors, stocks],
+    [colors, stocks, futureStocks],
   );
 
   const initialVariantId =
@@ -623,10 +682,11 @@ export default function ProductDirectPurchasePanel({
     () =>
       getStockForVariant({
         stocks,
+        futureStocks,
         variantId:
           selectedVariant?.id ?? null,
       }),
-    [stocks, selectedVariant],
+    [stocks, futureStocks, selectedVariant],
   );
 
   const activePrices = useMemo(
@@ -648,7 +708,7 @@ export default function ProductDirectPurchasePanel({
       ? quantitiesByVariant[
           selectedVariant.id
         ]
-      : selectedStock.available > 0
+      : selectedStock.orderable > 0
         ? minimumQuantity
         : 0;
 
@@ -699,7 +759,7 @@ export default function ProductDirectPurchasePanel({
 
   const canProceed =
     Boolean(selectedVariant?.id) &&
-    selectedStock.available > 0 &&
+    selectedStock.orderable > 0 &&
     selectedQuantity >= minimumQuantity;
 
   function selectColorGroup(
@@ -713,10 +773,11 @@ export default function ProductDirectPurchasePanel({
         const stock =
           getStockForVariant({
             stocks,
+            futureStocks,
             variantId: variant.id,
           });
 
-        return stock.available > 0;
+        return stock.orderable > 0;
       }) ??
       group.variants[0] ??
       null;
@@ -884,6 +945,7 @@ export default function ProductDirectPurchasePanel({
                         const stock =
                           getStockForVariant({
                             stocks,
+                            futureStocks,
                             variantId:
                               variant.id,
                           });
@@ -902,7 +964,7 @@ export default function ProductDirectPurchasePanel({
                               )
                             }
                             disabled={
-                              stock.available <=
+                              stock.orderable <=
                               0
                             }
                             className={`inline-flex items-center rounded-full border px-4 py-2 text-sm font-semibold transition ${
@@ -915,7 +977,7 @@ export default function ProductDirectPurchasePanel({
                               variant,
                             )}
 
-                            {stock.available <=
+                            {stock.orderable <=
                             0 ? (
                               <span
                                 className={`ml-2 rounded-full px-2 py-0.5 text-xs ${
@@ -1306,7 +1368,11 @@ export default function ProductDirectPurchasePanel({
                       </th>
 
                       <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
-                        Stock
+                        Stock atual
+                      </th>
+
+                      <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
+                        Próxima entrada
                       </th>
 
                       <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
@@ -1321,12 +1387,13 @@ export default function ProductDirectPurchasePanel({
                         const stock =
                           getStockForVariant({
                             stocks,
+                            futureStocks,
                             variantId:
                               variant.id,
                           });
 
                         const quantity =
-                          stock.available > 0
+                          stock.orderable > 0
                             ? quantitiesByVariant[
                                 variant.id
                               ] ??
@@ -1381,11 +1448,11 @@ export default function ProductDirectPurchasePanel({
                             </td>
 
                             <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                              {stock.available > 0
-                                ? stock.available.toLocaleString(
-                                    "pt-PT",
-                                  )
-                                : "Brevemente"}
+                              {stock.available.toLocaleString("pt-PT")}
+                            </td>
+
+                            <td className="border-b border-neutral-100 px-4 py-3 text-left text-neutral-700">
+                              {formatNextEntries(stock.nextEntries)}
                             </td>
 
                             <td className="border-b border-neutral-100 px-4 py-3 text-right">
@@ -1393,14 +1460,14 @@ export default function ProductDirectPurchasePanel({
                                 type="number"
                                 min={0}
                                 max={
-                                  stock.available >
+                                  stock.orderable >
                                   0
-                                    ? stock.available
+                                    ? stock.orderable
                                     : undefined
                                 }
                                 value={quantity}
                                 disabled={
-                                  stock.available <=
+                                  stock.orderable <=
                                   0
                                 }
                                 onClick={(
@@ -1429,7 +1496,7 @@ export default function ProductDirectPurchasePanel({
                                         ),
 
                                       stockAvailable:
-                                        stock.available,
+                                        stock.orderable,
                                     },
                                   );
                                 }}
@@ -1457,8 +1524,8 @@ export default function ProductDirectPurchasePanel({
                   type="number"
                   min={minimumQuantity}
                   max={
-                    totalStock > 0
-                      ? totalStock
+                    selectedStock.orderable > 0
+                      ? selectedStock.orderable
                       : undefined
                   }
                   value={selectedQuantity}
@@ -1476,13 +1543,20 @@ export default function ProductDirectPurchasePanel({
                       ),
 
                       stockAvailable:
-                        totalStock,
+                        selectedStock.orderable,
                     });
                   }}
                   className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
                 />
               </div>
             )}
+
+            {selectedQuantity > selectedStock.available &&
+            selectedStock.nextEntries.length > 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
+                Esta encomenda inclui unidades de reposição futura. Próximas entradas confirmadas pela Stricker: {formatNextEntries(selectedStock.nextEntries)}.
+              </div>
+            ) : null}
 
             <div className="rounded-2xl bg-neutral-50 p-5">
               <p className="text-sm font-semibold text-neutral-950">

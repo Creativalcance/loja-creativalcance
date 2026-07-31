@@ -11,9 +11,12 @@ import {
 } from "@/lib/stricker/manual-import/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const ALLOWED_EXTENSIONS = ["xml", "csv"];
 const STORAGE_BUCKET = "supplier-imports";
+const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
 
 function getFileExtension(filename: string): string {
   return filename.split(".").pop()?.toLowerCase() ?? "";
@@ -107,6 +110,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "O ficheiro excede o limite máximo de 25 MB.",
+        },
+        { status: 413 },
+      );
+    }
+
     const extension = getFileExtension(file.name);
 
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
@@ -122,13 +135,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const supplierId = await getStrickerSupplierId();
     const supabaseAdmin = createSupabaseAdminClient();
 
-    const fileContent = await file.text();
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const fileContent = fileBuffer.toString("utf-8");
     const preview = parsePreview(fileContent, extension);
 
     const safeFilename = sanitizeFilename(file.name);
     const storagePath = `stricker/${datasetNameRaw}/${Date.now()}-${safeFilename}`;
-
-    const fileBuffer = Buffer.from(fileContent, "utf-8");
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(STORAGE_BUCKET)
@@ -156,20 +168,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           language: null,
           country: null,
           extension,
-          status: preview.errors.length > 0 ? "partial_success" : "success",
+          status: preview.errors.length > 0 ? "failed" : "pending",
           records_received: preview.recordsDetected,
           records_imported: 0,
-          records_failed: preview.errors.length,
+          records_failed: 0,
           source_url: storagePath,
           raw_payload: preview.previewPayload,
           errors: preview.errors,
           started_at: new Date().toISOString(),
-          finished_at: new Date().toISOString(),
+          finished_at:
+            preview.errors.length > 0 ? new Date().toISOString() : null,
         })
         .select("id")
         .single<{ id: string }>();
 
     if (datasetImportError || !datasetImport) {
+      await supabaseAdmin.storage.from(STORAGE_BUCKET).remove([storagePath]);
+
       return NextResponse.json(
         {
           success: false,
@@ -201,6 +216,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
 
     if (manualFileError) {
+      await Promise.all([
+        supabaseAdmin
+          .from("supplier_dataset_imports")
+          .delete()
+          .eq("id", datasetImport.id),
+        supabaseAdmin.storage.from(STORAGE_BUCKET).remove([storagePath]),
+      ]);
+
       return NextResponse.json(
         {
           success: false,
@@ -214,7 +237,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: preview.errors.length === 0,
       message:
         preview.errors.length === 0
-          ? "Ficheiro carregado e analisado com sucesso."
+          ? "Ficheiro carregado e analisado. Aguarda normalização e aplicação ao catálogo."
           : "Ficheiro carregado, mas foram detectados avisos/erros no parser.",
       dataset: datasetNameRaw,
       extension,

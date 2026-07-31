@@ -39,6 +39,13 @@ type ProductStock = {
   expected_restock_date: string | null;
 };
 
+type ProductFutureStock = {
+  variant_id: string | null;
+  warehouse_code: string;
+  expected_date: string;
+  expected_quantity: number;
+};
+
 type ProductVariant = {
   id: string;
   sku: string;
@@ -98,6 +105,7 @@ type ProductDetail = {
   product_images: ProductImage[] | null;
   product_prices: ProductPrice[] | null;
   product_stocks: ProductStock[] | null;
+  product_future_stocks: ProductFutureStock[] | null;
   product_variants: ProductVariant[] | null;
   product_customization_components: ProductCustomizationComponent[] | null;
   product_customization_locations: ProductCustomizationLocation[] | null;
@@ -418,6 +426,12 @@ export default async function ProductDetailPage({
           incoming_quantity,
           expected_restock_date
         ),
+        product_future_stocks (
+          variant_id,
+          warehouse_code,
+          expected_date,
+          expected_quantity
+        ),
         product_variants (
           id,
           sku,
@@ -587,6 +601,15 @@ export default async function ProductDetailPage({
     expected_restock_date: stock.expected_restock_date,
   }));
 
+  const purchaseFutureStocks = (
+    product.product_future_stocks ?? []
+  ).map((stock) => ({
+    variant_id: stock.variant_id,
+    warehouse_code: stock.warehouse_code,
+    expected_date: stock.expected_date,
+    expected_quantity: stock.expected_quantity,
+  }));
+
   const categoryHref = buildCategoryHref(product);
   const backLabel = product.type_name
     ? `Voltar a ${product.type_name}`
@@ -621,6 +644,7 @@ export default async function ProductDetailPage({
   prices={purchasePrices}
   colors={purchaseColors}
   stocks={purchaseStocks}
+  futureStocks={purchaseFutureStocks}
   customizationDraft={customizationDraft}
 />
       </section>

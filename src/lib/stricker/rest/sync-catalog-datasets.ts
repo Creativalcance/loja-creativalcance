@@ -12,7 +12,7 @@ type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
 type SyncableRestCatalogDataset = Extract<
   StrickerDatasetName,
-  "colors" | "productTypes"
+  "colors" | "productTypes" | "productsTree"
 >;
 
 type SupplierDatasetImportRow = {
@@ -36,6 +36,18 @@ type StrickerProductTypeRecord = {
   TypeCode?: string | number | null;
   TypeDescription?: string | number | null;
   SubTypes?: StrickerProductSubtypeRecord[] | null;
+};
+
+type StrickerProductsTreeRecord = {
+  Type?: string | number | null;
+  TypeCode?: string | number | null;
+  TypeName?: string | number | null;
+  ProductType?: string | number | null;
+  SubType?: string | number | null;
+  Subtype?: string | number | null;
+  SubTypeCode?: string | number | null;
+  SubTypeName?: string | number | null;
+  SubtypeName?: string | number | null;
 };
 
 type SupplierColorUpsertRow = {
@@ -321,6 +333,73 @@ function buildProductTypeCategoryRows(params: {
   return Array.from(rows.values());
 }
 
+function buildProductsTreeCategoryRows(params: {
+  supplierId: string;
+  lang: StrickerLanguage;
+  records: StrickerProductsTreeRecord[];
+}): SupplierCatalogCategoryUpsertRow[] {
+  const rows = new Map<string, SupplierCatalogCategoryUpsertRow>();
+
+  for (const record of params.records) {
+    const typeCode =
+      getNullableString(record.TypeCode) ?? getNullableString(record.Type);
+    const typeName =
+      getNullableString(record.TypeName) ??
+      getNullableString(record.ProductType) ??
+      typeCode;
+    const subtypeCode =
+      getNullableString(record.SubTypeCode) ??
+      getNullableString(record.SubType) ??
+      getNullableString(record.Subtype);
+    const subtypeName =
+      getNullableString(record.SubTypeName) ??
+      getNullableString(record.SubtypeName) ??
+      subtypeCode;
+
+    if (!typeCode && !typeName) {
+      continue;
+    }
+
+    const typeExternalId = `type:${typeCode ?? createSlug(typeName ?? "")}`;
+
+    rows.set(`${params.supplierId}:${typeExternalId}:${params.lang}`, {
+      supplier_id: params.supplierId,
+      external_id: typeExternalId,
+      parent_external_id: null,
+      type_code: typeCode,
+      type_name: typeName,
+      subtype_code: null,
+      subtype_name: null,
+      language: params.lang,
+      is_active: true,
+      raw_payload: toJsonRecord(record),
+    });
+
+    if (!subtypeCode && !subtypeName) {
+      continue;
+    }
+
+    const subtypeExternalId = `subtype:${
+      typeCode ?? createSlug(typeName ?? "sem-tipo")
+    }:${subtypeCode ?? createSlug(subtypeName ?? "")}`;
+
+    rows.set(`${params.supplierId}:${subtypeExternalId}:${params.lang}`, {
+      supplier_id: params.supplierId,
+      external_id: subtypeExternalId,
+      parent_external_id: typeExternalId,
+      type_code: typeCode,
+      type_name: typeName,
+      subtype_code: subtypeCode,
+      subtype_name: subtypeName,
+      language: params.lang,
+      is_active: true,
+      raw_payload: toJsonRecord(record),
+    });
+  }
+
+  return Array.from(rows.values());
+}
+
 function buildCategoryTranslationRows(params: {
   lang: StrickerLanguage;
   categories: ImportedCategoryRow[];
@@ -515,15 +594,26 @@ export async function syncRestCatalogDataset(params: {
       };
     }
 
-    const records = Array.isArray(payload.Types)
-      ? (payload.Types as StrickerProductTypeRecord[])
-      : [];
+    const isProductsTree = params.dataset === "productsTree";
+    const records = isProductsTree
+      ? Array.isArray(payload.ProductsTree)
+        ? (payload.ProductsTree as StrickerProductsTreeRecord[])
+        : []
+      : Array.isArray(payload.Types)
+        ? (payload.Types as StrickerProductTypeRecord[])
+        : [];
 
-    const rows = buildProductTypeCategoryRows({
-      supplierId,
-      lang: params.lang,
-      records,
-    });
+    const rows = isProductsTree
+      ? buildProductsTreeCategoryRows({
+          supplierId,
+          lang: params.lang,
+          records: records as StrickerProductsTreeRecord[],
+        })
+      : buildProductTypeCategoryRows({
+          supplierId,
+          lang: params.lang,
+          records: records as StrickerProductTypeRecord[],
+        });
 
     const importedCategories =
       rows.length > 0

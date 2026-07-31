@@ -89,7 +89,17 @@ function getErrorsPreview(errors: unknown): string {
 
   return errors
     .slice(0, 3)
-    .map((error) => String(error))
+    .map((error) => {
+      if (typeof error === "string") {
+        return error;
+      }
+
+      try {
+        return JSON.stringify(error);
+      } catch {
+        return String(error);
+      }
+    })
     .join(" | ");
 }
 
@@ -120,44 +130,62 @@ export default async function AdminSyncPage() {
 
   const supabaseAdmin = createSupabaseAdminClient();
 
-  const { data: importsData } = await supabaseAdmin
-    .from("supplier_dataset_imports")
-    .select(
-      `
-      id,
-      dataset_name,
-      language,
-      country,
-      extension,
-      status,
-      records_received,
-      records_imported,
-      records_failed,
-      source_url,
-      errors,
-      started_at,
-      finished_at,
-      created_at,
-      supplier_manual_import_files (
-        id
+  const [
+    { data: importsData },
+    { count: successfulCount },
+    { count: partialSuccessCount },
+    { count: failedCount },
+    { count: runningCount },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("supplier_dataset_imports")
+      .select(
+        `
+        id,
+        dataset_name,
+        language,
+        country,
+        extension,
+        status,
+        records_received,
+        records_imported,
+        records_failed,
+        source_url,
+        errors,
+        started_at,
+        finished_at,
+        created_at,
+        supplier_manual_import_files (
+          id
+        )
+      `,
       )
-    `,
-    )
-    .order("created_at", { ascending: false })
-    .limit(15)
-    .returns<DatasetImport[]>();
+      .order("created_at", { ascending: false })
+      .limit(15)
+      .returns<DatasetImport[]>(),
+    supabaseAdmin
+      .from("supplier_dataset_imports")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "success"),
+    supabaseAdmin
+      .from("supplier_dataset_imports")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "partial_success"),
+    supabaseAdmin
+      .from("supplier_dataset_imports")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "failed"),
+    supabaseAdmin
+      .from("supplier_dataset_imports")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "running"),
+  ]);
 
   const imports = importsData ?? [];
-
-  const successfulImports = imports.filter(
-    (item) => item.status === "success",
-  ).length;
-
-  const failedImports = imports.filter((item) => item.status === "failed").length;
-
-  const runningImports = imports.filter(
-    (item) => item.status === "running",
-  ).length;
+  const successfulImports =
+    (successfulCount ?? 0) + (partialSuccessCount ?? 0);
+  const failedImports = failedCount ?? 0;
+  const runningImports = runningCount ?? 0;
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
@@ -248,7 +276,7 @@ export default async function AdminSyncPage() {
                 <tr className="border-b border-neutral-200 text-xs uppercase tracking-[0.14em] text-neutral-500">
                   <th className="px-4 py-3 font-medium">Dataset</th>
                   <th className="px-4 py-3 font-medium">Estado</th>
-                  <th className="px-4 py-3 font-medium">Idioma</th>
+                  <th className="px-4 py-3 font-medium">Âmbito</th>
                   <th className="px-4 py-3 font-medium">Recebidos</th>
                   <th className="px-4 py-3 font-medium">Importados</th>
                   <th className="px-4 py-3 font-medium">Falhados</th>
@@ -281,7 +309,9 @@ export default async function AdminSyncPage() {
                       </td>
 
                       <td className="px-4 py-4 text-neutral-600">
-                        {item.language ?? "—"}
+                        {[item.language, item.country, item.extension]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
                       </td>
 
                       <td className="px-4 py-4 text-neutral-600">

@@ -507,6 +507,55 @@ export async function createPaymentCheckoutSessionAction(
       };
     }
 
+    const productIds = Array.from(
+      new Set(
+        cartItems
+          .map((item) => item.product_id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+
+    if (cartItems.some((item) => !item.product_id)) {
+      return {
+        success: false,
+        message:
+          "O carrinho contém artigos inválidos. Remove-os antes de continuar.",
+      };
+    }
+
+    const { data: purchasableProducts, error: availabilityError } =
+      await supabaseAdmin
+        .from("products")
+        .select("id")
+        .in("id", productIds)
+        .eq("status", "active")
+        .eq("is_active", true)
+        .eq("is_purchasable", true);
+
+    if (availabilityError) {
+      return {
+        success: false,
+        message:
+          "Não foi possível confirmar a disponibilidade dos artigos.",
+      };
+    }
+
+    const purchasableProductIds = new Set(
+      (purchasableProducts ?? []).map((product) => product.id),
+    );
+
+    const unavailableItem = cartItems.find(
+      (item) =>
+        !item.product_id || !purchasableProductIds.has(item.product_id),
+    );
+
+    if (unavailableItem) {
+      return {
+        success: false,
+        message: `${unavailableItem.product_name} deixou de estar disponível. Remove este artigo do carrinho antes de continuar.`,
+      };
+    }
+
     if (!shippingAddress || !cart.shipping_address_id) {
       return {
         success: false,

@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import {
   ArrowLeft,
   BadgeCheck,
   Banknote,
   Box,
-  Building2,
-  CalendarDays,
   CheckCircle2,
   CircleAlert,
   CircleDollarSign,
@@ -28,7 +26,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
 
 export const dynamic = "force-dynamic";
 
@@ -38,13 +36,6 @@ type AdminOrderDetailPageProps = {
   params: Promise<{
     id: string;
   }>;
-};
-
-type ProfileRecord = {
-  id: string;
-  full_name: string | null;
-  email: string;
-  role: string;
 };
 
 type OrderRecord = {
@@ -893,30 +884,9 @@ export default async function AdminOrderDetailPage({
 }: AdminOrderDetailPageProps) {
   const { id } = await params;
 
-  const supabase = await createSupabaseServerClient();
+  await assertAdminAccess(`/admin/encomendas/${id}`);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, email, role")
-    .eq("id", user.id)
-    .maybeSingle<ProfileRecord>();
-
-  if (
-    !profile ||
-    !["admin", "super_admin"].includes(profile.role)
-  ) {
-    redirect("/");
-  }
-
-  const supabaseAdmin = createSupabaseAdminClient();
+const supabaseAdmin = createSupabaseAdminClient();
 
   const [
     orderResult,

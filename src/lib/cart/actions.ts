@@ -400,6 +400,7 @@ export async function addToCartAction(
             sku,
             name,
             min_order_quantity,
+            is_purchasable,
             product_prices (
               variant_id,
               quantity_min,
@@ -412,6 +413,7 @@ export async function addToCartAction(
         .eq("id", productId)
         .eq("status", "active")
         .eq("is_active", true)
+        .eq("is_purchasable", true)
         .maybeSingle<ProductForCart>();
 
     if (productError || !product) {

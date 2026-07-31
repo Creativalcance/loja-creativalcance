@@ -11,12 +11,13 @@ export const runtime = "nodejs";
 
 type SyncableRestCatalogDataset = Extract<
   StrickerDatasetName,
-  "colors" | "productTypes"
+  "colors" | "productTypes" | "productsTree"
 >;
 
 const ALLOWED_DATASETS: SyncableRestCatalogDataset[] = [
   "colors",
   "productTypes",
+  "productsTree",
 ];
 
 const ALLOWED_LANGUAGES: StrickerLanguage[] = [
@@ -65,7 +66,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       typeof body.dataset === "string" ? body.dataset : "productTypes";
 
     const langRaw =
-      typeof body.lang === "string" ? body.lang : getDefaultStrickerLanguage();
+      typeof body.lang === "string"
+        ? body.lang.trim().toUpperCase()
+        : getDefaultStrickerLanguage();
 
     if (!isAllowedDataset(datasetRaw)) {
       return NextResponse.json(

@@ -1,10 +1,15 @@
+
+
+
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
-import { syncRestOptionals } from "@/lib/stricker/rest/sync-optionals";
+import { syncRestProducts } from "@/lib/stricker/rest/sync-products";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const ALLOWED_LANGUAGES: StrickerLanguage[] = [
   "BG",
@@ -44,7 +49,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     };
 
     const langRaw =
-      typeof body.lang === "string" ? body.lang : getDefaultStrickerLanguage();
+      typeof body.lang === "string" && body.lang.trim().length > 0
+        ? body.lang.trim().toUpperCase()
+        : getDefaultStrickerLanguage();
 
     if (!isAllowedLanguage(langRaw)) {
       return NextResponse.json(
@@ -56,13 +63,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const result = await syncRestOptionals({
+    const result = await syncRestProducts({
       lang: langRaw,
     });
 
     return NextResponse.json({
       success: true,
-      message: "Variantes Stricker sincronizadas com sucesso.",
+      message: "Produtos Stricker sincronizados com sucesso.",
       ...result,
     });
   } catch (error) {
@@ -72,7 +79,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado na sincronização REST de optionals.",
+            : "Erro inesperado na sincronização REST de produtos.",
       },
       { status: 500 },
     );

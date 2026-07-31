@@ -17,14 +17,11 @@ type TestResult = {
 
 async function testRestAuthentication(): Promise<TestResult> {
   try {
-    const token = await getValidStrickerSessionToken();
+    await getValidStrickerSessionToken();
 
     return {
       success: true,
       message: "Autenticação REST Stricker validada com sucesso.",
-      details: {
-        token_preview: `${token.slice(0, 6)}...${token.slice(-6)}`,
-      },
     };
   } catch (error) {
     return {
@@ -84,20 +81,28 @@ export async function GET(): Promise<NextResponse> {
   try {
     await assertAdminAccess();
 
-    const rest = await testRestAuthentication();
-    const directDownload = await testDirectDownload();
+    const [rest, directDownload] = await Promise.all([
+      testRestAuthentication(),
+      testDirectDownload(),
+    ]);
+    const success = rest.success && directDownload.success;
 
     return NextResponse.json({
-      success: rest.success || directDownload.success,
+      success,
       message:
-        rest.success || directDownload.success
-          ? "Ligação Stricker testada."
-          : "Não foi possível validar nenhuma via de ligação Stricker.",
+        success
+          ? "Todas as vias de ligação Stricker foram validadas."
+          : "Uma ou mais vias de ligação Stricker falharam.",
       rest,
       direct_download: directDownload,
-      recommendation: directDownload.success
-        ? "Usar direct download para importação de catálogo."
-        : "Confirmar AccessKey com a Stricker.",
+      recommendation:
+        rest.success && !directDownload.success
+          ? "A autenticação REST funciona; confirme a AccessKey do direct download."
+          : !rest.success && directDownload.success
+            ? "O direct download funciona; confirme as credenciais da autenticação REST."
+            : !success
+              ? "Confirme as credenciais e a configuração das duas vias Stricker."
+              : "As duas vias estão operacionais.",
     });
   } catch (error) {
     return NextResponse.json(

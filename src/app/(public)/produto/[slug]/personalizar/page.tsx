@@ -312,10 +312,15 @@ function buildEditorLocations(params: {
 
     const techniques = getCustomizationTypesForLocation(location);
 
-    const safeTechniques =
-      techniques.length > 0 ? techniques : ["Personalização"];
+    // A Stricker only exposes a location when that slot contains at least one
+    // available customization technique. Creating a generic option here made
+    // inactive slots (for example Interior or Handle) appear in the shop even
+    // though they are not selectable in the supplier configurator.
+    if (techniques.length === 0) {
+      continue;
+    }
 
-    for (const technique of safeTechniques) {
+    for (const technique of techniques) {
       const locationName =
         location.location_name ??
         location.location_code ??
@@ -325,6 +330,7 @@ function buildEditorLocations(params: {
         id: `${location.id}:${technique}`,
         source_location_id: location.id,
         variant_id: location.variant_id,
+        component_id: location.component_id,
         technique,
         component_name:
           component?.component_name ??

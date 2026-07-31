@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeManualImportDataset } from "@/lib/stricker/manual-import/normalizers";
 import { type JsonRecord } from "@/lib/stricker/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
+const UPSERT_CHUNK_SIZE = 500;
 
 type RouteContext = {
   params: Promise<{
@@ -32,7 +37,7 @@ type NormalizedRecordBase = JsonRecord & {
   supplier_payload?: JsonRecord;
 };
 
-function getRecordExternalId(record: NormalizedRecordBase, index: number): string {
+function getRecordExternalId(record: NormalizedRecordBase): string {
   const externalId =
     typeof record.external_id === "string" && record.external_id.trim().length > 0
       ? record.external_id.trim()
@@ -48,7 +53,16 @@ function getRecordExternalId(record: NormalizedRecordBase, index: number): strin
       ? record.sku.trim()
       : null;
 
-  return externalId ?? code ?? sku ?? `record-${index + 1}`;
+  if (externalId || code || sku) {
+    return externalId ?? code ?? (sku as string);
+  }
+
+  const hash = createHash("sha256")
+    .update(JSON.stringify(record))
+    .digest("hex")
+    .slice(0, 24);
+
+  return `generated-${hash}`;
 }
 
 function getNullableString(value: unknown): string | null {
@@ -67,7 +81,6 @@ function buildNormalizedRow(params: {
   manualImportFileId: string;
   datasetName: string;
   record: NormalizedRecordBase;
-  index: number;
 }) {
   const {
     supplierId,
@@ -75,10 +88,9 @@ function buildNormalizedRow(params: {
     manualImportFileId,
     datasetName,
     record,
-    index,
   } = params;
 
-  const externalId = getRecordExternalId(record, index);
+  const externalId = getRecordExternalId(record);
 
   const supplierPayload =
     record.supplier_payload &&
@@ -166,21 +178,21 @@ export async function POST(
       extension: manualFile.file_extension,
     });
 
-    const rows = normalized.records.map((record, index) =>
+    const rows = normalized.records.map((record) =>
       buildNormalizedRow({
         supplierId: manualFile.supplier_id,
         datasetImportId: manualFile.dataset_import_id,
         manualImportFileId: manualFile.id,
         datasetName: normalized.datasetName,
         record: record as NormalizedRecordBase,
-        index,
       }),
     );
 
-    if (rows.length > 0) {
+    for (let offset = 0; offset < rows.length; offset += UPSERT_CHUNK_SIZE) {
+      const rowChunk = rows.slice(offset, offset + UPSERT_CHUNK_SIZE);
       const { error: upsertError } = await supabaseAdmin
         .from("supplier_normalized_import_records")
-        .upsert(rows, {
+        .upsert(rowChunk, {
           onConflict: "manual_import_file_id,dataset_name,external_id",
         });
 
@@ -225,12 +237,12 @@ export async function POST(
       const { error: updateDatasetImportError } = await supabaseAdmin
         .from("supplier_dataset_imports")
         .update({
-          status: "success",
-          records_imported: rows.length,
+          status: "running",
+          records_imported: 0,
           records_failed: 0,
           raw_payload: normalizedPreview,
           errors: [],
-          finished_at: new Date().toISOString(),
+          finished_at: null,
         })
         .eq("id", manualFile.dataset_import_id);
 

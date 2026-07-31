@@ -5,13 +5,21 @@ import { RefreshCw, ServerCog } from "lucide-react";
 
 type StrickerLanguage = "PT" | "EN" | "ES" | "FR" | "DE" | "IT" | "NL";
 
+type StrickerCountry = "PT" | "CZ";
+
 type SyncAction =
   | "colors"
   | "productTypes"
+  | "productsTree"
   | "products"
   | "optionals"
+  | "customizationOptions"
   | "customizationTables"
-  | "stocksByCountry";
+  | "stocksPT"
+  | "stocksCZ"
+  | "canceledProducts"
+  | "restrictedProducts"
+  | "reconcileAvailability";
 
 type SyncState = {
   loadingAction: SyncAction | null;
@@ -35,13 +43,32 @@ type SyncResponse = {
   imagesImported?: number;
   componentsImported?: number;
   locationsImported?: number;
+  optionsImported?: number;
   tablesImported?: number;
   techniqueTranslationsImported?: number;
   translationsImported?: number;
   variantsMatched?: number;
   stocksImported?: number;
   futureStocksImported?: number;
+  recordsTotal?: number;
+  recordsProcessed?: number;
+  offset?: number;
+  limit?: number;
+  nextOffset?: number | null;
+  hasMore?: boolean;
   datasetImportId?: string;
+  productsTotal?: number;
+  productsPurchasable?: number;
+  productsComingSoon?: number;
+  productsUnavailable?: number;
+  productsRestricted?: number;
+  productsCanceled?: number;
+};
+
+type SyncActionCard = {
+  action: SyncAction;
+  title: string;
+  description: string;
 };
 
 const AVAILABLE_LANGUAGES: {
@@ -78,21 +105,24 @@ const AVAILABLE_LANGUAGES: {
   },
 ];
 
-const ACTIONS: {
-  action: SyncAction;
-  title: string;
-  description: string;
-}[] = [
+const ACTIONS: SyncActionCard[] = [
   {
     action: "colors",
     title: "Sincronizar cores",
-    description: "Importa cores da Stricker via REST para supplier_colors.",
+    description:
+      "Importa cores da Stricker via REST para supplier_colors.",
   },
   {
     action: "productTypes",
     title: "Sincronizar tipos",
     description:
       "Importa tipos e subtipos da Stricker via REST para supplier_catalog_categories e category_translations.",
+  },
+  {
+    action: "productsTree",
+    title: "Sincronizar árvore de produtos",
+    description:
+      "Importa a estrutura hierárquica da Stricker para as categorias e subcategorias do catálogo.",
   },
   {
     action: "products",
@@ -113,15 +143,69 @@ const ACTIONS: {
       "Importa tabelas e preços de personalização para printing_price_tables.",
   },
   {
-    action: "stocksByCountry",
+    action: "customizationOptions",
+    title: "Gerar personalizações",
+    description:
+      "Gera todas as opções de personalização por lotes a partir das variantes, localizações e tabelas.",
+  },
+  {
+    action: "stocksPT",
     title: "Sincronizar stocks PT",
     description:
-      "Importa stocks PT da Stricker via REST para product_stocks e product_future_stocks.",
+      "Importa stocks do armazém de Portugal para product_stocks e product_future_stocks.",
+  },
+  {
+    action: "stocksCZ",
+    title: "Sincronizar stocks CZ",
+    description:
+      "Importa stocks do armazém da República Checa para product_stocks e product_future_stocks.",
+  },
+  {
+    action: "canceledProducts",
+    title: "Sincronizar cancelados",
+    description:
+      "Importa os artigos retirados do catálogo comercial pela Stricker.",
+  },
+  {
+    action: "restrictedProducts",
+    title: "Sincronizar restrições PT",
+    description:
+      "Importa os artigos que a Stricker não permite vender em Portugal.",
+  },
+  {
+    action: "reconcileAvailability",
+    title: "Atualizar disponibilidade",
+    description:
+      "Cruza catálogo, variantes, stocks PT/CZ, reposições, cancelados e restrições.",
   },
 ];
 
+function isStockAction(action: SyncAction): boolean {
+  return action === "stocksPT" || action === "stocksCZ";
+}
+
+function getStockCountry(action: SyncAction): StrickerCountry | null {
+  if (action === "stocksPT") {
+    return "PT";
+  }
+
+  if (action === "stocksCZ") {
+    return "CZ";
+  }
+
+  return null;
+}
+
 function getSyncEndpoint(action: SyncAction): string {
-  if (action === "stocksByCountry") {
+  if (
+    action === "canceledProducts" ||
+    action === "restrictedProducts" ||
+    action === "reconcileAvailability"
+  ) {
+    return "/api/admin/stricker/rest/sync-commercial-status";
+  }
+
+  if (isStockAction(action)) {
     return "/api/admin/stricker/rest/sync-stocks";
   }
 
@@ -137,23 +221,40 @@ function getSyncEndpoint(action: SyncAction): string {
     return "/api/admin/stricker/rest/sync-customization-tables";
   }
 
+  if (action === "customizationOptions") {
+    return "/api/admin/stricker/rest/sync-customization-options";
+  }
+
   return "/api/admin/stricker/rest/sync-catalog";
 }
 
 function buildSyncBody(params: {
   action: SyncAction;
   language: StrickerLanguage;
-}): Record<string, string> {
-  if (params.action === "stocksByCountry") {
+}): Record<string, unknown> {
+  const stockCountry = getStockCountry(params.action);
+
+  if (stockCountry) {
     return {
       lang: params.language,
-      country: "PT",
+      country: stockCountry,
+    };
+  }
+
+  if (
+    params.action === "canceledProducts" ||
+    params.action === "restrictedProducts" ||
+    params.action === "reconcileAvailability"
+  ) {
+    return {
+      action: params.action,
     };
   }
 
   if (
     params.action === "products" ||
     params.action === "optionals" ||
+    params.action === "customizationOptions" ||
     params.action === "customizationTables"
   ) {
     return {
@@ -167,7 +268,9 @@ function buildSyncBody(params: {
   };
 }
 
-async function parseSyncResponse(response: Response): Promise<SyncResponse> {
+async function parseSyncResponse(
+  response: Response,
+): Promise<SyncResponse> {
   const responseText = await response.text();
 
   try {
@@ -186,7 +289,7 @@ async function parseSyncResponse(response: Response): Promise<SyncResponse> {
 
 async function requestSync(params: {
   action: SyncAction;
-  body: Record<string, string>;
+  body: Record<string, unknown>;
 }): Promise<SyncResponse> {
   const endpoint = getSyncEndpoint(params.action);
 
@@ -209,8 +312,65 @@ async function requestSync(params: {
   return payload;
 }
 
+async function requestAllCustomizationOptions(
+  language: StrickerLanguage,
+): Promise<SyncResponse> {
+  const limit = 250;
+  let offset = 0;
+  let recordsReceived = 0;
+  let recordsProcessed = 0;
+  let optionsImported = 0;
+  let lastPayload: SyncResponse | null = null;
+
+  for (let batch = 0; batch < 10_000; batch += 1) {
+    const payload = await requestSync({
+      action: "customizationOptions",
+      body: {
+        lang: language,
+        offset,
+        limit,
+      },
+    });
+
+    lastPayload = payload;
+    recordsReceived += payload.recordsReceived ?? 0;
+    recordsProcessed += payload.recordsProcessed ?? 0;
+    optionsImported += payload.optionsImported ?? 0;
+
+    if (!payload.hasMore || payload.nextOffset === null) {
+      return {
+        ...payload,
+        recordsReceived,
+        recordsProcessed,
+        optionsImported,
+        hasMore: false,
+        nextOffset: null,
+      };
+    }
+
+    if (
+      typeof payload.nextOffset !== "number" ||
+      payload.nextOffset <= offset
+    ) {
+      throw new Error(
+        "A paginação de customizationOptions devolveu um offset inválido.",
+      );
+    }
+
+    offset = payload.nextOffset;
+  }
+
+  throw new Error(
+    `A geração de customizationOptions excedeu o limite de segurança. Último lote: ${
+      lastPayload?.offset ?? offset
+    }.`,
+  );
+}
+
 function getImportedCount(payload: SyncResponse): number {
   return (
+    payload.productsPurchasable ??
+    payload.optionsImported ??
     payload.tablesImported ??
     payload.variantsImported ??
     payload.productsImported ??
@@ -237,8 +397,10 @@ function getExtraMessage(params: {
   const { action, payload } = params;
   const translations = getTranslationCount(payload);
 
-  if (action === "stocksByCountry") {
-    return ` Variantes encontradas: ${
+  if (isStockAction(action)) {
+    return ` País/armazém: ${
+      payload.country ?? getStockCountry(action) ?? "—"
+    }. Variantes encontradas: ${
       payload.variantsMatched ?? 0
     }. Stocks futuros: ${payload.futureStocksImported ?? 0}.`;
   }
@@ -249,7 +411,7 @@ function getExtraMessage(params: {
     }.`;
   }
 
-  if (action === "productTypes") {
+  if (action === "productTypes" || action === "productsTree") {
     return ` Traduções: ${translations}.`;
   }
 
@@ -262,8 +424,24 @@ function getExtraMessage(params: {
   }
 
   if (action === "customizationTables") {
-    return ` Técnicas detectadas: ${
+    return ` Técnicas detetadas: ${
       payload.techniqueTranslationsImported ?? 0
+    }.`;
+  }
+
+  if (action === "customizationOptions") {
+    return ` Localizações processadas: ${
+      payload.recordsProcessed ?? 0
+    } de ${payload.recordsTotal ?? payload.recordsProcessed ?? 0}.`;
+  }
+
+  if (action === "reconcileAvailability") {
+    return ` Total: ${payload.productsTotal ?? 0}. Disponíveis para compra: ${
+      payload.productsPurchasable ?? 0
+    }. Reposição futura: ${payload.productsComingSoon ?? 0}. Indisponíveis: ${
+      payload.productsUnavailable ?? 0
+    }. Restringidos: ${payload.productsRestricted ?? 0}. Cancelados: ${
+      payload.productsCanceled ?? 0
     }.`;
   }
 
@@ -293,10 +471,13 @@ export default function StrickerRestCatalogSyncActions() {
         language: selectedLanguage,
       });
 
-      const payload = await requestSync({
-        action,
-        body,
-      });
+      const payload =
+        action === "customizationOptions"
+          ? await requestAllCustomizationOptions(selectedLanguage)
+          : await requestSync({
+              action,
+              body,
+            });
 
       const imported = getImportedCount(payload);
       const extra = getExtraMessage({
@@ -336,13 +517,15 @@ export default function StrickerRestCatalogSyncActions() {
           </p>
 
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-            Sincronização directa
+            Sincronização direta
           </h2>
 
           <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
-            Sincroniza datasets pequenos e operacionais directamente via REST.
-            A personalização é construída dinamicamente no produto a partir das
-            variantes, componentes, localizações e tabelas de preço.
+            Sincroniza os datasets do catálogo diretamente via REST. Os
+            stocks dos armazéns de Portugal e da República Checa são
+            importados separadamente. Os artigos cancelados, restringidos ou
+            sem disponibilidade comercial são retirados da venda sem serem
+            eliminados da base de dados.
           </p>
         </div>
 
@@ -360,7 +543,9 @@ export default function StrickerRestCatalogSyncActions() {
               value={selectedLanguage}
               disabled={state.loadingAction !== null}
               onChange={(event) => {
-                setSelectedLanguage(event.target.value as StrickerLanguage);
+                setSelectedLanguage(
+                  event.target.value as StrickerLanguage,
+                );
               }}
               className="mt-2 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -376,7 +561,7 @@ export default function StrickerRestCatalogSyncActions() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+      <div className="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-4">
         {ACTIONS.map((item) => {
           const isLoading = state.loadingAction === item.action;
 
@@ -402,7 +587,7 @@ export default function StrickerRestCatalogSyncActions() {
                 </div>
 
                 <RefreshCw
-                  className={`h-5 w-5 text-neutral-500 ${
+                  className={`h-5 w-5 shrink-0 text-neutral-500 ${
                     isLoading ? "animate-spin" : ""
                   }`}
                 />
@@ -412,11 +597,12 @@ export default function StrickerRestCatalogSyncActions() {
         })}
       </div>
 
-      <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
-        A geração massiva de <strong>product_customization_options</strong> foi
-        desactivada. O simulador deverá calcular a personalização de forma
-        dinâmica quando o cliente escolher produto, variante, localização e
-        técnica.
+      <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+        Execute as sincronizações pela ordem apresentada e termine sempre em{" "}
+        <strong>Atualizar disponibilidade</strong>. A geração de{" "}
+        <strong>product_customization_options</strong> percorre
+        automaticamente todos os lotes disponíveis. Os stocks PT e CZ
+        devem ser sincronizados separadamente.
       </div>
 
       {state.message ? (

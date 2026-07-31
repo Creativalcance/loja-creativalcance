@@ -361,25 +361,37 @@ async function upsertProductStocks(params: {
   }
 }
 
-async function deleteFutureStocks(params: {
+async function resetWarehouseStocks(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
   warehouseCode: string;
-  variantIds: string[];
+  syncedAt: string;
 }): Promise<void> {
-  const uniqueVariantIds = Array.from(new Set(params.variantIds));
+  const { error: stocksError } = await params.supabaseAdmin
+    .from("product_stocks")
+    .update({
+      available_quantity: 0,
+      reserved_quantity: 0,
+      incoming_quantity: 0,
+      expected_restock_date: null,
+      future_quantities: [],
+      last_synced_at: params.syncedAt,
+    })
+    .eq("supplier_id", params.supplierId)
+    .eq("warehouse_code", params.warehouseCode);
 
-  for (const variantIdChunk of chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE)) {
-    const { error } = await params.supabaseAdmin
-      .from("product_future_stocks")
-      .delete()
-      .eq("supplier_id", params.supplierId)
-      .eq("warehouse_code", params.warehouseCode)
-      .in("variant_id", variantIdChunk);
+  if (stocksError) {
+    throw new Error(stocksError.message);
+  }
 
-    if (error) {
-      throw new Error(error.message);
-    }
+  const { error: futureStocksError } = await params.supabaseAdmin
+    .from("product_future_stocks")
+    .delete()
+    .eq("supplier_id", params.supplierId)
+    .eq("warehouse_code", params.warehouseCode);
+
+  if (futureStocksError) {
+    throw new Error(futureStocksError.message);
   }
 }
 
@@ -505,21 +517,17 @@ export async function syncRestStocksByCountry(params: {
       });
     }
 
+    await resetWarehouseStocks({
+      supabaseAdmin,
+      supplierId,
+      warehouseCode,
+      syncedAt: now,
+    });
+
     if (stockRows.length > 0) {
       await upsertProductStocks({
         supabaseAdmin,
         rows: stockRows,
-      });
-    }
-
-    const variantIds = stockRows.map((row) => row.variant_id);
-
-    if (variantIds.length > 0) {
-      await deleteFutureStocks({
-        supabaseAdmin,
-        supplierId,
-        warehouseCode,
-        variantIds,
       });
     }
 

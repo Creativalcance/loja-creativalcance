@@ -10,6 +10,7 @@ import {
   useTransition,
   type ChangeEvent,
   type PointerEvent,
+  type SyntheticEvent,
 } from "react";
 import {
   ArrowRight,
@@ -45,6 +46,7 @@ export type ProductEditorLocation = {
   id: string;
   source_location_id: string;
   variant_id: string | null;
+  component_id: string | null;
   technique: string;
   component_name: string | null;
   location_name: string | null;
@@ -70,8 +72,16 @@ type PrintAreaDimensions = {
   heightMm: number;
 };
 
+type PreviewPrintArea = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+};
+
 type LocationGroup = {
   id: string;
+  componentId: string;
   locationName: string;
   componentName: string | null;
   maxPrintingAreaMm: string | null;
@@ -105,6 +115,56 @@ const DEFAULT_PRINT_AREA: PrintAreaDimensions = {
   widthMm: 50,
   heightMm: 20,
 };
+
+type ComponentGroup = {
+  id: string;
+  name: string;
+  sourceIds: string[];
+  isRecommended: boolean;
+};
+
+function getProductImageCandidates(params: {
+  selectedColor: ProductEditorVariant | null;
+  productImageUrl: string | null;
+}): string[] {
+  return Array.from(
+    new Set(
+      [
+        params.selectedColor?.image_url,
+        params.productImageUrl,
+      ].filter((url): url is string => Boolean(url)),
+    ),
+  );
+}
+
+function getGuideImageCandidates(
+  selectedLocation: ProductEditorLocation | null,
+): string[] {
+  return Array.from(
+    new Set(
+      [
+        selectedLocation?.printing_lines_image_url,
+        selectedLocation?.area_image_url,
+        selectedLocation?.location_image_url,
+        selectedLocation?.preview_image_url,
+      ].filter((url): url is string => Boolean(url)),
+    ),
+  );
+}
+
+function getBrowserSafeImageUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname === "cdn.hideacontent.com") {
+      return `/api/media/stricker-image?url=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
+}
 
 const quantityBreaks = [
   "1",
@@ -141,9 +201,8 @@ function getLocationLabel(location: ProductEditorLocation): string {
 
 function getLocationGroupKey(location: ProductEditorLocation): string {
   return [
-    location.location_name ?? "local",
     location.component_name ?? "componente",
-    location.max_printing_area_mm ?? "area",
+    location.location_name ?? "local",
   ]
     .join(":")
     .normalize("NFD")
@@ -212,6 +271,10 @@ function buildLocationGroups(params: {
     if (!existingGroup) {
       groups.set(key, {
         id: key,
+        componentId:
+          location.component_id ??
+          location.component_name ??
+          "componente",
         locationName: getLocationLabel(location),
         componentName: location.component_name,
         maxPrintingAreaMm: location.max_printing_area_mm,
@@ -299,7 +362,25 @@ function getSafeLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
 }): LogoPosition {
-  const safeWidth = clamp(params.position.width, 10, 100);
+  const angle = (clamp(params.position.rotation, -15, 15) * Math.PI) / 180;
+  const absoluteCosine = Math.abs(Math.cos(angle));
+  const absoluteSine = Math.abs(Math.sin(angle));
+  const heightPerWidth =
+    params.printAreaAspectRatio / params.logoAspectRatio;
+  const rotatedWidthPerWidth =
+    absoluteCosine + heightPerWidth * absoluteSine;
+  const rotatedHeightPerWidth =
+    absoluteSine + heightPerWidth * absoluteCosine;
+  const maximumWidth = Math.min(
+    100,
+    100 / Math.max(rotatedWidthPerWidth, Number.EPSILON),
+    100 / Math.max(rotatedHeightPerWidth, Number.EPSILON),
+  );
+  const safeWidth = clamp(
+    params.position.width,
+    Math.min(10, maximumWidth),
+    maximumWidth,
+  );
 
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: safeWidth,
@@ -307,27 +388,25 @@ function getSafeLogoPosition(params: {
     logoAspectRatio: params.logoAspectRatio,
   });
 
+  const rotatedWidth = safeWidth * rotatedWidthPerWidth;
+  const rotatedHeight = safeWidth * rotatedHeightPerWidth;
+  const horizontalOverhang = Math.max(0, (rotatedWidth - safeWidth) / 2);
+  const verticalOverhang = Math.max(0, (rotatedHeight - logoHeight) / 2);
+
   return {
-    x: clamp(params.position.x, 0, Math.max(0, 100 - safeWidth)),
-    y: clamp(params.position.y, 0, Math.max(0, 100 - logoHeight)),
+    x: clamp(
+      params.position.x,
+      horizontalOverhang,
+      Math.max(horizontalOverhang, 100 - safeWidth - horizontalOverhang),
+    ),
+    y: clamp(
+      params.position.y,
+      verticalOverhang,
+      Math.max(verticalOverhang, 100 - logoHeight - verticalOverhang),
+    ),
     width: safeWidth,
     rotation: clamp(params.position.rotation, -15, 15),
   };
-}
-
-function getPreferredPreviewImage(params: {
-  selectedLocation: ProductEditorLocation | null;
-  selectedColor: ProductEditorVariant | null;
-  productImageUrl: string | null;
-}): string | null {
-  return (
-    params.selectedLocation?.printing_lines_image_url ??
-    params.selectedLocation?.area_image_url ??
-    params.selectedLocation?.location_image_url ??
-    params.selectedLocation?.preview_image_url ??
-    params.selectedColor?.image_url ??
-    params.productImageUrl
-  );
 }
 
 function getTechniqueEstimatedUnitPrice(technique: string | null): number {
@@ -438,11 +517,13 @@ export default function ProductCustomizationEditor({
   const router = useRouter();
 
   const printAreaRef = useRef<HTMLDivElement | null>(null);
+  const productPrintAreaRef = useRef<HTMLDivElement | null>(null);
 
   const dragStateRef = useRef<{
     pointerId: number;
     offsetX: number;
     offsetY: number;
+    area: "editor" | "product";
   } | null>(null);
 
   const [isSavingDraft, startSavingDraft] = useTransition();
@@ -457,13 +538,59 @@ export default function ProductCustomizationEditor({
 
   const quantity = Math.max(1, initialQuantity);
 
-  const locationGroups = useMemo(
+  const allLocationGroups = useMemo(
     () =>
       buildLocationGroups({
         locations,
         selectedVariantId: selectedColor?.id ?? initialVariantId ?? null,
       }),
     [initialVariantId, locations, selectedColor?.id],
+  );
+
+  const componentGroups = useMemo(
+    () => buildComponentGroups(allLocationGroups),
+    [allLocationGroups],
+  );
+
+  const initialComponentId = useMemo(() => {
+    const initialGroup = initialLocationId
+      ? allLocationGroups.find((group) =>
+          group.options.some(
+            (option) =>
+              option.source_location_id === initialLocationId ||
+              option.id === initialLocationId,
+          ),
+        )
+      : null;
+
+    const initialComponent = initialGroup
+      ? componentGroups.find((component) =>
+          component.sourceIds.includes(initialGroup.componentId),
+        )
+      : null;
+
+    return initialComponent?.id ?? componentGroups[0]?.id ?? null;
+  }, [allLocationGroups, componentGroups, initialLocationId]);
+
+  const [selectedComponentId, setSelectedComponentId] = useState<
+    string | null
+  >(initialComponentId);
+
+  const locationGroups = useMemo(
+    () => {
+      const selectedComponent = componentGroups.find(
+        (component) => component.id === selectedComponentId,
+      );
+
+      if (!selectedComponent) {
+        return [];
+      }
+
+      return allLocationGroups.filter((group) =>
+        selectedComponent.sourceIds.includes(group.componentId),
+      );
+    },
+    [allLocationGroups, componentGroups, selectedComponentId],
   );
 
   const initialGroupId = useMemo(() => {
@@ -513,6 +640,9 @@ export default function ProductCustomizationEditor({
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
+  const [previewPrintArea, setPreviewPrintArea] =
+    useState<PreviewPrintArea | null>(null);
+  const [guideImageIndex, setGuideImageIndex] = useState(0);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
@@ -550,11 +680,25 @@ export default function ProductCustomizationEditor({
     (logoHeightPercent / 100) * printAreaDimensions.heightMm,
   );
 
-  const previewBaseImage = getPreferredPreviewImage({
-    selectedLocation,
-    selectedColor,
-    productImageUrl,
-  });
+  const productImageCandidates = useMemo(
+    () =>
+      getProductImageCandidates({
+        selectedColor,
+        productImageUrl,
+      }),
+    [selectedColor, productImageUrl],
+  );
+
+  const guideImageCandidates = useMemo(
+    () => getGuideImageCandidates(selectedLocation),
+    [selectedLocation],
+  );
+
+  const productBaseImage = productImageCandidates[0] ?? null;
+  const previewBaseImage = guideImageCandidates[guideImageIndex] ?? null;
+  const browserSafePreviewImage = previewBaseImage
+    ? getBrowserSafeImageUrl(previewBaseImage)
+    : null;
 
   const productPriceTier = findProductPriceTier({
     prices: productPrices,
@@ -590,6 +734,19 @@ export default function ProductCustomizationEditor({
 
   useEffect(() => {
     if (
+      selectedComponentId &&
+      componentGroups.some(
+        (component) => component.id === selectedComponentId,
+      )
+    ) {
+      return;
+    }
+
+    setSelectedComponentId(componentGroups[0]?.id ?? null);
+  }, [componentGroups, selectedComponentId]);
+
+  useEffect(() => {
+    if (
       selectedGroupId &&
       locationGroups.some((group) => group.id === selectedGroupId)
     ) {
@@ -605,6 +762,8 @@ export default function ProductCustomizationEditor({
 
   useEffect(() => {
     setPosition(initialPosition);
+    setPreviewPrintArea(null);
+    setGuideImageIndex(0);
   }, [selectedLocation?.id]);
 
   useEffect(() => {
@@ -657,6 +816,206 @@ export default function ProductCustomizationEditor({
 
     image.src = objectUrl;
     setLogoPreviewUrl(objectUrl);
+  }
+
+  function detectPreviewPrintArea(
+    event: SyntheticEvent<HTMLImageElement>,
+  ) {
+    const image = event.currentTarget;
+
+    if (!image.naturalWidth || !image.naturalHeight) {
+      setPreviewPrintArea(null);
+      return;
+    }
+
+    try {
+      const maximumDetectionSize = 900;
+      const scale = Math.min(
+        1,
+        maximumDetectionSize /
+          Math.max(image.naturalWidth, image.naturalHeight),
+      );
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", {
+        willReadFrequently: true,
+      });
+
+      if (!context) {
+        setPreviewPrintArea(null);
+        return;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      context.drawImage(image, 0, 0, width, height);
+
+      const pixels = context.getImageData(0, 0, width, height).data;
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+      let matchingPixels = 0;
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = (y * width + x) * 4;
+          const red = pixels[index];
+          const green = pixels[index + 1];
+          const blue = pixels[index + 2];
+          const alpha = pixels[index + 3];
+
+          const isGreenGuide =
+            alpha > 100 &&
+            green > 95 &&
+            green > red * 1.2 &&
+            green > blue * 1.12 &&
+            green - Math.max(red, blue) > 24;
+
+          if (!isGreenGuide) {
+            continue;
+          }
+
+          matchingPixels += 1;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+
+      let detectedWidth = maxX - minX + 1;
+      let detectedHeight = maxY - minY + 1;
+      let isPlausibleArea =
+        matchingPixels >= 12 &&
+        detectedWidth >= width * 0.04 &&
+        detectedHeight >= height * 0.015 &&
+        detectedWidth <= width * 0.8 &&
+        detectedHeight <= height * 0.65;
+
+      if (!isPlausibleArea) {
+        const rowCounts = new Array<number>(height).fill(0);
+        const columnCounts = new Array<number>(width).fill(0);
+
+        for (let y = Math.floor(height * 0.08); y < height * 0.92; y += 1) {
+          for (let x = Math.floor(width * 0.08); x < width * 0.92; x += 1) {
+            const index = (y * width + x) * 4;
+            const red = pixels[index];
+            const green = pixels[index + 1];
+            const blue = pixels[index + 2];
+            const brightness = (red + green + blue) / 3;
+            const colourSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
+
+            if (brightness < 205 || colourSpread > 38) {
+              continue;
+            }
+
+            let hasDarkNeighbour = false;
+
+            for (let offset = -3; offset <= 3 && !hasDarkNeighbour; offset += 1) {
+              const neighbourX = clamp(x + offset, 0, width - 1);
+              const neighbourY = clamp(y + offset, 0, height - 1);
+              const horizontalIndex = (y * width + neighbourX) * 4;
+              const verticalIndex = (neighbourY * width + x) * 4;
+              const horizontalBrightness =
+                (pixels[horizontalIndex] + pixels[horizontalIndex + 1] + pixels[horizontalIndex + 2]) / 3;
+              const verticalBrightness =
+                (pixels[verticalIndex] + pixels[verticalIndex + 1] + pixels[verticalIndex + 2]) / 3;
+
+              hasDarkNeighbour = horizontalBrightness < 155 || verticalBrightness < 155;
+            }
+
+            if (hasDarkNeighbour) {
+              rowCounts[y] += 1;
+              columnCounts[x] += 1;
+            }
+          }
+        }
+
+        const strongestRows = rowCounts
+          .map((count, coordinate) => ({ count, coordinate }))
+          .filter((item) => item.count >= Math.max(7, width * 0.012))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 30);
+        const strongestColumns = columnCounts
+          .map((count, coordinate) => ({ count, coordinate }))
+          .filter((item) => item.count >= Math.max(7, height * 0.012))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 30);
+
+        let bestCandidate:
+          | { left: number; top: number; right: number; bottom: number; score: number }
+          | null = null;
+
+        for (const top of strongestRows) {
+          for (const bottom of strongestRows) {
+            const candidateHeight = bottom.coordinate - top.coordinate;
+
+            if (candidateHeight < height * 0.05 || candidateHeight > height * 0.45) continue;
+
+            for (const left of strongestColumns) {
+              for (const right of strongestColumns) {
+                const candidateWidth = right.coordinate - left.coordinate;
+
+                if (candidateWidth < width * 0.05 || candidateWidth > width * 0.55) continue;
+
+                const aspectRatio = candidateWidth / candidateHeight;
+                const aspectDifference = Math.abs(Math.log(aspectRatio / printAreaAspectRatio));
+                if (aspectDifference > 0.8) continue;
+
+                const centreX = (left.coordinate + right.coordinate) / 2;
+                const centreY = (top.coordinate + bottom.coordinate) / 2;
+                const centrePenalty =
+                  Math.abs(centreX / width - 0.5) + Math.abs(centreY / height - 0.52);
+                const score =
+                  top.count + bottom.count + left.count + right.count -
+                  aspectDifference * 40 - centrePenalty * 25;
+
+                if (!bestCandidate || score > bestCandidate.score) {
+                  bestCandidate = {
+                    left: left.coordinate,
+                    top: top.coordinate,
+                    right: right.coordinate,
+                    bottom: bottom.coordinate,
+                    score,
+                  };
+                }
+              }
+            }
+          }
+        }
+
+        if (bestCandidate) {
+          minX = bestCandidate.left;
+          minY = bestCandidate.top;
+          maxX = bestCandidate.right;
+          maxY = bestCandidate.bottom;
+          detectedWidth = maxX - minX + 1;
+          detectedHeight = maxY - minY + 1;
+          isPlausibleArea = true;
+        }
+      }
+
+      if (!isPlausibleArea) {
+        setPreviewPrintArea(null);
+        return;
+      }
+
+      setPreviewPrintArea({
+        left: (minX / width) * 100,
+        top: (minY / height) * 100,
+        width: (detectedWidth / width) * 100,
+        height: (detectedHeight / height) * 100,
+      });
+    } catch {
+      setPreviewPrintArea(null);
+    }
+  }
+
+  function handleGuideImageError() {
+    setPreviewPrintArea(null);
+    setGuideImageIndex((current) => current + 1);
   }
 
   function updatePosition(key: keyof LogoPosition, value: number) {
@@ -721,12 +1080,17 @@ export default function ProductCustomizationEditor({
     updatePosition("width", safePosition.width + 8);
   }
 
-  function handleLogoPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!printAreaRef.current) {
+  function handleLogoPointerDown(
+    event: PointerEvent<HTMLDivElement>,
+    area: "editor" | "product" = "editor",
+  ) {
+    const activeArea = area === "product" ? productPrintAreaRef.current : printAreaRef.current;
+
+    if (!activeArea) {
       return;
     }
 
-    const rect = printAreaRef.current.getBoundingClientRect();
+    const rect = activeArea.getBoundingClientRect();
     const logoLeft = rect.left + (safePosition.x / 100) * rect.width;
     const logoTop = rect.top + (safePosition.y / 100) * rect.height;
 
@@ -734,6 +1098,7 @@ export default function ProductCustomizationEditor({
       pointerId: event.pointerId,
       offsetX: event.clientX - logoLeft,
       offsetY: event.clientY - logoTop,
+      area,
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -746,11 +1111,14 @@ export default function ProductCustomizationEditor({
       return;
     }
 
-    if (!printAreaRef.current) {
+    const activeArea =
+      dragState.area === "product" ? productPrintAreaRef.current : printAreaRef.current;
+
+    if (!activeArea) {
       return;
     }
 
-    const rect = printAreaRef.current.getBoundingClientRect();
+    const rect = activeArea.getBoundingClientRect();
 
     const nextX =
       ((event.clientX - rect.left - dragState.offsetX) / rect.width) * 100;
@@ -864,7 +1232,7 @@ export default function ProductCustomizationEditor({
 
       formData.set(
         "technicalPreviewUrl",
-        previewBaseImage ?? "",
+        previewBaseImage ?? productBaseImage ?? "",
       );
 
       formData.set("supplierId", supplierId ?? "");
@@ -910,6 +1278,41 @@ export default function ProductCustomizationEditor({
         <div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
           <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-sm font-semibold text-neutral-950">
+              Componente
+            </p>
+
+            <div className="mt-4 space-y-2">
+              {componentGroups.map((component) => {
+                const isSelected = component.id === selectedComponentId;
+
+                return (
+                  <button
+                    key={component.id}
+                    type="button"
+                    onClick={() => setSelectedComponentId(component.id)}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                      isSelected
+                        ? "border-neutral-950 bg-white shadow-sm"
+                        : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-base font-semibold text-neutral-950">
+                        {component.name}
+                      </p>
+
+                      {component.isRecommended ? (
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                          Recomendado
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-6 text-sm font-semibold text-neutral-950">
               Localização
             </p>
 
@@ -934,12 +1337,6 @@ export default function ProductCustomizationEditor({
                           {group.locationName}
                         </p>
 
-                        {group.componentName ? (
-                          <p className="mt-2 text-sm text-neutral-600">
-                            {group.componentName}
-                          </p>
-                        ) : null}
-
                         {group.maxPrintingAreaMm ? (
                           <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
                             <Ruler className="mr-1.5 h-3.5 w-3.5" />
@@ -963,13 +1360,75 @@ export default function ProductCustomizationEditor({
           <div className="space-y-5">
             <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
               <div className="flex min-h-[620px] items-center justify-center bg-white">
-                {previewBaseImage ? (
-                  <img
-                    src={previewBaseImage}
-                    alt={productName}
-                    className="max-h-[700px] w-full object-contain p-8"
-                  />
-                ) : null}
+                {browserSafePreviewImage ? (
+                  <div className="max-w-full p-8">
+                    <div className="relative inline-block max-w-full align-middle">
+                      <img
+                        key={browserSafePreviewImage}
+                        src={browserSafePreviewImage}
+                        alt={`Área de personalização ${getLocationLabel(selectedLocation!)}`}
+                        onLoad={detectPreviewPrintArea}
+                        onError={handleGuideImageError}
+                        className="block max-h-[700px] max-w-full object-contain"
+                      />
+
+                      {previewPrintArea ? (
+                        <div
+                          ref={productPrintAreaRef}
+                          aria-label="Área máxima de personalização definida pela Stricker"
+                          className="pointer-events-none absolute overflow-hidden"
+                          style={{
+                            left: `${previewPrintArea.left}%`,
+                            top: `${previewPrintArea.top}%`,
+                            width: `${previewPrintArea.width}%`,
+                            height: `${previewPrintArea.height}%`,
+                          }}
+                        >
+                          {logoPreviewUrl ? (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              aria-label="Mover logótipo na área de personalização"
+                              onPointerDown={(event) =>
+                                handleLogoPointerDown(event, "product")
+                              }
+                              onPointerMove={handleLogoPointerMove}
+                              onPointerUp={handleLogoPointerUp}
+                              onPointerCancel={handleLogoPointerUp}
+                              className="pointer-events-auto absolute cursor-grab touch-none active:cursor-grabbing"
+                              style={{
+                                left: `${safePosition.x}%`,
+                                top: `${safePosition.y}%`,
+                                width: `${safePosition.width}%`,
+                                height: `${logoHeightPercent}%`,
+                                transform: `rotate(${safePosition.rotation}deg)`,
+                                transformOrigin: "center center",
+                              }}
+                            >
+                              <img
+                                src={logoPreviewUrl}
+                                alt="Pré-visualização do logótipo no produto"
+                                draggable={false}
+                                className="pointer-events-none h-full w-full select-none object-contain"
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-w-xl p-8 text-center">
+                    <p className="text-base font-semibold text-neutral-950">
+                      Maquete técnica indisponível
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-neutral-600">
+                      A Stricker não disponibilizou uma imagem com a área de
+                      impressão para esta combinação. A posição não será
+                      estimada pela loja.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-5">
@@ -1018,8 +1477,9 @@ export default function ProductCustomizationEditor({
                 </div>
 
                 <p className="mt-4 text-xs leading-5 text-neutral-500">
-                  A imagem mostra a zona técnica enviada pelo fornecedor. A
-                  posição final será validada antes da produção.
+                  A moldura apresentada pertence à maquete técnica fornecida
+                  pela Stricker para a localização selecionada. A posição final
+                  será validada antes da produção.
                 </p>
               </div>
             </div>
@@ -1703,4 +2163,49 @@ export default function ProductCustomizationEditor({
       ) : null}
     </>
   );
+}
+
+function buildComponentGroups(
+  locationGroups: LocationGroup[],
+): ComponentGroup[] {
+  const components = new Map<string, ComponentGroup>();
+
+  for (const group of locationGroups) {
+    const name = group.componentName?.trim() || "Produto";
+    const key = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("pt-PT");
+    const existing = components.get(key);
+
+    if (!existing) {
+      components.set(key, {
+        id: key,
+        name,
+        sourceIds: [group.componentId],
+        isRecommended: group.isRecommended,
+      });
+      continue;
+    }
+
+    if (!existing.sourceIds.includes(group.componentId)) {
+      existing.sourceIds.push(group.componentId);
+    }
+
+    if (group.isRecommended) {
+      existing.isRecommended = true;
+    }
+  }
+
+  return Array.from(components.values()).sort((a, b) => {
+    if (a.isRecommended && !b.isRecommended) {
+      return -1;
+    }
+
+    if (!a.isRecommended && b.isRecommended) {
+      return 1;
+    }
+
+    return a.name.localeCompare(b.name, "pt-PT");
+  });
 }

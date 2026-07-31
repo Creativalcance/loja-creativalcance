@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 300;
+
 type ProfileResponse = {
   role: string;
 };
@@ -60,7 +64,7 @@ export async function POST() {
       );
     }
 
-    if (!["admin", "super_admin"].includes(profile.role)) {
+    if (!["admin", "super_admin", "sales"].includes(profile.role)) {
       return NextResponse.json(
         {
           success: false,
@@ -70,10 +74,19 @@ export async function POST() {
       );
     }
 
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-    if (!supabaseAnonKey) {
-      throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY não está configurado.");
+    if (sessionError || !session?.access_token) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Não foi possível obter o token da sessão atual.",
+        },
+        { status: 401 },
+      );
     }
 
     const response = await fetch(
@@ -81,7 +94,7 @@ export async function POST() {
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${supabaseAnonKey}`,
+          Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
       },

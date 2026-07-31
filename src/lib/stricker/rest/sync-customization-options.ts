@@ -515,21 +515,17 @@ async function fetchComponents(params: {
     return [];
   }
 
-  const rows: ProductCustomizationComponentRow[] = [];
-  const allowedVariantIds = new Set(params.variantIds);
-  let page = 0;
+  const rows = new Map<string, ProductCustomizationComponentRow>();
+  const uniqueVariantIds = Array.from(new Set(params.variantIds));
 
-  while (true) {
-    const from = page * QUERY_CHUNK_SIZE;
-    const to = from + QUERY_CHUNK_SIZE - 1;
-
+  for (const variantIdChunk of chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE)) {
     const { data, error } = await params.supabaseAdmin
       .from("product_customization_components")
       .select(
         "id,product_id,variant_id,supplier_id,external_component_id,component_code,component_name",
       )
       .eq("supplier_id", params.supplierId)
-      .range(from, to)
+      .in("variant_id", variantIdChunk)
       .returns<ProductCustomizationComponentRow[]>();
 
     if (error) {
@@ -537,19 +533,11 @@ async function fetchComponents(params: {
     }
 
     for (const row of data ?? []) {
-      if (row.variant_id && allowedVariantIds.has(row.variant_id)) {
-        rows.push(row);
-      }
+      rows.set(row.id, row);
     }
-
-    if (!data || data.length < QUERY_CHUNK_SIZE) {
-      break;
-    }
-
-    page += 1;
   }
 
-  return rows;
+  return Array.from(rows.values());
 }
 
 async function fetchPrintingPriceTables(params: {

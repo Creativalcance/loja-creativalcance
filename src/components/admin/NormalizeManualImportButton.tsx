@@ -12,8 +12,12 @@ type NormalizeManualImportButtonProps = {
 type NormalizeResponse = {
   success: boolean;
   message: string;
-  imported?: number;
-  failed?: number;
+  recordsNormalized?: number;
+  colorsImported?: number;
+  categoriesImported?: number;
+  productsImported?: number;
+  variantsImported?: number;
+  imagesImported?: number;
   errors?: string[];
 };
 
@@ -66,17 +70,43 @@ export default function NormalizeManualImportButton({
         },
       );
 
-      const payload = await readResponse(response);
+      const normalizePayload = await readResponse(response);
 
-      if (!response.ok || !payload.success) {
-        alert(payload.message);
+      if (!response.ok || !normalizePayload.success) {
+        alert(normalizePayload.message);
         return;
       }
 
+      const importResponse = await fetch(
+        `/api/admin/stricker/manual-import/${encodeURIComponent(
+          importFileId,
+        )}/import-catalog`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+        },
+      );
+
+      const importPayload = await readResponse(importResponse);
+
+      if (!importResponse.ok || !importPayload.success) {
+        alert(
+          `A normalização terminou, mas a aplicação ao catálogo falhou: ${importPayload.message}`,
+        );
+        return;
+      }
+
+      const catalogRecords =
+        importPayload.colorsImported ??
+        importPayload.productsImported ??
+        importPayload.categoriesImported ??
+        0;
+
       alert(
-        `Normalização concluída.\nImportados: ${
-          payload.imported ?? 0
-        }\nFalhados: ${payload.failed ?? 0}`,
+        `Processamento concluído.\nNormalizados: ${
+          normalizePayload.recordsNormalized ?? 0
+        }\nAplicados ao catálogo: ${catalogRecords}`,
       );
 
       router.refresh();
@@ -107,7 +137,7 @@ export default function NormalizeManualImportButton({
       ) : (
         <Wand2 className="mr-1.5 h-3.5 w-3.5" />
       )}
-      {isNormalizing ? "A normalizar..." : "Normalizar"}
+      {isNormalizing ? "A processar..." : "Processar"}
     </button>
   );
 }
