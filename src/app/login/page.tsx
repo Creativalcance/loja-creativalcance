@@ -6,23 +6,23 @@ type LoginPageProps = {
   }>;
 };
 
-function getSafeNextPath(value: string | undefined): string {
+function getSafeNextPath(value: string | undefined): string | undefined {
   if (!value) {
-    return "/admin";
+    return undefined;
   }
 
   const trimmed = value.trim();
 
   if (!trimmed.startsWith("/")) {
-    return "/admin";
+    return undefined;
   }
 
   if (trimmed.startsWith("//")) {
-    return "/admin";
+    return undefined;
   }
 
   if (trimmed.includes("://")) {
-    return "/admin";
+    return undefined;
   }
 
   return trimmed;

@@ -8,26 +8,42 @@ export type AuthActionState = {
   message: string;
 };
 
-function getSafeRedirectPath(value: FormDataEntryValue | null): string {
+type ProfileRole = {
+  role: string;
+};
+
+function getSafeRedirectPath(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") {
-    return "/admin";
+    return null;
   }
 
   const trimmed = value.trim();
 
   if (!trimmed.startsWith("/")) {
-    return "/admin";
+    return null;
   }
 
   if (trimmed.startsWith("//")) {
-    return "/admin";
+    return null;
   }
 
   if (trimmed.includes("://")) {
+    return null;
+  }
+
+  return trimmed || null;
+}
+
+function getDefaultRedirectPath(role: string | null | undefined): string {
+  if (role === "admin" || role === "super_admin") {
     return "/admin";
   }
 
-  return trimmed || "/admin";
+  if (role === "sales") {
+    return "/area-comercial";
+  }
+
+  return "/area-cliente";
 }
 
 export async function loginAction(
@@ -36,7 +52,8 @@ export async function loginAction(
 ): Promise<AuthActionState> {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
-  const nextPath = getSafeRedirectPath(formData.get("next"));
+  const requestedNextPath = getSafeRedirectPath(formData.get("next"));
+  let destinationPath = requestedNextPath;
 
   if (!email || !password) {
     return {
@@ -48,7 +65,7 @@ export async function loginAction(
   try {
     const supabase = await createSupabaseServerClient();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -58,6 +75,16 @@ export async function loginAction(
         success: false,
         message: "Dados de acesso inválidos.",
       };
+    }
+
+    if (!destinationPath) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", data.user.id)
+        .maybeSingle<ProfileRole>();
+
+      destinationPath = getDefaultRedirectPath(profile?.role);
     }
   } catch (error) {
     return {
@@ -69,7 +96,7 @@ export async function loginAction(
     };
   }
 
-  redirect(nextPath);
+  redirect(destinationPath ?? "/area-cliente");
 }
 
 export async function registerAction(

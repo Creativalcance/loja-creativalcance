@@ -11,6 +11,7 @@ import {
   ServerCog,
   Settings,
   ShoppingBag,
+  Store,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -153,13 +154,23 @@ export default async function AdminPage() {
               {profile.role}
             </p>
 
-            <Link
-              href="/logout"
-              className="mt-4 flex items-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Sair
-            </Link>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Link
+                href="/"
+                className="flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:bg-white/90"
+              >
+                <Store className="mr-2 h-4 w-4" />
+                Ver loja
+              </Link>
+
+              <Link
+                href="/logout"
+                className="flex items-center rounded-full border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sair
+              </Link>
+            </div>
           </div>
         </div>
 

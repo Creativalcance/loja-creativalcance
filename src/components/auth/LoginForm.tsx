@@ -13,7 +13,7 @@ type LoginFormProps = {
   nextPath?: string;
 };
 
-export function LoginForm({ nextPath = "/admin" }: LoginFormProps) {
+export function LoginForm({ nextPath }: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(
     loginAction,
     initialState,
@@ -21,7 +21,7 @@ export function LoginForm({ nextPath = "/admin" }: LoginFormProps) {
 
   return (
     <form action={formAction} className="mt-8 space-y-5">
-      <input type="hidden" name="next" value={nextPath} />
+      {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
 
       <div>
         <label
