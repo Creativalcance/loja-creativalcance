@@ -68,6 +68,21 @@ type ProductCustomizationLocation = {
   raw_payload: JsonRecord | null;
 };
 
+type PrintingPriceTable = {
+  id: string;
+  table_code: string;
+  table_code_option: string | null;
+  technique_name: string | null;
+  quantity_min: number;
+  quantity_max: number | null;
+  supplier_price: number;
+  final_price: number;
+  supplier_handling_cost: number;
+  handling_cost: number;
+  handling_cost_code: string | null;
+  currency: string;
+};
+
 type ProductDetail = {
   id: string;
   supplier_id: string | null;
@@ -301,6 +316,7 @@ function getVariantLabel(variant: ProductVariant | null): string | null {
 function buildEditorLocations(params: {
   locations: ProductCustomizationLocation[];
   componentsById: Map<string, ProductCustomizationComponent>;
+  printingPrices: PrintingPriceTable[];
 }): ProductEditorLocation[] {
   const rows: ProductEditorLocation[] = [];
 
@@ -312,15 +328,10 @@ function buildEditorLocations(params: {
 
     const techniques = getCustomizationTypesForLocation(location);
 
-    // A Stricker only exposes a location when that slot contains at least one
-    // available customization technique. Creating a generic option here made
-    // inactive slots (for example Interior or Handle) appear in the shop even
-    // though they are not selectable in the supplier configurator.
-    if (techniques.length === 0) {
-      continue;
-    }
+    const safeTechniques =
+      techniques.length > 0 ? techniques : ["Personalização"];
 
-    for (const technique of techniques) {
+    for (const technique of safeTechniques) {
       const locationName =
         location.location_name ??
         location.location_code ??
@@ -330,7 +341,6 @@ function buildEditorLocations(params: {
         id: `${location.id}:${technique}`,
         source_location_id: location.id,
         variant_id: location.variant_id,
-        component_id: location.component_id,
         technique,
         component_name:
           component?.component_name ??
@@ -346,6 +356,33 @@ function buildEditorLocations(params: {
         max_area_cm2: location.max_area_cm2,
         table_codes: getTableCodesForLocation(location),
         is_recommended: location.is_default,
+        price_tiers: params.printingPrices
+          .filter((price) => {
+            const codeMatches = getTableCodesForLocation(location).some(
+              (code) =>
+                code === price.table_code ||
+                code === price.table_code_option,
+            );
+            const techniqueMatches =
+              !price.technique_name ||
+              price.technique_name.localeCompare(technique, "pt-PT", {
+                sensitivity: "base",
+              }) === 0;
+            return codeMatches && techniqueMatches;
+          })
+          .map((price) => ({
+            id: price.id,
+            table_code: price.table_code,
+            table_code_option: price.table_code_option,
+            quantity_min: price.quantity_min,
+            quantity_max: price.quantity_max,
+            supplier_price: price.supplier_price,
+            final_price: price.final_price,
+            supplier_handling_cost: price.supplier_handling_cost,
+            handling_cost: price.handling_cost,
+            handling_cost_code: price.handling_cost_code,
+            currency: price.currency,
+          })),
       });
     }
   }
@@ -474,6 +511,23 @@ export default async function ProductPersonalizePage({
     ),
   );
 
+  const tableCodes = Array.from(
+    new Set(customizationLocations.flatMap(getTableCodesForLocation)),
+  );
+  const { data: printingPriceData } = tableCodes.length
+    ? await supabase
+        .from("printing_price_tables")
+        .select(
+          "id,table_code,table_code_option,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency",
+        )
+        .eq("supplier_id", product.supplier_id)
+        .eq("is_active", true)
+        .or(
+          `table_code.in.(${tableCodes.map((code) => `"${code.replace(/"/g, "")}"`).join(",")}),table_code_option.in.(${tableCodes.map((code) => `"${code.replace(/"/g, "")}"`).join(",")})`,
+        )
+        .order("quantity_min", { ascending: true })
+    : { data: [] };
+
   const editorVariants: ProductEditorVariant[] = variants.map(
     (variant) => ({
       id: variant.id,
@@ -490,6 +544,7 @@ export default async function ProductPersonalizePage({
   const editorLocations = buildEditorLocations({
     locations: customizationLocations,
     componentsById,
+    printingPrices: (printingPriceData ?? []) as PrintingPriceTable[],
   });
 
   const editorPrices: ProductEditorPrice[] = (

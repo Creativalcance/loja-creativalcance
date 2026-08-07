@@ -8,6 +8,11 @@ import {
 } from "@/lib/cart/actions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  resolveCustomizationPrice,
+  type CustomizationPriceTier,
+} from "@/lib/pricing/resolve-customization-price";
+import type { PricingRule } from "@/lib/pricing/types";
 
 export type StartCustomizationDraftState = {
   success: boolean;
@@ -535,14 +540,6 @@ export async function saveCustomizationDraftAction(
       getRequiredNumber(formData, "quantity"),
     );
 
-    const personalizationUnitPrice = getRequiredNumber(
-      formData,
-      "personalizationUnitPrice",
-    );
-
-    const setupCost =
-      getOptionalNumber(formData, "setupCost") ?? 0;
-
     const extrasTotal =
       getOptionalNumber(formData, "extrasTotal") ?? 0;
 
@@ -675,6 +672,62 @@ export async function saveCustomizationDraftAction(
         redirectUrl: null,
       };
     }
+
+    if (!tableCode) {
+      return {
+        success: false,
+        message: "Não foi possível identificar a tabela Stricker desta personalização.",
+        draftId: null,
+        redirectUrl: null,
+      };
+    }
+
+    const safeTableCode = tableCode.replace(/[(),]/g, "");
+    const { data: priceTiers, error: priceTierError } = await supabaseAdmin
+      .from("printing_price_tables")
+      .select(
+        "id,table_code,table_code_option,technique_code,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency,price_by_color,price_by_area,max_colors,area_cm2,is_manual_override,pricing_rule_id,handling_is_manual_override",
+      )
+      .eq("supplier_id", product.supplier_id)
+      .eq("is_active", true)
+      .or(`table_code.eq.${safeTableCode},table_code_option.eq.${safeTableCode}`)
+      .returns<CustomizationPriceTier[]>();
+
+    const { data: pricingRules } = await supabaseAdmin
+      .from("pricing_rules")
+      .select("*")
+      .eq("is_active", true)
+      .in("price_type", ["personalization", "setup"])
+      .returns<PricingRule[]>();
+
+    const confirmedCustomizationPrice = resolveCustomizationPrice({
+      tiers: priceTiers ?? [],
+      rules: pricingRules ?? [],
+      supplierId: product.supplier_id,
+      productId: product.id,
+      variantId: variant.id,
+      tableCode,
+      tableCodeOption,
+      techniqueName,
+      quantity,
+      areaCm2:
+        printingWidthMm && printingHeightMm
+          ? (printingWidthMm * printingHeightMm) / 100
+          : null,
+    });
+
+    if (priceTierError || !confirmedCustomizationPrice) {
+      return {
+        success: false,
+        message: "Não foi possível confirmar o preço Stricker desta personalização para a quantidade selecionada.",
+        draftId: null,
+        redirectUrl: null,
+      };
+    }
+
+    const personalizationUnitPrice =
+      confirmedCustomizationPrice.personalizationUnitPrice;
+    const setupCost = confirmedCustomizationPrice.setupCost;
 
     const { data: location, error: locationError } =
       await supabaseAdmin
@@ -890,8 +943,9 @@ export async function saveCustomizationDraftAction(
       supplier_product_reference: product.sku,
       supplier_sku: variant.sku,
       service_code: serviceCode,
-      table_code: tableCode,
-      table_code_option: tableCodeOption,
+      table_code: confirmedCustomizationPrice.tableCode,
+      table_code_option: confirmedCustomizationPrice.tableCodeOption,
+      handling_cost_code: confirmedCustomizationPrice.handlingCostCode,
       printing_area_label: location.max_printing_area_mm,
       printing_width_mm: printingWidthMm,
       printing_height_mm: printingHeightMm,
@@ -938,6 +992,21 @@ export async function saveCustomizationDraftAction(
         nominative,
         internalReference,
         notes,
+        pricing: {
+          priceTableId: confirmedCustomizationPrice.priceTableId,
+          supplierPersonalizationUnitPrice:
+            confirmedCustomizationPrice.supplierPersonalizationUnitPrice,
+          personalizationUnitPrice,
+          supplierSetupCost: confirmedCustomizationPrice.supplierSetupCost,
+          setupCost,
+          quantityMin: confirmedCustomizationPrice.quantityMin,
+          quantityMax: confirmedCustomizationPrice.quantityMax,
+          personalizationPricingRuleId:
+            confirmedCustomizationPrice.personalizationPricingRuleId,
+          setupPricingRuleId:
+            confirmedCustomizationPrice.setupPricingRuleId,
+          confirmedAt: new Date().toISOString(),
+        },
         pricingStatus: "estimated",
       },
       metadata: {

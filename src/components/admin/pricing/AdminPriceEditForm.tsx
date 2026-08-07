@@ -8,7 +8,7 @@ import {
 import type { PricingMode } from "@/lib/pricing/calculate-selling-price";
 
 type AdminPriceEditFormProps = {
-  entityType: "product_price" | "printing_price";
+  entityType: "product_price" | "printing_price" | "printing_setup";
   entityId: string;
   currentMode: PricingMode;
   supplierPrice: number;

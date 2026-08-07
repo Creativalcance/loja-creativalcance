@@ -10,7 +10,6 @@ import {
   useTransition,
   type ChangeEvent,
   type PointerEvent,
-  type SyntheticEvent,
 } from "react";
 import {
   ArrowRight,
@@ -46,7 +45,6 @@ export type ProductEditorLocation = {
   id: string;
   source_location_id: string;
   variant_id: string | null;
-  component_id: string | null;
   technique: string;
   component_name: string | null;
   location_name: string | null;
@@ -58,6 +56,21 @@ export type ProductEditorLocation = {
   max_area_cm2: number | null;
   table_codes: string[];
   is_recommended: boolean;
+  price_tiers: ProductEditorCustomizationPrice[];
+};
+
+export type ProductEditorCustomizationPrice = {
+  id: string;
+  table_code: string;
+  table_code_option: string | null;
+  quantity_min: number;
+  quantity_max: number | null;
+  supplier_price: number;
+  final_price: number;
+  handling_cost: number;
+  supplier_handling_cost: number;
+  handling_cost_code: string | null;
+  currency: string;
 };
 
 type LogoPosition = {
@@ -72,17 +85,8 @@ type PrintAreaDimensions = {
   heightMm: number;
 };
 
-type PreviewPrintArea = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-  aspectRatio: number;
-};
-
 type LocationGroup = {
   id: string;
-  componentId: string;
   locationName: string;
   componentName: string | null;
   maxPrintingAreaMm: string | null;
@@ -116,56 +120,6 @@ const DEFAULT_PRINT_AREA: PrintAreaDimensions = {
   widthMm: 50,
   heightMm: 20,
 };
-
-type ComponentGroup = {
-  id: string;
-  name: string;
-  sourceIds: string[];
-  isRecommended: boolean;
-};
-
-function getProductImageCandidates(params: {
-  selectedColor: ProductEditorVariant | null;
-  productImageUrl: string | null;
-}): string[] {
-  return Array.from(
-    new Set(
-      [
-        params.selectedColor?.image_url,
-        params.productImageUrl,
-      ].filter((url): url is string => Boolean(url)),
-    ),
-  );
-}
-
-function getGuideImageCandidates(
-  selectedLocation: ProductEditorLocation | null,
-): string[] {
-  return Array.from(
-    new Set(
-      [
-        selectedLocation?.printing_lines_image_url,
-        selectedLocation?.area_image_url,
-        selectedLocation?.location_image_url,
-        selectedLocation?.preview_image_url,
-      ].filter((url): url is string => Boolean(url)),
-    ),
-  );
-}
-
-function getBrowserSafeImageUrl(url: string): string {
-  try {
-    const parsed = new URL(url);
-
-    if (parsed.hostname === "cdn.hideacontent.com") {
-      return `/api/media/stricker-image?url=${encodeURIComponent(url)}`;
-    }
-  } catch {
-    return url;
-  }
-
-  return url;
-}
 
 const quantityBreaks = [
   "1",
@@ -202,8 +156,9 @@ function getLocationLabel(location: ProductEditorLocation): string {
 
 function getLocationGroupKey(location: ProductEditorLocation): string {
   return [
-    location.component_name ?? "componente",
     location.location_name ?? "local",
+    location.component_name ?? "componente",
+    location.max_printing_area_mm ?? "area",
   ]
     .join(":")
     .normalize("NFD")
@@ -272,10 +227,6 @@ function buildLocationGroups(params: {
     if (!existingGroup) {
       groups.set(key, {
         id: key,
-        componentId:
-          location.component_id ??
-          location.component_name ??
-          "componente",
         locationName: getLocationLabel(location),
         componentName: location.component_name,
         maxPrintingAreaMm: location.max_printing_area_mm,
@@ -363,25 +314,7 @@ function getSafeLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
 }): LogoPosition {
-  const angle = (clamp(params.position.rotation, -15, 15) * Math.PI) / 180;
-  const absoluteCosine = Math.abs(Math.cos(angle));
-  const absoluteSine = Math.abs(Math.sin(angle));
-  const heightPerWidth =
-    params.printAreaAspectRatio / params.logoAspectRatio;
-  const rotatedWidthPerWidth =
-    absoluteCosine + heightPerWidth * absoluteSine;
-  const rotatedHeightPerWidth =
-    absoluteSine + heightPerWidth * absoluteCosine;
-  const maximumWidth = Math.min(
-    100,
-    100 / Math.max(rotatedWidthPerWidth, Number.EPSILON),
-    100 / Math.max(rotatedHeightPerWidth, Number.EPSILON),
-  );
-  const safeWidth = clamp(
-    params.position.width,
-    Math.min(10, maximumWidth),
-    maximumWidth,
-  );
+  const safeWidth = clamp(params.position.width, 10, 100);
 
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: safeWidth,
@@ -389,106 +322,44 @@ function getSafeLogoPosition(params: {
     logoAspectRatio: params.logoAspectRatio,
   });
 
-  const rotatedWidth = safeWidth * rotatedWidthPerWidth;
-  const rotatedHeight = safeWidth * rotatedHeightPerWidth;
-  const horizontalOverhang = Math.max(0, (rotatedWidth - safeWidth) / 2);
-  const verticalOverhang = Math.max(0, (rotatedHeight - logoHeight) / 2);
-
   return {
-    x: clamp(
-      params.position.x,
-      horizontalOverhang,
-      Math.max(horizontalOverhang, 100 - safeWidth - horizontalOverhang),
-    ),
-    y: clamp(
-      params.position.y,
-      verticalOverhang,
-      Math.max(verticalOverhang, 100 - logoHeight - verticalOverhang),
-    ),
+    x: clamp(params.position.x, 0, Math.max(0, 100 - safeWidth)),
+    y: clamp(params.position.y, 0, Math.max(0, 100 - logoHeight)),
     width: safeWidth,
     rotation: clamp(params.position.rotation, -15, 15),
   };
 }
 
-function getCenteredLogoPosition(params: {
-  width?: number;
-  printAreaAspectRatio: number;
-  logoAspectRatio: number;
-}): LogoPosition {
-  const width = clamp(params.width ?? 60, 10, 100);
-  const height = getLogoHeightPercent({
-    logoWidthPercent: width,
-    printAreaAspectRatio: params.printAreaAspectRatio,
-    logoAspectRatio: params.logoAspectRatio,
-  });
-
-  return getSafeLogoPosition({
-    position: {
-      x: Math.max(0, (100 - width) / 2),
-      y: Math.max(0, (100 - height) / 2),
-      width,
-      rotation: 0,
-    },
-    printAreaAspectRatio: params.printAreaAspectRatio,
-    logoAspectRatio: params.logoAspectRatio,
-  });
+function getPreferredPreviewImage(params: {
+  selectedLocation: ProductEditorLocation | null;
+  selectedColor: ProductEditorVariant | null;
+  productImageUrl: string | null;
+}): string | null {
+  return (
+    params.selectedLocation?.printing_lines_image_url ??
+    params.selectedLocation?.area_image_url ??
+    params.selectedLocation?.location_image_url ??
+    params.selectedLocation?.preview_image_url ??
+    params.selectedColor?.image_url ??
+    params.productImageUrl
+  );
 }
 
-function getVisualLogoPosition(params: {
-  position: LogoPosition;
-  physicalPrintAreaAspectRatio: number;
-  visualPrintAreaAspectRatio: number;
-  logoAspectRatio: number;
-}): LogoPosition {
-  const physicalHeight = getLogoHeightPercent({
-    logoWidthPercent: params.position.width,
-    printAreaAspectRatio: params.physicalPrintAreaAspectRatio,
-    logoAspectRatio: params.logoAspectRatio,
-  });
-  const centreX = params.position.x + params.position.width / 2;
-  const centreY = params.position.y + physicalHeight / 2;
-  const visualHeight = getLogoHeightPercent({
-    logoWidthPercent: params.position.width,
-    printAreaAspectRatio: params.visualPrintAreaAspectRatio,
-    logoAspectRatio: params.logoAspectRatio,
-  });
-
-  return getSafeLogoPosition({
-    position: {
-      x: centreX - params.position.width / 2,
-      y: centreY - visualHeight / 2,
-      width: params.position.width,
-      rotation: params.position.rotation,
-    },
-    printAreaAspectRatio: params.visualPrintAreaAspectRatio,
-    logoAspectRatio: params.logoAspectRatio,
-  });
-}
-
-function getTechniqueEstimatedUnitPrice(technique: string | null): number {
-  const normalized = technique?.normalize("NFD").toLowerCase() ?? "";
-
-  if (normalized.includes("bordado")) {
-    return 0.75;
-  }
-
-  if (normalized.includes("uv")) {
-    return 0.45;
-  }
-
-  if (normalized.includes("laser")) {
-    return 0.52;
-  }
-
-  if (normalized.includes("tampografia")) {
-    return 0.42;
-  }
-
-  if (normalized.includes("transfer")) {
-    return 0.49;
-  }
-
-  return 0.5;
+function findCustomizationPriceTier(
+  tiers: ProductEditorCustomizationPrice[],
+  quantity: number,
+): ProductEditorCustomizationPrice | null {
+  const sorted = [...tiers].sort((a, b) => a.quantity_min - b.quantity_min);
+  return (
+    sorted.find(
+      (tier) =>
+        quantity >= tier.quantity_min &&
+        (tier.quantity_max === null || quantity <= tier.quantity_max),
+    ) ??
+    sorted.filter((tier) => quantity >= tier.quantity_min).at(-1) ??
+    sorted[0] ??
+    null
+  );
 }
 
 function getEstimatedProductionDays(technique: string | null): string {
@@ -573,13 +444,11 @@ export default function ProductCustomizationEditor({
   const router = useRouter();
 
   const printAreaRef = useRef<HTMLDivElement | null>(null);
-  const productPrintAreaRef = useRef<HTMLDivElement | null>(null);
 
   const dragStateRef = useRef<{
     pointerId: number;
     offsetX: number;
     offsetY: number;
-    area: "editor" | "product";
   } | null>(null);
 
   const [isSavingDraft, startSavingDraft] = useTransition();
@@ -594,59 +463,13 @@ export default function ProductCustomizationEditor({
 
   const quantity = Math.max(1, initialQuantity);
 
-  const allLocationGroups = useMemo(
+  const locationGroups = useMemo(
     () =>
       buildLocationGroups({
         locations,
         selectedVariantId: selectedColor?.id ?? initialVariantId ?? null,
       }),
     [initialVariantId, locations, selectedColor?.id],
-  );
-
-  const componentGroups = useMemo(
-    () => buildComponentGroups(allLocationGroups),
-    [allLocationGroups],
-  );
-
-  const initialComponentId = useMemo(() => {
-    const initialGroup = initialLocationId
-      ? allLocationGroups.find((group) =>
-          group.options.some(
-            (option) =>
-              option.source_location_id === initialLocationId ||
-              option.id === initialLocationId,
-          ),
-        )
-      : null;
-
-    const initialComponent = initialGroup
-      ? componentGroups.find((component) =>
-          component.sourceIds.includes(initialGroup.componentId),
-        )
-      : null;
-
-    return initialComponent?.id ?? componentGroups[0]?.id ?? null;
-  }, [allLocationGroups, componentGroups, initialLocationId]);
-
-  const [selectedComponentId, setSelectedComponentId] = useState<
-    string | null
-  >(initialComponentId);
-
-  const locationGroups = useMemo(
-    () => {
-      const selectedComponent = componentGroups.find(
-        (component) => component.id === selectedComponentId,
-      );
-
-      if (!selectedComponent) {
-        return [];
-      }
-
-      return allLocationGroups.filter((group) =>
-        selectedComponent.sourceIds.includes(group.componentId),
-      );
-    },
-    [allLocationGroups, componentGroups, selectedComponentId],
   );
 
   const initialGroupId = useMemo(() => {
@@ -696,9 +519,6 @@ export default function ProductCustomizationEditor({
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
-  const [previewPrintArea, setPreviewPrintArea] =
-    useState<PreviewPrintArea | null>(null);
-  const [guideImageIndex, setGuideImageIndex] = useState(0);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
@@ -728,22 +548,6 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
   });
 
-  const productLogoPosition = previewPrintArea
-    ? getVisualLogoPosition({
-        position: safePosition,
-        physicalPrintAreaAspectRatio: printAreaAspectRatio,
-        visualPrintAreaAspectRatio: previewPrintArea.aspectRatio,
-        logoAspectRatio,
-      })
-    : safePosition;
-
-  const productLogoHeightPercent = getLogoHeightPercent({
-    logoWidthPercent: productLogoPosition.width,
-    printAreaAspectRatio:
-      previewPrintArea?.aspectRatio ?? printAreaAspectRatio,
-    logoAspectRatio,
-  });
-
   const logoWidthMm = roundMoney(
     (safePosition.width / 100) * printAreaDimensions.widthMm,
   );
@@ -752,25 +556,11 @@ export default function ProductCustomizationEditor({
     (logoHeightPercent / 100) * printAreaDimensions.heightMm,
   );
 
-  const productImageCandidates = useMemo(
-    () =>
-      getProductImageCandidates({
-        selectedColor,
-        productImageUrl,
-      }),
-    [selectedColor, productImageUrl],
-  );
-
-  const guideImageCandidates = useMemo(
-    () => getGuideImageCandidates(selectedLocation),
-    [selectedLocation],
-  );
-
-  const productBaseImage = productImageCandidates[0] ?? null;
-  const previewBaseImage = guideImageCandidates[guideImageIndex] ?? null;
-  const browserSafePreviewImage = previewBaseImage
-    ? getBrowserSafeImageUrl(previewBaseImage)
-    : null;
+  const previewBaseImage = getPreferredPreviewImage({
+    selectedLocation,
+    selectedColor,
+    productImageUrl,
+  });
 
   const productPriceTier = findProductPriceTier({
     prices: productPrices,
@@ -782,9 +572,13 @@ export default function ProductCustomizationEditor({
   const productCurrency = productPriceTier?.currency ?? "EUR";
   const productSubtotal = roundMoney(productUnitPrice * quantity);
 
-  const personalizationUnitPrice = getTechniqueEstimatedUnitPrice(
-    selectedLocation?.technique ?? null,
+  const personalizationPriceTier = findCustomizationPriceTier(
+    selectedLocation?.price_tiers ?? [],
+    quantity,
   );
+  const personalizationUnitPrice =
+    personalizationPriceTier?.final_price ?? 0;
+  const setupCost = personalizationPriceTier?.handling_cost ?? 0;
 
   const personalizationSubtotal = roundMoney(
     personalizationUnitPrice * quantity,
@@ -797,25 +591,12 @@ export default function ProductCustomizationEditor({
   );
 
   const estimatedTotal = roundMoney(
-    productSubtotal + personalizationSubtotal + extrasTotal,
+    productSubtotal + personalizationSubtotal + setupCost + extrasTotal,
   );
 
   const productionDays = getEstimatedProductionDays(
     selectedLocation?.technique ?? null,
   );
-
-  useEffect(() => {
-    if (
-      selectedComponentId &&
-      componentGroups.some(
-        (component) => component.id === selectedComponentId,
-      )
-    ) {
-      return;
-    }
-
-    setSelectedComponentId(componentGroups[0]?.id ?? null);
-  }, [componentGroups, selectedComponentId]);
 
   useEffect(() => {
     if (
@@ -833,17 +614,7 @@ export default function ProductCustomizationEditor({
   }, [selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
-    setPosition(
-      getCenteredLogoPosition({
-        printAreaAspectRatio,
-        logoAspectRatio,
-      }),
-    );
-  }, [selectedLocation?.id, printAreaAspectRatio, logoAspectRatio]);
-
-  useEffect(() => {
-    setPreviewPrintArea(null);
-    setGuideImageIndex(0);
+    setPosition(initialPosition);
   }, [selectedLocation?.id]);
 
   useEffect(() => {
@@ -856,6 +627,14 @@ export default function ProductCustomizationEditor({
     );
   }, [printAreaAspectRatio, logoAspectRatio]);
 
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) {
+        URL.revokeObjectURL(logoPreviewUrl);
+      }
+    };
+  }, [logoPreviewUrl]);
+
   function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
 
@@ -866,232 +645,28 @@ export default function ProductCustomizationEditor({
     setLogoFile(file);
     setSaveMessage(null);
 
+    if (logoPreviewUrl) {
+      URL.revokeObjectURL(logoPreviewUrl);
+    }
+
     setLogoFileName(file.name);
 
     if (!file.type.startsWith("image/")) {
       setLogoPreviewUrl(null);
-      setSaveMessage(
-        "O ficheiro foi guardado, mas apenas PNG, JPG, WEBP e SVG têm pré-visualização.",
-      );
       return;
     }
 
-    const reader = new FileReader();
+    const objectUrl = URL.createObjectURL(file);
+    const image = new Image();
 
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        setLogoPreviewUrl(null);
-        setSaveMessage("Não foi possível pré-visualizar esta imagem.");
-        return;
+    image.onload = () => {
+      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+        setLogoAspectRatio(image.naturalWidth / image.naturalHeight);
       }
-
-      const previewUrl = reader.result;
-      const image = new Image();
-
-      setLogoPreviewUrl(previewUrl);
-
-      image.onload = () => {
-        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-          const nextLogoAspectRatio = image.naturalWidth / image.naturalHeight;
-          setLogoAspectRatio(nextLogoAspectRatio);
-          setPosition(
-            getCenteredLogoPosition({
-              printAreaAspectRatio,
-              logoAspectRatio: nextLogoAspectRatio,
-            }),
-          );
-        }
-      };
-
-      image.onerror = () => {
-        setLogoPreviewUrl(null);
-        setSaveMessage("Não foi possível pré-visualizar esta imagem.");
-      };
-
-      image.src = previewUrl;
     };
 
-    reader.onerror = () => {
-      setLogoPreviewUrl(null);
-      setSaveMessage("Não foi possível ler o ficheiro selecionado.");
-    };
-
-    reader.readAsDataURL(file);
-  }
-
-  async function detectPreviewPrintAreaFromImage(
-    guideImage: HTMLImageElement,
-  ) {
-    const locationImageUrl = selectedLocation?.location_image_url;
-
-    if (
-      !locationImageUrl ||
-      !guideImage.naturalWidth ||
-      !guideImage.naturalHeight
-    ) {
-      setPreviewPrintArea(null);
-      return;
-    }
-
-    try {
-      const baseImage = new Image();
-      baseImage.crossOrigin = "anonymous";
-      baseImage.decoding = "async";
-      baseImage.src = getBrowserSafeImageUrl(locationImageUrl);
-
-      await baseImage.decode();
-
-      const guideAspectRatio =
-        guideImage.naturalWidth / guideImage.naturalHeight;
-      const baseAspectRatio =
-        baseImage.naturalWidth / baseImage.naturalHeight;
-
-      if (
-        !baseImage.naturalWidth ||
-        !baseImage.naturalHeight ||
-        Math.abs(guideAspectRatio - baseAspectRatio) > 0.01
-      ) {
-        setPreviewPrintArea(null);
-        return;
-      }
-
-      const maximumComparisonSize = 700;
-      const scale = Math.min(
-        1,
-        maximumComparisonSize /
-          Math.max(guideImage.naturalWidth, guideImage.naturalHeight),
-      );
-      const width = Math.max(
-        1,
-        Math.round(guideImage.naturalWidth * scale),
-      );
-      const height = Math.max(
-        1,
-        Math.round(guideImage.naturalHeight * scale),
-      );
-      const guideCanvas = document.createElement("canvas");
-      const baseCanvas = document.createElement("canvas");
-      const guideContext = guideCanvas.getContext("2d", {
-        willReadFrequently: true,
-      });
-      const baseContext = baseCanvas.getContext("2d", {
-        willReadFrequently: true,
-      });
-
-      if (!guideContext || !baseContext) {
-        setPreviewPrintArea(null);
-        return;
-      }
-
-      guideCanvas.width = width;
-      guideCanvas.height = height;
-      baseCanvas.width = width;
-      baseCanvas.height = height;
-
-      guideContext.drawImage(guideImage, 0, 0, width, height);
-      baseContext.drawImage(baseImage, 0, 0, width, height);
-
-      const guidePixels = guideContext.getImageData(
-        0,
-        0,
-        width,
-        height,
-      ).data;
-      const basePixels = baseContext.getImageData(
-        0,
-        0,
-        width,
-        height,
-      ).data;
-      const changedX: number[] = [];
-      const changedY: number[] = [];
-
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
-          const index = (y * width + x) * 4;
-          const redDifference = Math.abs(
-            guidePixels[index] - basePixels[index],
-          );
-          const greenDifference = Math.abs(
-            guidePixels[index + 1] - basePixels[index + 1],
-          );
-          const blueDifference = Math.abs(
-            guidePixels[index + 2] - basePixels[index + 2],
-          );
-
-          if (
-            Math.max(
-              redDifference,
-              greenDifference,
-              blueDifference,
-            ) < 48
-          ) {
-            continue;
-          }
-
-          changedX.push(x);
-          changedY.push(y);
-        }
-      }
-
-      const imageArea = width * height;
-
-      if (
-        changedX.length < Math.max(24, imageArea * 0.00015) ||
-        changedX.length > imageArea * 0.2
-      ) {
-        setPreviewPrintArea(null);
-        return;
-      }
-
-      changedX.sort((a, b) => a - b);
-      changedY.sort((a, b) => a - b);
-
-      const outerSampleIndex = Math.floor(changedX.length * 0.002);
-      const lastSampleIndex =
-        changedX.length - outerSampleIndex - 1;
-      const inset = Math.max(
-        1,
-        Math.round(Math.min(width, height) * 0.004),
-      );
-      const left = changedX[outerSampleIndex] + inset;
-      const top = changedY[outerSampleIndex] + inset;
-      const right = changedX[lastSampleIndex] - inset;
-      const bottom = changedY[lastSampleIndex] - inset;
-      const detectedWidth = right - left + 1;
-      const detectedHeight = bottom - top + 1;
-
-      if (
-        detectedWidth <= 0 ||
-        detectedHeight <= 0 ||
-        detectedWidth > width * 0.85 ||
-        detectedHeight > height * 0.75
-      ) {
-        setPreviewPrintArea(null);
-        return;
-      }
-
-      setPreviewPrintArea({
-        left: (left / width) * 100,
-        top: (top / height) * 100,
-        width: (detectedWidth / width) * 100,
-        height: (detectedHeight / height) * 100,
-        aspectRatio: detectedWidth / detectedHeight,
-      });
-    } catch {
-      setPreviewPrintArea(null);
-    }
-  }
-
-  function detectPreviewPrintArea(
-    event: SyntheticEvent<HTMLImageElement>,
-  ) {
-    void detectPreviewPrintAreaFromImage(event.currentTarget);
-  }
-
-  function handleGuideImageError() {
-    setPreviewPrintArea(null);
-    setGuideImageIndex((current) => current + 1);
+    image.src = objectUrl;
+    setLogoPreviewUrl(objectUrl);
   }
 
   function updatePosition(key: keyof LogoPosition, value: number) {
@@ -1108,12 +683,7 @@ export default function ProductCustomizationEditor({
   }
 
   function resetPosition() {
-    setPosition(
-      getCenteredLogoPosition({
-        printAreaAspectRatio,
-        logoAspectRatio,
-      }),
-    );
+    setPosition(initialPosition);
   }
 
   function fitLogoToArea() {
@@ -1161,26 +731,19 @@ export default function ProductCustomizationEditor({
     updatePosition("width", safePosition.width + 8);
   }
 
-  function handleLogoPointerDown(
-    event: PointerEvent<HTMLDivElement>,
-    area: "editor" | "product" = "editor",
-  ) {
-    const activeArea = area === "product" ? productPrintAreaRef.current : printAreaRef.current;
-
-    if (!activeArea) {
+  function handleLogoPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!printAreaRef.current) {
       return;
     }
 
-    const rect = activeArea.getBoundingClientRect();
-    const activePosition = area === "product" ? productLogoPosition : safePosition;
-    const logoLeft = rect.left + (activePosition.x / 100) * rect.width;
-    const logoTop = rect.top + (activePosition.y / 100) * rect.height;
+    const rect = printAreaRef.current.getBoundingClientRect();
+    const logoLeft = rect.left + (safePosition.x / 100) * rect.width;
+    const logoTop = rect.top + (safePosition.y / 100) * rect.height;
 
     dragStateRef.current = {
       pointerId: event.pointerId,
       offsetX: event.clientX - logoLeft,
       offsetY: event.clientY - logoTop,
-      area,
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -1193,14 +756,11 @@ export default function ProductCustomizationEditor({
       return;
     }
 
-    const activeArea =
-      dragState.area === "product" ? productPrintAreaRef.current : printAreaRef.current;
-
-    if (!activeArea) {
+    if (!printAreaRef.current) {
       return;
     }
 
-    const rect = activeArea.getBoundingClientRect();
+    const rect = printAreaRef.current.getBoundingClientRect();
 
     const nextX =
       ((event.clientX - rect.left - dragState.offsetX) / rect.width) * 100;
@@ -1208,33 +768,8 @@ export default function ProductCustomizationEditor({
     const nextY =
       ((event.clientY - rect.top - dragState.offsetY) / rect.height) * 100;
 
-    setPosition((current) => {
-      if (dragState.area === "product" && previewPrintArea) {
-        const visualHeight = getLogoHeightPercent({
-          logoWidthPercent: productLogoPosition.width,
-          printAreaAspectRatio: previewPrintArea.aspectRatio,
-          logoAspectRatio,
-        });
-        const physicalHeight = getLogoHeightPercent({
-          logoWidthPercent: current.width,
-          printAreaAspectRatio,
-          logoAspectRatio,
-        });
-        const centreX = nextX + productLogoPosition.width / 2;
-        const centreY = nextY + visualHeight / 2;
-
-        return getSafeLogoPosition({
-          position: {
-            ...current,
-            x: centreX - current.width / 2,
-            y: centreY - physicalHeight / 2,
-          },
-          printAreaAspectRatio,
-          logoAspectRatio,
-        });
-      }
-
-      return getSafeLogoPosition({
+    setPosition((current) =>
+      getSafeLogoPosition({
         position: {
           ...current,
           x: nextX,
@@ -1242,8 +777,8 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio,
         logoAspectRatio,
-      });
-    });
+      }),
+    );
   }
 
   function handleLogoPointerUp(event: PointerEvent<HTMLDivElement>) {
@@ -1311,7 +846,7 @@ export default function ProductCustomizationEditor({
         String(personalizationUnitPrice),
       );
 
-      formData.set("setupCost", "0");
+      formData.set("setupCost", String(setupCost));
       formData.set("extrasTotal", String(extrasTotal));
 
       formData.set(
@@ -1339,7 +874,7 @@ export default function ProductCustomizationEditor({
 
       formData.set(
         "technicalPreviewUrl",
-        previewBaseImage ?? productBaseImage ?? "",
+        previewBaseImage ?? "",
       );
 
       formData.set("supplierId", supplierId ?? "");
@@ -1385,41 +920,6 @@ export default function ProductCustomizationEditor({
         <div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
           <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-sm font-semibold text-neutral-950">
-              Componente
-            </p>
-
-            <div className="mt-4 space-y-2">
-              {componentGroups.map((component) => {
-                const isSelected = component.id === selectedComponentId;
-
-                return (
-                  <button
-                    key={component.id}
-                    type="button"
-                    onClick={() => setSelectedComponentId(component.id)}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? "border-neutral-950 bg-white shadow-sm"
-                        : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-base font-semibold text-neutral-950">
-                        {component.name}
-                      </p>
-
-                      {component.isRecommended ? (
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                          Recomendado
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            <p className="mt-6 text-sm font-semibold text-neutral-950">
               Localização
             </p>
 
@@ -1444,6 +944,12 @@ export default function ProductCustomizationEditor({
                           {group.locationName}
                         </p>
 
+                        {group.componentName ? (
+                          <p className="mt-2 text-sm text-neutral-600">
+                            {group.componentName}
+                          </p>
+                        ) : null}
+
                         {group.maxPrintingAreaMm ? (
                           <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
                             <Ruler className="mr-1.5 h-3.5 w-3.5" />
@@ -1467,76 +973,13 @@ export default function ProductCustomizationEditor({
           <div className="space-y-5">
             <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
               <div className="flex min-h-[620px] items-center justify-center bg-white">
-                {browserSafePreviewImage ? (
-                  <div className="max-w-full p-8">
-                    <div className="relative inline-block max-w-full align-middle">
-                      <img
-                        key={browserSafePreviewImage}
-                        src={browserSafePreviewImage}
-                        crossOrigin="anonymous"
-                        alt={`Área de personalização ${getLocationLabel(selectedLocation!)}`}
-                        onLoad={detectPreviewPrintArea}
-                        onError={handleGuideImageError}
-                        className="block max-h-[700px] max-w-full object-contain"
-                      />
-
-                      {previewPrintArea ? (
-                        <div
-                          ref={productPrintAreaRef}
-                          aria-label="Área máxima de personalização definida pela Stricker"
-                          className="pointer-events-none absolute overflow-hidden"
-                          style={{
-                            left: `${previewPrintArea.left}%`,
-                            top: `${previewPrintArea.top}%`,
-                            width: `${previewPrintArea.width}%`,
-                            height: `${previewPrintArea.height}%`,
-                          }}
-                        >
-                          {logoPreviewUrl ? (
-                            <div
-                              role="button"
-                              tabIndex={0}
-                              aria-label="Mover logótipo na área de personalização"
-                              onPointerDown={(event) =>
-                                handleLogoPointerDown(event, "product")
-                              }
-                              onPointerMove={handleLogoPointerMove}
-                              onPointerUp={handleLogoPointerUp}
-                              onPointerCancel={handleLogoPointerUp}
-                              className="pointer-events-auto absolute cursor-grab touch-none active:cursor-grabbing"
-                              style={{
-                                left: `${productLogoPosition.x}%`,
-                                top: `${productLogoPosition.y}%`,
-                                width: `${productLogoPosition.width}%`,
-                                height: `${productLogoHeightPercent}%`,
-                                transform: `rotate(${productLogoPosition.rotation}deg)`,
-                                transformOrigin: "center center",
-                              }}
-                            >
-                              <img
-                                src={logoPreviewUrl}
-                                alt="Pré-visualização do logótipo no produto"
-                                draggable={false}
-                                className="pointer-events-none h-full w-full select-none object-contain"
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="max-w-xl p-8 text-center">
-                    <p className="text-base font-semibold text-neutral-950">
-                      Maquete técnica indisponível
-                    </p>
-                    <p className="mt-2 text-sm leading-6 text-neutral-600">
-                      A Stricker não disponibilizou uma imagem com a área de
-                      impressão para esta combinação. A posição não será
-                      estimada pela loja.
-                    </p>
-                  </div>
-                )}
+                {previewBaseImage ? (
+                  <img
+                    src={previewBaseImage}
+                    alt={productName}
+                    className="max-h-[700px] w-full object-contain p-8"
+                  />
+                ) : null}
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-5">
@@ -1585,9 +1028,8 @@ export default function ProductCustomizationEditor({
                 </div>
 
                 <p className="mt-4 text-xs leading-5 text-neutral-500">
-                  A moldura apresentada pertence à maquete técnica fornecida
-                  pela Stricker para a localização selecionada. A posição final
-                  será validada antes da produção.
+                  A imagem mostra a zona técnica enviada pelo fornecedor. A
+                  posição final será validada antes da produção.
                 </p>
               </div>
             </div>
@@ -2028,6 +1470,14 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
+                    <dt>Setup (único)</dt>
+
+                    <dd className="text-right text-white">
+                      {formatPrice(setupCost, productCurrency)}
+                    </dd>
+                  </div>
+
+                  <div className="mt-2 flex justify-between gap-4">
                     <dt>Extras</dt>
 
                     <dd className="text-right text-white">
@@ -2047,7 +1497,7 @@ export default function ProductCustomizationEditor({
                     </div>
 
                     <p className="mt-1 text-xs text-neutral-400">
-                      Produto + personalização + extras
+                      Produto + personalização + setup + extras
                     </p>
                   </div>
                 </div>
@@ -2151,16 +1601,16 @@ export default function ProductCustomizationEditor({
                       Preço / un.
                     </td>
 
-                    {quantityBreaks.map((item, index) => (
+                    {quantityBreaks.map((item) => (
                       <td
                         key={item}
                         className="border-b border-neutral-100 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
                         {formatPrice(
-                          Math.max(
-                            0.12,
-                            personalizationUnitPrice - index * 0.035,
-                          ),
+                          findCustomizationPriceTier(
+                            selectedLocation?.price_tiers ?? [],
+                            Number(item.replace(".", "")),
+                          )?.final_price ?? 0,
                           productCurrency,
                         )}
                       </td>
@@ -2271,49 +1721,4 @@ export default function ProductCustomizationEditor({
       ) : null}
     </>
   );
-}
-
-function buildComponentGroups(
-  locationGroups: LocationGroup[],
-): ComponentGroup[] {
-  const components = new Map<string, ComponentGroup>();
-
-  for (const group of locationGroups) {
-    const name = group.componentName?.trim() || "Produto";
-    const key = name
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .toLocaleLowerCase("pt-PT");
-    const existing = components.get(key);
-
-    if (!existing) {
-      components.set(key, {
-        id: key,
-        name,
-        sourceIds: [group.componentId],
-        isRecommended: group.isRecommended,
-      });
-      continue;
-    }
-
-    if (!existing.sourceIds.includes(group.componentId)) {
-      existing.sourceIds.push(group.componentId);
-    }
-
-    if (group.isRecommended) {
-      existing.isRecommended = true;
-    }
-  }
-
-  return Array.from(components.values()).sort((a, b) => {
-    if (a.isRecommended && !b.isRecommended) {
-      return -1;
-    }
-
-    if (!a.isRecommended && b.isRecommended) {
-      return 1;
-    }
-
-    return a.name.localeCompare(b.name, "pt-PT");
-  });
 }

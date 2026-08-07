@@ -68,6 +68,13 @@ type PrintingPriceViewRow = {
   quantity_max: number | null;
   supplier_price: number;
   handling_cost: number;
+  supplier_handling_cost: number;
+  handling_margin_rate: number | null;
+  handling_markup_rate: number | null;
+  handling_pricing_mode: PricingMode;
+  handling_manual_price: number | null;
+  handling_is_manual_override: boolean;
+  handling_override_reason: string | null;
   base_price: number;
   margin_percentage: number | null;
   markup_percentage: number | null;
@@ -406,6 +413,13 @@ async function getPrintingPriceRows(params: {
         quantity_max,
         supplier_price,
         handling_cost,
+        supplier_handling_cost,
+        handling_margin_rate,
+        handling_markup_rate,
+        handling_pricing_mode,
+        handling_manual_price,
+        handling_is_manual_override,
+        handling_override_reason,
         base_price,
         margin_percentage,
         markup_percentage,
@@ -799,6 +813,7 @@ export default async function AdminPricesPage({
                       </div>
                     </div>
                   </details>
+
                 </article>
               );
             })}
@@ -806,9 +821,7 @@ export default async function AdminPricesPage({
         ) : (
           <div className="mt-4 space-y-4">
             {printingRows.map((row) => {
-              const costPrice =
-                row.supplier_price +
-                (row.handling_cost ?? 0);
+              const costPrice = row.supplier_price;
 
               const effectiveMargin =
                 calculateEffectiveMargin({
@@ -1000,6 +1013,29 @@ export default async function AdminPricesPage({
                       </div>
                     </div>
                   </details>
+                  {row.handling_cost > 0 || row.supplier_handling_cost > 0 ? (
+                    <details className="border-t border-neutral-200">
+                      <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50">
+                        Editar preço do setup
+                      </summary>
+                      <div className="border-t border-neutral-200 bg-neutral-50 p-5">
+                        <div className="mx-auto max-w-4xl rounded-3xl border border-neutral-200 bg-white p-6">
+                          <AdminPriceEditForm
+                            entityType="printing_setup"
+                            entityId={row.id}
+                            currentMode={row.handling_pricing_mode ?? "automatic"}
+                            supplierPrice={row.supplier_handling_cost ?? 0}
+                            finalPrice={row.handling_cost ?? 0}
+                            marginPercentage={(row.handling_margin_rate ?? 0.3) * 100}
+                            markupPercentage={row.handling_markup_rate === null ? null : row.handling_markup_rate * 100}
+                            fixedMarkup={null}
+                            manualPrice={row.handling_manual_price}
+                            overrideReason={row.handling_override_reason}
+                          />
+                        </div>
+                      </div>
+                    </details>
+                  ) : null}
                 </article>
               );
             })}

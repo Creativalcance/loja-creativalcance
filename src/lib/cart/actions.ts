@@ -5,6 +5,11 @@ import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateCartItemPricing } from "@/lib/pricing/calculate-cart-item";
+import {
+  resolveCustomizationPrice,
+  type CustomizationPriceTier,
+} from "@/lib/pricing/resolve-customization-price";
+import type { PricingRule } from "@/lib/pricing/types";
 
 export type AddToCartActionState = {
   success: boolean;
@@ -400,7 +405,6 @@ export async function addToCartAction(
             sku,
             name,
             min_order_quantity,
-            is_purchasable,
             product_prices (
               variant_id,
               quantity_min,
@@ -413,7 +417,6 @@ export async function addToCartAction(
         .eq("id", productId)
         .eq("status", "active")
         .eq("is_active", true)
-        .eq("is_purchasable", true)
         .maybeSingle<ProductForCart>();
 
     if (productError || !product) {
@@ -619,16 +622,63 @@ export async function addToCartAction(
       };
     }
 
-    const personalizationUnitPrice =
-      customizationDraft
-        ? Number(
-            customizationDraft.personalization_unit_price ??
-              0,
-          )
-        : productPricing.personalizationUnitPrice;
+    let confirmedCustomizationPrice = null;
+
+    if (customizationDraft) {
+      const safeTableCode = (customizationDraft.table_code ?? "").replace(/[(),]/g, "");
+      if (!safeTableCode) {
+        return {
+          success: false,
+          message: "A maquete não contém uma tabela Stricker válida.",
+        };
+      }
+
+      const { data: tiers } = await supabaseAdmin
+        .from("printing_price_tables")
+        .select(
+          "id,table_code,table_code_option,technique_code,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency,price_by_color,price_by_area,max_colors,area_cm2,is_manual_override,pricing_rule_id,handling_is_manual_override",
+        )
+        .eq("supplier_id", customizationDraft.supplier_id)
+        .eq("is_active", true)
+        .or(`table_code.eq.${safeTableCode},table_code_option.eq.${safeTableCode}`)
+        .returns<CustomizationPriceTier[]>();
+
+      const { data: rules } = await supabaseAdmin
+        .from("pricing_rules")
+        .select("*")
+        .eq("is_active", true)
+        .in("price_type", ["personalization", "setup"])
+        .returns<PricingRule[]>();
+
+      confirmedCustomizationPrice = resolveCustomizationPrice({
+        tiers: tiers ?? [],
+        rules: rules ?? [],
+        supplierId: customizationDraft.supplier_id,
+        productId: product.id,
+        variantId: variant?.id ?? null,
+        tableCode: customizationDraft.table_code,
+        tableCodeOption: customizationDraft.table_code_option,
+        techniqueName: customizationDraft.technique_name,
+        quantity,
+        areaCm2: customizationDraft.printing_area_mm2
+          ? customizationDraft.printing_area_mm2 / 100
+          : null,
+      });
+
+      if (!confirmedCustomizationPrice) {
+        return {
+          success: false,
+          message: "Não foi possível reconfirmar o preço atual da personalização.",
+        };
+      }
+    }
+
+    const personalizationUnitPrice = customizationDraft
+      ? confirmedCustomizationPrice!.personalizationUnitPrice
+      : productPricing.personalizationUnitPrice;
 
     const setupCost = customizationDraft
-      ? Number(customizationDraft.setup_cost ?? 0)
+      ? confirmedCustomizationPrice!.setupCost
       : productPricing.setupCost;
 
     const extrasTotal = customizationDraft
@@ -685,6 +735,25 @@ export async function addToCartAction(
 
             artworkStatus:
               customizationDraft.artwork_status,
+
+            pricing: confirmedCustomizationPrice
+              ? {
+                  priceTableId: confirmedCustomizationPrice.priceTableId,
+                  supplierPersonalizationUnitPrice:
+                    confirmedCustomizationPrice.supplierPersonalizationUnitPrice,
+                  personalizationUnitPrice,
+                  supplierSetupCost:
+                    confirmedCustomizationPrice.supplierSetupCost,
+                  setupCost,
+                  quantityMin: confirmedCustomizationPrice.quantityMin,
+                  quantityMax: confirmedCustomizationPrice.quantityMax,
+                  personalizationPricingRuleId:
+                    confirmedCustomizationPrice.personalizationPricingRuleId,
+                  setupPricingRuleId:
+                    confirmedCustomizationPrice.setupPricingRuleId,
+                  confirmedAt: new Date().toISOString(),
+                }
+              : null,
           }
         : {
             techniqueName:

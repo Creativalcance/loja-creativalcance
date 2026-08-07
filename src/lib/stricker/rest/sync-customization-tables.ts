@@ -544,9 +544,66 @@ async function upsertPrintingPriceTables(params: {
   rows: PrintingPriceTableUpsertRow[];
 }): Promise<void> {
   for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const { data: existingOverrides, error: existingOverridesError } =
+      await params.supabaseAdmin
+        .from("printing_price_tables")
+        .select(
+          "external_id,pricing_mode,margin_percentage,margin_rate,markup_rate,fixed_fee,manual_price,final_price,is_manual_override,override_reason,override_updated_at,override_updated_by,handling_cost,handling_margin_rate,handling_markup_rate,handling_pricing_mode,handling_manual_price,handling_is_manual_override,handling_override_reason,handling_override_updated_at,handling_override_updated_by",
+        )
+        .in(
+          "external_id",
+          rowChunk.map((row) => row.external_id),
+        )
+        .or("is_manual_override.eq.true,handling_is_manual_override.eq.true");
+
+    if (existingOverridesError) {
+      throw new Error(existingOverridesError.message);
+    }
+
+    const overridesByExternalId = new Map(
+      (existingOverrides ?? []).map((row) => [row.external_id, row]),
+    );
+
+    const rowsToUpsert = rowChunk.map((row) => {
+      const override = overridesByExternalId.get(row.external_id);
+      if (!override) return row;
+
+      return {
+        ...row,
+        ...(override.is_manual_override
+          ? {
+              pricing_mode: override.pricing_mode,
+              margin_percentage: override.margin_percentage,
+              margin_rate: override.margin_rate,
+              markup_rate: override.markup_rate,
+              fixed_fee: override.fixed_fee,
+              manual_price: override.manual_price,
+              final_price: override.final_price,
+              is_manual_override: true,
+              override_reason: override.override_reason,
+              override_updated_at: override.override_updated_at,
+              override_updated_by: override.override_updated_by,
+            }
+          : {}),
+        ...(override.handling_is_manual_override
+          ? {
+              handling_cost: override.handling_cost,
+              handling_margin_rate: override.handling_margin_rate,
+              handling_markup_rate: override.handling_markup_rate,
+              handling_pricing_mode: override.handling_pricing_mode,
+              handling_manual_price: override.handling_manual_price,
+              handling_is_manual_override: true,
+              handling_override_reason: override.handling_override_reason,
+              handling_override_updated_at: override.handling_override_updated_at,
+              handling_override_updated_by: override.handling_override_updated_by,
+            }
+          : {}),
+      };
+    });
+
     const { error } = await params.supabaseAdmin
       .from("printing_price_tables")
-      .upsert(rowChunk, {
+      .upsert(rowsToUpsert, {
         onConflict: "supplier_id,external_id",
       });
 

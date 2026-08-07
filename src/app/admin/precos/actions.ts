@@ -8,7 +8,7 @@ import {
   type PricingMode,
 } from "@/lib/pricing/calculate-selling-price";
 
-type PriceEntityType = "product_price" | "printing_price";
+type PriceEntityType = "product_price" | "printing_price" | "printing_setup";
 
 type ProductPriceRow = {
   id: string;
@@ -263,7 +263,7 @@ async function updatePrintingPrice(params: {
 
   const calculatedPrice = calculateSellingPrice({
     supplierPrice: data.supplier_price,
-    handlingCost: data.handling_cost ?? 0,
+    handlingCost: 0,
     pricingMode: params.pricingMode,
     automaticMarginPercentage: automaticMargin,
     marginPercentage: params.marginPercentage,
@@ -337,6 +337,46 @@ async function updatePrintingPrice(params: {
   }
 }
 
+async function updatePrintingSetup(params: {
+  entityId: string; pricingMode: PricingMode; marginPercentage: number | null;
+  markupPercentage: number | null; fixedMarkup: number | null;
+  manualPrice: number | null; reason: string | null; changedBy: string | null;
+}): Promise<void> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data, error } = await supabaseAdmin
+    .from("printing_price_tables")
+    .select("id,supplier_handling_cost,handling_cost,handling_margin_rate,handling_markup_rate,handling_pricing_mode,handling_manual_price,handling_is_manual_override,handling_override_reason")
+    .eq("id", params.entityId).single();
+  if (error || !data) throw new Error(error?.message ?? "O setup não foi encontrado.");
+
+  const calculated = calculateSellingPrice({
+    supplierPrice: Number(data.supplier_handling_cost ?? 0), handlingCost: 0,
+    pricingMode: params.pricingMode,
+    automaticMarginPercentage: params.marginPercentage ?? Number(data.handling_margin_rate ?? 0.3) * 100,
+    marginPercentage: params.marginPercentage, markupPercentage: params.markupPercentage,
+    fixedMarkup: params.fixedMarkup, manualPrice: params.manualPrice,
+    minimumProfit: 0, roundingMode: "nearest_cent",
+  });
+  const nextValues = {
+    handling_cost: calculated.finalPrice,
+    handling_margin_rate: calculated.marginPercentage / 100,
+    handling_markup_rate: calculated.markupPercentage / 100,
+    handling_pricing_mode: params.pricingMode,
+    handling_manual_price: params.pricingMode === "manual" ? params.manualPrice : null,
+    handling_is_manual_override: params.pricingMode !== "automatic",
+    handling_override_reason: params.reason,
+    handling_override_updated_at: new Date().toISOString(),
+    handling_override_updated_by: params.changedBy,
+  };
+  const { error: updateError } = await supabaseAdmin.from("printing_price_tables").update(nextValues).eq("id", params.entityId);
+  if (updateError) throw new Error(updateError.message);
+  await supabaseAdmin.from("price_change_logs").insert({
+    entity_type: "printing_setup", entity_id: params.entityId,
+    previous_values: data, new_values: nextValues,
+    reason: params.reason, changed_by: params.changedBy,
+  });
+}
+
 export async function updateAdminPriceAction(
   _previousState: UpdateAdminPriceState,
   formData: FormData,
@@ -376,7 +416,8 @@ export async function updateAdminPriceAction(
 
     if (
       entityType !== "product_price" &&
-      entityType !== "printing_price"
+      entityType !== "printing_price" &&
+      entityType !== "printing_setup"
     ) {
       return {
         success: false,
@@ -467,7 +508,7 @@ export async function updateAdminPriceAction(
         reason,
         changedBy,
       });
-    } else {
+    } else if (entityType === "printing_price") {
       await updatePrintingPrice({
         entityId,
         pricingMode,
@@ -477,6 +518,11 @@ export async function updateAdminPriceAction(
         manualPrice,
         reason,
         changedBy,
+      });
+    } else {
+      await updatePrintingSetup({
+        entityId, pricingMode, marginPercentage, markupPercentage,
+        fixedMarkup, manualPrice, reason, changedBy,
       });
     }
 
