@@ -1,6 +1,9 @@
 const STRICKER_PRODUCTS_CDN_BASE_URL =
   "https://cdn.hideacontent.com/public/products/1000x1000";
 
+const STRICKER_PRODUCTS_HIGH_RESOLUTION_CDN_BASE_URL =
+  "https://cdn.hideacontent.com/public/products_hr";
+
 const STRICKER_PRODUCTS_500_CDN_BASE_URL =
   "https://cdn.hideacontent.com/public/products/500x500";
 
@@ -45,6 +48,27 @@ function buildCdnUrl(baseUrl: string, filename: string | null | undefined): stri
   return `${baseUrl}/${encodeURIComponent(sanitized)}`;
 }
 
+function getFilenameFromUrlOrPath(
+  value: string | null | undefined,
+): string | null {
+  const sanitized = sanitizeFilename(value);
+
+  if (!sanitized) {
+    return null;
+  }
+
+  try {
+    const pathname = isAbsoluteUrl(sanitized)
+      ? new URL(sanitized).pathname
+      : sanitized.split(/[?#]/, 1)[0];
+    const filename = pathname.split("/").filter(Boolean).at(-1);
+
+    return filename ? decodeURIComponent(filename) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function buildStrickerProductImageUrl(
   filename: string | null | undefined,
 ): string | null {
@@ -55,6 +79,15 @@ export function buildStrickerProduct500ImageUrl(
   filename: string | null | undefined,
 ): string | null {
   return buildCdnUrl(STRICKER_PRODUCTS_500_CDN_BASE_URL, filename);
+}
+
+export function buildStrickerProductHighResolutionImageUrl(
+  filenameOrUrl: string | null | undefined,
+): string | null {
+  return buildCdnUrl(
+    STRICKER_PRODUCTS_HIGH_RESOLUTION_CDN_BASE_URL,
+    getFilenameFromUrlOrPath(filenameOrUrl),
+  );
 }
 
 export function buildStrickerComponentImageUrl(

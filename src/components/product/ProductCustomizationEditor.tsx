@@ -77,6 +77,7 @@ type PreviewPrintArea = {
   top: number;
   width: number;
   height: number;
+  aspectRatio: number;
 };
 
 type LocationGroup = {
@@ -409,6 +410,61 @@ function getSafeLogoPosition(params: {
   };
 }
 
+function getCenteredLogoPosition(params: {
+  width?: number;
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+}): LogoPosition {
+  const width = clamp(params.width ?? 60, 10, 100);
+  const height = getLogoHeightPercent({
+    logoWidthPercent: width,
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+
+  return getSafeLogoPosition({
+    position: {
+      x: Math.max(0, (100 - width) / 2),
+      y: Math.max(0, (100 - height) / 2),
+      width,
+      rotation: 0,
+    },
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+}
+
+function getVisualLogoPosition(params: {
+  position: LogoPosition;
+  physicalPrintAreaAspectRatio: number;
+  visualPrintAreaAspectRatio: number;
+  logoAspectRatio: number;
+}): LogoPosition {
+  const physicalHeight = getLogoHeightPercent({
+    logoWidthPercent: params.position.width,
+    printAreaAspectRatio: params.physicalPrintAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+  const centreX = params.position.x + params.position.width / 2;
+  const centreY = params.position.y + physicalHeight / 2;
+  const visualHeight = getLogoHeightPercent({
+    logoWidthPercent: params.position.width,
+    printAreaAspectRatio: params.visualPrintAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+
+  return getSafeLogoPosition({
+    position: {
+      x: centreX - params.position.width / 2,
+      y: centreY - visualHeight / 2,
+      width: params.position.width,
+      rotation: params.position.rotation,
+    },
+    printAreaAspectRatio: params.visualPrintAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+}
+
 function getTechniqueEstimatedUnitPrice(technique: string | null): number {
   const normalized = technique?.normalize("NFD").toLowerCase() ?? "";
 
@@ -672,6 +728,22 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
   });
 
+  const productLogoPosition = previewPrintArea
+    ? getVisualLogoPosition({
+        position: safePosition,
+        physicalPrintAreaAspectRatio: printAreaAspectRatio,
+        visualPrintAreaAspectRatio: previewPrintArea.aspectRatio,
+        logoAspectRatio,
+      })
+    : safePosition;
+
+  const productLogoHeightPercent = getLogoHeightPercent({
+    logoWidthPercent: productLogoPosition.width,
+    printAreaAspectRatio:
+      previewPrintArea?.aspectRatio ?? printAreaAspectRatio,
+    logoAspectRatio,
+  });
+
   const logoWidthMm = roundMoney(
     (safePosition.width / 100) * printAreaDimensions.widthMm,
   );
@@ -761,7 +833,15 @@ export default function ProductCustomizationEditor({
   }, [selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
-    setPosition(initialPosition);
+    setPosition(
+      getCenteredLogoPosition({
+        printAreaAspectRatio,
+        logoAspectRatio,
+      }),
+    );
+  }, [selectedLocation?.id, printAreaAspectRatio, logoAspectRatio]);
+
+  useEffect(() => {
     setPreviewPrintArea(null);
     setGuideImageIndex(0);
   }, [selectedLocation?.id]);
@@ -776,14 +856,6 @@ export default function ProductCustomizationEditor({
     );
   }, [printAreaAspectRatio, logoAspectRatio]);
 
-  useEffect(() => {
-    return () => {
-      if (logoPreviewUrl) {
-        URL.revokeObjectURL(logoPreviewUrl);
-      }
-    };
-  }, [logoPreviewUrl]);
-
   function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
 
@@ -794,223 +866,227 @@ export default function ProductCustomizationEditor({
     setLogoFile(file);
     setSaveMessage(null);
 
-    if (logoPreviewUrl) {
-      URL.revokeObjectURL(logoPreviewUrl);
-    }
-
     setLogoFileName(file.name);
 
     if (!file.type.startsWith("image/")) {
       setLogoPreviewUrl(null);
+      setSaveMessage(
+        "O ficheiro foi guardado, mas apenas PNG, JPG, WEBP e SVG têm pré-visualização.",
+      );
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-    const image = new Image();
+    const reader = new FileReader();
 
-    image.onload = () => {
-      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-        setLogoAspectRatio(image.naturalWidth / image.naturalHeight);
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        setLogoPreviewUrl(null);
+        setSaveMessage("Não foi possível pré-visualizar esta imagem.");
+        return;
       }
+
+      const previewUrl = reader.result;
+      const image = new Image();
+
+      setLogoPreviewUrl(previewUrl);
+
+      image.onload = () => {
+        if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+          const nextLogoAspectRatio = image.naturalWidth / image.naturalHeight;
+          setLogoAspectRatio(nextLogoAspectRatio);
+          setPosition(
+            getCenteredLogoPosition({
+              printAreaAspectRatio,
+              logoAspectRatio: nextLogoAspectRatio,
+            }),
+          );
+        }
+      };
+
+      image.onerror = () => {
+        setLogoPreviewUrl(null);
+        setSaveMessage("Não foi possível pré-visualizar esta imagem.");
+      };
+
+      image.src = previewUrl;
     };
 
-    image.src = objectUrl;
-    setLogoPreviewUrl(objectUrl);
+    reader.onerror = () => {
+      setLogoPreviewUrl(null);
+      setSaveMessage("Não foi possível ler o ficheiro selecionado.");
+    };
+
+    reader.readAsDataURL(file);
   }
 
-  function detectPreviewPrintArea(
-    event: SyntheticEvent<HTMLImageElement>,
+  async function detectPreviewPrintAreaFromImage(
+    guideImage: HTMLImageElement,
   ) {
-    const image = event.currentTarget;
+    const locationImageUrl = selectedLocation?.location_image_url;
 
-    if (!image.naturalWidth || !image.naturalHeight) {
+    if (
+      !locationImageUrl ||
+      !guideImage.naturalWidth ||
+      !guideImage.naturalHeight
+    ) {
       setPreviewPrintArea(null);
       return;
     }
 
     try {
-      const maximumDetectionSize = 900;
-      const scale = Math.min(
-        1,
-        maximumDetectionSize /
-          Math.max(image.naturalWidth, image.naturalHeight),
-      );
-      const width = Math.max(1, Math.round(image.naturalWidth * scale));
-      const height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const canvas = document.createElement("canvas");
-      const context = canvas.getContext("2d", {
-        willReadFrequently: true,
-      });
+      const baseImage = new Image();
+      baseImage.crossOrigin = "anonymous";
+      baseImage.decoding = "async";
+      baseImage.src = getBrowserSafeImageUrl(locationImageUrl);
 
-      if (!context) {
+      await baseImage.decode();
+
+      const guideAspectRatio =
+        guideImage.naturalWidth / guideImage.naturalHeight;
+      const baseAspectRatio =
+        baseImage.naturalWidth / baseImage.naturalHeight;
+
+      if (
+        !baseImage.naturalWidth ||
+        !baseImage.naturalHeight ||
+        Math.abs(guideAspectRatio - baseAspectRatio) > 0.01
+      ) {
         setPreviewPrintArea(null);
         return;
       }
 
-      canvas.width = width;
-      canvas.height = height;
-      context.drawImage(image, 0, 0, width, height);
+      const maximumComparisonSize = 700;
+      const scale = Math.min(
+        1,
+        maximumComparisonSize /
+          Math.max(guideImage.naturalWidth, guideImage.naturalHeight),
+      );
+      const width = Math.max(
+        1,
+        Math.round(guideImage.naturalWidth * scale),
+      );
+      const height = Math.max(
+        1,
+        Math.round(guideImage.naturalHeight * scale),
+      );
+      const guideCanvas = document.createElement("canvas");
+      const baseCanvas = document.createElement("canvas");
+      const guideContext = guideCanvas.getContext("2d", {
+        willReadFrequently: true,
+      });
+      const baseContext = baseCanvas.getContext("2d", {
+        willReadFrequently: true,
+      });
 
-      const pixels = context.getImageData(0, 0, width, height).data;
-      let minX = width;
-      let minY = height;
-      let maxX = -1;
-      let maxY = -1;
-      let matchingPixels = 0;
+      if (!guideContext || !baseContext) {
+        setPreviewPrintArea(null);
+        return;
+      }
+
+      guideCanvas.width = width;
+      guideCanvas.height = height;
+      baseCanvas.width = width;
+      baseCanvas.height = height;
+
+      guideContext.drawImage(guideImage, 0, 0, width, height);
+      baseContext.drawImage(baseImage, 0, 0, width, height);
+
+      const guidePixels = guideContext.getImageData(
+        0,
+        0,
+        width,
+        height,
+      ).data;
+      const basePixels = baseContext.getImageData(
+        0,
+        0,
+        width,
+        height,
+      ).data;
+      const changedX: number[] = [];
+      const changedY: number[] = [];
 
       for (let y = 0; y < height; y += 1) {
         for (let x = 0; x < width; x += 1) {
           const index = (y * width + x) * 4;
-          const red = pixels[index];
-          const green = pixels[index + 1];
-          const blue = pixels[index + 2];
-          const alpha = pixels[index + 3];
+          const redDifference = Math.abs(
+            guidePixels[index] - basePixels[index],
+          );
+          const greenDifference = Math.abs(
+            guidePixels[index + 1] - basePixels[index + 1],
+          );
+          const blueDifference = Math.abs(
+            guidePixels[index + 2] - basePixels[index + 2],
+          );
 
-          const isGreenGuide =
-            alpha > 100 &&
-            green > 95 &&
-            green > red * 1.2 &&
-            green > blue * 1.12 &&
-            green - Math.max(red, blue) > 24;
-
-          if (!isGreenGuide) {
+          if (
+            Math.max(
+              redDifference,
+              greenDifference,
+              blueDifference,
+            ) < 48
+          ) {
             continue;
           }
 
-          matchingPixels += 1;
-          minX = Math.min(minX, x);
-          minY = Math.min(minY, y);
-          maxX = Math.max(maxX, x);
-          maxY = Math.max(maxY, y);
+          changedX.push(x);
+          changedY.push(y);
         }
       }
 
-      let detectedWidth = maxX - minX + 1;
-      let detectedHeight = maxY - minY + 1;
-      let isPlausibleArea =
-        matchingPixels >= 12 &&
-        detectedWidth >= width * 0.04 &&
-        detectedHeight >= height * 0.015 &&
-        detectedWidth <= width * 0.8 &&
-        detectedHeight <= height * 0.65;
+      const imageArea = width * height;
 
-      if (!isPlausibleArea) {
-        const rowCounts = new Array<number>(height).fill(0);
-        const columnCounts = new Array<number>(width).fill(0);
-
-        for (let y = Math.floor(height * 0.08); y < height * 0.92; y += 1) {
-          for (let x = Math.floor(width * 0.08); x < width * 0.92; x += 1) {
-            const index = (y * width + x) * 4;
-            const red = pixels[index];
-            const green = pixels[index + 1];
-            const blue = pixels[index + 2];
-            const brightness = (red + green + blue) / 3;
-            const colourSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
-
-            if (brightness < 205 || colourSpread > 38) {
-              continue;
-            }
-
-            let hasDarkNeighbour = false;
-
-            for (let offset = -3; offset <= 3 && !hasDarkNeighbour; offset += 1) {
-              const neighbourX = clamp(x + offset, 0, width - 1);
-              const neighbourY = clamp(y + offset, 0, height - 1);
-              const horizontalIndex = (y * width + neighbourX) * 4;
-              const verticalIndex = (neighbourY * width + x) * 4;
-              const horizontalBrightness =
-                (pixels[horizontalIndex] + pixels[horizontalIndex + 1] + pixels[horizontalIndex + 2]) / 3;
-              const verticalBrightness =
-                (pixels[verticalIndex] + pixels[verticalIndex + 1] + pixels[verticalIndex + 2]) / 3;
-
-              hasDarkNeighbour = horizontalBrightness < 155 || verticalBrightness < 155;
-            }
-
-            if (hasDarkNeighbour) {
-              rowCounts[y] += 1;
-              columnCounts[x] += 1;
-            }
-          }
-        }
-
-        const strongestRows = rowCounts
-          .map((count, coordinate) => ({ count, coordinate }))
-          .filter((item) => item.count >= Math.max(7, width * 0.012))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 30);
-        const strongestColumns = columnCounts
-          .map((count, coordinate) => ({ count, coordinate }))
-          .filter((item) => item.count >= Math.max(7, height * 0.012))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 30);
-
-        let bestCandidate:
-          | { left: number; top: number; right: number; bottom: number; score: number }
-          | null = null;
-
-        for (const top of strongestRows) {
-          for (const bottom of strongestRows) {
-            const candidateHeight = bottom.coordinate - top.coordinate;
-
-            if (candidateHeight < height * 0.05 || candidateHeight > height * 0.45) continue;
-
-            for (const left of strongestColumns) {
-              for (const right of strongestColumns) {
-                const candidateWidth = right.coordinate - left.coordinate;
-
-                if (candidateWidth < width * 0.05 || candidateWidth > width * 0.55) continue;
-
-                const aspectRatio = candidateWidth / candidateHeight;
-                const aspectDifference = Math.abs(Math.log(aspectRatio / printAreaAspectRatio));
-                if (aspectDifference > 0.8) continue;
-
-                const centreX = (left.coordinate + right.coordinate) / 2;
-                const centreY = (top.coordinate + bottom.coordinate) / 2;
-                const centrePenalty =
-                  Math.abs(centreX / width - 0.5) + Math.abs(centreY / height - 0.52);
-                const score =
-                  top.count + bottom.count + left.count + right.count -
-                  aspectDifference * 40 - centrePenalty * 25;
-
-                if (!bestCandidate || score > bestCandidate.score) {
-                  bestCandidate = {
-                    left: left.coordinate,
-                    top: top.coordinate,
-                    right: right.coordinate,
-                    bottom: bottom.coordinate,
-                    score,
-                  };
-                }
-              }
-            }
-          }
-        }
-
-        if (bestCandidate) {
-          minX = bestCandidate.left;
-          minY = bestCandidate.top;
-          maxX = bestCandidate.right;
-          maxY = bestCandidate.bottom;
-          detectedWidth = maxX - minX + 1;
-          detectedHeight = maxY - minY + 1;
-          isPlausibleArea = true;
-        }
+      if (
+        changedX.length < Math.max(24, imageArea * 0.00015) ||
+        changedX.length > imageArea * 0.2
+      ) {
+        setPreviewPrintArea(null);
+        return;
       }
 
-      if (!isPlausibleArea) {
+      changedX.sort((a, b) => a - b);
+      changedY.sort((a, b) => a - b);
+
+      const outerSampleIndex = Math.floor(changedX.length * 0.002);
+      const lastSampleIndex =
+        changedX.length - outerSampleIndex - 1;
+      const inset = Math.max(
+        1,
+        Math.round(Math.min(width, height) * 0.004),
+      );
+      const left = changedX[outerSampleIndex] + inset;
+      const top = changedY[outerSampleIndex] + inset;
+      const right = changedX[lastSampleIndex] - inset;
+      const bottom = changedY[lastSampleIndex] - inset;
+      const detectedWidth = right - left + 1;
+      const detectedHeight = bottom - top + 1;
+
+      if (
+        detectedWidth <= 0 ||
+        detectedHeight <= 0 ||
+        detectedWidth > width * 0.85 ||
+        detectedHeight > height * 0.75
+      ) {
         setPreviewPrintArea(null);
         return;
       }
 
       setPreviewPrintArea({
-        left: (minX / width) * 100,
-        top: (minY / height) * 100,
+        left: (left / width) * 100,
+        top: (top / height) * 100,
         width: (detectedWidth / width) * 100,
         height: (detectedHeight / height) * 100,
+        aspectRatio: detectedWidth / detectedHeight,
       });
     } catch {
       setPreviewPrintArea(null);
     }
+  }
+
+  function detectPreviewPrintArea(
+    event: SyntheticEvent<HTMLImageElement>,
+  ) {
+    void detectPreviewPrintAreaFromImage(event.currentTarget);
   }
 
   function handleGuideImageError() {
@@ -1032,7 +1108,12 @@ export default function ProductCustomizationEditor({
   }
 
   function resetPosition() {
-    setPosition(initialPosition);
+    setPosition(
+      getCenteredLogoPosition({
+        printAreaAspectRatio,
+        logoAspectRatio,
+      }),
+    );
   }
 
   function fitLogoToArea() {
@@ -1091,8 +1172,9 @@ export default function ProductCustomizationEditor({
     }
 
     const rect = activeArea.getBoundingClientRect();
-    const logoLeft = rect.left + (safePosition.x / 100) * rect.width;
-    const logoTop = rect.top + (safePosition.y / 100) * rect.height;
+    const activePosition = area === "product" ? productLogoPosition : safePosition;
+    const logoLeft = rect.left + (activePosition.x / 100) * rect.width;
+    const logoTop = rect.top + (activePosition.y / 100) * rect.height;
 
     dragStateRef.current = {
       pointerId: event.pointerId,
@@ -1126,8 +1208,33 @@ export default function ProductCustomizationEditor({
     const nextY =
       ((event.clientY - rect.top - dragState.offsetY) / rect.height) * 100;
 
-    setPosition((current) =>
-      getSafeLogoPosition({
+    setPosition((current) => {
+      if (dragState.area === "product" && previewPrintArea) {
+        const visualHeight = getLogoHeightPercent({
+          logoWidthPercent: productLogoPosition.width,
+          printAreaAspectRatio: previewPrintArea.aspectRatio,
+          logoAspectRatio,
+        });
+        const physicalHeight = getLogoHeightPercent({
+          logoWidthPercent: current.width,
+          printAreaAspectRatio,
+          logoAspectRatio,
+        });
+        const centreX = nextX + productLogoPosition.width / 2;
+        const centreY = nextY + visualHeight / 2;
+
+        return getSafeLogoPosition({
+          position: {
+            ...current,
+            x: centreX - current.width / 2,
+            y: centreY - physicalHeight / 2,
+          },
+          printAreaAspectRatio,
+          logoAspectRatio,
+        });
+      }
+
+      return getSafeLogoPosition({
         position: {
           ...current,
           x: nextX,
@@ -1135,8 +1242,8 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio,
         logoAspectRatio,
-      }),
-    );
+      });
+    });
   }
 
   function handleLogoPointerUp(event: PointerEvent<HTMLDivElement>) {
@@ -1366,6 +1473,7 @@ export default function ProductCustomizationEditor({
                       <img
                         key={browserSafePreviewImage}
                         src={browserSafePreviewImage}
+                        crossOrigin="anonymous"
                         alt={`Área de personalização ${getLocationLabel(selectedLocation!)}`}
                         onLoad={detectPreviewPrintArea}
                         onError={handleGuideImageError}
@@ -1397,11 +1505,11 @@ export default function ProductCustomizationEditor({
                               onPointerCancel={handleLogoPointerUp}
                               className="pointer-events-auto absolute cursor-grab touch-none active:cursor-grabbing"
                               style={{
-                                left: `${safePosition.x}%`,
-                                top: `${safePosition.y}%`,
-                                width: `${safePosition.width}%`,
-                                height: `${logoHeightPercent}%`,
-                                transform: `rotate(${safePosition.rotation}deg)`,
+                                left: `${productLogoPosition.x}%`,
+                                top: `${productLogoPosition.y}%`,
+                                width: `${productLogoPosition.width}%`,
+                                height: `${productLogoHeightPercent}%`,
+                                transform: `rotate(${productLogoPosition.rotation}deg)`,
                                 transformOrigin: "center center",
                               }}
                             >

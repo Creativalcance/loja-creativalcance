@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   useActionState,
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -29,6 +30,7 @@ export type ProductPurchaseColor = {
   color_hex: string | null;
   size: string | null;
   image_url: string | null;
+  high_resolution_image_url: string | null;
 };
 
 export type ProductPurchasePrice = {
@@ -84,6 +86,7 @@ type ColorGroup = {
   label: string;
   hex: string | null;
   image_url: string | null;
+  high_resolution_image_url: string | null;
   variants: ProductPurchaseColor[];
   stockAvailable: number;
 };
@@ -96,6 +99,7 @@ type ProductDirectPurchasePanelProps = {
   shortDescription: string | null;
   productDescription: string | null;
   productImageUrl: string | null;
+  productHighResolutionImageUrl: string | null;
   brand: string | null;
   material: string | null;
   dimensions: string | null;
@@ -381,6 +385,7 @@ function buildColorGroups(params: {
         label: getColorLabel(color),
         hex: color.color_hex,
         image_url: color.image_url,
+        high_resolution_image_url: color.high_resolution_image_url,
         variants: [color],
         stockAvailable: stock.orderable,
       });
@@ -399,6 +404,14 @@ function buildColorGroups(params: {
     ) {
       existingGroup.image_url =
         color.image_url;
+    }
+
+    if (
+      !existingGroup.high_resolution_image_url &&
+      color.high_resolution_image_url
+    ) {
+      existingGroup.high_resolution_image_url =
+        color.high_resolution_image_url;
     }
 
     if (
@@ -427,6 +440,48 @@ function buildColorGroups(params: {
     .sort((a, b) =>
       a.label.localeCompare(b.label, "pt-PT"),
     );
+}
+
+function ProductDetailImage({
+  highResolutionUrl,
+  fallbackUrl,
+  alt,
+}: {
+  highResolutionUrl: string | null;
+  fallbackUrl: string | null;
+  alt: string;
+}) {
+  const [imageUrl, setImageUrl] = useState(
+    highResolutionUrl ?? fallbackUrl,
+  );
+
+  useEffect(() => {
+    setImageUrl(highResolutionUrl ?? fallbackUrl);
+  }, [fallbackUrl, highResolutionUrl]);
+
+  if (!imageUrl) {
+    return (
+      <div className="text-sm text-neutral-400">
+        Imagem indisponível
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={imageUrl}
+      alt={alt}
+      className="h-full w-full object-contain p-8"
+      onError={() => {
+        if (fallbackUrl && imageUrl !== fallbackUrl) {
+          setImageUrl(fallbackUrl);
+          return;
+        }
+
+        setImageUrl(null);
+      }}
+    />
+  );
 }
 
 function dedupePriceTiers(
@@ -525,6 +580,7 @@ export default function ProductDirectPurchasePanel({
   shortDescription,
   productDescription,
   productImageUrl,
+  productHighResolutionImageUrl,
   brand,
   material,
   dimensions,
@@ -757,6 +813,11 @@ export default function ProductDirectPurchasePanel({
     selectedVariant?.image_url ??
     productImageUrl;
 
+  const displayHighResolutionImageUrl =
+    selectedColorGroup?.high_resolution_image_url ??
+    selectedVariant?.high_resolution_image_url ??
+    productHighResolutionImageUrl;
+
   const canProceed =
     Boolean(selectedVariant?.id) &&
     selectedStock.orderable > 0 &&
@@ -851,17 +912,11 @@ export default function ProductDirectPurchasePanel({
       <div className="space-y-6">
         <div className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="mx-auto flex aspect-[4/3] max-h-[560px] items-center justify-center overflow-hidden rounded-3xl bg-neutral-50">
-            {displayImageUrl ? (
-              <img
-                src={displayImageUrl}
-                alt={productName}
-                className="h-full w-full object-contain p-8"
-              />
-            ) : (
-              <div className="text-sm text-neutral-400">
-                Imagem indisponível
-              </div>
-            )}
+            <ProductDetailImage
+              highResolutionUrl={displayHighResolutionImageUrl}
+              fallbackUrl={displayImageUrl}
+              alt={productName}
+            />
           </div>
 
           {colorGroups.length > 0 ? (

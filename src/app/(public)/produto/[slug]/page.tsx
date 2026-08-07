@@ -11,6 +11,7 @@ import ProductDirectPurchasePanel, {
 import { type ProductCustomizationOption } from "@/components/product/ProductCustomizationOptions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { buildStrickerProductHighResolutionImageUrl } from "@/lib/stricker/images";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -555,6 +556,10 @@ export default async function ProductDetailPage({
   }
   const primaryImage = getPrimaryImage(product);
   const imageUrl = primaryImage?.storage_url ?? primaryImage?.external_url;
+  const highResolutionImageUrl =
+    buildStrickerProductHighResolutionImageUrl(
+      primaryImage?.external_url,
+    );
 
   const prices = [...(product.product_prices ?? [])].sort(
     (a, b) => a.quantity_min - b.quantity_min,
@@ -581,6 +586,10 @@ export default async function ProductDetailPage({
     color_hex: color.color_hex,
     size: color.size,
     image_url: color.optional_image_1_url ?? color.optional_image_2_url,
+    high_resolution_image_url:
+      buildStrickerProductHighResolutionImageUrl(
+        color.optional_image_1_url ?? color.optional_image_2_url,
+      ),
   }));
 
   const purchasePrices: ProductPurchasePrice[] = prices.map((price) => ({
@@ -634,6 +643,7 @@ export default async function ProductDetailPage({
   shortDescription={product.short_description}
   productDescription={product.description}
   productImageUrl={imageUrl ?? null}
+  productHighResolutionImageUrl={highResolutionImageUrl}
   brand={product.brand}
   material={product.material}
   dimensions={product.dimensions}
