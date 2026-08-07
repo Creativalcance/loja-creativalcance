@@ -118,6 +118,7 @@ type ProductCustomizationOptionUpsertRow = {
 type FetchLocationsResult = {
   rows: ProductCustomizationLocationRow[];
   total: number;
+  lastCursor: string | null;
 };
 
 export type SyncRestCustomizationOptionsResult = {
@@ -129,6 +130,7 @@ export type SyncRestCustomizationOptionsResult = {
   offset: number;
   limit: number;
   nextOffset: number | null;
+  nextCursor: string | null;
   hasMore: boolean;
   optionsImported: number;
   variantsMatched: number;
@@ -138,8 +140,26 @@ export type SyncRestCustomizationOptionsResult = {
   datasetImportId: string;
 };
 
-const QUERY_CHUNK_SIZE = 400;
-const UPSERT_CHUNK_SIZE = 500;
+const QUERY_CHUNK_SIZE = 100;
+const UPSERT_CHUNK_SIZE = 10;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isStatementTimeout(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("statement timeout") ||
+    message.includes("canceling statement due to statement timeout") ||
+    message.includes("57014")
+  );
+}
+
+function phaseError(phase: string, error: unknown): Error {
+  return new Error(`[customizationOptions:${phase}] ${getErrorMessage(error)}`);
+}
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
   const chunks: TValue[][] = [];
@@ -365,6 +385,8 @@ async function createDatasetImport(params: {
   lang: StrickerLanguage;
   offset: number;
   limit: number;
+  cursor: string | null;
+  recordsTotal: number | null;
 }): Promise<string> {
   const { data, error } = await params.supabaseAdmin
     .from("supplier_dataset_imports")
@@ -382,6 +404,7 @@ async function createDatasetImport(params: {
       raw_payload: {
         offset: params.offset,
         limit: params.limit,
+        cursor: params.cursor,
       },
       errors: [],
       started_at: new Date().toISOString(),
@@ -432,11 +455,10 @@ async function fetchLocations(params: {
   supplierId: string;
   offset: number;
   limit: number;
+  cursor: string | null;
+  recordsTotal: number | null;
 }): Promise<FetchLocationsResult> {
-  const from = params.offset;
-  const to = params.offset + params.limit - 1;
-
-  const { data, error, count } = await params.supabaseAdmin
+  let query = params.supabaseAdmin
     .from("product_customization_locations")
     .select(
       [
@@ -456,13 +478,19 @@ async function fetchLocations(params: {
         "printing_lines_image_url",
         "raw_payload",
       ].join(","),
-      { count: "exact" },
+      params.recordsTotal === null ? { count: "exact" } : undefined,
     )
     .eq("supplier_id", params.supplierId)
     .not("variant_id", "is", null)
     .order("id", { ascending: true })
-    .range(from, to)
-    .returns<ProductCustomizationLocationRow[]>();
+    .limit(params.limit);
+
+  if (params.cursor) {
+    query = query.gt("id", params.cursor);
+  }
+
+  const { data, error, count } =
+    await query.returns<ProductCustomizationLocationRow[]>();
 
   if (error) {
     throw new Error(error.message);
@@ -470,7 +498,9 @@ async function fetchLocations(params: {
 
   return {
     rows: data ?? [],
-    total: count ?? data?.length ?? 0,
+    total: params.recordsTotal ?? count ?? data?.length ?? 0,
+    lastCursor:
+      data && data.length > 0 ? data[data.length - 1]?.id ?? null : null,
   };
 }
 
@@ -921,7 +951,9 @@ async function upsertCustomizationOptions(params: {
 }): Promise<number> {
   const uniqueRows = dedupeCustomizationOptionRows(params.rows);
 
-  for (const rowChunk of chunkArray(uniqueRows, UPSERT_CHUNK_SIZE)) {
+  const upsertChunk = async (
+    rowChunk: ProductCustomizationOptionUpsertRow[],
+  ): Promise<void> => {
     const { error } = await params.supabaseAdmin
       .from("product_customization_options")
       .upsert(rowChunk, {
@@ -929,8 +961,24 @@ async function upsertCustomizationOptions(params: {
       });
 
     if (error) {
-      throw new Error(error.message);
+      if (isStatementTimeout(error) && rowChunk.length > 1) {
+        const middle = Math.ceil(rowChunk.length / 2);
+        await upsertChunk(rowChunk.slice(0, middle));
+        await upsertChunk(rowChunk.slice(middle));
+        return;
+      }
+
+      const row = rowChunk[0];
+      const identity = row
+        ? `${row.variant_id}/${row.service_code}`
+        : "desconhecido";
+
+      throw new Error(`${error.message} Registo: ${identity}.`);
     }
+  };
+
+  for (const rowChunk of chunkArray(uniqueRows, UPSERT_CHUNK_SIZE)) {
+    await upsertChunk(rowChunk);
   }
 
   return uniqueRows.length;
@@ -940,6 +988,8 @@ export async function syncRestCustomizationOptions(params: {
   lang: StrickerLanguage;
   offset: number;
   limit: number;
+  cursor?: string | null;
+  recordsTotal?: number | null;
 }): Promise<SyncRestCustomizationOptionsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -950,15 +1000,25 @@ export async function syncRestCustomizationOptions(params: {
     lang: params.lang,
     offset: params.offset,
     limit: params.limit,
+    cursor: params.cursor ?? null,
+    recordsTotal: params.recordsTotal ?? null,
   });
 
   try {
-    const locationsResult = await fetchLocations({
-      supabaseAdmin,
-      supplierId,
-      offset: params.offset,
-      limit: params.limit,
-    });
+    let locationsResult: FetchLocationsResult;
+
+    try {
+      locationsResult = await fetchLocations({
+        supabaseAdmin,
+        supplierId,
+        offset: params.offset,
+        limit: params.limit,
+        cursor: params.cursor ?? null,
+        recordsTotal: params.recordsTotal ?? null,
+      });
+    } catch (error) {
+      throw phaseError("localizacoes", error);
+    }
 
     const locations = locationsResult.rows;
     const recordsTotal = locationsResult.total;
@@ -967,30 +1027,48 @@ export async function syncRestCustomizationOptions(params: {
       .map((location) => location.variant_id)
       .filter((value): value is string => Boolean(value));
 
-    const variants = await fetchVariantsByIds({
-      supabaseAdmin,
-      supplierId,
-      variantIds,
-    });
+    let variants: ProductVariantRow[];
+
+    try {
+      variants = await fetchVariantsByIds({
+        supabaseAdmin,
+        supplierId,
+        variantIds,
+      });
+    } catch (error) {
+      throw phaseError("variantes", error);
+    }
 
     const variantsById = buildVariantMap(variants);
 
-    const components = await fetchComponents({
-      supabaseAdmin,
-      supplierId,
-      variantIds: variants.map((variant) => variant.id),
-    });
+    let components: ProductCustomizationComponentRow[];
+
+    try {
+      components = await fetchComponents({
+        supabaseAdmin,
+        supplierId,
+        variantIds: variants.map((variant) => variant.id),
+      });
+    } catch (error) {
+      throw phaseError("componentes", error);
+    }
 
     const tableCodes = locations.flatMap((location) => [
       ...getTableCodesForLocation(location),
       ...getTableCodeOptionsForLocation(location),
     ]);
 
-    const priceTables = await fetchPrintingPriceTables({
-      supabaseAdmin,
-      supplierId,
-      tableCodes,
-    });
+    let priceTables: PrintingPriceTableRow[];
+
+    try {
+      priceTables = await fetchPrintingPriceTables({
+        supabaseAdmin,
+        supplierId,
+        tableCodes,
+      });
+    } catch (error) {
+      throw phaseError("tabelas-precos", error);
+    }
 
     const componentMaps = buildComponentMaps(components);
     const priceTableMaps = buildPriceTableMaps(priceTables);
@@ -1003,17 +1081,24 @@ export async function syncRestCustomizationOptions(params: {
       priceTableMaps,
     });
 
-    const importedCount =
-      rows.length > 0
-        ? await upsertCustomizationOptions({
-            supabaseAdmin,
-            rows,
-          })
-        : 0;
+    let importedCount = 0;
 
-    const nextOffset = params.offset + params.limit;
-    const hasMore = nextOffset < recordsTotal;
+    if (rows.length > 0) {
+      try {
+        importedCount = await upsertCustomizationOptions({
+          supabaseAdmin,
+          rows,
+        });
+      } catch (error) {
+        throw phaseError("gravacao", error);
+      }
+    }
+
+    const nextOffset = params.offset + locations.length;
+    const hasMore =
+      locations.length === params.limit && nextOffset < recordsTotal;
     const normalizedNextOffset = hasMore ? nextOffset : null;
+    const nextCursor = hasMore ? locationsResult.lastCursor : null;
     const status = importedCount > 0 ? "success" : "partial_success";
 
     await finishDatasetImport({
@@ -1030,6 +1115,7 @@ export async function syncRestCustomizationOptions(params: {
         offset: params.offset,
         limit: params.limit,
         nextOffset: normalizedNextOffset,
+        nextCursor,
         hasMore,
         recordsTotal,
         locationsMatched: locations.length,
@@ -1056,6 +1142,7 @@ export async function syncRestCustomizationOptions(params: {
       offset: params.offset,
       limit: params.limit,
       nextOffset: normalizedNextOffset,
+      nextCursor,
       hasMore,
       optionsImported: importedCount,
       variantsMatched: variants.length,
@@ -1065,25 +1152,31 @@ export async function syncRestCustomizationOptions(params: {
       datasetImportId,
     };
   } catch (error) {
-    await finishDatasetImport({
-      supabaseAdmin,
-      datasetImportId,
-      status: "failed",
-      recordsReceived: 0,
-      recordsImported: 0,
-      recordsFailed: 1,
-      rawPayload: {
-        Source: "derived-from-optionals",
-        RequestedLanguage: params.lang,
-        offset: params.offset,
-        limit: params.limit,
-      },
-      errors: [
-        error instanceof Error
-          ? error.message
-          : "Erro inesperado na geração de customizationOptions.",
-      ],
-    });
+    try {
+      await finishDatasetImport({
+        supabaseAdmin,
+        datasetImportId,
+        status: "failed",
+        recordsReceived: 0,
+        recordsImported: 0,
+        recordsFailed: 1,
+        rawPayload: {
+          Source: "derived-from-optionals",
+          RequestedLanguage: params.lang,
+          offset: params.offset,
+          limit: params.limit,
+          cursor: params.cursor ?? null,
+        },
+        errors: [
+          error instanceof Error
+            ? error.message
+            : "Erro inesperado na geração de customizationOptions.",
+        ],
+      });
+    } catch {
+      // O erro original da sincronização não deve ser ocultado por uma falha
+      // ao atualizar o registo de histórico.
+    }
 
     throw error;
   }

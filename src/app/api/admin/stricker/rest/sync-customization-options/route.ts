@@ -33,8 +33,22 @@ const ALLOWED_LANGUAGES: StrickerLanguage[] = [
   "UA",
 ];
 
-const DEFAULT_BATCH_LIMIT = 250;
-const MAX_BATCH_LIMIT = 500;
+const DEFAULT_BATCH_LIMIT = 25;
+const MAX_BATCH_LIMIT = 50;
+
+function normalizeCursor(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const cursor = value.trim();
+
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    cursor,
+  )
+    ? cursor
+    : null;
+}
 
 function isAllowedLanguage(value: string): value is StrickerLanguage {
   return ALLOWED_LANGUAGES.includes(value as StrickerLanguage);
@@ -76,6 +90,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       lang?: unknown;
       offset?: unknown;
       limit?: unknown;
+      cursor?: unknown;
+      recordsTotal?: unknown;
     };
 
     const langRaw = normalizeLanguage(body.lang);
@@ -104,10 +120,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       max: MAX_BATCH_LIMIT,
     });
 
+    const cursor = normalizeCursor(body.cursor);
+    const recordsTotal = normalizePositiveInteger({
+      value: body.recordsTotal,
+      fallback: 0,
+      min: 0,
+      max: 10_000_000,
+    });
+
     const result = await syncRestCustomizationOptions({
       lang: langRaw,
       offset,
       limit,
+      cursor,
+      recordsTotal: recordsTotal > 0 ? recordsTotal : null,
     });
 
     return NextResponse.json({

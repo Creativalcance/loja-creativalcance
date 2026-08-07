@@ -55,6 +55,7 @@ type SyncResponse = {
   offset?: number;
   limit?: number;
   nextOffset?: number | null;
+  nextCursor?: string | null;
   hasMore?: boolean;
   datasetImportId?: string;
   productsTotal?: number;
@@ -314,9 +315,12 @@ async function requestSync(params: {
 
 async function requestAllCustomizationOptions(
   language: StrickerLanguage,
+  onProgress: (processed: number, total: number) => void,
 ): Promise<SyncResponse> {
-  const limit = 250;
+  const limit = 25;
   let offset = 0;
+  let cursor: string | null = null;
+  let recordsTotal: number | null = null;
   let recordsReceived = 0;
   let recordsProcessed = 0;
   let optionsImported = 0;
@@ -329,6 +333,8 @@ async function requestAllCustomizationOptions(
         lang: language,
         offset,
         limit,
+        cursor,
+        recordsTotal,
       },
     });
 
@@ -336,8 +342,10 @@ async function requestAllCustomizationOptions(
     recordsReceived += payload.recordsReceived ?? 0;
     recordsProcessed += payload.recordsProcessed ?? 0;
     optionsImported += payload.optionsImported ?? 0;
+    recordsTotal = payload.recordsTotal ?? recordsTotal;
+    onProgress(recordsProcessed, recordsTotal ?? recordsProcessed);
 
-    if (!payload.hasMore || payload.nextOffset === null) {
+    if (!payload.hasMore || payload.nextCursor === null) {
       return {
         ...payload,
         recordsReceived,
@@ -348,16 +356,14 @@ async function requestAllCustomizationOptions(
       };
     }
 
-    if (
-      typeof payload.nextOffset !== "number" ||
-      payload.nextOffset <= offset
-    ) {
+    if (!payload.nextCursor || payload.nextCursor === cursor) {
       throw new Error(
-        "A paginação de customizationOptions devolveu um offset inválido.",
+        "A paginação de customizationOptions devolveu um cursor inválido.",
       );
     }
 
-    offset = payload.nextOffset;
+    offset = payload.nextOffset ?? offset + (payload.recordsProcessed ?? 0);
+    cursor = payload.nextCursor;
   }
 
   throw new Error(
@@ -473,7 +479,16 @@ export default function StrickerRestCatalogSyncActions() {
 
       const payload =
         action === "customizationOptions"
-          ? await requestAllCustomizationOptions(selectedLanguage)
+          ? await requestAllCustomizationOptions(
+              selectedLanguage,
+              (processed, total) => {
+                setState({
+                  loadingAction: action,
+                  message: `A gerar personalizações: ${processed} de ${total} localizações processadas.`,
+                  error: null,
+                });
+              },
+            )
           : await requestSync({
               action,
               body,
