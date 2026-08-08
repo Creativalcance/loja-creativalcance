@@ -136,9 +136,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       recordsTotal: recordsTotal > 0 ? recordsTotal : null,
     });
 
+    const hasPendingRecords = result.optionsFailed > 0;
+
     return NextResponse.json({
       success: true,
-      message: "Opções de personalização Stricker sincronizadas com sucesso.",
+      message: hasPendingRecords
+        ? `Sincronização concluída com ${result.optionsFailed} opção pendente neste lote.`
+        : "Opções de personalização Stricker sincronizadas com sucesso.",
       ...result,
     });
   } catch (error) {

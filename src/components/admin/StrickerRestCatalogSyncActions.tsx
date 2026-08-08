@@ -44,6 +44,8 @@ type SyncResponse = {
   componentsImported?: number;
   locationsImported?: number;
   optionsImported?: number;
+  optionsFailed?: number;
+  failedOptionRecords?: string[];
   tablesImported?: number;
   techniqueTranslationsImported?: number;
   translationsImported?: number;
@@ -324,6 +326,8 @@ async function requestAllCustomizationOptions(
   let recordsReceived = 0;
   let recordsProcessed = 0;
   let optionsImported = 0;
+  let optionsFailed = 0;
+  const failedOptionRecords: string[] = [];
   let lastPayload: SyncResponse | null = null;
 
   for (let batch = 0; batch < 10_000; batch += 1) {
@@ -342,6 +346,8 @@ async function requestAllCustomizationOptions(
     recordsReceived += payload.recordsReceived ?? 0;
     recordsProcessed += payload.recordsProcessed ?? 0;
     optionsImported += payload.optionsImported ?? 0;
+    optionsFailed += payload.optionsFailed ?? 0;
+    failedOptionRecords.push(...(payload.failedOptionRecords ?? []));
     recordsTotal = payload.recordsTotal ?? recordsTotal;
     onProgress(recordsProcessed, recordsTotal ?? recordsProcessed);
 
@@ -351,6 +357,8 @@ async function requestAllCustomizationOptions(
         recordsReceived,
         recordsProcessed,
         optionsImported,
+        optionsFailed,
+        failedOptionRecords,
         hasMore: false,
         nextOffset: null,
       };
@@ -438,7 +446,9 @@ function getExtraMessage(params: {
   if (action === "customizationOptions") {
     return ` Localizações processadas: ${
       payload.recordsProcessed ?? 0
-    } de ${payload.recordsTotal ?? payload.recordsProcessed ?? 0}.`;
+    } de ${payload.recordsTotal ?? payload.recordsProcessed ?? 0}. Opções pendentes: ${
+      payload.optionsFailed ?? 0
+    }.`;
   }
 
   if (action === "reconcileAvailability") {

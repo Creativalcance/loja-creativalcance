@@ -133,6 +133,8 @@ export type SyncRestCustomizationOptionsResult = {
   nextCursor: string | null;
   hasMore: boolean;
   optionsImported: number;
+  optionsFailed: number;
+  failedOptionRecords: string[];
   variantsMatched: number;
   componentsMatched: number;
   locationsMatched: number;
@@ -142,6 +144,7 @@ export type SyncRestCustomizationOptionsResult = {
 
 const QUERY_CHUNK_SIZE = 100;
 const UPSERT_CHUNK_SIZE = 10;
+const UPSERT_MAX_ATTEMPTS = 4;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -155,6 +158,23 @@ function isStatementTimeout(error: unknown): boolean {
     message.includes("canceling statement due to statement timeout") ||
     message.includes("57014")
   );
+}
+
+function isTransientFetchError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    error instanceof TypeError ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("econnreset") ||
+    message.includes("socket") ||
+    message.includes("terminated")
+  );
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function phaseError(phase: string, error: unknown): Error {
@@ -945,35 +965,73 @@ function dedupeCustomizationOptionRows(
   return Array.from(map.values());
 }
 
+type UpsertCustomizationOptionsResult = {
+  imported: number;
+  failedRecords: string[];
+};
+
 async function upsertCustomizationOptions(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationOptionUpsertRow[];
-}): Promise<number> {
+}): Promise<UpsertCustomizationOptionsResult> {
   const uniqueRows = dedupeCustomizationOptionRows(params.rows);
+  const failedRecords: string[] = [];
+
+  const getIdentity = (row: ProductCustomizationOptionUpsertRow | undefined) =>
+    row ? `${row.variant_id}/${row.service_code}` : "desconhecido";
 
   const upsertChunk = async (
     rowChunk: ProductCustomizationOptionUpsertRow[],
   ): Promise<void> => {
-    const { error } = await params.supabaseAdmin
-      .from("product_customization_options")
-      .upsert(rowChunk, {
-        onConflict: "product_id,variant_id,supplier_id,service_code",
-      });
+    let lastError: unknown = null;
 
-    if (error) {
-      if (isStatementTimeout(error) && rowChunk.length > 1) {
+    for (let attempt = 1; attempt <= UPSERT_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const { error } = await params.supabaseAdmin
+          .from("product_customization_options")
+          .upsert(rowChunk, {
+            onConflict: "product_id,variant_id,supplier_id,service_code",
+          });
+
+        if (!error) {
+          return;
+        }
+
+        lastError = error;
+        if (!isStatementTimeout(error) && !isTransientFetchError(error)) {
+          break;
+        }
+      } catch (error) {
+        lastError = error;
+        if (!isTransientFetchError(error)) {
+          break;
+        }
+      }
+
+      if (attempt < UPSERT_MAX_ATTEMPTS) {
+        await wait(300 * 2 ** (attempt - 1));
+      }
+    }
+
+    if (lastError) {
+      if (
+        (isStatementTimeout(lastError) || isTransientFetchError(lastError)) &&
+        rowChunk.length > 1
+      ) {
         const middle = Math.ceil(rowChunk.length / 2);
         await upsertChunk(rowChunk.slice(0, middle));
         await upsertChunk(rowChunk.slice(middle));
         return;
       }
 
-      const row = rowChunk[0];
-      const identity = row
-        ? `${row.variant_id}/${row.service_code}`
-        : "desconhecido";
+      const identity = getIdentity(rowChunk[0]);
 
-      throw new Error(`${error.message} Registo: ${identity}.`);
+      if (rowChunk.length === 1 && isTransientFetchError(lastError)) {
+        failedRecords.push(identity);
+        return;
+      }
+
+      throw new Error(`${getErrorMessage(lastError)} Registo: ${identity}.`);
     }
   };
 
@@ -981,7 +1039,10 @@ async function upsertCustomizationOptions(params: {
     await upsertChunk(rowChunk);
   }
 
-  return uniqueRows.length;
+  return {
+    imported: uniqueRows.length - failedRecords.length,
+    failedRecords,
+  };
 }
 
 export async function syncRestCustomizationOptions(params: {
@@ -1082,13 +1143,16 @@ export async function syncRestCustomizationOptions(params: {
     });
 
     let importedCount = 0;
+    let failedOptionRecords: string[] = [];
 
     if (rows.length > 0) {
       try {
-        importedCount = await upsertCustomizationOptions({
+        const upsertResult = await upsertCustomizationOptions({
           supabaseAdmin,
           rows,
         });
+        importedCount = upsertResult.imported;
+        failedOptionRecords = upsertResult.failedRecords;
       } catch (error) {
         throw phaseError("gravacao", error);
       }
@@ -1099,7 +1163,10 @@ export async function syncRestCustomizationOptions(params: {
       locations.length === params.limit && nextOffset < recordsTotal;
     const normalizedNextOffset = hasMore ? nextOffset : null;
     const nextCursor = hasMore ? locationsResult.lastCursor : null;
-    const status = importedCount > 0 ? "success" : "partial_success";
+    const status =
+      failedOptionRecords.length > 0 || importedCount === 0
+        ? "partial_success"
+        : "success";
 
     await finishDatasetImport({
       supabaseAdmin,
@@ -1107,7 +1174,7 @@ export async function syncRestCustomizationOptions(params: {
       status,
       recordsReceived: locations.length,
       recordsImported: importedCount,
-      recordsFailed: Math.max(locations.length - importedCount, 0),
+      recordsFailed: failedOptionRecords.length,
       rawPayload: {
         Language: params.lang,
         RequestedLanguage: params.lang,
@@ -1123,14 +1190,19 @@ export async function syncRestCustomizationOptions(params: {
         componentsMatched: components.length,
         priceTablesMatched: priceTables.length,
         rowsBuilt: rows.length,
+        failedOptionRecords,
         sampleLocationIds: locations.slice(0, 10).map((location) => location.id),
       },
       errors:
-        importedCount > 0 || locations.length === 0
-          ? []
-          : [
-              "Não foi possível gerar opções de personalização a partir das localizações existentes.",
-            ],
+        failedOptionRecords.length > 0
+          ? failedOptionRecords.map(
+              (identity) => `Falha transitória ao gravar ${identity}.`,
+            )
+          : importedCount > 0 || locations.length === 0
+            ? []
+            : [
+                "Não foi possível gerar opções de personalização a partir das localizações existentes.",
+              ],
     });
 
     return {
@@ -1145,6 +1217,8 @@ export async function syncRestCustomizationOptions(params: {
       nextCursor,
       hasMore,
       optionsImported: importedCount,
+      optionsFailed: failedOptionRecords.length,
+      failedOptionRecords,
       variantsMatched: variants.length,
       componentsMatched: components.length,
       locationsMatched: locations.length,
