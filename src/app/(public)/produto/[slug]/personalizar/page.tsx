@@ -81,6 +81,19 @@ type PrintingPriceTable = {
   handling_cost: number;
   handling_cost_code: string | null;
   currency: string;
+  price_by_area: boolean;
+  area_cm2: number | null;
+};
+
+type ProductCustomizationOption = {
+  id: string;
+  variant_id: string | null;
+  location_id: string | null;
+  customization_type_name: string | null;
+  table_code: string | null;
+  table_code_option: string | null;
+  service_code: string | null;
+  is_active: boolean;
 };
 
 type ProductDetail = {
@@ -317,6 +330,7 @@ function buildEditorLocations(params: {
   locations: ProductCustomizationLocation[];
   componentsById: Map<string, ProductCustomizationComponent>;
   printingPrices: PrintingPriceTable[];
+  customizationOptions: ProductCustomizationOption[];
 }): ProductEditorLocation[] {
   const rows: ProductEditorLocation[] = [];
 
@@ -326,12 +340,43 @@ function buildEditorLocations(params: {
       componentsById: params.componentsById,
     });
 
-    const techniques = getCustomizationTypesForLocation(location);
+    const locationOptions = params.customizationOptions.filter(
+      (option) => option.location_id === location.id && option.is_active,
+    );
+
+    const techniques = Array.from(
+      new Set(
+        locationOptions
+          .map((option) => option.customization_type_name?.trim() ?? "")
+          .filter((technique) => technique.length > 0),
+      ),
+    );
+
+    const fallbackTechniques = getCustomizationTypesForLocation(location);
 
     const safeTechniques =
-      techniques.length > 0 ? techniques : ["Personalização"];
+      techniques.length > 0
+        ? techniques
+        : fallbackTechniques.length > 0
+          ? fallbackTechniques
+          : ["Personalização"];
 
     for (const technique of safeTechniques) {
+      const techniqueOptions = locationOptions.filter(
+        (option) =>
+          option.customization_type_name?.localeCompare(technique, "pt-PT", {
+            sensitivity: "base",
+          }) === 0,
+      );
+
+      const techniqueTableCodes = Array.from(
+        new Set(
+          techniqueOptions
+            .flatMap((option) => [option.table_code, option.table_code_option])
+            .filter((code): code is string => Boolean(code)),
+        ),
+      );
+
       const locationName =
         location.location_name ??
         location.location_code ??
@@ -354,15 +399,26 @@ function buildEditorLocations(params: {
           getPrintingLinesImageUrl(location),
         max_printing_area_mm: location.max_printing_area_mm,
         max_area_cm2: location.max_area_cm2,
-        table_codes: getTableCodesForLocation(location),
+        table_codes:
+          techniqueTableCodes.length > 0
+            ? techniqueTableCodes
+            : getTableCodesForLocation(location),
         is_recommended: location.is_default,
         price_tiers: params.printingPrices
           .filter((price) => {
-            const codeMatches = getTableCodesForLocation(location).some(
-              (code) =>
-                code === price.table_code ||
-                code === price.table_code_option,
-            );
+            const codeMatches =
+              techniqueOptions.length > 0
+                ? techniqueOptions.some((option) =>
+                    option.table_code_option
+                      ? option.table_code_option === price.table_code_option
+                      : option.table_code === price.table_code ||
+                        option.table_code === price.table_code_option,
+                  )
+                : getTableCodesForLocation(location).some(
+                    (code) =>
+                      code === price.table_code ||
+                      code === price.table_code_option,
+                  );
             const techniqueMatches =
               !price.technique_name ||
               price.technique_name.localeCompare(technique, "pt-PT", {
@@ -382,6 +438,8 @@ function buildEditorLocations(params: {
             handling_cost: price.handling_cost,
             handling_cost_code: price.handling_cost_code,
             currency: price.currency,
+            price_by_area: price.price_by_area,
+            area_cm2: price.area_cm2,
           })),
       });
     }
@@ -511,14 +569,33 @@ export default async function ProductPersonalizePage({
     ),
   );
 
+  const activeVariantId = selectedVariant?.id ?? variants[0]?.id ?? null;
+
+  const { data: customizationOptionData } = activeVariantId
+    ? await supabase
+        .from("product_customization_options")
+        .select(
+          "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,is_active",
+        )
+        .eq("product_id", product.id)
+        .eq("variant_id", activeVariantId)
+        .eq("is_active", true)
+    : { data: [] };
+
+  const customizationOptions = (customizationOptionData ?? []) as ProductCustomizationOption[];
+
   const tableCodes = Array.from(
-    new Set(customizationLocations.flatMap(getTableCodesForLocation)),
+    new Set(
+      customizationOptions
+        .flatMap((option) => [option.table_code, option.table_code_option])
+        .filter((code): code is string => Boolean(code)),
+    ),
   );
   const { data: printingPriceData } = tableCodes.length
     ? await supabase
         .from("printing_price_tables")
         .select(
-          "id,table_code,table_code_option,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency",
+          "id,table_code,table_code_option,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency,price_by_area,area_cm2",
         )
         .eq("supplier_id", product.supplier_id)
         .eq("is_active", true)
@@ -542,9 +619,14 @@ export default async function ProductPersonalizePage({
   );
 
   const editorLocations = buildEditorLocations({
-    locations: customizationLocations,
+    locations: activeVariantId
+      ? customizationLocations.filter(
+          (location) => location.variant_id === activeVariantId,
+        )
+      : customizationLocations,
     componentsById,
     printingPrices: (printingPriceData ?? []) as PrintingPriceTable[],
+    customizationOptions,
   });
 
   const editorPrices: ProductEditorPrice[] = (

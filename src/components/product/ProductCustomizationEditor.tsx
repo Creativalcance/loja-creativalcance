@@ -71,6 +71,8 @@ export type ProductEditorCustomizationPrice = {
   supplier_handling_cost: number;
   handling_cost_code: string | null;
   currency: string;
+  price_by_area: boolean;
+  area_cm2: number | null;
 };
 
 type LogoPosition = {
@@ -348,8 +350,40 @@ function getPreferredPreviewImage(params: {
 function findCustomizationPriceTier(
   tiers: ProductEditorCustomizationPrice[],
   quantity: number,
+  areaCm2?: number | null,
 ): ProductEditorCustomizationPrice | null {
-  const sorted = [...tiers].sort((a, b) => a.quantity_min - b.quantity_min);
+  const requestedArea = areaCm2 && areaCm2 > 0 ? areaCm2 : null;
+  const areaCandidates = requestedArea
+    ? tiers.filter(
+        (tier) =>
+          !tier.price_by_area ||
+          tier.area_cm2 === null ||
+          tier.area_cm2 >= requestedArea,
+      )
+    : tiers;
+
+  const activeTiers = areaCandidates.length > 0 ? areaCandidates : tiers;
+  const smallestApplicableArea = activeTiers
+    .filter((tier) => tier.price_by_area && tier.area_cm2 !== null)
+    .reduce<number | null>(
+      (smallest, tier) =>
+        smallest === null || tier.area_cm2! < smallest
+          ? tier.area_cm2
+          : smallest,
+      null,
+    );
+
+  const areaTiers =
+    smallestApplicableArea === null
+      ? activeTiers
+      : activeTiers.filter(
+          (tier) =>
+            !tier.price_by_area || tier.area_cm2 === smallestApplicableArea,
+        );
+
+  const sorted = [...areaTiers].sort(
+    (a, b) => a.quantity_min - b.quantity_min,
+  );
   return (
     sorted.find(
       (tier) =>
@@ -575,6 +609,7 @@ export default function ProductCustomizationEditor({
   const personalizationPriceTier = findCustomizationPriceTier(
     selectedLocation?.price_tiers ?? [],
     quantity,
+    logoWidthMm && logoHeightMm ? (logoWidthMm * logoHeightMm) / 100 : null,
   );
   const personalizationUnitPrice =
     personalizationPriceTier?.final_price ?? 0;
@@ -835,8 +870,11 @@ export default function ProductCustomizationEditor({
         selectedLocation.location_name ?? "",
       );
 
-      formData.set("tableCode", selectedLocation.table_codes[0] ?? "");
-      formData.set("tableCodeOption", "");
+      formData.set("tableCode", personalizationPriceTier?.table_code ?? "");
+      formData.set(
+        "tableCodeOption",
+        personalizationPriceTier?.table_code_option ?? "",
+      );
       formData.set("serviceCode", "");
 
       formData.set("quantity", String(quantity));
@@ -1610,6 +1648,9 @@ export default function ProductCustomizationEditor({
                           findCustomizationPriceTier(
                             selectedLocation?.price_tiers ?? [],
                             Number(item.replace(".", "")),
+                            logoWidthMm && logoHeightMm
+                              ? (logoWidthMm * logoHeightMm) / 100
+                              : null,
                           )?.final_price ?? 0,
                           productCurrency,
                         )}
