@@ -19,7 +19,7 @@ function getValidUrls(urls: Array<string | null | undefined>): string[] {
       return;
     }
 
-    uniqueUrls.add(cleanUrl);
+    uniqueUrls.add(getBrowserSafeImageUrl(cleanUrl));
   });
 
   return Array.from(uniqueUrls);
@@ -41,6 +41,20 @@ export default function CustomizationLocationImage({
       className={className}
     />
   );
+}
+
+function getBrowserSafeImageUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname === "cdn.hideacontent.com") {
+      return `/api/media/stricker-image?url=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
 }
 
 function CustomizationLocationImageContent({

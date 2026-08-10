@@ -1022,16 +1022,21 @@ export default function ProductCustomizationEditor({
             <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
               <div className="flex min-h-[620px] items-center justify-center bg-white">
                 <CustomizationLocationImage
-                  urls={[
-                    ...(selectedLocation?.preview_image_urls ?? []),
-                    selectedLocation?.preview_image_url,
-                    selectedLocation?.printing_lines_image_url,
-                    selectedLocation?.area_image_url,
-                    selectedLocation?.location_image_url,
-                    previewBaseImage,
-                    selectedColor?.image_url,
-                    productImageUrl,
-                  ]}
+                  urls={
+                    selectedLocation
+                      ? [
+                          ...(selectedLocation.preview_image_urls ?? []),
+                          selectedLocation.preview_image_url,
+                          selectedLocation.printing_lines_image_url,
+                          selectedLocation.area_image_url,
+                          selectedLocation.location_image_url,
+                        ]
+                      : [
+                          previewBaseImage,
+                          selectedColor?.image_url,
+                          productImageUrl,
+                        ]
+                  }
                   alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
                   className="max-h-[700px] w-full object-contain p-8"
                 />
