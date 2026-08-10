@@ -6,6 +6,7 @@ import ProductCustomizationEditor, {
   type ProductEditorPrice,
   type ProductEditorVariant,
 } from "@/components/product/ProductCustomizationEditor";
+import { buildStrickerPrintingLinesImageUrl } from "@/lib/stricker/images";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -182,6 +183,29 @@ function splitCodes(value: string | null): string[] {
     .filter((item) => item.length > 0);
 }
 
+function normalizeComparable(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function codeBelongsToSlot(
+  optionCode: string | null,
+  slotCode: string,
+): boolean {
+  if (!optionCode) {
+    return false;
+  }
+
+  return (
+    optionCode === slotCode ||
+    optionCode.startsWith(`${slotCode}-`) ||
+    slotCode.startsWith(`${optionCode}-`)
+  );
+}
+
 function getLocationIndex(
   location: ProductCustomizationLocation,
 ): number {
@@ -199,6 +223,17 @@ function getLocationIndex(
   return 1;
 }
 
+function getSlotImageUrls(
+  location: ProductCustomizationLocation,
+): string[] {
+  const payload = getPayloadRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  return splitCodes(getSlotString(payload, "AreaImage", index))
+    .map((filename) => buildStrickerPrintingLinesImageUrl(filename))
+    .filter((url): url is string => Boolean(url));
+}
+
 function getTableCodesForLocation(
   location: ProductCustomizationLocation,
 ): string[] {
@@ -207,19 +242,6 @@ function getTableCodesForLocation(
 
   return Array.from(
     new Set(splitCodes(getSlotString(payload, "TableCodes", index))),
-  );
-}
-
-function getCustomizationTypesForLocation(
-  location: ProductCustomizationLocation,
-): string[] {
-  const payload = getPayloadRecord(location.raw_payload);
-  const index = getLocationIndex(location);
-
-  return Array.from(
-    new Set(
-      splitCodes(getSlotString(payload, "CustomizationTypes", index)),
-    ),
   );
 }
 
@@ -340,33 +362,75 @@ function buildEditorLocations(params: {
       componentsById: params.componentsById,
     });
 
+    const payload = getPayloadRecord(location.raw_payload);
+    const locationIndex = getLocationIndex(location);
+    const rawTechniques = splitCodes(
+      getSlotString(payload, "CustomizationTypes", locationIndex),
+    );
+    const rawTableCodes = splitCodes(
+      getSlotString(payload, "TableCodes", locationIndex),
+    );
+    const slotTableCodes = Array.from(new Set(rawTableCodes));
+    const slotImageUrls = getSlotImageUrls(location);
+
     const locationOptions = params.customizationOptions.filter(
-      (option) => option.location_id === location.id && option.is_active,
+      (option) =>
+        option.is_active &&
+        (option.location_id === location.id ||
+          slotTableCodes.some(
+            (slotCode) =>
+              codeBelongsToSlot(option.table_code, slotCode) ||
+              codeBelongsToSlot(option.table_code_option, slotCode),
+          )),
     );
 
-    const techniques = Array.from(
+    const optionTechniques = locationOptions
+      .map((option) => option.customization_type_name?.trim() ?? "")
+      .filter((technique) => technique.length > 0);
+
+    const safeTechniques = Array.from(
       new Set(
-        locationOptions
-          .map((option) => option.customization_type_name?.trim() ?? "")
-          .filter((technique) => technique.length > 0),
+        rawTechniques.length > 0
+          ? rawTechniques
+          : optionTechniques.length > 0
+            ? optionTechniques
+            : ["Personalização"],
       ),
     );
 
-    const fallbackTechniques = getCustomizationTypesForLocation(location);
-
-    const safeTechniques =
-      techniques.length > 0
-        ? techniques
-        : fallbackTechniques.length > 0
-          ? fallbackTechniques
-          : ["Personalização"];
-
     for (const technique of safeTechniques) {
-      const techniqueOptions = locationOptions.filter(
-        (option) =>
-          option.customization_type_name?.localeCompare(technique, "pt-PT", {
-            sensitivity: "base",
-          }) === 0,
+      const matchingRawIndexes = rawTechniques.reduce<number[]>(
+        (indexes, rawTechnique, index) => {
+          if (
+            normalizeComparable(rawTechnique) ===
+            normalizeComparable(technique)
+          ) {
+            indexes.push(index);
+          }
+
+          return indexes;
+        },
+        [],
+      );
+
+      const techniqueSlotCodes = Array.from(
+        new Set(
+          matchingRawIndexes
+            .map((index) => rawTableCodes[index] ?? null)
+            .filter((code): code is string => Boolean(code)),
+        ),
+      );
+
+      const techniqueOptions = locationOptions.filter((option) =>
+        techniqueSlotCodes.length > 0
+          ? techniqueSlotCodes.some(
+              (slotCode) =>
+                codeBelongsToSlot(option.table_code, slotCode) ||
+                codeBelongsToSlot(option.table_code_option, slotCode),
+            )
+          : normalizeComparable(
+              option.customization_type_name ?? "",
+            ) === normalizeComparable(technique),
       );
 
       const techniqueTableCodes = Array.from(
@@ -382,6 +446,13 @@ function buildEditorLocations(params: {
         location.location_code ??
         `Local ${getLocationIndex(location)}`;
 
+      const techniqueImageUrl =
+        matchingRawIndexes
+          .map((index) => slotImageUrls[index] ?? null)
+          .find((url): url is string => Boolean(url)) ??
+        slotImageUrls[0] ??
+        null;
+
       rows.push({
         id: `${location.id}:${technique}`,
         source_location_id: location.id,
@@ -392,11 +463,12 @@ function buildEditorLocations(params: {
           component?.component_code ??
           null,
         location_name: locationName,
-        preview_image_url: getPreferredLocationPreviewUrl(location),
+        preview_image_url:
+          techniqueImageUrl ?? getPreferredLocationPreviewUrl(location),
         location_image_url: getLocationImageUrl(location),
-        area_image_url: getAreaImageUrl(location),
+        area_image_url: techniqueImageUrl ?? getAreaImageUrl(location),
         printing_lines_image_url:
-          getPrintingLinesImageUrl(location),
+          techniqueImageUrl ?? getPrintingLinesImageUrl(location),
         max_printing_area_mm: location.max_printing_area_mm,
         max_area_cm2: location.max_area_cm2,
         table_codes:
@@ -419,12 +491,7 @@ function buildEditorLocations(params: {
                       code === price.table_code ||
                       code === price.table_code_option,
                   );
-            const techniqueMatches =
-              !price.technique_name ||
-              price.technique_name.localeCompare(technique, "pt-PT", {
-                sensitivity: "base",
-              }) === 0;
-            return codeMatches && techniqueMatches;
+            return codeMatches;
           })
           .map((price) => ({
             id: price.id,

@@ -22,6 +22,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
 import { saveCustomizationDraftAction } from "@/lib/customization/actions";
 
 export type ProductEditorVariant = {
@@ -89,6 +90,7 @@ type PrintAreaDimensions = {
 
 type LocationGroup = {
   id: string;
+  techniqueName: string;
   locationName: string;
   componentName: string | null;
   maxPrintingAreaMm: string | null;
@@ -158,6 +160,8 @@ function getLocationLabel(location: ProductEditorLocation): string {
 
 function getLocationGroupKey(location: ProductEditorLocation): string {
   return [
+    location.source_location_id,
+    location.technique,
     location.location_name ?? "local",
     location.component_name ?? "componente",
     location.max_printing_area_mm ?? "area",
@@ -229,6 +233,7 @@ function buildLocationGroups(params: {
     if (!existingGroup) {
       groups.set(key, {
         id: key,
+        techniqueName: location.technique,
         locationName: getLocationLabel(location),
         componentName: location.component_name,
         maxPrintingAreaMm: location.max_printing_area_mm,
@@ -958,7 +963,7 @@ export default function ProductCustomizationEditor({
         <div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
           <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-sm font-semibold text-neutral-950">
-              Localização
+              Opções de personalização
             </p>
 
             <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
@@ -979,6 +984,10 @@ export default function ProductCustomizationEditor({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-base font-semibold text-neutral-950">
+                          {group.techniqueName}
+                        </p>
+
+                        <p className="mt-2 text-sm font-medium text-neutral-700">
                           {group.locationName}
                         </p>
 
@@ -1011,13 +1020,19 @@ export default function ProductCustomizationEditor({
           <div className="space-y-5">
             <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
               <div className="flex min-h-[620px] items-center justify-center bg-white">
-                {previewBaseImage ? (
-                  <img
-                    src={previewBaseImage}
-                    alt={productName}
-                    className="max-h-[700px] w-full object-contain p-8"
-                  />
-                ) : null}
+                <CustomizationLocationImage
+                  urls={[
+                    previewBaseImage,
+                    selectedLocation?.preview_image_url,
+                    selectedLocation?.printing_lines_image_url,
+                    selectedLocation?.area_image_url,
+                    selectedLocation?.location_image_url,
+                    selectedColor?.image_url,
+                    productImageUrl,
+                  ]}
+                  alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
+                  className="max-h-[700px] w-full object-contain p-8"
+                />
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-5">
@@ -1107,28 +1122,21 @@ export default function ProductCustomizationEditor({
 
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
-                Técnica de personalização
+                Opção selecionada
               </p>
 
-              <div className="mt-4 grid gap-2">
-                {selectedGroup?.options.map((option) => {
-                  const isSelected = option.id === selectedLocation?.id;
-
-                  return (
-                    <button
-                      key={option.id}
-                      type="button"
-                      onClick={() => setSelectedLocationId(option.id)}
-                      className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                        isSelected
-                          ? "border-neutral-950 bg-neutral-950 text-white"
-                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-                      }`}
-                    >
-                      {option.technique}
-                    </button>
-                  );
-                })}
+              <div className="mt-4 rounded-2xl bg-neutral-950 px-4 py-3 text-sm text-white">
+                <p className="font-semibold">
+                  {selectedLocation?.technique ?? "A confirmar"}
+                </p>
+                <p className="mt-1 text-xs text-neutral-300">
+                  {selectedLocation
+                    ? getLocationLabel(selectedLocation)
+                    : "Localização a confirmar"}
+                  {selectedLocation?.max_printing_area_mm
+                    ? ` · ${selectedLocation.max_printing_area_mm}`
+                    : ""}
+                </p>
               </div>
 
               <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-600">

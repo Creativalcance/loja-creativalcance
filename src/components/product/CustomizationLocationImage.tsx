@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ImageIcon } from "lucide-react";
 
 type CustomizationLocationImageProps = {
@@ -32,11 +32,27 @@ export default function CustomizationLocationImage({
 }: CustomizationLocationImageProps) {
   const imageUrls = useMemo(() => getValidUrls(urls), [urls]);
   const imageUrlsKey = imageUrls.join("|");
-  const [activeIndex, setActiveIndex] = useState(0);
 
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [imageUrlsKey]);
+  return (
+    <CustomizationLocationImageContent
+      key={imageUrlsKey}
+      imageUrls={imageUrls}
+      alt={alt}
+      className={className}
+    />
+  );
+}
+
+function CustomizationLocationImageContent({
+  imageUrls,
+  alt,
+  className,
+}: {
+  imageUrls: string[];
+  alt: string;
+  className: string;
+}) {
+  const [activeIndex, setActiveIndex] = useState(0);
 
   const activeUrl = imageUrls[activeIndex] ?? null;
 

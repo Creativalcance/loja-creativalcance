@@ -335,6 +335,21 @@ function getNullableString(value: unknown): string | null {
   return null;
 }
 
+function getFirstListValue(value: unknown): string | null {
+  const text = getNullableString(value);
+
+  if (!text) {
+    return null;
+  }
+
+  return (
+    text
+      .split(/[,;|]/g)
+      .map((item) => item.trim())
+      .find((item) => item.length > 0) ?? null
+  );
+}
+
 function getNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -1049,11 +1064,11 @@ function buildLocationRows(params: {
         }),
       );
 
-      const locationImage = getNullableString(
+      const locationImage = getFirstListValue(
         record[`Location${index}Image` as keyof StrickerOptionalRecord],
       );
 
-      const areaImage = getNullableString(
+      const areaImage = getFirstListValue(
         record[`Area${index}Image` as keyof StrickerOptionalRecord],
       );
 
