@@ -347,40 +347,71 @@ function findCustomizationPriceTier(
   areaCm2?: number | null,
 ): ProductEditorCustomizationPrice | null {
   const requestedArea = areaCm2 && areaCm2 > 0 ? areaCm2 : null;
-  const areaCandidates = requestedArea
-    ? tiers.filter(
-        (tier) =>
-          !tier.price_by_area ||
-          tier.area_cm2 === null ||
-          tier.area_cm2 >= requestedArea,
+  const seriesByOption = new Map<string, ProductEditorCustomizationPrice[]>();
+
+  for (const tier of tiers) {
+    const seriesKey = tier.table_code_option ?? tier.table_code;
+    const series = seriesByOption.get(seriesKey) ?? [];
+    series.push(tier);
+    seriesByOption.set(seriesKey, series);
+  }
+
+  const series = [...seriesByOption.entries()].map(([key, prices]) => ({
+    key,
+    prices,
+    areaCm2: prices.reduce<number | null>((largestArea, tier) => {
+      if (tier.area_cm2 === null || tier.area_cm2 <= 0) {
+        return largestArea;
+      }
+
+      return largestArea === null || tier.area_cm2 > largestArea
+        ? tier.area_cm2
+        : largestArea;
+    }, null),
+  }));
+
+  const applicableSeries = requestedArea
+    ? series.filter(
+        (item) => item.areaCm2 !== null && item.areaCm2 >= requestedArea,
       )
-    : tiers;
+    : series;
 
-  const activeTiers = areaCandidates.length > 0 ? areaCandidates : tiers;
-  const smallestApplicableArea = activeTiers
-    .filter((tier) => tier.price_by_area && tier.area_cm2 !== null)
-    .reduce<
-      number | null
-    >((smallest, tier) => (smallest === null || tier.area_cm2! < smallest ? tier.area_cm2 : smallest), null);
+  const selectedSeries = (
+    applicableSeries.length > 0 ? applicableSeries : series
+  )
+    .sort((a, b) => {
+      if (a.areaCm2 === null && b.areaCm2 !== null) return 1;
+      if (a.areaCm2 !== null && b.areaCm2 === null) return -1;
+      if (a.areaCm2 !== b.areaCm2) {
+        return (a.areaCm2 ?? Number.POSITIVE_INFINITY) -
+          (b.areaCm2 ?? Number.POSITIVE_INFINITY);
+      }
 
-  const areaTiers =
-    smallestApplicableArea === null
-      ? activeTiers
-      : activeTiers.filter(
-          (tier) =>
-            !tier.price_by_area || tier.area_cm2 === smallestApplicableArea,
-        );
+      return a.key.localeCompare(b.key, "pt-PT", { numeric: true });
+    })[0];
 
-  const sorted = [...areaTiers].sort((a, b) => a.quantity_min - b.quantity_min);
-  return (
-    sorted.find(
-      (tier) =>
-        quantity >= tier.quantity_min &&
-        (tier.quantity_max === null || quantity <= tier.quantity_max),
-    ) ??
-    sorted.filter((tier) => quantity >= tier.quantity_min).at(-1) ??
-    sorted[0] ??
-    null
+  if (!selectedSeries) {
+    return null;
+  }
+
+  const sorted = [...selectedSeries.prices].sort((a, b) => {
+    if (a.quantity_min !== b.quantity_min) {
+      return a.quantity_min - b.quantity_min;
+    }
+
+    return a.final_price - b.final_price;
+  });
+
+  const applicableTiers = sorted.filter(
+    (tier) => quantity >= tier.quantity_min,
+  );
+
+  if (applicableTiers.length === 0) {
+    return sorted[0] ?? null;
+  }
+
+  return applicableTiers.reduce((bestTier, tier) =>
+    tier.final_price < bestTier.final_price ? tier : bestTier,
   );
 }
 
