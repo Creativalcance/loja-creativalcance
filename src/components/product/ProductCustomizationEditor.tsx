@@ -1029,7 +1029,6 @@ export default function ProductCustomizationEditor({
                           selectedLocation.preview_image_url,
                           selectedLocation.printing_lines_image_url,
                           selectedLocation.area_image_url,
-                          selectedLocation.location_image_url,
                         ]
                       : [
                           previewBaseImage,

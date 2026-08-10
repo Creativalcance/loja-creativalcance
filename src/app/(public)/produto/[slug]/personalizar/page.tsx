@@ -97,6 +97,8 @@ type ProductCustomizationOption = {
   table_code: string | null;
   table_code_option: string | null;
   service_code: string | null;
+  printing_lines_image_url: string | null;
+  printing_lines_storage_url: string | null;
   is_active: boolean;
 };
 
@@ -192,6 +194,16 @@ function normalizeComparable(value: string): string {
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
+}
+
+function isSingleImageUrl(value: string | null): value is string {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.toLowerCase();
+
+  return !normalized.includes(",") && !normalized.includes("%2c");
 }
 
 function codeBelongsToSlot(
@@ -301,45 +313,6 @@ function getComponentForLocation(params: {
 
   return (
     params.componentsById.get(params.location.component_id) ?? null
-  );
-}
-
-function getLocationImageUrl(
-  location: ProductCustomizationLocation,
-): string | null {
-  return (
-    location.location_storage_url ??
-    location.location_image_url ??
-    null
-  );
-}
-
-function getAreaImageUrl(
-  location: ProductCustomizationLocation,
-): string | null {
-  return location.area_storage_url ?? location.area_image_url ?? null;
-}
-
-function getPrintingLinesImageUrl(
-  location: ProductCustomizationLocation,
-): string | null {
-  return (
-    location.printing_lines_storage_url ??
-    location.printing_lines_image_url
-  );
-}
-
-function getPreferredLocationPreviewUrl(
-  location: ProductCustomizationLocation,
-): string | null {
-  return (
-    location.printing_lines_storage_url ??
-    location.printing_lines_image_url ??
-    location.area_storage_url ??
-    location.area_image_url ??
-    location.location_storage_url ??
-    location.location_image_url ??
-    null
   );
 }
 
@@ -487,7 +460,19 @@ function buildEditorLocations(params: {
         location,
         techniqueIndexes: matchingRawIndexes,
       });
-      const techniqueImageUrl = techniqueImageUrls[0] ?? null;
+      const optionImageUrls = Array.from(
+        new Set(
+          techniqueOptions
+            .flatMap((option) => [
+              option.printing_lines_storage_url,
+              option.printing_lines_image_url,
+            ])
+            .filter(isSingleImageUrl),
+        ),
+      );
+      const exactTechniqueImageUrls =
+        optionImageUrls.length > 0 ? optionImageUrls : techniqueImageUrls;
+      const techniqueImageUrl = exactTechniqueImageUrls[0] ?? null;
 
       rows.push({
         id: `${location.id}:${technique}`,
@@ -500,12 +485,11 @@ function buildEditorLocations(params: {
           null,
         location_name: locationName,
         preview_image_url:
-          techniqueImageUrl ?? getPreferredLocationPreviewUrl(location),
-        preview_image_urls: techniqueImageUrls,
-        location_image_url: getLocationImageUrl(location),
-        area_image_url: techniqueImageUrl ?? getAreaImageUrl(location),
-        printing_lines_image_url:
-          techniqueImageUrl ?? getPrintingLinesImageUrl(location),
+          techniqueImageUrl,
+        preview_image_urls: exactTechniqueImageUrls,
+        location_image_url: null,
+        area_image_url: null,
+        printing_lines_image_url: techniqueImageUrl,
         max_printing_area_mm: location.max_printing_area_mm,
         max_area_cm2: location.max_area_cm2,
         table_codes:
@@ -679,7 +663,7 @@ export default async function ProductPersonalizePage({
     ? await supabase
         .from("product_customization_options")
         .select(
-          "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,is_active",
+          "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active",
         )
         .eq("product_id", product.id)
         .eq("variant_id", activeVariantId)

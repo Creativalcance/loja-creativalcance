@@ -1,7 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import {
-  buildStrickerLocationImageUrl,
   buildStrickerPrintingLinesImageUrl,
 } from "@/lib/stricker/images";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
@@ -365,15 +364,6 @@ function getCustomizationTypeCode(
   );
 }
 
-function getLocationImage(location: ProductCustomizationLocationRow): string | null {
-  return (
-    location.printing_lines_image_url ??
-    location.area_image_url ??
-    location.location_image_url ??
-    null
-  );
-}
-
 function buildServiceCode(params: {
   variant: ProductVariantRow;
   component: ProductCustomizationComponentRow | null;
@@ -522,6 +512,61 @@ async function fetchLocations(params: {
     lastCursor:
       data && data.length > 0 ? data[data.length - 1]?.id ?? null : null,
   };
+}
+
+function getCustomizationPairsForLocation(
+  location: ProductCustomizationLocationRow,
+): Array<{
+  tableCode: string | null;
+  tableCodeOption: string | null;
+  techniqueName: string | null;
+  printingLinesFilename: string | null;
+}> {
+  const payload = toJsonRecord(location.raw_payload);
+  const locationIndex = getLocationIndex(location);
+  const tableCodes = getTableCodesForLocation(location);
+  const tableCodeOptions = getTableCodeOptionsForLocation(location);
+  const techniqueNames = splitCodes(
+    getSlotString(payload, "CustomizationTypes", locationIndex),
+  );
+  const printingLinesFilenames = splitCodes(
+    getSlotString(payload, "AreaImage", locationIndex),
+  );
+
+  const uniqueTableCodes = tableCodes.reduce<
+    Array<{ code: string; sourceIndex: number }>
+  >((items, code, sourceIndex) => {
+    if (!items.some((item) => item.code === code)) {
+      items.push({ code, sourceIndex });
+    }
+
+    return items;
+  }, []);
+
+  if (uniqueTableCodes.length === 0) {
+    return [
+      {
+        tableCode: null,
+        tableCodeOption: null,
+        techniqueName: techniqueNames[0] ?? null,
+        printingLinesFilename: printingLinesFilenames[0] ?? null,
+      },
+    ];
+  }
+
+  return uniqueTableCodes.flatMap(({ code, sourceIndex }) => {
+    const matchingOptions = tableCodeOptions.filter(
+      (option) => option === code || option.startsWith(`${code}-`),
+    );
+    const safeOptions = matchingOptions.length > 0 ? matchingOptions : [null];
+
+    return safeOptions.map((tableCodeOption) => ({
+      tableCode: code,
+      tableCodeOption,
+      techniqueName: techniqueNames[sourceIndex] ?? null,
+      printingLinesFilename: printingLinesFilenames[sourceIndex] ?? null,
+    }));
+  });
 }
 
 async function fetchVariantsByIds(params: {
@@ -821,26 +866,7 @@ function buildCustomizationOptionRows(params: {
       componentMaps: params.componentMaps,
     });
 
-    const tableCodes = getTableCodesForLocation(location);
-    const tableCodeOptions = getTableCodeOptionsForLocation(location);
-
-    const pairs =
-      tableCodeOptions.length > 0
-        ? tableCodeOptions.map((tableCodeOption, index) => ({
-            tableCode: tableCodes[index] ?? tableCodes[0] ?? null,
-            tableCodeOption,
-          }))
-        : tableCodes.length > 0
-          ? tableCodes.map((tableCode) => ({
-              tableCode,
-              tableCodeOption: null,
-            }))
-          : [
-              {
-                tableCode: null,
-                tableCodeOption: null,
-              },
-            ];
+    const pairs = getCustomizationPairsForLocation(location);
 
     for (const pair of pairs) {
       const priceTable = findPriceTable({
@@ -865,7 +891,6 @@ function buildCustomizationOptionRows(params: {
         customizationTypeCode,
       });
 
-      const locationImage = getLocationImage(location);
       const slotHandlingCost = getSlotNumber(
         payload,
         "HandlingCosts",
@@ -883,7 +908,10 @@ function buildCustomizationOptionRows(params: {
 
         service_code: serviceCode,
         customization_type_code: customizationTypeCode,
-        customization_type_name: priceTable?.technique_name ?? customizationTypeCode,
+        customization_type_name:
+          pair.techniqueName ??
+          priceTable?.technique_name ??
+          customizationTypeCode,
 
         table_code: pair.tableCode,
         table_code_option: pair.tableCodeOption,
@@ -922,9 +950,9 @@ function buildCustomizationOptionRows(params: {
         is_default: locationIndex === 1,
         is_active: true,
 
-        printing_lines_image_url:
-          buildStrickerPrintingLinesImageUrl(locationImage) ??
-          buildStrickerLocationImageUrl(locationImage),
+        printing_lines_image_url: buildStrickerPrintingLinesImageUrl(
+          pair.printingLinesFilename,
+        ),
         printing_lines_storage_url: null,
 
         raw_payload: {
