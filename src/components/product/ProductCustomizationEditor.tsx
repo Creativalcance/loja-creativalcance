@@ -343,43 +343,78 @@ function findCustomizationPriceTier(
   areaCm2?: number | null,
 ): ProductEditorCustomizationPrice | null {
   const requestedArea = areaCm2 && areaCm2 > 0 ? areaCm2 : null;
+  const series = new Map<string, ProductEditorCustomizationPrice[]>();
+
+  for (const tier of tiers) {
+    const key = tier.table_code_option ?? tier.table_code;
+    const current = series.get(key) ?? [];
+
+    current.push(tier);
+    series.set(key, current);
+  }
+
+  const candidates = [...series.entries()].map(([key, prices]) => {
+    const areas = prices
+      .filter((price) => price.price_by_area && price.area_cm2 !== null)
+      .map((price) => price.area_cm2 as number);
+    const seriesArea = areas.length > 0 ? Math.max(...areas) : null;
+    const colorMatch = key.match(/-(\d+)$/);
+    const colors = colorMatch ? Number(colorMatch[1]) : null;
+
+    return {
+      key,
+      prices,
+      seriesArea,
+      colors: colors && Number.isFinite(colors) ? colors : null,
+    };
+  });
+
   const areaCandidates = requestedArea
-    ? tiers.filter(
-        (tier) =>
-          !tier.price_by_area ||
-          tier.area_cm2 === null ||
-          tier.area_cm2 >= requestedArea,
+    ? candidates.filter(
+        (candidate) =>
+          candidate.seriesArea === null ||
+          candidate.seriesArea >= requestedArea,
       )
-    : tiers;
+    : candidates;
+  const applicableCandidates =
+    areaCandidates.length > 0 ? areaCandidates : candidates;
+  const selectedSeries = [...applicableCandidates].sort((a, b) => {
+    const aArea = a.seriesArea ?? Number.POSITIVE_INFINITY;
+    const bArea = b.seriesArea ?? Number.POSITIVE_INFINITY;
 
-  const activeTiers = areaCandidates.length > 0 ? areaCandidates : tiers;
-  const smallestApplicableArea = activeTiers
-    .filter((tier) => tier.price_by_area && tier.area_cm2 !== null)
-    .reduce<number | null>(
-      (smallest, tier) =>
-        smallest === null || tier.area_cm2! < smallest
-          ? tier.area_cm2
-          : smallest,
-      null,
-    );
+    if (aArea !== bArea) {
+      return aArea - bArea;
+    }
 
-  const areaTiers =
-    smallestApplicableArea === null
-      ? activeTiers
-      : activeTiers.filter(
-          (tier) =>
-            !tier.price_by_area || tier.area_cm2 === smallestApplicableArea,
-        );
+    const aColors = a.colors ?? Number.POSITIVE_INFINITY;
+    const bColors = b.colors ?? Number.POSITIVE_INFINITY;
 
-  const sorted = [...areaTiers].sort(
-    (a, b) => a.quantity_min - b.quantity_min,
-  );
+    if (aColors !== bColors) {
+      return aColors - bColors;
+    }
+
+    return a.key.localeCompare(b.key);
+  })[0];
+
+  const sorted = [...(selectedSeries?.prices ?? [])].sort((a, b) => {
+    if (a.quantity_min !== b.quantity_min) {
+      return a.quantity_min - b.quantity_min;
+    }
+
+    const aMax = a.quantity_max ?? Number.POSITIVE_INFINITY;
+    const bMax = b.quantity_max ?? Number.POSITIVE_INFINITY;
+
+    return aMax - bMax;
+  });
+
   return (
-    sorted.find(
-      (tier) =>
-        quantity >= tier.quantity_min &&
-        (tier.quantity_max === null || quantity <= tier.quantity_max),
-    ) ??
+    sorted
+      .filter(
+        (tier) =>
+          quantity >= tier.quantity_min &&
+          (tier.quantity_max === null || quantity <= tier.quantity_max),
+      )
+      .at(-1) ??
     sorted.filter((tier) => quantity >= tier.quantity_min).at(-1) ??
     sorted[0] ??
     null
