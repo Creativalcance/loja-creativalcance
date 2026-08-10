@@ -1182,6 +1182,10 @@ export default function ProductCustomizationEditor({
                   }
                   alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
                   className="max-h-[700px] w-full object-contain p-8"
+                  artworkUrl={logoPreviewUrl}
+                  artworkPosition={safePosition}
+                  printAreaAspectRatio={printAreaAspectRatio}
+                  artworkAspectRatio={logoAspectRatio}
                 />
               </div>
 
