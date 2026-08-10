@@ -91,7 +91,6 @@ type PrintAreaDimensions = {
 
 type LocationGroup = {
   id: string;
-  techniqueName: string;
   locationName: string;
   componentName: string | null;
   maxPrintingAreaMm: string | null;
@@ -126,18 +125,6 @@ const DEFAULT_PRINT_AREA: PrintAreaDimensions = {
   heightMm: 20,
 };
 
-const quantityBreaks = [
-  "1",
-  "10",
-  "25",
-  "50",
-  "100",
-  "250",
-  "500",
-  "1.000",
-  "2.500",
-];
-
 function getColorLabel(variant: ProductEditorVariant | null): string {
   if (!variant) {
     return "Cor selecionada";
@@ -162,10 +149,8 @@ function getLocationLabel(location: ProductEditorLocation): string {
 function getLocationGroupKey(location: ProductEditorLocation): string {
   return [
     location.source_location_id,
-    location.technique,
     location.location_name ?? "local",
     location.component_name ?? "componente",
-    location.max_printing_area_mm ?? "area",
   ]
     .join(":")
     .normalize("NFD")
@@ -234,7 +219,6 @@ function buildLocationGroups(params: {
     if (!existingGroup) {
       groups.set(key, {
         id: key,
-        techniqueName: location.technique,
         locationName: getLocationLabel(location),
         componentName: location.component_name,
         maxPrintingAreaMm: location.max_printing_area_mm,
@@ -359,74 +343,90 @@ function findCustomizationPriceTier(
   areaCm2?: number | null,
 ): ProductEditorCustomizationPrice | null {
   const requestedArea = areaCm2 && areaCm2 > 0 ? areaCm2 : null;
-  const seriesByOption = new Map<string, ProductEditorCustomizationPrice[]>();
-
-  for (const tier of tiers) {
-    const seriesKey = tier.table_code_option ?? tier.table_code;
-    const series = seriesByOption.get(seriesKey) ?? [];
-    series.push(tier);
-    seriesByOption.set(seriesKey, series);
-  }
-
-  const series = [...seriesByOption.entries()].map(([key, prices]) => ({
-    key,
-    prices,
-    areaCm2: prices.reduce<number | null>((largestArea, tier) => {
-      if (tier.area_cm2 === null || tier.area_cm2 <= 0) {
-        return largestArea;
-      }
-
-      return largestArea === null || tier.area_cm2 > largestArea
-        ? tier.area_cm2
-        : largestArea;
-    }, null),
-  }));
-
-  const applicableSeries = requestedArea
-    ? series.filter(
-        (item) => item.areaCm2 !== null && item.areaCm2 >= requestedArea,
+  const areaCandidates = requestedArea
+    ? tiers.filter(
+        (tier) =>
+          !tier.price_by_area ||
+          tier.area_cm2 === null ||
+          tier.area_cm2 >= requestedArea,
       )
-    : series;
+    : tiers;
 
-  const selectedSeries = (
-    applicableSeries.length > 0 ? applicableSeries : series
-  )
-    .sort((a, b) => {
-      if (a.areaCm2 === null && b.areaCm2 !== null) return 1;
-      if (a.areaCm2 !== null && b.areaCm2 === null) return -1;
-      if (a.areaCm2 !== b.areaCm2) {
-        return (
-          (a.areaCm2 ?? Number.POSITIVE_INFINITY) -
-          (b.areaCm2 ?? Number.POSITIVE_INFINITY)
+  const activeTiers = areaCandidates.length > 0 ? areaCandidates : tiers;
+  const smallestApplicableArea = activeTiers
+    .filter((tier) => tier.price_by_area && tier.area_cm2 !== null)
+    .reduce<number | null>(
+      (smallest, tier) =>
+        smallest === null || tier.area_cm2! < smallest
+          ? tier.area_cm2
+          : smallest,
+      null,
+    );
+
+  const areaTiers =
+    smallestApplicableArea === null
+      ? activeTiers
+      : activeTiers.filter(
+          (tier) =>
+            !tier.price_by_area || tier.area_cm2 === smallestApplicableArea,
         );
+
+  const sorted = [...areaTiers].sort(
+    (a, b) => a.quantity_min - b.quantity_min,
+  );
+  return (
+    sorted.find(
+      (tier) =>
+        quantity >= tier.quantity_min &&
+        (tier.quantity_max === null || quantity <= tier.quantity_max),
+    ) ??
+    sorted.filter((tier) => quantity >= tier.quantity_min).at(-1) ??
+    sorted[0] ??
+    null
+  );
+}
+
+function getCustomizationQuantityBreaks(params: {
+  tiers: ProductEditorCustomizationPrice[];
+  areaCm2?: number | null;
+}): number[] {
+  const quantities = new Set<number>();
+
+  for (const tier of params.tiers) {
+    if (tier.quantity_min > 0) {
+      quantities.add(tier.quantity_min);
+    }
+  }
+
+  return [...quantities]
+    .sort((a, b) => a - b)
+    .filter((quantity, index, allQuantities) => {
+      const tier = findCustomizationPriceTier(
+        params.tiers,
+        quantity,
+        params.areaCm2,
+      );
+
+      if (!tier) {
+        return false;
       }
 
-      return a.key.localeCompare(b.key, "pt-PT", { numeric: true });
-    })[0];
+      if (index === 0) {
+        return true;
+      }
 
-  if (!selectedSeries) {
-    return null;
-  }
+      const previousTier = findCustomizationPriceTier(
+        params.tiers,
+        allQuantities[index - 1],
+        params.areaCm2,
+      );
 
-  const sorted = [...selectedSeries.prices].sort((a, b) => {
-    if (a.quantity_min !== b.quantity_min) {
-      return a.quantity_min - b.quantity_min;
-    }
-
-    return a.final_price - b.final_price;
-  });
-
-  const applicableTiers = sorted.filter(
-    (tier) => quantity >= tier.quantity_min,
-  );
-
-  if (applicableTiers.length === 0) {
-    return sorted[0] ?? null;
-  }
-
-  return applicableTiers.reduce((bestTier, tier) =>
-    tier.final_price < bestTier.final_price ? tier : bestTier,
-  );
+      return (
+        !previousTier ||
+        tier.final_price !== previousTier.final_price ||
+        tier.handling_cost !== previousTier.handling_cost
+      );
+    });
 }
 
 function getEstimatedProductionDays(technique: string | null): string {
@@ -528,7 +528,7 @@ export default function ProductCustomizationEditor({
     [initialVariantId, variants],
   );
 
-  const quantity = Math.max(1, initialQuantity);
+  const [quantity, setQuantity] = useState(Math.max(1, initialQuantity));
 
   const locationGroups = useMemo(
     () =>
@@ -647,6 +647,52 @@ export default function ProductCustomizationEditor({
   const personalizationUnitPrice =
     personalizationPriceTier?.final_price ?? 0;
   const setupCost = personalizationPriceTier?.handling_cost ?? 0;
+
+  const customizationQuantityBreaks = useMemo(
+    () =>
+      getCustomizationQuantityBreaks({
+        tiers: selectedLocation?.price_tiers ?? [],
+        areaCm2:
+          logoWidthMm && logoHeightMm
+            ? (logoWidthMm * logoHeightMm) / 100
+            : null,
+      }),
+    [logoHeightMm, logoWidthMm, selectedLocation?.price_tiers],
+  );
+
+  const nextSavingTier = (() => {
+    if (!personalizationPriceTier || personalizationUnitPrice <= 0) {
+      return null;
+    }
+
+    for (const tierQuantity of customizationQuantityBreaks) {
+      if (tierQuantity <= quantity) {
+        continue;
+      }
+
+      const tier = findCustomizationPriceTier(
+        selectedLocation?.price_tiers ?? [],
+        tierQuantity,
+        logoWidthMm && logoHeightMm
+          ? (logoWidthMm * logoHeightMm) / 100
+          : null,
+      );
+
+      if (tier && tier.final_price < personalizationUnitPrice) {
+        return {
+          quantity: tierQuantity,
+          unitPrice: tier.final_price,
+          savingPercentage: Math.round(
+            ((personalizationUnitPrice - tier.final_price) /
+              personalizationUnitPrice) *
+              100,
+          ),
+        };
+      }
+    }
+
+    return null;
+  })();
 
   const personalizationSubtotal = roundMoney(
     personalizationUnitPrice * quantity,
@@ -988,60 +1034,96 @@ export default function ProductCustomizationEditor({
   return (
     <>
       <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
+        <div className="grid gap-8 xl:grid-cols-[520px_minmax(0,1fr)_380px]">
           <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
-            <p className="text-sm font-semibold text-neutral-950">
-              Opções de personalização
-            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-neutral-950">
+                  Localização
+                </p>
 
-            <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
-              {locationGroups.map((group) => {
-                const isSelected = group.id === selectedGroup?.id;
+                <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                  {locationGroups.map((group) => {
+                    const isSelected = group.id === selectedGroup?.id;
 
-                return (
-                  <button
-                    key={group.id}
-                    type="button"
-                    onClick={() => setSelectedGroupId(group.id)}
-                    className={`w-full rounded-2xl border p-4 text-left transition ${
-                      isSelected
-                        ? "border-neutral-950 bg-white shadow-sm"
-                        : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-base font-semibold text-neutral-950">
-                          {group.techniqueName}
+                    return (
+                      <button
+                        key={group.id}
+                        type="button"
+                        onClick={() => setSelectedGroupId(group.id)}
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          isSelected
+                            ? "border-neutral-950 bg-white shadow-sm"
+                            : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="break-words text-base font-semibold text-neutral-950">
+                              {group.locationName}
+                            </p>
+
+                            {group.componentName ? (
+                              <p className="mt-2 break-words text-sm text-neutral-600">
+                                {group.componentName}
+                              </p>
+                            ) : null}
+
+                            {group.maxPrintingAreaMm ? (
+                              <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
+                                <Ruler className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                                {group.maxPrintingAreaMm}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          {group.isRecommended ? (
+                            <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                              Recomendada
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="min-w-0 border-t border-neutral-200 pt-4 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
+                <p className="text-sm font-semibold text-neutral-950">
+                  Tipo de personalização
+                </p>
+
+                <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                  {(selectedGroup?.options ?? []).map((option) => {
+                    const isSelected = option.id === selectedLocation?.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedLocationId(option.id)}
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          isSelected
+                            ? "border-neutral-950 bg-white shadow-sm"
+                            : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
+                        }`}
+                      >
+                        <p className="break-words text-base font-semibold text-neutral-950">
+                          {option.technique}
                         </p>
 
-                        <p className="mt-2 text-sm font-medium text-neutral-700">
-                          {group.locationName}
-                        </p>
-
-                        {group.componentName ? (
-                          <p className="mt-2 text-sm text-neutral-600">
-                            {group.componentName}
-                          </p>
-                        ) : null}
-
-                        {group.maxPrintingAreaMm ? (
+                        {option.max_printing_area_mm ? (
                           <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
-                            <Ruler className="mr-1.5 h-3.5 w-3.5" />
-                            {group.maxPrintingAreaMm}
+                            <Ruler className="mr-1.5 h-3.5 w-3.5 shrink-0" />
+                            {option.max_printing_area_mm}
                           </p>
                         ) : null}
-                      </div>
-
-                      {group.isRecommended ? (
-                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                          Recomendada
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </aside>
 
@@ -1069,7 +1151,7 @@ export default function ProductCustomizationEditor({
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-5">
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl bg-neutral-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Técnica
@@ -1480,6 +1562,76 @@ export default function ProductCustomizationEditor({
                 </p>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                  Personalização para {quantity.toLocaleString("pt-PT")} {" "}
+                  {quantity === 1 ? "unidade" : "unidades"}
+                </p>
+
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-2xl font-semibold text-white">
+                    {formatPrice(personalizationUnitPrice, productCurrency)}
+                    <span className="ml-1 text-sm font-medium text-neutral-300">
+                      /un.
+                    </span>
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPriceTable(true)}
+                    className="text-xs font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white"
+                  >
+                    Ver todos os preços
+                  </button>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-neutral-300">
+                  O preço unitário da personalização diminui com a quantidade
+                  selecionada.
+                </p>
+
+                {nextSavingTier ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(nextSavingTier.quantity)}
+                    className="mt-3 w-full rounded-xl bg-emerald-400/15 px-3 py-3 text-left ring-1 ring-inset ring-emerald-300/20 transition hover:bg-emerald-400/20"
+                  >
+                    <span className="block text-xs text-emerald-100">
+                      A partir de {nextSavingTier.quantity.toLocaleString("pt-PT")} unidades
+                    </span>
+                    <span className="mt-1 block text-sm font-semibold text-white">
+                      {formatPrice(nextSavingTier.unitPrice, productCurrency)}
+                      /un. · poupa {nextSavingTier.savingPercentage}% por unidade
+                    </span>
+                  </button>
+                ) : null}
+
+                {customizationQuantityBreaks.length > 1 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium text-neutral-300">
+                      Comparar quantidades
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {customizationQuantityBreaks.map((tierQuantity) => (
+                        <button
+                          key={tierQuantity}
+                          type="button"
+                          onClick={() => setQuantity(tierQuantity)}
+                          aria-pressed={quantity === tierQuantity}
+                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                            quantity === tierQuantity
+                              ? "bg-white text-neutral-950"
+                              : "bg-white/10 text-white hover:bg-white/15"
+                          }`}
+                        >
+                          {tierQuantity.toLocaleString("pt-PT")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
                   <dt>Local</dt>
@@ -1663,12 +1815,12 @@ export default function ProductCustomizationEditor({
                       Quantidade
                     </th>
 
-                    {quantityBreaks.map((item) => (
+                    {customizationQuantityBreaks.map((item) => (
                       <th
                         key={item}
                         className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
-                        {item}
+                        {item.toLocaleString("pt-PT")}
                       </th>
                     ))}
                   </tr>
@@ -1680,7 +1832,7 @@ export default function ProductCustomizationEditor({
                       Preço / un.
                     </td>
 
-                    {quantityBreaks.map((item) => (
+                    {customizationQuantityBreaks.map((item) => (
                       <td
                         key={item}
                         className="border-b border-neutral-100 px-4 py-3 text-right font-semibold text-neutral-950"
@@ -1688,7 +1840,7 @@ export default function ProductCustomizationEditor({
                         {formatPrice(
                           findCustomizationPriceTier(
                             selectedLocation?.price_tiers ?? [],
-                            Number(item.replace(".", "")),
+                            item,
                             logoWidthMm && logoHeightMm
                               ? (logoWidthMm * logoHeightMm) / 100
                               : null,
