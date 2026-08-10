@@ -10,6 +10,7 @@ import {
   useTransition,
   type ChangeEvent,
   type PointerEvent,
+  type SyntheticEvent,
 } from "react";
 import {
   ArrowRight,
@@ -22,7 +23,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
 import { saveCustomizationDraftAction } from "@/lib/customization/actions";
 
 export type ProductEditorVariant = {
@@ -46,11 +46,11 @@ export type ProductEditorLocation = {
   id: string;
   source_location_id: string;
   variant_id: string | null;
+  component_id: string | null;
   technique: string;
   component_name: string | null;
   location_name: string | null;
   preview_image_url: string | null;
-  preview_image_urls: string[];
   location_image_url: string | null;
   area_image_url: string | null;
   printing_lines_image_url: string | null;
@@ -58,23 +58,6 @@ export type ProductEditorLocation = {
   max_area_cm2: number | null;
   table_codes: string[];
   is_recommended: boolean;
-  price_tiers: ProductEditorCustomizationPrice[];
-};
-
-export type ProductEditorCustomizationPrice = {
-  id: string;
-  table_code: string;
-  table_code_option: string | null;
-  quantity_min: number;
-  quantity_max: number | null;
-  supplier_price: number;
-  final_price: number;
-  handling_cost: number;
-  supplier_handling_cost: number;
-  handling_cost_code: string | null;
-  currency: string;
-  price_by_area: boolean;
-  area_cm2: number | null;
 };
 
 type LogoPosition = {
@@ -89,9 +72,17 @@ type PrintAreaDimensions = {
   heightMm: number;
 };
 
+type PreviewPrintArea = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  aspectRatio: number;
+};
+
 type LocationGroup = {
   id: string;
-  techniqueName: string;
+  componentId: string;
   locationName: string;
   componentName: string | null;
   maxPrintingAreaMm: string | null;
@@ -126,6 +117,66 @@ const DEFAULT_PRINT_AREA: PrintAreaDimensions = {
   heightMm: 20,
 };
 
+type ComponentGroup = {
+  id: string;
+  name: string;
+  sourceIds: string[];
+  isRecommended: boolean;
+};
+
+function getProductImageCandidates(params: {
+  selectedColor: ProductEditorVariant | null;
+  productImageUrl: string | null;
+}): string[] {
+  return Array.from(
+    new Set(
+      [
+        params.selectedColor?.image_url,
+        params.productImageUrl,
+      ].filter((url): url is string => Boolean(url)),
+    ),
+  );
+}
+
+function getGuideImageCandidates(
+  selectedLocation: ProductEditorLocation | null,
+): string[] {
+  return Array.from(
+    new Set(
+      [
+        selectedLocation?.printing_lines_image_url,
+        selectedLocation?.area_image_url,
+      ].filter((url): url is string => Boolean(url)),
+    ),
+  );
+}
+
+function getBrowserSafeImageUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+
+    if (parsed.hostname === "cdn.hideacontent.com") {
+      return `/api/media/stricker-image?url=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
+}
+
+const quantityBreaks = [
+  "1",
+  "10",
+  "25",
+  "50",
+  "100",
+  "250",
+  "500",
+  "1.000",
+  "2.500",
+];
+
 function getColorLabel(variant: ProductEditorVariant | null): string {
   if (!variant) {
     return "Cor selecionada";
@@ -149,11 +200,8 @@ function getLocationLabel(location: ProductEditorLocation): string {
 
 function getLocationGroupKey(location: ProductEditorLocation): string {
   return [
-    location.source_location_id,
-    location.technique,
-    location.location_name ?? "local",
     location.component_name ?? "componente",
-    location.max_printing_area_mm ?? "area",
+    location.location_name ?? "local",
   ]
     .join(":")
     .normalize("NFD")
@@ -222,7 +270,10 @@ function buildLocationGroups(params: {
     if (!existingGroup) {
       groups.set(key, {
         id: key,
-        techniqueName: location.technique,
+        componentId:
+          location.component_id ??
+          location.component_name ??
+          "componente",
         locationName: getLocationLabel(location),
         componentName: location.component_name,
         maxPrintingAreaMm: location.max_printing_area_mm,
@@ -310,7 +361,25 @@ function getSafeLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
 }): LogoPosition {
-  const safeWidth = clamp(params.position.width, 10, 100);
+  const angle = (clamp(params.position.rotation, -15, 15) * Math.PI) / 180;
+  const absoluteCosine = Math.abs(Math.cos(angle));
+  const absoluteSine = Math.abs(Math.sin(angle));
+  const heightPerWidth =
+    params.printAreaAspectRatio / params.logoAspectRatio;
+  const rotatedWidthPerWidth =
+    absoluteCosine + heightPerWidth * absoluteSine;
+  const rotatedHeightPerWidth =
+    absoluteSine + heightPerWidth * absoluteCosine;
+  const maximumWidth = Math.min(
+    100,
+    100 / Math.max(rotatedWidthPerWidth, Number.EPSILON),
+    100 / Math.max(rotatedHeightPerWidth, Number.EPSILON),
+  );
+  const safeWidth = clamp(
+    params.position.width,
+    Math.min(10, maximumWidth),
+    maximumWidth,
+  );
 
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: safeWidth,
@@ -318,144 +387,106 @@ function getSafeLogoPosition(params: {
     logoAspectRatio: params.logoAspectRatio,
   });
 
+  const rotatedWidth = safeWidth * rotatedWidthPerWidth;
+  const rotatedHeight = safeWidth * rotatedHeightPerWidth;
+  const horizontalOverhang = Math.max(0, (rotatedWidth - safeWidth) / 2);
+  const verticalOverhang = Math.max(0, (rotatedHeight - logoHeight) / 2);
+
   return {
-    x: clamp(params.position.x, 0, Math.max(0, 100 - safeWidth)),
-    y: clamp(params.position.y, 0, Math.max(0, 100 - logoHeight)),
+    x: clamp(
+      params.position.x,
+      horizontalOverhang,
+      Math.max(horizontalOverhang, 100 - safeWidth - horizontalOverhang),
+    ),
+    y: clamp(
+      params.position.y,
+      verticalOverhang,
+      Math.max(verticalOverhang, 100 - logoHeight - verticalOverhang),
+    ),
     width: safeWidth,
     rotation: clamp(params.position.rotation, -15, 15),
   };
 }
 
-function getPreferredPreviewImage(params: {
-  selectedLocation: ProductEditorLocation | null;
-  selectedColor: ProductEditorVariant | null;
-  productImageUrl: string | null;
-}): string | null {
-  return (
-    params.selectedLocation?.printing_lines_image_url ??
-    params.selectedLocation?.area_image_url ??
-    params.selectedLocation?.location_image_url ??
-    params.selectedLocation?.preview_image_url ??
-    params.selectedColor?.image_url ??
-    params.productImageUrl
-  );
-}
-
-function findCustomizationPriceTier(
-  tiers: ProductEditorCustomizationPrice[],
-  quantity: number,
-  areaCm2?: number | null,
-): ProductEditorCustomizationPrice | null {
-  const requestedArea = areaCm2 && areaCm2 > 0 ? areaCm2 : null;
-  const seriesByOption = new Map<string, ProductEditorCustomizationPrice[]>();
-
-  for (const tier of tiers) {
-    const seriesKey = tier.table_code_option ?? tier.table_code;
-    const series = seriesByOption.get(seriesKey) ?? [];
-    series.push(tier);
-    seriesByOption.set(seriesKey, series);
-  }
-
-  const series = [...seriesByOption.entries()].map(([key, prices]) => ({
-    key,
-    prices,
-    areaCm2: prices.reduce<number | null>((largestArea, tier) => {
-      if (tier.area_cm2 === null || tier.area_cm2 <= 0) {
-        return largestArea;
-      }
-
-      return largestArea === null || tier.area_cm2 > largestArea
-        ? tier.area_cm2
-        : largestArea;
-    }, null),
-  }));
-
-  const applicableSeries = requestedArea
-    ? series.filter(
-        (item) => item.areaCm2 !== null && item.areaCm2 >= requestedArea,
-      )
-    : series;
-
-  const selectedSeries = (
-    applicableSeries.length > 0 ? applicableSeries : series
-  )
-    .sort((a, b) => {
-      if (a.areaCm2 === null && b.areaCm2 !== null) return 1;
-      if (a.areaCm2 !== null && b.areaCm2 === null) return -1;
-      if (a.areaCm2 !== b.areaCm2) {
-        return (a.areaCm2 ?? Number.POSITIVE_INFINITY) -
-          (b.areaCm2 ?? Number.POSITIVE_INFINITY);
-      }
-
-      return a.key.localeCompare(b.key, "pt-PT", { numeric: true });
-    })[0];
-
-  if (!selectedSeries) {
-    return null;
-  }
-
-  const sorted = [...selectedSeries.prices].sort((a, b) => {
-    if (a.quantity_min !== b.quantity_min) {
-      return a.quantity_min - b.quantity_min;
-    }
-
-    return a.final_price - b.final_price;
+function getCenteredLogoPosition(params: {
+  width?: number;
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+}): LogoPosition {
+  const width = clamp(params.width ?? 60, 10, 100);
+  const height = getLogoHeightPercent({
+    logoWidthPercent: width,
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
   });
 
-  const applicableTiers = sorted.filter(
-    (tier) => quantity >= tier.quantity_min,
-  );
-
-  if (applicableTiers.length === 0) {
-    return sorted[0] ?? null;
-  }
-
-  return applicableTiers.reduce((bestTier, tier) =>
-    tier.final_price < bestTier.final_price ? tier : bestTier,
-  );
+  return getSafeLogoPosition({
+    position: {
+      x: Math.max(0, (100 - width) / 2),
+      y: Math.max(0, (100 - height) / 2),
+      width,
+      rotation: 0,
+    },
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
 }
 
-function getCustomizationQuantityBreaks(params: {
-  tiers: ProductEditorCustomizationPrice[];
-  areaCm2?: number | null;
-}): number[] {
-  const quantities = new Set<number>();
+function getVisualLogoPosition(params: {
+  position: LogoPosition;
+  physicalPrintAreaAspectRatio: number;
+  visualPrintAreaAspectRatio: number;
+  logoAspectRatio: number;
+}): LogoPosition {
+  const physicalHeight = getLogoHeightPercent({
+    logoWidthPercent: params.position.width,
+    printAreaAspectRatio: params.physicalPrintAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+  const centreX = params.position.x + params.position.width / 2;
+  const centreY = params.position.y + physicalHeight / 2;
+  const visualHeight = getLogoHeightPercent({
+    logoWidthPercent: params.position.width,
+    printAreaAspectRatio: params.visualPrintAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
 
-  for (const tier of params.tiers) {
-    if (tier.quantity_min > 0) {
-      quantities.add(tier.quantity_min);
-    }
+  return getSafeLogoPosition({
+    position: {
+      x: centreX - params.position.width / 2,
+      y: centreY - visualHeight / 2,
+      width: params.position.width,
+      rotation: params.position.rotation,
+    },
+    printAreaAspectRatio: params.visualPrintAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+}
+
+function getTechniqueEstimatedUnitPrice(technique: string | null): number {
+  const normalized = technique?.normalize("NFD").toLowerCase() ?? "";
+
+  if (normalized.includes("bordado")) {
+    return 0.75;
   }
 
-  return [...quantities]
-    .sort((a, b) => a - b)
-    .filter((quantity, index, allQuantities) => {
-      const tier = findCustomizationPriceTier(
-        params.tiers,
-        quantity,
-        params.areaCm2,
-      );
+  if (normalized.includes("uv")) {
+    return 0.45;
+  }
 
-      if (!tier) {
-        return false;
-      }
+  if (normalized.includes("laser")) {
+    return 0.52;
+  }
 
-      if (index === 0) {
-        return true;
-      }
+  if (normalized.includes("tampografia")) {
+    return 0.42;
+  }
 
-      const previousTier = findCustomizationPriceTier(
-        params.tiers,
-        allQuantities[index - 1],
-        params.areaCm2,
-      );
+  if (normalized.includes("transfer")) {
+    return 0.49;
+  }
 
-      return (
-        !previousTier ||
-        tier.final_price !== previousTier.final_price ||
-        tier.handling_cost !== previousTier.handling_cost
-      );
-    });
+  return 0.5;
 }
 
 function getEstimatedProductionDays(technique: string | null): string {
@@ -540,11 +571,13 @@ export default function ProductCustomizationEditor({
   const router = useRouter();
 
   const printAreaRef = useRef<HTMLDivElement | null>(null);
+  const productPrintAreaRef = useRef<HTMLDivElement | null>(null);
 
   const dragStateRef = useRef<{
     pointerId: number;
     offsetX: number;
     offsetY: number;
+    area: "editor" | "product";
   } | null>(null);
 
   const [isSavingDraft, startSavingDraft] = useTransition();
@@ -557,15 +590,61 @@ export default function ProductCustomizationEditor({
     [initialVariantId, variants],
   );
 
-  const [quantity, setQuantity] = useState(Math.max(1, initialQuantity));
+  const quantity = Math.max(1, initialQuantity);
 
-  const locationGroups = useMemo(
+  const allLocationGroups = useMemo(
     () =>
       buildLocationGroups({
         locations,
         selectedVariantId: selectedColor?.id ?? initialVariantId ?? null,
       }),
     [initialVariantId, locations, selectedColor?.id],
+  );
+
+  const componentGroups = useMemo(
+    () => buildComponentGroups(allLocationGroups),
+    [allLocationGroups],
+  );
+
+  const initialComponentId = useMemo(() => {
+    const initialGroup = initialLocationId
+      ? allLocationGroups.find((group) =>
+          group.options.some(
+            (option) =>
+              option.source_location_id === initialLocationId ||
+              option.id === initialLocationId,
+          ),
+        )
+      : null;
+
+    const initialComponent = initialGroup
+      ? componentGroups.find((component) =>
+          component.sourceIds.includes(initialGroup.componentId),
+        )
+      : null;
+
+    return initialComponent?.id ?? componentGroups[0]?.id ?? null;
+  }, [allLocationGroups, componentGroups, initialLocationId]);
+
+  const [selectedComponentId, setSelectedComponentId] = useState<
+    string | null
+  >(initialComponentId);
+
+  const locationGroups = useMemo(
+    () => {
+      const selectedComponent = componentGroups.find(
+        (component) => component.id === selectedComponentId,
+      );
+
+      if (!selectedComponent) {
+        return [];
+      }
+
+      return allLocationGroups.filter((group) =>
+        selectedComponent.sourceIds.includes(group.componentId),
+      );
+    },
+    [allLocationGroups, componentGroups, selectedComponentId],
   );
 
   const initialGroupId = useMemo(() => {
@@ -615,6 +694,10 @@ export default function ProductCustomizationEditor({
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
+  const [previewPrintArea, setPreviewPrintArea] =
+    useState<PreviewPrintArea | null>(null);
+  const guideImageRef = useRef<HTMLImageElement | null>(null);
+  const [guideImageIndex, setGuideImageIndex] = useState(0);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
@@ -644,6 +727,22 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
   });
 
+  const productLogoPosition = previewPrintArea
+    ? getVisualLogoPosition({
+        position: safePosition,
+        physicalPrintAreaAspectRatio: printAreaAspectRatio,
+        visualPrintAreaAspectRatio: previewPrintArea.aspectRatio,
+        logoAspectRatio,
+      })
+    : safePosition;
+
+  const productLogoHeightPercent = getLogoHeightPercent({
+    logoWidthPercent: productLogoPosition.width,
+    printAreaAspectRatio:
+      previewPrintArea?.aspectRatio ?? printAreaAspectRatio,
+    logoAspectRatio,
+  });
+
   const logoWidthMm = roundMoney(
     (safePosition.width / 100) * printAreaDimensions.widthMm,
   );
@@ -652,11 +751,25 @@ export default function ProductCustomizationEditor({
     (logoHeightPercent / 100) * printAreaDimensions.heightMm,
   );
 
-  const previewBaseImage = getPreferredPreviewImage({
-    selectedLocation,
-    selectedColor,
-    productImageUrl,
-  });
+  const productImageCandidates = useMemo(
+    () =>
+      getProductImageCandidates({
+        selectedColor,
+        productImageUrl,
+      }),
+    [selectedColor, productImageUrl],
+  );
+
+  const guideImageCandidates = useMemo(
+    () => getGuideImageCandidates(selectedLocation),
+    [selectedLocation],
+  );
+
+  const productBaseImage = productImageCandidates[0] ?? null;
+  const previewBaseImage = guideImageCandidates[guideImageIndex] ?? null;
+  const browserSafePreviewImage = previewBaseImage
+    ? getBrowserSafeImageUrl(previewBaseImage)
+    : null;
 
   const productPriceTier = findProductPriceTier({
     prices: productPrices,
@@ -668,65 +781,9 @@ export default function ProductCustomizationEditor({
   const productCurrency = productPriceTier?.currency ?? "EUR";
   const productSubtotal = roundMoney(productUnitPrice * quantity);
 
-  const personalizationPriceTier = findCustomizationPriceTier(
-    selectedLocation?.price_tiers ?? [],
-    quantity,
-    logoWidthMm && logoHeightMm ? (logoWidthMm * logoHeightMm) / 100 : null,
+  const personalizationUnitPrice = getTechniqueEstimatedUnitPrice(
+    selectedLocation?.technique ?? null,
   );
-  const personalizationUnitPrice = personalizationPriceTier?.final_price ?? 0;
-  const setupCost = personalizationPriceTier?.handling_cost ?? 0;
-
-  const customizationQuantityBreaks = useMemo(
-    () =>
-      getCustomizationQuantityBreaks({
-        tiers: selectedLocation?.price_tiers ?? [],
-        areaCm2:
-          logoWidthMm && logoHeightMm
-            ? (logoWidthMm * logoHeightMm) / 100
-            : null,
-      }),
-    [logoHeightMm, logoWidthMm, selectedLocation?.price_tiers],
-  );
-
-  const nextSavingTier = useMemo(() => {
-    if (!personalizationPriceTier || personalizationUnitPrice <= 0) {
-      return null;
-    }
-
-    for (const tierQuantity of customizationQuantityBreaks) {
-      if (tierQuantity <= quantity) {
-        continue;
-      }
-
-      const tier = findCustomizationPriceTier(
-        selectedLocation?.price_tiers ?? [],
-        tierQuantity,
-        logoWidthMm && logoHeightMm ? (logoWidthMm * logoHeightMm) / 100 : null,
-      );
-
-      if (tier && tier.final_price < personalizationUnitPrice) {
-        return {
-          quantity: tierQuantity,
-          unitPrice: tier.final_price,
-          savingPercentage: Math.round(
-            ((personalizationUnitPrice - tier.final_price) /
-              personalizationUnitPrice) *
-              100,
-          ),
-        };
-      }
-    }
-
-    return null;
-  }, [
-    customizationQuantityBreaks,
-    logoHeightMm,
-    logoWidthMm,
-    personalizationPriceTier,
-    personalizationUnitPrice,
-    quantity,
-    selectedLocation?.price_tiers,
-  ]);
 
   const personalizationSubtotal = roundMoney(
     personalizationUnitPrice * quantity,
@@ -739,12 +796,25 @@ export default function ProductCustomizationEditor({
   );
 
   const estimatedTotal = roundMoney(
-    productSubtotal + personalizationSubtotal + setupCost + extrasTotal,
+    productSubtotal + personalizationSubtotal + extrasTotal,
   );
 
   const productionDays = getEstimatedProductionDays(
     selectedLocation?.technique ?? null,
   );
+
+  useEffect(() => {
+    if (
+      selectedComponentId &&
+      componentGroups.some(
+        (component) => component.id === selectedComponentId,
+      )
+    ) {
+      return;
+    }
+
+    setSelectedComponentId(componentGroups[0]?.id ?? null);
+  }, [componentGroups, selectedComponentId]);
 
   useEffect(() => {
     if (
@@ -762,7 +832,17 @@ export default function ProductCustomizationEditor({
   }, [selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
-    setPosition(initialPosition);
+    setPosition(
+      getCenteredLogoPosition({
+        printAreaAspectRatio,
+        logoAspectRatio,
+      }),
+    );
+  }, [selectedLocation?.id, printAreaAspectRatio, logoAspectRatio]);
+
+  useEffect(() => {
+    setPreviewPrintArea(null);
+    setGuideImageIndex(0);
   }, [selectedLocation?.id]);
 
   useEffect(() => {
@@ -781,6 +861,16 @@ export default function ProductCustomizationEditor({
         URL.revokeObjectURL(logoPreviewUrl);
       }
     };
+  }, [logoPreviewUrl]);
+
+  useEffect(() => {
+    const guideImage = guideImageRef.current;
+
+    if (!logoPreviewUrl || !guideImage?.complete || !guideImage.naturalWidth) {
+      return;
+    }
+
+    detectPreviewPrintAreaFromImage(guideImage);
   }, [logoPreviewUrl]);
 
   function handleLogoChange(event: ChangeEvent<HTMLInputElement>) {
@@ -809,12 +899,447 @@ export default function ProductCustomizationEditor({
 
     image.onload = () => {
       if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-        setLogoAspectRatio(image.naturalWidth / image.naturalHeight);
+        const nextLogoAspectRatio = image.naturalWidth / image.naturalHeight;
+        setLogoAspectRatio(nextLogoAspectRatio);
+        setPosition(
+          getCenteredLogoPosition({
+            printAreaAspectRatio,
+            logoAspectRatio: nextLogoAspectRatio,
+          }),
+        );
       }
     };
 
     image.src = objectUrl;
     setLogoPreviewUrl(objectUrl);
+  }
+
+  function detectPreviewPrintAreaFromImage(image: HTMLImageElement) {
+
+    if (!image.naturalWidth || !image.naturalHeight) {
+      setPreviewPrintArea(null);
+      return;
+    }
+
+    try {
+      const maximumDetectionSize = 900;
+      const scale = Math.min(
+        1,
+        maximumDetectionSize /
+          Math.max(image.naturalWidth, image.naturalHeight),
+      );
+      const width = Math.max(1, Math.round(image.naturalWidth * scale));
+      const height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d", {
+        willReadFrequently: true,
+      });
+
+      if (!context) {
+        setPreviewPrintArea(null);
+        return;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      context.drawImage(image, 0, 0, width, height);
+
+      const pixels = context.getImageData(0, 0, width, height).data;
+      let minX = width;
+      let minY = height;
+      let maxX = -1;
+      let maxY = -1;
+      let matchingPixels = 0;
+
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const index = (y * width + x) * 4;
+          const red = pixels[index];
+          const green = pixels[index + 1];
+          const blue = pixels[index + 2];
+          const alpha = pixels[index + 3];
+
+          const isGreenGuide =
+            alpha > 100 &&
+            green > 95 &&
+            green > red * 1.2 &&
+            green > blue * 1.12 &&
+            green - Math.max(red, blue) > 24;
+
+          if (!isGreenGuide) {
+            continue;
+          }
+
+          matchingPixels += 1;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+
+      let detectedWidth = maxX - minX + 1;
+      let detectedHeight = maxY - minY + 1;
+      const getGreenEdgeCoverage = () => {
+        if (maxX < minX || maxY < minY) return [0, 0, 0, 0];
+
+        const isGreenAt = (x: number, y: number) => {
+          const index = (y * width + x) * 4;
+          const red = pixels[index];
+          const green = pixels[index + 1];
+          const blue = pixels[index + 2];
+          return (
+            pixels[index + 3] > 100 &&
+            green > 95 &&
+            green > red * 1.2 &&
+            green > blue * 1.12 &&
+            green - Math.max(red, blue) > 24
+          );
+        };
+        const tolerance = Math.max(
+          2,
+          Math.round(Math.min(width, height) * 0.004),
+        );
+        let top = 0;
+        let bottom = 0;
+        let left = 0;
+        let right = 0;
+
+        for (let x = minX; x <= maxX; x += 1) {
+          let topFound = false;
+          let bottomFound = false;
+          for (let offset = -tolerance; offset <= tolerance; offset += 1) {
+            topFound ||= isGreenAt(
+              x,
+              clamp(minY + offset, 0, height - 1),
+            );
+            bottomFound ||= isGreenAt(
+              x,
+              clamp(maxY + offset, 0, height - 1),
+            );
+          }
+          if (topFound) top += 1;
+          if (bottomFound) bottom += 1;
+        }
+
+        for (let y = minY; y <= maxY; y += 1) {
+          let leftFound = false;
+          let rightFound = false;
+          for (let offset = -tolerance; offset <= tolerance; offset += 1) {
+            leftFound ||= isGreenAt(
+              clamp(minX + offset, 0, width - 1),
+              y,
+            );
+            rightFound ||= isGreenAt(
+              clamp(maxX + offset, 0, width - 1),
+              y,
+            );
+          }
+          if (leftFound) left += 1;
+          if (rightFound) right += 1;
+        }
+
+        return [
+          top / Math.max(1, detectedWidth),
+          bottom / Math.max(1, detectedWidth),
+          left / Math.max(1, detectedHeight),
+          right / Math.max(1, detectedHeight),
+        ];
+      };
+      const greenEdgeCoverage = getGreenEdgeCoverage();
+      let isPlausibleArea =
+        matchingPixels >= 12 &&
+        detectedWidth >= width * 0.04 &&
+        detectedHeight >= height * 0.015 &&
+        detectedWidth <= width * 0.8 &&
+        detectedHeight <= height * 0.65 &&
+        greenEdgeCoverage.every((coverage) => coverage >= 0.08) &&
+        greenEdgeCoverage.reduce((sum, coverage) => sum + coverage, 0) >=
+          0.65;
+
+      // Procura sempre a moldura branca tracejada. Algumas maquetes também
+      // contêm elementos verdes que formam um retângulo plausível, mas que não
+      // correspondem à área tracejada onde a arte deve ser colocada.
+      {
+        const rowCounts = new Array<number>(height).fill(0);
+        const columnCounts = new Array<number>(width).fill(0);
+        const whiteGuideMask = new Uint8Array(width * height);
+
+        for (let y = Math.floor(height * 0.08); y < height * 0.92; y += 1) {
+          for (let x = Math.floor(width * 0.08); x < width * 0.92; x += 1) {
+            const index = (y * width + x) * 4;
+            const red = pixels[index];
+            const green = pixels[index + 1];
+            const blue = pixels[index + 2];
+            const brightness = (red + green + blue) / 3;
+            const colourSpread = Math.max(red, green, blue) - Math.min(red, green, blue);
+
+            if (brightness < 215 || colourSpread > 34) {
+              continue;
+            }
+
+            let hasDarkNeighbour = false;
+
+            for (let offset = -5; offset <= 5 && !hasDarkNeighbour; offset += 1) {
+              const neighbourX = clamp(x + offset, 0, width - 1);
+              const neighbourY = clamp(y + offset, 0, height - 1);
+              const horizontalIndex = (y * width + neighbourX) * 4;
+              const verticalIndex = (neighbourY * width + x) * 4;
+              const horizontalBrightness =
+                (pixels[horizontalIndex] + pixels[horizontalIndex + 1] + pixels[horizontalIndex + 2]) / 3;
+              const verticalBrightness =
+                (pixels[verticalIndex] + pixels[verticalIndex + 1] + pixels[verticalIndex + 2]) / 3;
+
+              hasDarkNeighbour =
+                horizontalBrightness < brightness - 35 ||
+                verticalBrightness < brightness - 35;
+            }
+
+            if (hasDarkNeighbour) {
+              whiteGuideMask[y * width + x] = 1;
+              rowCounts[y] += 1;
+              columnCounts[x] += 1;
+            }
+          }
+        }
+
+        const strongestRows = rowCounts
+          .map((count, coordinate) => ({ count, coordinate }))
+          .filter((item) => item.count >= Math.max(5, width * 0.008))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 40);
+        const strongestColumns = columnCounts
+          .map((count, coordinate) => ({ count, coordinate }))
+          .filter((item) => item.count >= Math.max(5, height * 0.008))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 40);
+
+        const horizontalEdgeStats = (
+          y: number,
+          left: number,
+          right: number,
+        ) => {
+          let matches = 0;
+          let runs = 0;
+          let longestRun = 0;
+          let currentRun = 0;
+          const edgeLength = Math.max(1, right - left + 1);
+
+          for (let x = left; x <= right; x += 1) {
+            let found = false;
+
+            for (let offset = -2; offset <= 2 && !found; offset += 1) {
+              const sampleY = clamp(y + offset, 0, height - 1);
+              found = whiteGuideMask[sampleY * width + x] === 1;
+            }
+
+            if (found) {
+              matches += 1;
+              currentRun += 1;
+              longestRun = Math.max(longestRun, currentRun);
+            } else if (currentRun > 0) {
+              runs += 1;
+              currentRun = 0;
+            }
+          }
+
+          if (currentRun > 0) runs += 1;
+
+          return {
+            coverage: matches / edgeLength,
+            runs,
+            longestRunRatio: longestRun / edgeLength,
+          };
+        };
+
+        const verticalEdgeStats = (
+          x: number,
+          top: number,
+          bottom: number,
+        ) => {
+          let matches = 0;
+          let runs = 0;
+          let longestRun = 0;
+          let currentRun = 0;
+          const edgeLength = Math.max(1, bottom - top + 1);
+
+          for (let y = top; y <= bottom; y += 1) {
+            let found = false;
+
+            // As linhas laterais das maquetes Stricker podem estar inclinadas
+            // devido à perspetiva do produto. A pesquisa tem por isso de usar
+            // uma faixa horizontal, e não uma coluna vertical rígida.
+            const perspectiveTolerance = Math.max(
+              3,
+              Math.round(width * 0.035),
+            );
+
+            for (
+              let offset = -perspectiveTolerance;
+              offset <= perspectiveTolerance && !found;
+              offset += 1
+            ) {
+              const sampleX = clamp(x + offset, 0, width - 1);
+              found = whiteGuideMask[y * width + sampleX] === 1;
+            }
+
+            if (found) {
+              matches += 1;
+              currentRun += 1;
+              longestRun = Math.max(longestRun, currentRun);
+            } else if (currentRun > 0) {
+              runs += 1;
+              currentRun = 0;
+            }
+          }
+
+          if (currentRun > 0) runs += 1;
+
+          return {
+            coverage: matches / edgeLength,
+            runs,
+            longestRunRatio: longestRun / edgeLength,
+          };
+        };
+
+        let bestCandidate:
+          | { left: number; top: number; right: number; bottom: number; score: number }
+          | null = null;
+
+        for (const top of strongestRows) {
+          for (const bottom of strongestRows) {
+            const candidateHeight = bottom.coordinate - top.coordinate;
+
+            if (candidateHeight < height * 0.05 || candidateHeight > height * 0.45) continue;
+
+            for (const left of strongestColumns) {
+              for (const right of strongestColumns) {
+                const candidateWidth = right.coordinate - left.coordinate;
+
+                if (candidateWidth < width * 0.05 || candidateWidth > width * 0.55) continue;
+
+                const topStats = horizontalEdgeStats(
+                  top.coordinate,
+                  left.coordinate,
+                  right.coordinate,
+                );
+                const bottomStats = horizontalEdgeStats(
+                  bottom.coordinate,
+                  left.coordinate,
+                  right.coordinate,
+                );
+                const leftStats = verticalEdgeStats(
+                  left.coordinate,
+                  top.coordinate,
+                  bottom.coordinate,
+                );
+                const rightStats = verticalEdgeStats(
+                  right.coordinate,
+                  top.coordinate,
+                  bottom.coordinate,
+                );
+
+                const edgeStats = [
+                  topStats,
+                  bottomStats,
+                  leftStats,
+                  rightStats,
+                ];
+                const weakestEdge = Math.min(
+                  ...edgeStats.map((edge) => edge.coverage),
+                );
+                const totalCoverage = edgeStats.reduce(
+                  (total, edge) => total + edge.coverage,
+                  0,
+                );
+                const totalRuns = edgeStats.reduce(
+                  (total, edge) => total + edge.runs,
+                  0,
+                );
+
+                // A guia da Stricker é efetivamente tracejada: as arestas
+                // horizontais têm vários segmentos separados e as verticais
+                // pelo menos dois. Um reflexo, rebordo ou união do produto é
+                // normalmente uma linha contínua e não pode ser aceite.
+                const hasDashedStructure =
+                  topStats.runs >= 3 &&
+                  bottomStats.runs >= 3 &&
+                  leftStats.runs >= 2 &&
+                  rightStats.runs >= 2 &&
+                  edgeStats.every((edge) => edge.longestRunRatio < 0.72);
+
+                if (
+                  !hasDashedStructure ||
+                  weakestEdge < 0.075 ||
+                  totalCoverage < 0.52
+                ) {
+                  continue;
+                }
+
+                const relativeArea =
+                  (candidateWidth * candidateHeight) / (width * height);
+                const score =
+                  totalCoverage * 240 +
+                  weakestEdge * 160 -
+                  // Entre molduras tracejadas válidas, a área de impressão é
+                  // a moldura dominante. Penalizar a área fazia o algoritmo
+                  // escolher pequenos detalhes brancos acima do tracejado.
+                  relativeArea * 520 +
+                  totalRuns * 2;
+
+                if (!bestCandidate || score > bestCandidate.score) {
+                  bestCandidate = {
+                    left: left.coordinate,
+                    top: top.coordinate,
+                    right: right.coordinate,
+                    bottom: bottom.coordinate,
+                    score,
+                  };
+                }
+              }
+            }
+          }
+        }
+
+        if (bestCandidate) {
+          // O conteúdo fica no interior da linha tracejada, nunca sobre ela.
+          const inset = Math.max(1, Math.round(Math.min(width, height) * 0.002));
+          minX = bestCandidate.left + inset;
+          minY = bestCandidate.top + inset;
+          maxX = bestCandidate.right - inset;
+          maxY = bestCandidate.bottom - inset;
+          detectedWidth = maxX - minX + 1;
+          detectedHeight = maxY - minY + 1;
+          isPlausibleArea = true;
+        }
+      }
+
+      if (!isPlausibleArea) {
+        setPreviewPrintArea(null);
+        return;
+      }
+
+      setPreviewPrintArea({
+        left: (minX / width) * 100,
+        top: (minY / height) * 100,
+        width: (detectedWidth / width) * 100,
+        height: (detectedHeight / height) * 100,
+        aspectRatio: detectedWidth / Math.max(1, detectedHeight),
+      });
+    } catch {
+      setPreviewPrintArea(null);
+    }
+  }
+
+  function detectPreviewPrintArea(
+    event: SyntheticEvent<HTMLImageElement>,
+  ) {
+    detectPreviewPrintAreaFromImage(event.currentTarget);
+  }
+
+  function handleGuideImageError() {
+    setPreviewPrintArea(null);
+    setGuideImageIndex((current) => current + 1);
   }
 
   function updatePosition(key: keyof LogoPosition, value: number) {
@@ -831,7 +1356,12 @@ export default function ProductCustomizationEditor({
   }
 
   function resetPosition() {
-    setPosition(initialPosition);
+    setPosition(
+      getCenteredLogoPosition({
+        printAreaAspectRatio,
+        logoAspectRatio,
+      }),
+    );
   }
 
   function fitLogoToArea() {
@@ -879,19 +1409,26 @@ export default function ProductCustomizationEditor({
     updatePosition("width", safePosition.width + 8);
   }
 
-  function handleLogoPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (!printAreaRef.current) {
+  function handleLogoPointerDown(
+    event: PointerEvent<HTMLDivElement>,
+    area: "editor" | "product" = "editor",
+  ) {
+    const activeArea = area === "product" ? productPrintAreaRef.current : printAreaRef.current;
+
+    if (!activeArea) {
       return;
     }
 
-    const rect = printAreaRef.current.getBoundingClientRect();
-    const logoLeft = rect.left + (safePosition.x / 100) * rect.width;
-    const logoTop = rect.top + (safePosition.y / 100) * rect.height;
+    const rect = activeArea.getBoundingClientRect();
+    const activePosition = area === "product" ? productLogoPosition : safePosition;
+    const logoLeft = rect.left + (activePosition.x / 100) * rect.width;
+    const logoTop = rect.top + (activePosition.y / 100) * rect.height;
 
     dragStateRef.current = {
       pointerId: event.pointerId,
       offsetX: event.clientX - logoLeft,
       offsetY: event.clientY - logoTop,
+      area,
     };
 
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -904,11 +1441,14 @@ export default function ProductCustomizationEditor({
       return;
     }
 
-    if (!printAreaRef.current) {
+    const activeArea =
+      dragState.area === "product" ? productPrintAreaRef.current : printAreaRef.current;
+
+    if (!activeArea) {
       return;
     }
 
-    const rect = printAreaRef.current.getBoundingClientRect();
+    const rect = activeArea.getBoundingClientRect();
 
     const nextX =
       ((event.clientX - rect.left - dragState.offsetX) / rect.width) * 100;
@@ -916,8 +1456,33 @@ export default function ProductCustomizationEditor({
     const nextY =
       ((event.clientY - rect.top - dragState.offsetY) / rect.height) * 100;
 
-    setPosition((current) =>
-      getSafeLogoPosition({
+    setPosition((current) => {
+      if (dragState.area === "product" && previewPrintArea) {
+        const visualHeight = getLogoHeightPercent({
+          logoWidthPercent: productLogoPosition.width,
+          printAreaAspectRatio: previewPrintArea.aspectRatio,
+          logoAspectRatio,
+        });
+        const physicalHeight = getLogoHeightPercent({
+          logoWidthPercent: current.width,
+          printAreaAspectRatio,
+          logoAspectRatio,
+        });
+        const centreX = nextX + productLogoPosition.width / 2;
+        const centreY = nextY + visualHeight / 2;
+
+        return getSafeLogoPosition({
+          position: {
+            ...current,
+            x: centreX - current.width / 2,
+            y: centreY - physicalHeight / 2,
+          },
+          printAreaAspectRatio,
+          logoAspectRatio,
+        });
+      }
+
+      return getSafeLogoPosition({
         position: {
           ...current,
           x: nextX,
@@ -925,8 +1490,8 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio,
         logoAspectRatio,
-      }),
-    );
+      });
+    });
   }
 
   function handleLogoPointerUp(event: PointerEvent<HTMLDivElement>) {
@@ -966,19 +1531,25 @@ export default function ProductCustomizationEditor({
       formData.set("productSlug", productSlug);
       formData.set("variantId", selectedColor.id);
 
-      formData.set("sourceLocationId", selectedLocation.source_location_id);
+      formData.set(
+        "sourceLocationId",
+        selectedLocation.source_location_id,
+      );
 
       formData.set("techniqueName", selectedLocation.technique);
 
-      formData.set("componentName", selectedLocation.component_name ?? "");
-
-      formData.set("locationName", selectedLocation.location_name ?? "");
-
-      formData.set("tableCode", personalizationPriceTier?.table_code ?? "");
       formData.set(
-        "tableCodeOption",
-        personalizationPriceTier?.table_code_option ?? "",
+        "componentName",
+        selectedLocation.component_name ?? "",
       );
+
+      formData.set(
+        "locationName",
+        selectedLocation.location_name ?? "",
+      );
+
+      formData.set("tableCode", selectedLocation.table_codes[0] ?? "");
+      formData.set("tableCodeOption", "");
       formData.set("serviceCode", "");
 
       formData.set("quantity", String(quantity));
@@ -988,12 +1559,18 @@ export default function ProductCustomizationEditor({
         String(personalizationUnitPrice),
       );
 
-      formData.set("setupCost", String(setupCost));
+      formData.set("setupCost", "0");
       formData.set("extrasTotal", String(extrasTotal));
 
-      formData.set("printingWidthMm", String(printAreaDimensions.widthMm));
+      formData.set(
+        "printingWidthMm",
+        String(printAreaDimensions.widthMm),
+      );
 
-      formData.set("printingHeightMm", String(printAreaDimensions.heightMm));
+      formData.set(
+        "printingHeightMm",
+        String(printAreaDimensions.heightMm),
+      );
 
       formData.set("logoPositionX", String(safePosition.x));
       formData.set("logoPositionY", String(safePosition.y));
@@ -1008,7 +1585,10 @@ export default function ProductCustomizationEditor({
       formData.set("internalReference", internalReference);
       formData.set("notes", notes);
 
-      formData.set("technicalPreviewUrl", previewBaseImage ?? "");
+      formData.set(
+        "technicalPreviewUrl",
+        previewBaseImage ?? productBaseImage ?? "",
+      );
 
       formData.set("supplierId", supplierId ?? "");
 
@@ -1049,11 +1629,46 @@ export default function ProductCustomizationEditor({
 
   return (
     <>
-      <section className="mt-6 min-w-0 overflow-hidden rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm sm:mt-8 sm:p-6">
-        <div className="grid min-w-0 gap-5 sm:gap-8 xl:grid-cols-[280px_minmax(0,1fr)_360px] 2xl:grid-cols-[300px_minmax(0,1fr)_380px]">
-          <aside className="min-w-0 rounded-3xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4">
+      <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
+          <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
             <p className="text-sm font-semibold text-neutral-950">
-              Opções de personalização
+              Componente
+            </p>
+
+            <div className="mt-4 space-y-2">
+              {componentGroups.map((component) => {
+                const isSelected = component.id === selectedComponentId;
+
+                return (
+                  <button
+                    key={component.id}
+                    type="button"
+                    onClick={() => setSelectedComponentId(component.id)}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                      isSelected
+                        ? "border-neutral-950 bg-white shadow-sm"
+                        : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-base font-semibold text-neutral-950">
+                        {component.name}
+                      </p>
+
+                      {component.isRecommended ? (
+                        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+                          Recomendado
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-6 text-sm font-semibold text-neutral-950">
+              Localização
             </p>
 
             <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
@@ -1074,18 +1689,8 @@ export default function ProductCustomizationEditor({
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-base font-semibold text-neutral-950">
-                          {group.techniqueName}
-                        </p>
-
-                        <p className="mt-2 text-sm font-medium text-neutral-700">
                           {group.locationName}
                         </p>
-
-                        {group.componentName ? (
-                          <p className="mt-2 text-sm text-neutral-600">
-                            {group.componentName}
-                          </p>
-                        ) : null}
 
                         {group.maxPrintingAreaMm ? (
                           <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
@@ -1107,88 +1712,136 @@ export default function ProductCustomizationEditor({
             </div>
           </aside>
 
-          <div className="min-w-0 space-y-5">
-            <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50 xl:sticky xl:top-28">
-              <div className="flex min-h-[320px] items-center justify-center bg-white sm:min-h-[480px] xl:min-h-[620px]">
-                <CustomizationLocationImage
-                  urls={
-                    selectedLocation
-                      ? [
-                          ...(selectedLocation.preview_image_urls ?? []),
-                          selectedLocation.preview_image_url,
-                          selectedLocation.printing_lines_image_url,
-                          selectedLocation.area_image_url,
-                        ]
-                      : [
-                          previewBaseImage,
-                          selectedColor?.image_url,
-                          productImageUrl,
-                        ]
-                  }
-                  alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
-                  className="block max-h-[700px] max-w-full object-contain"
-                  logoUrl={logoPreviewUrl}
-                  logoPosition={safePosition}
-                  logoAspectRatio={logoAspectRatio}
-                  physicalPrintAreaAspectRatio={printAreaAspectRatio}
-                />
+          <div className="space-y-5">
+            <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
+              <div className="flex min-h-[620px] items-center justify-center bg-white">
+                {browserSafePreviewImage ? (
+                  <div className="max-w-full p-8">
+                    <div className="relative inline-block max-w-full align-middle">
+                      <img
+                        key={browserSafePreviewImage}
+                        ref={guideImageRef}
+                        src={browserSafePreviewImage}
+                        alt={`Área de personalização ${getLocationLabel(selectedLocation!)}`}
+                        onLoad={detectPreviewPrintArea}
+                        onError={handleGuideImageError}
+                        className="block max-h-[700px] max-w-full object-contain"
+                      />
+
+                      {previewPrintArea ? (
+                        <div
+                          ref={productPrintAreaRef}
+                          aria-label="Área máxima de personalização definida pela Stricker"
+                          className="pointer-events-none absolute overflow-hidden"
+                          style={{
+                            left: `${previewPrintArea.left}%`,
+                            top: `${previewPrintArea.top}%`,
+                            width: `${previewPrintArea.width}%`,
+                            height: `${previewPrintArea.height}%`,
+                          }}
+                        >
+                          {logoPreviewUrl ? (
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              aria-label="Mover logótipo na área de personalização"
+                              onPointerDown={(event) =>
+                                handleLogoPointerDown(event, "product")
+                              }
+                              onPointerMove={handleLogoPointerMove}
+                              onPointerUp={handleLogoPointerUp}
+                              onPointerCancel={handleLogoPointerUp}
+                              className="pointer-events-auto absolute cursor-grab touch-none active:cursor-grabbing"
+                              style={{
+                                left: `${productLogoPosition.x}%`,
+                                top: `${productLogoPosition.y}%`,
+                                width: `${productLogoPosition.width}%`,
+                                height: `${productLogoHeightPercent}%`,
+                                transform: `rotate(${productLogoPosition.rotation}deg)`,
+                                transformOrigin: "center center",
+                              }}
+                            >
+                              <img
+                                src={logoPreviewUrl}
+                                alt="Pré-visualização do logótipo no produto"
+                                draggable={false}
+                                className="pointer-events-none h-full w-full select-none object-contain"
+                              />
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="max-w-xl p-8 text-center">
+                    <p className="text-base font-semibold text-neutral-950">
+                      Maquete técnica indisponível
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-neutral-600">
+                      A Stricker não disponibilizou uma imagem com a área de
+                      impressão para esta combinação. A posição não será
+                      estimada pela loja.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <div className="border-t border-neutral-200 bg-white p-3 sm:p-5">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
-                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
+              <div className="border-t border-neutral-200 bg-white p-5">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-2xl bg-neutral-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Técnica
                     </p>
 
-                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
+                    <p className="mt-1 font-semibold text-neutral-950">
                       {selectedLocation?.technique ?? "A confirmar"}
                     </p>
                   </div>
 
-                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
-                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
+                  <div className="rounded-2xl bg-neutral-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Localização
                     </p>
 
-                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
+                    <p className="mt-1 font-semibold text-neutral-950">
                       {selectedLocation
                         ? getLocationLabel(selectedLocation)
                         : "—"}
                     </p>
                   </div>
 
-                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
-                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
+                  <div className="rounded-2xl bg-neutral-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Área máxima
                     </p>
 
-                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
+                    <p className="mt-1 font-semibold text-neutral-950">
                       {selectedLocation?.max_printing_area_mm ?? "—"}
                     </p>
                   </div>
 
-                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
-                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
+                  <div className="rounded-2xl bg-neutral-50 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Quantidade
                     </p>
 
-                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
+                    <p className="mt-1 font-semibold text-neutral-950">
                       {quantity.toLocaleString("pt-PT")} un.
                     </p>
                   </div>
                 </div>
 
                 <p className="mt-4 text-xs leading-5 text-neutral-500">
-                  A maquete posiciona o ficheiro carregado dentro da zona
-                  técnica indicada pelo fornecedor. A posição final será
-                  validada antes da produção.
+                  A moldura apresentada pertence à maquete técnica fornecida
+                  pela Stricker para a localização selecionada. A posição final
+                  será validada antes da produção.
                 </p>
               </div>
             </div>
           </div>
 
-          <aside className="min-w-0 space-y-5">
+          <aside className="space-y-5">
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
                 Produto selecionado
@@ -1222,21 +1875,28 @@ export default function ProductCustomizationEditor({
 
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
-                Opção selecionada
+                Técnica de personalização
               </p>
 
-              <div className="mt-4 rounded-2xl bg-neutral-950 px-4 py-3 text-sm text-white">
-                <p className="font-semibold">
-                  {selectedLocation?.technique ?? "A confirmar"}
-                </p>
-                <p className="mt-1 text-xs text-neutral-300">
-                  {selectedLocation
-                    ? getLocationLabel(selectedLocation)
-                    : "Localização a confirmar"}
-                  {selectedLocation?.max_printing_area_mm
-                    ? ` · ${selectedLocation.max_printing_area_mm}`
-                    : ""}
-                </p>
+              <div className="mt-4 grid gap-2">
+                {selectedGroup?.options.map((option) => {
+                  const isSelected = option.id === selectedLocation?.id;
+
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setSelectedLocationId(option.id)}
+                      className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition ${
+                        isSelected
+                          ? "border-neutral-950 bg-neutral-950 text-white"
+                          : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                      }`}
+                    >
+                      {option.technique}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-600">
@@ -1335,7 +1995,7 @@ export default function ProductCustomizationEditor({
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className="mt-4 grid grid-cols-3 gap-2">
                   <button
                     type="button"
                     onClick={reduceLogo}
@@ -1547,101 +2207,29 @@ export default function ProductCustomizationEditor({
                 </p>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                  Personalização para {quantity.toLocaleString("pt-PT")}{" "}
-                  {quantity === 1 ? "unidade" : "unidades"}
-                </p>
-
-                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
-                  <p className="text-2xl font-semibold text-white">
-                    {formatPrice(personalizationUnitPrice, productCurrency)}
-                    <span className="ml-1 text-sm font-medium text-neutral-300">
-                      /un.
-                    </span>
-                  </p>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowPriceTable(true)}
-                    className="text-xs font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white"
-                  >
-                    Ver todos os preços
-                  </button>
-                </div>
-
-                <p className="mt-2 text-xs leading-5 text-neutral-300">
-                  O preço unitário da personalização varia com a quantidade
-                  selecionada.
-                </p>
-
-                {nextSavingTier ? (
-                  <button
-                    type="button"
-                    onClick={() => setQuantity(nextSavingTier.quantity)}
-                    className="mt-3 w-full rounded-xl bg-emerald-400/15 px-3 py-3 text-left ring-1 ring-inset ring-emerald-300/20 transition hover:bg-emerald-400/20"
-                  >
-                    <span className="block text-xs text-emerald-100">
-                      A partir de{" "}
-                      {nextSavingTier.quantity.toLocaleString("pt-PT")} unidades
-                    </span>
-                    <span className="mt-1 block text-sm font-semibold text-white">
-                      {formatPrice(nextSavingTier.unitPrice, productCurrency)}
-                      /un. · poupa {nextSavingTier.savingPercentage}% por
-                      unidade
-                    </span>
-                  </button>
-                ) : null}
-
-                {customizationQuantityBreaks.length > 1 ? (
-                  <div className="mt-4">
-                    <p className="text-xs font-medium text-neutral-300">
-                      Comparar quantidades
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {customizationQuantityBreaks.map((tierQuantity) => (
-                        <button
-                          key={tierQuantity}
-                          type="button"
-                          onClick={() => setQuantity(tierQuantity)}
-                          aria-pressed={quantity === tierQuantity}
-                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
-                            quantity === tierQuantity
-                              ? "bg-white text-neutral-950"
-                              : "bg-white/10 text-white hover:bg-white/15"
-                          }`}
-                        >
-                          {tierQuantity.toLocaleString("pt-PT")}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
-                <div className="flex min-w-0 justify-between gap-4">
-                  <dt className="shrink-0">Local</dt>
+                <div className="flex justify-between gap-4">
+                  <dt>Local</dt>
 
-                  <dd className="min-w-0 break-words text-right text-white">
+                  <dd className="text-right text-white">
                     {selectedLocation
                       ? getLocationLabel(selectedLocation)
                       : "—"}
                   </dd>
                 </div>
 
-                <div className="flex min-w-0 justify-between gap-4">
-                  <dt className="shrink-0">Técnica</dt>
+                <div className="flex justify-between gap-4">
+                  <dt>Técnica</dt>
 
-                  <dd className="min-w-0 break-words text-right text-white">
+                  <dd className="text-right text-white">
                     {selectedLocation?.technique ?? "A confirmar"}
                   </dd>
                 </div>
 
-                <div className="flex min-w-0 justify-between gap-4">
-                  <dt className="shrink-0">Logótipo</dt>
+                <div className="flex justify-between gap-4">
+                  <dt>Logótipo</dt>
 
-                  <dd className="min-w-0 break-words text-right text-white">
+                  <dd className="max-w-48 truncate text-right text-white">
                     {logoFileName ?? "Ainda não carregado"}
                   </dd>
                 </div>
@@ -1688,14 +2276,6 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Setup (único)</dt>
-
-                    <dd className="text-right text-white">
-                      {formatPrice(setupCost, productCurrency)}
-                    </dd>
-                  </div>
-
-                  <div className="mt-2 flex justify-between gap-4">
                     <dt>Extras</dt>
 
                     <dd className="text-right text-white">
@@ -1715,7 +2295,7 @@ export default function ProductCustomizationEditor({
                     </div>
 
                     <p className="mt-1 text-xs text-neutral-400">
-                      Produto + personalização + setup + extras
+                      Produto + personalização + extras
                     </p>
                   </div>
                 </div>
@@ -1740,8 +2320,8 @@ export default function ProductCustomizationEditor({
               </div>
 
               <div className="mt-5 rounded-2xl bg-white/10 p-4 text-xs leading-5 text-neutral-300">
-                Valores sem IVA. A maquete apresentada é uma simulação visual. A
-                nossa equipa confirma técnica, área e preço final antes da
+                Valores sem IVA. A maquete apresentada é uma simulação visual.
+                A nossa equipa confirma técnica, área e preço final antes da
                 produção.
               </div>
 
@@ -1802,12 +2382,12 @@ export default function ProductCustomizationEditor({
                       Quantidade
                     </th>
 
-                    {customizationQuantityBreaks.map((item) => (
+                    {quantityBreaks.map((item) => (
                       <th
                         key={item}
                         className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
-                        {item.toLocaleString("pt-PT")}
+                        {item}
                       </th>
                     ))}
                   </tr>
@@ -1819,19 +2399,16 @@ export default function ProductCustomizationEditor({
                       Preço / un.
                     </td>
 
-                    {customizationQuantityBreaks.map((item) => (
+                    {quantityBreaks.map((item, index) => (
                       <td
                         key={item}
                         className="border-b border-neutral-100 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
                         {formatPrice(
-                          findCustomizationPriceTier(
-                            selectedLocation?.price_tiers ?? [],
-                            item,
-                            logoWidthMm && logoHeightMm
-                              ? (logoWidthMm * logoHeightMm) / 100
-                              : null,
-                          )?.final_price ?? 0,
+                          Math.max(
+                            0.12,
+                            personalizationUnitPrice - index * 0.035,
+                          ),
                           productCurrency,
                         )}
                       </td>
@@ -1841,9 +2418,8 @@ export default function ProductCustomizationEditor({
               </table>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-                O preço unitário varia com a quantidade. A tabela utiliza os
-                preços finais da personalização. Técnica, área e ficheiro serão
-                confirmados antes da produção.
+                Tabela indicativa para apoio à simulação. Os valores finais
+                serão confirmados com base na técnica, área e ficheiro recebido.
               </p>
             </div>
           </div>
@@ -1943,4 +2519,49 @@ export default function ProductCustomizationEditor({
       ) : null}
     </>
   );
+}
+
+function buildComponentGroups(
+  locationGroups: LocationGroup[],
+): ComponentGroup[] {
+  const components = new Map<string, ComponentGroup>();
+
+  for (const group of locationGroups) {
+    const name = group.componentName?.trim() || "Produto";
+    const key = name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLocaleLowerCase("pt-PT");
+    const existing = components.get(key);
+
+    if (!existing) {
+      components.set(key, {
+        id: key,
+        name,
+        sourceIds: [group.componentId],
+        isRecommended: group.isRecommended,
+      });
+      continue;
+    }
+
+    if (!existing.sourceIds.includes(group.componentId)) {
+      existing.sourceIds.push(group.componentId);
+    }
+
+    if (group.isRecommended) {
+      existing.isRecommended = true;
+    }
+  }
+
+  return Array.from(components.values()).sort((a, b) => {
+    if (a.isRecommended && !b.isRecommended) {
+      return -1;
+    }
+
+    if (!a.isRecommended && b.isRecommended) {
+      return 1;
+    }
+
+    return a.name.localeCompare(b.name, "pt-PT");
+  });
 }
