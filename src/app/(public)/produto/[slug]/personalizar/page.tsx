@@ -6,7 +6,10 @@ import ProductCustomizationEditor, {
   type ProductEditorPrice,
   type ProductEditorVariant,
 } from "@/components/product/ProductCustomizationEditor";
-import { buildStrickerPrintingLinesImageUrl } from "@/lib/stricker/images";
+import {
+  buildStrickerLocationImageUrl,
+  buildStrickerPrintingLinesImageUrl,
+} from "@/lib/stricker/images";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -223,15 +226,50 @@ function getLocationIndex(
   return 1;
 }
 
-function getSlotImageUrls(
+function getSlotImageFilenames(
   location: ProductCustomizationLocation,
 ): string[] {
   const payload = getPayloadRecord(location.raw_payload);
   const index = getLocationIndex(location);
 
-  return splitCodes(getSlotString(payload, "AreaImage", index))
-    .map((filename) => buildStrickerPrintingLinesImageUrl(filename))
-    .filter((url): url is string => Boolean(url));
+  return splitCodes(getSlotString(payload, "AreaImage", index));
+}
+
+function getSlotLocationImageFilenames(
+  location: ProductCustomizationLocation,
+): string[] {
+  const payload = getPayloadRecord(location.raw_payload);
+  const index = getLocationIndex(location);
+
+  return splitCodes(getSlotString(payload, "LocationImage", index));
+}
+
+function buildTechniqueImageUrls(params: {
+  location: ProductCustomizationLocation;
+  techniqueIndexes: number[];
+}): string[] {
+  const areaFiles = getSlotImageFilenames(params.location);
+  const locationFiles = getSlotLocationImageFilenames(params.location);
+  const indexes = params.techniqueIndexes.length > 0
+    ? params.techniqueIndexes
+    : [0];
+  const urls: Array<string | null> = [];
+
+  for (const index of indexes) {
+    const locationFile = locationFiles[index] ?? null;
+    const areaFile = areaFiles[index] ?? null;
+
+    urls.push(
+      buildStrickerPrintingLinesImageUrl(areaFile),
+      buildStrickerLocationImageUrl(areaFile),
+      buildStrickerLocationImageUrl(locationFile),
+      buildStrickerPrintingLinesImageUrl(locationFile),
+    );
+  }
+
+  return Array.from(
+    new Set(urls.filter((url): url is string => Boolean(url))),
+  );
 }
 
 function getTableCodesForLocation(
@@ -371,7 +409,6 @@ function buildEditorLocations(params: {
       getSlotString(payload, "TableCodes", locationIndex),
     );
     const slotTableCodes = Array.from(new Set(rawTableCodes));
-    const slotImageUrls = getSlotImageUrls(location);
 
     const locationOptions = params.customizationOptions.filter(
       (option) =>
@@ -446,12 +483,11 @@ function buildEditorLocations(params: {
         location.location_code ??
         `Local ${getLocationIndex(location)}`;
 
-      const techniqueImageUrl =
-        matchingRawIndexes
-          .map((index) => slotImageUrls[index] ?? null)
-          .find((url): url is string => Boolean(url)) ??
-        slotImageUrls[0] ??
-        null;
+      const techniqueImageUrls = buildTechniqueImageUrls({
+        location,
+        techniqueIndexes: matchingRawIndexes,
+      });
+      const techniqueImageUrl = techniqueImageUrls[0] ?? null;
 
       rows.push({
         id: `${location.id}:${technique}`,
@@ -465,6 +501,7 @@ function buildEditorLocations(params: {
         location_name: locationName,
         preview_image_url:
           techniqueImageUrl ?? getPreferredLocationPreviewUrl(location),
+        preview_image_urls: techniqueImageUrls,
         location_image_url: getLocationImageUrl(location),
         area_image_url: techniqueImageUrl ?? getAreaImageUrl(location),
         printing_lines_image_url:

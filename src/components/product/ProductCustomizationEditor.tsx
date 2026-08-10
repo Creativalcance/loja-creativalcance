@@ -50,6 +50,7 @@ export type ProductEditorLocation = {
   component_name: string | null;
   location_name: string | null;
   preview_image_url: string | null;
+  preview_image_urls: string[];
   location_image_url: string | null;
   area_image_url: string | null;
   printing_lines_image_url: string | null;
@@ -1022,11 +1023,12 @@ export default function ProductCustomizationEditor({
               <div className="flex min-h-[620px] items-center justify-center bg-white">
                 <CustomizationLocationImage
                   urls={[
-                    previewBaseImage,
+                    ...(selectedLocation?.preview_image_urls ?? []),
                     selectedLocation?.preview_image_url,
                     selectedLocation?.printing_lines_image_url,
                     selectedLocation?.area_image_url,
                     selectedLocation?.location_image_url,
+                    previewBaseImage,
                     selectedColor?.image_url,
                     productImageUrl,
                   ]}
