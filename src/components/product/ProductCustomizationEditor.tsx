@@ -125,18 +125,6 @@ const DEFAULT_PRINT_AREA: PrintAreaDimensions = {
   heightMm: 20,
 };
 
-const quantityBreaks = [
-  "1",
-  "10",
-  "25",
-  "50",
-  "100",
-  "250",
-  "500",
-  "1.000",
-  "2.500",
-];
-
 function getColorLabel(variant: ProductEditorVariant | null): string {
   if (!variant) {
     return "Cor selecionada";
@@ -398,6 +386,49 @@ function findCustomizationPriceTier(
   );
 }
 
+function getCustomizationQuantityBreaks(params: {
+  tiers: ProductEditorCustomizationPrice[];
+  areaCm2?: number | null;
+}): number[] {
+  const quantities = new Set<number>();
+
+  for (const tier of params.tiers) {
+    if (tier.quantity_min > 0) {
+      quantities.add(tier.quantity_min);
+    }
+  }
+
+  return [...quantities]
+    .sort((a, b) => a - b)
+    .filter((quantity, index, allQuantities) => {
+      const tier = findCustomizationPriceTier(
+        params.tiers,
+        quantity,
+        params.areaCm2,
+      );
+
+      if (!tier) {
+        return false;
+      }
+
+      if (index === 0) {
+        return true;
+      }
+
+      const previousTier = findCustomizationPriceTier(
+        params.tiers,
+        allQuantities[index - 1],
+        params.areaCm2,
+      );
+
+      return (
+        !previousTier ||
+        tier.final_price !== previousTier.final_price ||
+        tier.handling_cost !== previousTier.handling_cost
+      );
+    });
+}
+
 function getEstimatedProductionDays(technique: string | null): string {
   const normalized = technique?.normalize("NFD").toLowerCase() ?? "";
 
@@ -497,7 +528,7 @@ export default function ProductCustomizationEditor({
     [initialVariantId, variants],
   );
 
-  const quantity = Math.max(1, initialQuantity);
+  const [quantity, setQuantity] = useState(Math.max(1, initialQuantity));
 
   const locationGroups = useMemo(
     () =>
@@ -616,6 +647,52 @@ export default function ProductCustomizationEditor({
   const personalizationUnitPrice =
     personalizationPriceTier?.final_price ?? 0;
   const setupCost = personalizationPriceTier?.handling_cost ?? 0;
+
+  const customizationQuantityBreaks = useMemo(
+    () =>
+      getCustomizationQuantityBreaks({
+        tiers: selectedLocation?.price_tiers ?? [],
+        areaCm2:
+          logoWidthMm && logoHeightMm
+            ? (logoWidthMm * logoHeightMm) / 100
+            : null,
+      }),
+    [logoHeightMm, logoWidthMm, selectedLocation?.price_tiers],
+  );
+
+  const nextSavingTier = (() => {
+    if (!personalizationPriceTier || personalizationUnitPrice <= 0) {
+      return null;
+    }
+
+    for (const tierQuantity of customizationQuantityBreaks) {
+      if (tierQuantity <= quantity) {
+        continue;
+      }
+
+      const tier = findCustomizationPriceTier(
+        selectedLocation?.price_tiers ?? [],
+        tierQuantity,
+        logoWidthMm && logoHeightMm
+          ? (logoWidthMm * logoHeightMm) / 100
+          : null,
+      );
+
+      if (tier && tier.final_price < personalizationUnitPrice) {
+        return {
+          quantity: tierQuantity,
+          unitPrice: tier.final_price,
+          savingPercentage: Math.round(
+            ((personalizationUnitPrice - tier.final_price) /
+              personalizationUnitPrice) *
+              100,
+          ),
+        };
+      }
+    }
+
+    return null;
+  })();
 
   const personalizationSubtotal = roundMoney(
     personalizationUnitPrice * quantity,
@@ -1485,6 +1562,76 @@ export default function ProductCustomizationEditor({
                 </p>
               </div>
 
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">
+                  Personalização para {quantity.toLocaleString("pt-PT")} {" "}
+                  {quantity === 1 ? "unidade" : "unidades"}
+                </p>
+
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <p className="text-2xl font-semibold text-white">
+                    {formatPrice(personalizationUnitPrice, productCurrency)}
+                    <span className="ml-1 text-sm font-medium text-neutral-300">
+                      /un.
+                    </span>
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPriceTable(true)}
+                    className="text-xs font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white"
+                  >
+                    Ver todos os preços
+                  </button>
+                </div>
+
+                <p className="mt-2 text-xs leading-5 text-neutral-300">
+                  O preço unitário da personalização diminui com a quantidade
+                  selecionada.
+                </p>
+
+                {nextSavingTier ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(nextSavingTier.quantity)}
+                    className="mt-3 w-full rounded-xl bg-emerald-400/15 px-3 py-3 text-left ring-1 ring-inset ring-emerald-300/20 transition hover:bg-emerald-400/20"
+                  >
+                    <span className="block text-xs text-emerald-100">
+                      A partir de {nextSavingTier.quantity.toLocaleString("pt-PT")} unidades
+                    </span>
+                    <span className="mt-1 block text-sm font-semibold text-white">
+                      {formatPrice(nextSavingTier.unitPrice, productCurrency)}
+                      /un. · poupa {nextSavingTier.savingPercentage}% por unidade
+                    </span>
+                  </button>
+                ) : null}
+
+                {customizationQuantityBreaks.length > 1 ? (
+                  <div className="mt-4">
+                    <p className="text-xs font-medium text-neutral-300">
+                      Comparar quantidades
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {customizationQuantityBreaks.map((tierQuantity) => (
+                        <button
+                          key={tierQuantity}
+                          type="button"
+                          onClick={() => setQuantity(tierQuantity)}
+                          aria-pressed={quantity === tierQuantity}
+                          className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                            quantity === tierQuantity
+                              ? "bg-white text-neutral-950"
+                              : "bg-white/10 text-white hover:bg-white/15"
+                          }`}
+                        >
+                          {tierQuantity.toLocaleString("pt-PT")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
                   <dt>Local</dt>
@@ -1668,12 +1815,12 @@ export default function ProductCustomizationEditor({
                       Quantidade
                     </th>
 
-                    {quantityBreaks.map((item) => (
+                    {customizationQuantityBreaks.map((item) => (
                       <th
                         key={item}
                         className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
-                        {item}
+                        {item.toLocaleString("pt-PT")}
                       </th>
                     ))}
                   </tr>
@@ -1685,7 +1832,7 @@ export default function ProductCustomizationEditor({
                       Preço / un.
                     </td>
 
-                    {quantityBreaks.map((item) => (
+                    {customizationQuantityBreaks.map((item) => (
                       <td
                         key={item}
                         className="border-b border-neutral-100 px-4 py-3 text-right font-semibold text-neutral-950"
@@ -1693,7 +1840,7 @@ export default function ProductCustomizationEditor({
                         {formatPrice(
                           findCustomizationPriceTier(
                             selectedLocation?.price_tiers ?? [],
-                            Number(item.replace(".", "")),
+                            item,
                             logoWidthMm && logoHeightMm
                               ? (logoWidthMm * logoHeightMm) / 100
                               : null,
