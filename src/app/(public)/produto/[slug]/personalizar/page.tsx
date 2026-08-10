@@ -174,7 +174,21 @@ function getSlotString(
   prefix: string,
   index: number,
 ): string | null {
-  return getNullableString(record[`${prefix}${index}`]);
+  const directValue = getNullableString(record[`${prefix}${index}`]);
+
+  if (directValue) {
+    return directValue;
+  }
+
+  if (prefix === "AreaImage") {
+    return getNullableString(record[`Area${index}Image`]);
+  }
+
+  if (prefix === "LocationImage") {
+    return getNullableString(record[`Location${index}Image`]);
+  }
+
+  return null;
 }
 
 function splitCodes(value: string | null): string[] {
@@ -268,14 +282,12 @@ function buildTechniqueImageUrls(params: {
   const urls: Array<string | null> = [];
 
   for (const index of indexes) {
-    const locationFile = locationFiles[index] ?? null;
-    const areaFile = areaFiles[index] ?? null;
+    const locationFile = locationFiles[0] ?? locationFiles[index] ?? null;
+    const areaFile = areaFiles[index] ?? areaFiles[0] ?? null;
 
     urls.push(
       buildStrickerPrintingLinesImageUrl(areaFile),
-      buildStrickerLocationImageUrl(areaFile),
       buildStrickerLocationImageUrl(locationFile),
-      buildStrickerPrintingLinesImageUrl(locationFile),
     );
   }
 
@@ -381,29 +393,9 @@ function buildEditorLocations(params: {
     const rawTableCodes = splitCodes(
       getSlotString(payload, "TableCodes", locationIndex),
     );
-    const slotTableCodes = Array.from(new Set(rawTableCodes));
-
-    // Prefer the options explicitly attached to this location. Table codes can
-    // be reused by several locations of the same product (for example Peito,
-    // Costas and Manga), so matching every option by table code can import the
-    // technical image from a neighbouring location.
-    const exactLocationOptions = params.customizationOptions.filter(
+    const locationOptions = params.customizationOptions.filter(
       (option) => option.is_active && option.location_id === location.id,
     );
-
-    const locationOptions =
-      exactLocationOptions.length > 0
-        ? exactLocationOptions
-        : params.customizationOptions.filter(
-            (option) =>
-              option.is_active &&
-              !option.location_id &&
-              slotTableCodes.some(
-                (slotCode) =>
-                  codeBelongsToSlot(option.table_code, slotCode) ||
-                  codeBelongsToSlot(option.table_code_option, slotCode),
-              ),
-          );
 
     const optionTechniques = locationOptions
       .map((option) => option.customization_type_name?.trim() ?? "")
@@ -442,6 +434,20 @@ function buildEditorLocations(params: {
         ),
       );
 
+      const rawTableCodeOptions = splitCodes(
+        getSlotString(payload, "TableCodesOptions", locationIndex),
+      );
+
+      const techniqueTableCodeOptions = Array.from(
+        new Set(
+          rawTableCodeOptions.filter((optionCode) =>
+            techniqueSlotCodes.some((slotCode) =>
+              codeBelongsToSlot(optionCode, slotCode),
+            ),
+          ),
+        ),
+      );
+
       const techniqueOptions = locationOptions.filter((option) =>
         techniqueSlotCodes.length > 0
           ? techniqueSlotCodes.some(
@@ -454,11 +460,19 @@ function buildEditorLocations(params: {
             ) === normalizeComparable(technique),
       );
 
+      const rawTechniqueTableCodes = [
+        ...techniqueSlotCodes,
+        ...techniqueTableCodeOptions,
+      ];
+      const fallbackTechniqueTableCodes = techniqueOptions.flatMap(
+        (option) => [option.table_code, option.table_code_option],
+      );
       const techniqueTableCodes = Array.from(
         new Set(
-          techniqueOptions
-            .flatMap((option) => [option.table_code, option.table_code_option])
-            .filter((code): code is string => Boolean(code)),
+          (rawTechniqueTableCodes.length > 0
+            ? rawTechniqueTableCodes
+            : fallbackTechniqueTableCodes
+          ).filter((code): code is string => Boolean(code)),
         ),
       );
 
@@ -481,8 +495,20 @@ function buildEditorLocations(params: {
             .filter(isSingleImageUrl),
         ),
       );
-      const exactTechniqueImageUrls =
-        optionImageUrls.length > 0 ? optionImageUrls : techniqueImageUrls;
+      const exactTechniqueImageUrls = Array.from(
+        new Set(
+          [
+            ...techniqueImageUrls,
+            ...optionImageUrls,
+            location.area_storage_url,
+            location.area_image_url,
+            location.printing_lines_storage_url,
+            location.printing_lines_image_url,
+            location.location_storage_url,
+            location.location_image_url,
+          ].filter(isSingleImageUrl),
+        ),
+      );
       const techniqueImageUrl = exactTechniqueImageUrls[0] ?? null;
 
       rows.push({
@@ -510,19 +536,13 @@ function buildEditorLocations(params: {
         is_recommended: location.is_default,
         price_tiers: params.printingPrices
           .filter((price) => {
-            const codeMatches =
-              techniqueOptions.length > 0
-                ? techniqueOptions.some((option) =>
-                    option.table_code_option
-                      ? option.table_code_option === price.table_code_option
-                      : option.table_code === price.table_code ||
-                        option.table_code === price.table_code_option,
-                  )
-                : getTableCodesForLocation(location).some(
-                    (code) =>
-                      code === price.table_code ||
-                      code === price.table_code_option,
-                  );
+            const codeMatches = techniqueTableCodes.some(
+              (code) =>
+                code === price.table_code ||
+                code === price.table_code_option ||
+                codeBelongsToSlot(price.table_code, code) ||
+                codeBelongsToSlot(price.table_code_option, code),
+            );
             return codeMatches;
           })
           .map((price) => ({
@@ -683,10 +703,27 @@ export default async function ProductPersonalizePage({
 
   const customizationOptions = (customizationOptionData ?? []) as ProductCustomizationOption[];
 
+  const rawLocationTableCodes = customizationLocations.flatMap((location) => {
+    const payload = getPayloadRecord(location.raw_payload);
+    const locationIndex = getLocationIndex(location);
+
+    return [
+      ...splitCodes(getSlotString(payload, "TableCodes", locationIndex)),
+      ...splitCodes(
+        getSlotString(payload, "TableCodesOptions", locationIndex),
+      ),
+    ];
+  });
+
   const tableCodes = Array.from(
     new Set(
-      customizationOptions
-        .flatMap((option) => [option.table_code, option.table_code_option])
+      [
+        ...rawLocationTableCodes,
+        ...customizationOptions.flatMap((option) => [
+          option.table_code,
+          option.table_code_option,
+        ]),
+      ]
         .filter((code): code is string => Boolean(code)),
     ),
   );
@@ -739,8 +776,8 @@ export default async function ProductPersonalizePage({
   }));
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-neutral-50 px-4 py-6 sm:px-6 sm:py-12">
-      <section className="mx-auto min-w-0 max-w-7xl">
+    <main className="min-h-screen bg-neutral-50 px-6 py-12">
+      <section className="mx-auto max-w-[1600px]">
         <Link
           href={`/produto/${product.slug}`}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
@@ -749,14 +786,14 @@ export default async function ProductPersonalizePage({
           Voltar ao produto
         </Link>
 
-        <div className="mt-6 min-w-0 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-6">
+        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
+            <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
                 Passo 2 · Personalização
               </p>
 
-              <h1 className="mt-3 break-words text-2xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
                 {product.name}
               </h1>
 
@@ -767,7 +804,7 @@ export default async function ProductPersonalizePage({
               </p>
             </div>
 
-            <div className="min-w-0 rounded-2xl bg-neutral-50 px-4 py-4 text-sm text-neutral-600 sm:px-5">
+            <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
               {selectedQuantity > 0 ? (
                 <p>
                   Quantidade:{" "}
