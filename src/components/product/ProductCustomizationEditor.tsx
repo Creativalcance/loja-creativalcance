@@ -1046,7 +1046,7 @@ export default function ProductCustomizationEditor({
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-3 sm:p-5">
-                <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
                     <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
                       Técnica
