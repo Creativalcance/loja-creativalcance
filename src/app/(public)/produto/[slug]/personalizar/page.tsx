@@ -728,8 +728,8 @@ export default async function ProductPersonalizePage({
   }));
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-6 py-12">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen overflow-x-hidden bg-neutral-50 px-4 py-6 sm:px-6 sm:py-12">
+      <section className="mx-auto min-w-0 max-w-7xl">
         <Link
           href={`/produto/${product.slug}`}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
@@ -738,14 +738,14 @@ export default async function ProductPersonalizePage({
           Voltar ao produto
         </Link>
 
-        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="mt-6 min-w-0 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
                 Passo 2 · Personalização
               </p>
 
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
+              <h1 className="mt-3 break-words text-2xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
                 {product.name}
               </h1>
 
@@ -756,7 +756,7 @@ export default async function ProductPersonalizePage({
               </p>
             </div>
 
-            <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
+            <div className="min-w-0 rounded-2xl bg-neutral-50 px-4 py-4 text-sm text-neutral-600 sm:px-5">
               {selectedQuantity > 0 ? (
                 <p>
                   Quantidade:{" "}

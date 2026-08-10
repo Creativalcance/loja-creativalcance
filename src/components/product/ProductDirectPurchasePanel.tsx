@@ -285,10 +285,21 @@ function formatStockDate(value: string): string {
 function formatNextEntries(entries: ProductPurchaseFutureStock[]): string {
   if (entries.length === 0) return "—";
 
-  return entries
+  const quantitiesByDate = new Map<string, number>();
+
+  for (const entry of entries) {
+    quantitiesByDate.set(
+      entry.expected_date,
+      (quantitiesByDate.get(entry.expected_date) ?? 0) +
+        entry.expected_quantity,
+    );
+  }
+
+  return [...quantitiesByDate.entries()]
+    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
     .map(
-      (entry) =>
-        `${entry.warehouse_code}: ${formatStockDate(entry.expected_date)} / ${entry.expected_quantity.toLocaleString("pt-PT")}`,
+      ([date, quantity]) =>
+        `${formatStockDate(date)} · ${quantity.toLocaleString("pt-PT")} un.`,
     )
     .join(" · ");
 }
@@ -1609,7 +1620,7 @@ export default function ProductDirectPurchasePanel({
             {selectedQuantity > selectedStock.available &&
             selectedStock.nextEntries.length > 0 ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                Esta encomenda inclui unidades de reposição futura. Próximas entradas confirmadas pela Stricker: {formatNextEntries(selectedStock.nextEntries)}.
+                Esta encomenda inclui unidades de reposição futura. Próximas entradas previstas: {formatNextEntries(selectedStock.nextEntries)}.
               </div>
             ) : null}
 

@@ -960,9 +960,9 @@ export default function ProductCustomizationEditor({
 
   return (
     <>
-      <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)_380px]">
-          <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
+      <section className="mt-6 min-w-0 overflow-hidden rounded-3xl border border-neutral-200 bg-white p-3 shadow-sm sm:mt-8 sm:p-6">
+        <div className="grid min-w-0 gap-5 sm:gap-8 xl:grid-cols-[280px_minmax(0,1fr)_360px] 2xl:grid-cols-[300px_minmax(0,1fr)_380px]">
+          <aside className="min-w-0 rounded-3xl border border-neutral-200 bg-neutral-50 p-3 sm:p-4">
             <p className="text-sm font-semibold text-neutral-950">
               Opções de personalização
             </p>
@@ -1018,9 +1018,9 @@ export default function ProductCustomizationEditor({
             </div>
           </aside>
 
-          <div className="space-y-5">
-            <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
-              <div className="flex min-h-[620px] items-center justify-center bg-white">
+          <div className="min-w-0 space-y-5">
+            <div className="overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50 xl:sticky xl:top-28">
+              <div className="flex min-h-[320px] items-center justify-center bg-white sm:min-h-[480px] xl:min-h-[620px]">
                 <CustomizationLocationImage
                   urls={
                     selectedLocation
@@ -1045,46 +1045,46 @@ export default function ProductCustomizationEditor({
                 />
               </div>
 
-              <div className="border-t border-neutral-200 bg-white p-5">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-2xl bg-neutral-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+              <div className="border-t border-neutral-200 bg-white p-3 sm:p-5">
+                <div className="grid grid-cols-2 gap-3 2xl:grid-cols-4">
+                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
+                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
                       Técnica
                     </p>
 
-                    <p className="mt-1 font-semibold text-neutral-950">
+                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
                       {selectedLocation?.technique ?? "A confirmar"}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-neutral-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
+                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
                       Localização
                     </p>
 
-                    <p className="mt-1 font-semibold text-neutral-950">
+                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
                       {selectedLocation
                         ? getLocationLabel(selectedLocation)
                         : "—"}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-neutral-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
+                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
                       Área máxima
                     </p>
 
-                    <p className="mt-1 font-semibold text-neutral-950">
+                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
                       {selectedLocation?.max_printing_area_mm ?? "—"}
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-neutral-50 p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                  <div className="min-w-0 rounded-2xl bg-neutral-50 p-3 sm:p-4">
+                    <p className="text-[11px] font-semibold uppercase leading-4 tracking-[0.1em] text-neutral-500 sm:text-xs">
                       Quantidade
                     </p>
 
-                    <p className="mt-1 font-semibold text-neutral-950">
+                    <p className="mt-1 break-words text-sm font-semibold leading-5 text-neutral-950 sm:text-base">
                       {quantity.toLocaleString("pt-PT")} un.
                     </p>
                   </div>
@@ -1099,7 +1099,7 @@ export default function ProductCustomizationEditor({
             </div>
           </div>
 
-          <aside className="space-y-5">
+          <aside className="min-w-0 space-y-5">
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
                 Produto selecionado
@@ -1246,7 +1246,7 @@ export default function ProductCustomizationEditor({
                   </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
                   <button
                     type="button"
                     onClick={reduceLogo}
@@ -1459,28 +1459,28 @@ export default function ProductCustomizationEditor({
               </div>
 
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
-                <div className="flex justify-between gap-4">
-                  <dt>Local</dt>
+                <div className="flex min-w-0 justify-between gap-4">
+                  <dt className="shrink-0">Local</dt>
 
-                  <dd className="text-right text-white">
+                  <dd className="min-w-0 break-words text-right text-white">
                     {selectedLocation
                       ? getLocationLabel(selectedLocation)
                       : "—"}
                   </dd>
                 </div>
 
-                <div className="flex justify-between gap-4">
-                  <dt>Técnica</dt>
+                <div className="flex min-w-0 justify-between gap-4">
+                  <dt className="shrink-0">Técnica</dt>
 
-                  <dd className="text-right text-white">
+                  <dd className="min-w-0 break-words text-right text-white">
                     {selectedLocation?.technique ?? "A confirmar"}
                   </dd>
                 </div>
 
-                <div className="flex justify-between gap-4">
-                  <dt>Logótipo</dt>
+                <div className="flex min-w-0 justify-between gap-4">
+                  <dt className="shrink-0">Logótipo</dt>
 
-                  <dd className="max-w-48 truncate text-right text-white">
+                  <dd className="min-w-0 break-words text-right text-white">
                     {logoFileName ?? "Ainda não carregado"}
                   </dd>
                 </div>
