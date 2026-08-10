@@ -254,21 +254,7 @@ function getSlotString(
   prefix: string,
   index: number,
 ): string | null {
-  const directValue = getNullableString(record[`${prefix}${index}`]);
-
-  if (directValue) {
-    return directValue;
-  }
-
-  if (prefix === "AreaImage") {
-    return getNullableString(record[`Area${index}Image`]);
-  }
-
-  if (prefix === "LocationImage") {
-    return getNullableString(record[`Location${index}Image`]);
-  }
-
-  return null;
+  return getNullableString(record[`${prefix}${index}`]);
 }
 
 function getSlotNumber(
@@ -547,7 +533,17 @@ function getCustomizationPairsForLocation(
     getSlotString(payload, "AreaImage", locationIndex),
   );
 
-  if (tableCodes.length === 0) {
+  const uniqueTableCodes = tableCodes.reduce<
+    Array<{ code: string; sourceIndex: number }>
+  >((items, code, sourceIndex) => {
+    if (!items.some((item) => item.code === code)) {
+      items.push({ code, sourceIndex });
+    }
+
+    return items;
+  }, []);
+
+  if (uniqueTableCodes.length === 0) {
     return [
       {
         tableCode: null,
@@ -558,28 +554,10 @@ function getCustomizationPairsForLocation(
     ];
   }
 
-  const occurrencesByCode = new Map<string, number>();
-
-  return tableCodes.flatMap((code, sourceIndex) => {
-    const totalOccurrences = tableCodes.filter(
-      (candidate) => candidate === code,
-    ).length;
-    const occurrence = (occurrencesByCode.get(code) ?? 0) + 1;
-
-    occurrencesByCode.set(code, occurrence);
-
-    const areaPrefix = `${code}-${String(occurrence).padStart(2, "0")}`;
-    const matchingOptions = tableCodeOptions.filter((option) => {
-      if (option === code) {
-        return totalOccurrences === 1;
-      }
-
-      if (totalOccurrences > 1) {
-        return option === areaPrefix || option.startsWith(`${areaPrefix}-`);
-      }
-
-      return option.startsWith(`${code}-`);
-    });
+  return uniqueTableCodes.flatMap(({ code, sourceIndex }) => {
+    const matchingOptions = tableCodeOptions.filter(
+      (option) => option === code || option.startsWith(`${code}-`),
+    );
     const safeOptions = matchingOptions.length > 0 ? matchingOptions : [null];
 
     return safeOptions.map((tableCodeOption) => ({
@@ -899,8 +877,10 @@ function buildCustomizationOptionRows(params: {
 
       const payload = toJsonRecord(location.raw_payload);
       const locationIndex = getLocationIndex(location);
-      const customizationTypeCode =
-        pair.tableCode ?? getCustomizationTypeCode(location, null);
+      const customizationTypeCode = getCustomizationTypeCode(
+        location,
+        pair.tableCode,
+      );
 
       const serviceCode = buildServiceCode({
         variant,

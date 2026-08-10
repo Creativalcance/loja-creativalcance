@@ -174,21 +174,7 @@ function getSlotString(
   prefix: string,
   index: number,
 ): string | null {
-  const directValue = getNullableString(record[`${prefix}${index}`]);
-
-  if (directValue) {
-    return directValue;
-  }
-
-  if (prefix === "AreaImage") {
-    return getNullableString(record[`Area${index}Image`]);
-  }
-
-  if (prefix === "LocationImage") {
-    return getNullableString(record[`Location${index}Image`]);
-  }
-
-  return null;
+  return getNullableString(record[`${prefix}${index}`]);
 }
 
 function splitCodes(value: string | null): string[] {
@@ -282,12 +268,14 @@ function buildTechniqueImageUrls(params: {
   const urls: Array<string | null> = [];
 
   for (const index of indexes) {
-    const locationFile = locationFiles[0] ?? locationFiles[index] ?? null;
-    const areaFile = areaFiles[index] ?? areaFiles[0] ?? null;
+    const locationFile = locationFiles[index] ?? null;
+    const areaFile = areaFiles[index] ?? null;
 
     urls.push(
       buildStrickerPrintingLinesImageUrl(areaFile),
+      buildStrickerLocationImageUrl(areaFile),
       buildStrickerLocationImageUrl(locationFile),
+      buildStrickerPrintingLinesImageUrl(locationFile),
     );
   }
 
@@ -393,8 +381,17 @@ function buildEditorLocations(params: {
     const rawTableCodes = splitCodes(
       getSlotString(payload, "TableCodes", locationIndex),
     );
+    const slotTableCodes = Array.from(new Set(rawTableCodes));
+
     const locationOptions = params.customizationOptions.filter(
-      (option) => option.is_active && option.location_id === location.id,
+      (option) =>
+        option.is_active &&
+        (option.location_id === location.id ||
+          slotTableCodes.some(
+            (slotCode) =>
+              codeBelongsToSlot(option.table_code, slotCode) ||
+              codeBelongsToSlot(option.table_code_option, slotCode),
+          )),
     );
 
     const optionTechniques = locationOptions
@@ -434,20 +431,6 @@ function buildEditorLocations(params: {
         ),
       );
 
-      const rawTableCodeOptions = splitCodes(
-        getSlotString(payload, "TableCodesOptions", locationIndex),
-      );
-
-      const techniqueTableCodeOptions = Array.from(
-        new Set(
-          rawTableCodeOptions.filter((optionCode) =>
-            techniqueSlotCodes.some((slotCode) =>
-              codeBelongsToSlot(optionCode, slotCode),
-            ),
-          ),
-        ),
-      );
-
       const techniqueOptions = locationOptions.filter((option) =>
         techniqueSlotCodes.length > 0
           ? techniqueSlotCodes.some(
@@ -460,19 +443,11 @@ function buildEditorLocations(params: {
             ) === normalizeComparable(technique),
       );
 
-      const rawTechniqueTableCodes = [
-        ...techniqueSlotCodes,
-        ...techniqueTableCodeOptions,
-      ];
-      const fallbackTechniqueTableCodes = techniqueOptions.flatMap(
-        (option) => [option.table_code, option.table_code_option],
-      );
       const techniqueTableCodes = Array.from(
         new Set(
-          (rawTechniqueTableCodes.length > 0
-            ? rawTechniqueTableCodes
-            : fallbackTechniqueTableCodes
-          ).filter((code): code is string => Boolean(code)),
+          techniqueOptions
+            .flatMap((option) => [option.table_code, option.table_code_option])
+            .filter((code): code is string => Boolean(code)),
         ),
       );
 
@@ -495,20 +470,8 @@ function buildEditorLocations(params: {
             .filter(isSingleImageUrl),
         ),
       );
-      const exactTechniqueImageUrls = Array.from(
-        new Set(
-          [
-            ...techniqueImageUrls,
-            ...optionImageUrls,
-            location.area_storage_url,
-            location.area_image_url,
-            location.printing_lines_storage_url,
-            location.printing_lines_image_url,
-            location.location_storage_url,
-            location.location_image_url,
-          ].filter(isSingleImageUrl),
-        ),
-      );
+      const exactTechniqueImageUrls =
+        optionImageUrls.length > 0 ? optionImageUrls : techniqueImageUrls;
       const techniqueImageUrl = exactTechniqueImageUrls[0] ?? null;
 
       rows.push({
@@ -536,13 +499,19 @@ function buildEditorLocations(params: {
         is_recommended: location.is_default,
         price_tiers: params.printingPrices
           .filter((price) => {
-            const codeMatches = techniqueTableCodes.some(
-              (code) =>
-                code === price.table_code ||
-                code === price.table_code_option ||
-                codeBelongsToSlot(price.table_code, code) ||
-                codeBelongsToSlot(price.table_code_option, code),
-            );
+            const codeMatches =
+              techniqueOptions.length > 0
+                ? techniqueOptions.some((option) =>
+                    option.table_code_option
+                      ? option.table_code_option === price.table_code_option
+                      : option.table_code === price.table_code ||
+                        option.table_code === price.table_code_option,
+                  )
+                : getTableCodesForLocation(location).some(
+                    (code) =>
+                      code === price.table_code ||
+                      code === price.table_code_option,
+                  );
             return codeMatches;
           })
           .map((price) => ({
@@ -703,27 +672,10 @@ export default async function ProductPersonalizePage({
 
   const customizationOptions = (customizationOptionData ?? []) as ProductCustomizationOption[];
 
-  const rawLocationTableCodes = customizationLocations.flatMap((location) => {
-    const payload = getPayloadRecord(location.raw_payload);
-    const locationIndex = getLocationIndex(location);
-
-    return [
-      ...splitCodes(getSlotString(payload, "TableCodes", locationIndex)),
-      ...splitCodes(
-        getSlotString(payload, "TableCodesOptions", locationIndex),
-      ),
-    ];
-  });
-
   const tableCodes = Array.from(
     new Set(
-      [
-        ...rawLocationTableCodes,
-        ...customizationOptions.flatMap((option) => [
-          option.table_code,
-          option.table_code_option,
-        ]),
-      ]
+      customizationOptions
+        .flatMap((option) => [option.table_code, option.table_code_option])
         .filter((code): code is string => Boolean(code)),
     ),
   );
@@ -777,7 +729,7 @@ export default async function ProductPersonalizePage({
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
-      <section className="mx-auto max-w-[1600px]">
+      <section className="mx-auto max-w-7xl">
         <Link
           href={`/produto/${product.slug}`}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
