@@ -1037,7 +1037,11 @@ export default function ProductCustomizationEditor({
                         ]
                   }
                   alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
-                  className="max-h-[700px] w-full object-contain p-8"
+                  className="block max-h-[700px] max-w-full object-contain"
+                  logoUrl={logoPreviewUrl}
+                  logoPosition={safePosition}
+                  logoAspectRatio={logoAspectRatio}
+                  physicalPrintAreaAspectRatio={printAreaAspectRatio}
                 />
               </div>
 
@@ -1087,8 +1091,9 @@ export default function ProductCustomizationEditor({
                 </div>
 
                 <p className="mt-4 text-xs leading-5 text-neutral-500">
-                  A imagem mostra a zona técnica enviada pelo fornecedor. A
-                  posição final será validada antes da produção.
+                  A maquete posiciona o ficheiro carregado dentro da zona
+                  técnica indicada pelo fornecedor. A posição final será
+                  validada antes da produção.
                 </p>
               </div>
             </div>
