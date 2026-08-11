@@ -120,7 +120,7 @@ async function assertAdminPageAccess(): Promise<void> {
     .eq("id", user.id)
     .maybeSingle<Profile>();
 
-  if (!profile || !["admin", "super_admin", "sales"].includes(profile.role)) {
+  if (!profile || profile.role !== "admin") {
     redirect("/");
   }
 }

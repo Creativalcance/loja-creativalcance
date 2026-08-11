@@ -1,0 +1,4 @@
+import SiteHeader from "@/components/layout/SiteHeader";
+import { assertCustomerAccess } from "@/lib/auth/assert-customer";
+import CustomerDataForm from "./CustomerDataForm";
+export default async function CustomerDataPage(){const{user,supabase}=await assertCustomerAccess("/area-cliente/dados");const{data:profile}=await supabase.from("profiles").select("full_name,email,phone").eq("id",user.id).single<{full_name:string|null;email:string;phone:string|null}>();return <><SiteHeader/><main className="min-h-screen bg-neutral-50 px-6 py-10"><section className="mx-auto max-w-3xl rounded-3xl border border-neutral-200 bg-white p-8"><h1 className="text-3xl font-semibold">Dados da conta</h1><p className="mt-3 text-neutral-600">Gere os dados associados às tuas encomendas e pedidos.</p><CustomerDataForm fullName={profile?.full_name??""} email={profile?.email??user.email??""} phone={profile?.phone??""}/></section></main></>}

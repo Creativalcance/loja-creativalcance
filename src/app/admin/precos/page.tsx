@@ -8,6 +8,7 @@ import {
   Search,
 } from "lucide-react";
 import AdminPriceEditForm from "@/components/admin/pricing/AdminPriceEditForm";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { PricingMode } from "@/lib/pricing/calculate-selling-price";
 
@@ -477,6 +478,7 @@ async function getPrintingPriceRows(params: {
 export default async function AdminPricesPage({
   searchParams,
 }: AdminPricesPageProps) {
+  await assertAdminAccess("/admin/precos");
   const resolvedSearchParams = await searchParams;
 
   const activeTab: PricingTab =

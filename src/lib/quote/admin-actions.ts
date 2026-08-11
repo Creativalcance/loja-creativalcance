@@ -1,8 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
 
 export type UpdateQuoteStatusState = {
   success: boolean;
@@ -20,10 +20,6 @@ const ALLOWED_STATUSES = [
 ] as const;
 
 type AllowedStatus = (typeof ALLOWED_STATUSES)[number];
-
-type Profile = {
-  role: string;
-};
 
 function isAllowedStatus(status: string): status is AllowedStatus {
   return ALLOWED_STATUSES.includes(status as AllowedStatus);
@@ -51,28 +47,8 @@ export async function updateQuoteRequestStatusAction(
   }
 
   try {
+    await assertAdminAccess("/admin/pedidos-de-orcamento");
     const supabase = await createSupabaseServerClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      redirect("/login");
-    }
-
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single<Profile>();
-
-    if (!profile || !["admin", "super_admin", "sales"].includes(profile.role)) {
-      return {
-        success: false,
-        message: "Não tem permissões para actualizar este pedido.",
-      };
-    }
 
     const { error } = await supabase
       .from("quote_requests")

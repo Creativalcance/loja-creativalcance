@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import {
   ArrowRight,
   ClipboardList,
@@ -8,9 +7,10 @@ import {
   Package,
   ShoppingCart,
   UserRound,
+  Settings,
 } from "lucide-react";
 import SiteHeader from "@/components/layout/SiteHeader";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { assertCustomerAccess } from "@/lib/auth/assert-customer";
 
 type Profile = {
   full_name: string | null;
@@ -83,15 +83,7 @@ function getQuoteStatusLabel(status: string): string {
 }
 
 export default async function CustomerAreaPage() {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  const { user, supabase } = await assertCustomerAccess("/area-cliente");
 
   const [
     { data: profile },
@@ -169,6 +161,15 @@ export default async function CustomerAreaPage() {
           </div>
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">
+            <Link
+              href="/area-cliente/dados"
+              className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+            >
+              <Settings className="h-7 w-7 text-neutral-500" />
+              <p className="mt-6 text-sm text-neutral-500">Conta</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Dados pessoais</p>
+              <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">Gerir dados<ArrowRight className="ml-2 h-4 w-4" /></span>
+            </Link>
             <Link
               href="/area-cliente/encomendas"
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"

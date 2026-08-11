@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import {
   calculateSellingPrice,
   type PricingMode,
@@ -91,13 +91,8 @@ function getPricingMode(value: string | null): PricingMode | null {
 }
 
 async function getAuthenticatedUserId(): Promise<string | null> {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  return user?.id ?? null;
+  const { userId } = await assertAdminAccess("/admin/precos");
+  return userId;
 }
 
 async function updateProductPrice(params: {

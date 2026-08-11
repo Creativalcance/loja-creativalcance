@@ -1,4 +1,6 @@
 import { LoginForm } from "@/components/auth/LoginForm";
+import { redirect } from "next/navigation";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -29,6 +31,14 @@ function getSafeNextPath(value: string | undefined): string | undefined {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
+    if (profile?.is_active !== false) redirect(profile?.role === "admin" ? "/admin" : "/area-cliente");
+    await supabase.auth.signOut();
+  }
   const resolvedSearchParams = await searchParams;
   const nextPath = getSafeNextPath(resolvedSearchParams?.next);
 
@@ -44,7 +54,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </h1>
 
         <p className="mt-4 text-sm leading-6 text-neutral-600">
-          Acede à tua área cliente, comercial ou administrativa.
+          Acede à tua Área de Cliente ou ao backoffice de Administração.
         </p>
 
         <LoginForm nextPath={nextPath} />

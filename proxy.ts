@@ -30,7 +30,46 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getClaims();
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const path = request.nextUrl.pathname;
+  const isAdminPath = path.startsWith("/admin") || path.startsWith("/api/admin");
+  const isCustomerPath = path.startsWith("/area-cliente");
+
+  if (isAdminPath || isCustomerPath) {
+    const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
+
+    if (!userId) {
+      if (path.startsWith("/api/")) {
+        return NextResponse.json({ error: "Autenticação necessária." }, { status: 401 });
+      }
+
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      loginUrl.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", userId)
+      .maybeSingle<{ role: string; is_active: boolean }>();
+
+    const allowed = profile?.is_active !== false &&
+      ((isAdminPath && profile?.role === "admin") ||
+        (isCustomerPath && profile?.role === "customer"));
+
+    if (!allowed) {
+      if (path.startsWith("/api/")) {
+        return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+      }
+
+      const destination = request.nextUrl.clone();
+      destination.pathname = profile?.role === "admin" ? "/admin" : "/";
+      destination.search = "";
+      return NextResponse.redirect(destination);
+    }
+  }
 
   return response;
 }

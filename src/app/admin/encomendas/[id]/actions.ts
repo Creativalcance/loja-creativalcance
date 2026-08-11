@@ -94,7 +94,7 @@ async function requireAdmin(): Promise<AdminIdentity> {
     .eq("id", user.id)
     .maybeSingle<{ role: string }>();
 
-  if (!profile || !["admin", "super_admin"].includes(profile.role)) {
+  if (!profile || profile.role !== "admin") {
     throw new Error("Não tens permissões para alterar encomendas.");
   }
 

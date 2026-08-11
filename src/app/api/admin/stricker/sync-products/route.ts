@@ -64,7 +64,7 @@ export async function POST() {
       );
     }
 
-    if (!["admin", "super_admin", "sales"].includes(profile.role)) {
+    if (profile.role !== "admin") {
       return NextResponse.json(
         {
           success: false,

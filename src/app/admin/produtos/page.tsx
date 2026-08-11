@@ -92,7 +92,7 @@ export default async function AdminProductsPage({
     .eq("id", user.id)
     .single<Profile>();
 
-  if (!profile || !["admin", "super_admin"].includes(profile.role)) {
+  if (!profile || profile.role !== "admin") {
     redirect("/");
   }
 

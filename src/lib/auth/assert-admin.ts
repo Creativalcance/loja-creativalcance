@@ -6,6 +6,7 @@ export type AdminProfile = {
   full_name: string | null;
   email: string;
   role: string;
+  is_active: boolean;
 };
 
 export type AdminAccessResult = {
@@ -14,11 +15,7 @@ export type AdminAccessResult = {
   profile: AdminProfile;
 };
 
-const ADMIN_ROLES = new Set([
-  "admin",
-  "super_admin",
-  "sales",
-]);
+const ADMIN_ROLES = new Set(["admin"]);
 
 function getSafeNextPath(value: string): string {
   const trimmed = value.trim();
@@ -66,7 +63,8 @@ export async function assertAdminAccess(
         id,
         full_name,
         email,
-        role
+        role,
+        is_active
       `,
     )
     .eq("id", user.id)
@@ -82,7 +80,7 @@ export async function assertAdminAccess(
     redirect("/?erro=perfil-administrativo-nao-encontrado");
   }
 
-  if (!ADMIN_ROLES.has(profile.role)) {
+  if (!ADMIN_ROLES.has(profile.role) || profile.is_active === false) {
     redirect("/?erro=sem-permissao-administrativa");
   }
 

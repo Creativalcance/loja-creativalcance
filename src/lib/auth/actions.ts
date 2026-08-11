@@ -35,15 +35,23 @@ function getSafeRedirectPath(value: FormDataEntryValue | null): string | null {
 }
 
 function getDefaultRedirectPath(role: string | null | undefined): string {
-  if (role === "admin" || role === "super_admin") {
+  if (role === "admin") {
     return "/admin";
   }
 
-  if (role === "sales") {
-    return "/area-comercial";
+  return "/area-cliente";
+}
+
+function canUseRequestedPath(role: string | null | undefined, path: string): boolean {
+  if (path.startsWith("/admin") || path.startsWith("/area-comercial")) {
+    return role === "admin";
   }
 
-  return "/area-cliente";
+  if (path.startsWith("/area-cliente")) {
+    return role === "customer";
+  }
+
+  return true;
 }
 
 export async function loginAction(
@@ -77,14 +85,21 @@ export async function loginAction(
       };
     }
 
-    if (!destinationPath) {
+    {
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, is_active")
         .eq("id", data.user.id)
-        .maybeSingle<ProfileRole>();
+        .maybeSingle<ProfileRole & { is_active: boolean }>();
 
-      destinationPath = getDefaultRedirectPath(profile?.role);
+      if (!profile || profile.is_active === false) {
+        await supabase.auth.signOut();
+        return { success: false, message: "Esta conta está inativa. Contacta o apoio ao cliente." };
+      }
+
+      if (!destinationPath || !canUseRequestedPath(profile.role, destinationPath)) {
+        destinationPath = getDefaultRedirectPath(profile.role);
+      }
     }
   } catch (error) {
     return {
@@ -136,6 +151,7 @@ export async function registerAction(
       email,
       password,
       options: {
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=/area-cliente`,
         data: {
           full_name: fullName,
         },

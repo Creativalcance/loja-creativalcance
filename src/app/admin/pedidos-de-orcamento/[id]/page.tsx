@@ -144,7 +144,7 @@ export default async function AdminQuoteRequestDetailPage({
     .eq("id", user.id)
     .single<Profile>();
 
-  if (!profile || !["admin", "super_admin", "sales"].includes(profile.role)) {
+  if (!profile || profile.role !== "admin") {
     redirect("/");
   }
 

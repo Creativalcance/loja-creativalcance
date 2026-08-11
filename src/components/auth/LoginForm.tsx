@@ -82,6 +82,12 @@ export function LoginForm({ nextPath }: LoginFormProps) {
       </button>
 
       <p className="text-center text-sm text-neutral-600">
+        <Link href="/recuperar-password" className="font-semibold text-neutral-950 underline-offset-4 hover:underline">
+          Esqueci-me da palavra-passe
+        </Link>
+      </p>
+
+      <p className="text-center text-sm text-neutral-600">
         Ainda não tens conta?{" "}
         <Link
           href="/registo"

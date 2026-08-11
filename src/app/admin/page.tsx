@@ -1,27 +1,16 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import {
   BadgeEuro,
-  BarChart3,
-  Boxes,
   Building2,
   FileText,
   LogOut,
   PackageSearch,
   ServerCog,
-  Settings,
   ShoppingBag,
   Store,
-  Users,
   type LucideIcon,
 } from "lucide-react";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-type Profile = {
-  full_name: string | null;
-  email: string;
-  role: string;
-};
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
 
 type AdminModule = {
   title: string;
@@ -53,17 +42,10 @@ const adminModules: AdminModule[] = [
     icon: BadgeEuro,
   },
   {
-    title: "Fornecedores",
+    title: "Utilizadores",
     description:
-      "Gerir fornecedores, prioridades, integrações e configurações futuras.",
-    href: "/admin/fornecedores",
-    icon: Boxes,
-  },
-  {
-    title: "Clientes",
-    description:
-      "Consultar empresas, contactos, condições comerciais e histórico.",
-    href: "/admin/clientes",
+      "Consultar Clientes e criar, promover, bloquear ou reativar contas de Administração.",
+    href: "/admin/utilizadores",
     icon: Building2,
   },
   {
@@ -80,49 +62,10 @@ const adminModules: AdminModule[] = [
     href: "/admin/pedidos-de-orcamento",
     icon: FileText,
   },
-  {
-    title: "Comerciais",
-    description:
-      "Gerir equipa comercial, leads, pipeline, objetivos e desempenho.",
-    href: "/admin/comerciais",
-    icon: Users,
-  },
-  {
-    title: "Relatórios",
-    description:
-      "Analisar catálogo, vendas, conversão, campanhas e performance comercial.",
-    href: "/admin/relatorios",
-    icon: BarChart3,
-  },
-  {
-    title: "Configurações",
-    description:
-      "Configurar margens, SEO, integrações, permissões e parâmetros globais.",
-    href: "/admin/configuracoes",
-    icon: Settings,
-  },
 ];
 
 export default async function AdminPage() {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, email, role")
-    .eq("id", user.id)
-    .single<Profile>();
-
-  if (!profile || !["admin", "super_admin"].includes(profile.role)) {
-    redirect("/");
-  }
+  const { profile } = await assertAdminAccess("/admin");
 
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-12 text-white">

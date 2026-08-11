@@ -1,10 +1,4 @@
-export type UserRole =
-  | "customer_admin"
-  | "customer_user"
-  | "sales_rep"
-  | "sales_manager"
-  | "admin"
-  | "super_admin";
+export type UserRole = "customer" | "admin";
 
 export type Company = {
   id: string;

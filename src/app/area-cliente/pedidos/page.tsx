@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import SiteHeader from "@/components/layout/SiteHeader";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { assertCustomerAccess } from "@/lib/auth/assert-customer";
 
 type QuoteRequest = {
   id: string;
@@ -19,15 +18,7 @@ function formatDate(value: string): string {
 }
 
 export default async function CustomerQuoteRequestsPage() {
-  const supabase = await createSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  const { user, supabase } = await assertCustomerAccess("/area-cliente/pedidos");
 
   const { data } = await supabase
     .from("quote_requests")
