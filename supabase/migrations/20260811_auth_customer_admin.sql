@@ -59,6 +59,11 @@ as $$
   );
 $$;
 
+-- Estas funções não devem ficar executáveis pelo papel PUBLIC.
+revoke all on function public.handle_new_user() from public, anon, authenticated;
+revoke all on function public.is_admin() from public, anon;
+grant execute on function public.is_admin() to authenticated;
+
 -- O perfil usa o telefone nos dados da conta e como pre-preenchimento do checkout.
 -- IF NOT EXISTS mantém a migração segura em bases onde a coluna já tenha sido criada.
 alter table public.profiles
@@ -114,5 +119,10 @@ begin
       case when new_check <> '' then ' with check (' || new_check || ')' else '' end);
   end loop;
 end $$;
+
+-- Remove a política redundante que dependia de perfis comerciais antigos.
+drop policy if exists products_sales_admin_select_all on public.products;
+drop function if exists public.is_sales_or_admin();
+drop function if exists public.current_user_role();
 
 commit;

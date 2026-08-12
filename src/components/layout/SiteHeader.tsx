@@ -34,7 +34,7 @@ export default async function SiteHeader() {
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-6">
         <Link href="/" className="group">
           <span className="block text-lg font-semibold tracking-tight text-neutral-950">
-            Loja Creativ
+            360 Merchandising
           </span>
           <span className="block text-xs font-medium uppercase tracking-[0.24em] text-neutral-400">
             B2B Premium

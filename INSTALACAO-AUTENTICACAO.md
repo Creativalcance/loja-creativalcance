@@ -13,7 +13,7 @@ npm install
 No `.env.local`, confirmar que existe a URL pública canónica, sem barra final:
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://loja.creativalcance.com
+NEXT_PUBLIC_SITE_URL=https://360-merchandising.com
 ```
 
 Usar o domínio real atualmente configurado no Supabase/Vercel caso seja diferente.
@@ -32,9 +32,10 @@ A migração converte os perfis existentes, corrige as funções, restringe o ca
 
 Em Authentication → URL Configuration:
 
-- Site URL: o mesmo valor de `NEXT_PUBLIC_SITE_URL`.
-- Redirect URLs: adicionar `https://DOMINIO/auth/callback` e `https://DOMINIO/**`.
+- Site URL: `https://360-merchandising.com`.
+- Redirect URLs de produção: adicionar `https://360-merchandising.com/auth/callback`.
 - Em desenvolvimento, adicionar `http://localhost:3000/auth/callback` e `http://localhost:3000/**`.
+- Para previews Vercel, adicionar apenas o padrão correspondente à conta/equipa, conforme indicado no painel da Vercel.
 
 Em Authentication → Sign In / Providers → Email:
 
@@ -43,6 +44,18 @@ Em Authentication → Sign In / Providers → Email:
 - definir mínimo de 8 caracteres;
 - ativar proteção contra palavras-passe comprometidas;
 - ativar proteção segura na alteração da palavra-passe.
+
+Em Authentication → Email Templates → Confirm signup, usar uma ligação compatível com SSR:
+
+```html
+<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=email&next=/area-cliente">Confirmar a minha conta</a>
+```
+
+Em Authentication → Email Templates → Reset password, usar:
+
+```html
+<a href="{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=recovery&next=/nova-password">Definir uma nova palavra-passe</a>
+```
 
 ## 4. Validação
 

@@ -3,8 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Loja Creative | Brindes Promocionais e Merchandising Corporativo",
-    template: "%s | Loja Creative",
+    default: "360 Merchandising | Brindes Promocionais Personalizados",
+    template: "%s | 360 Merchandising",
   },
   description:
     "Plataforma B2B premium para brindes promocionais, merchandising corporativo, vestuário promocional e gifts empresariais personalizados.",

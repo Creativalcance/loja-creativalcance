@@ -46,7 +46,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-6 py-12">
       <section className="w-full max-w-md rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Loja Creativ
+          360 Merchandising
         </p>
 
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-950">
