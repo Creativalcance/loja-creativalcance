@@ -31,7 +31,7 @@ export default async function CustomerQuoteRequestsPage() {
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader context="customer" />
 
       <main className="min-h-screen bg-neutral-50 px-6 py-10">
         <section className="mx-auto max-w-5xl">

@@ -169,6 +169,7 @@ export async function saveCheckoutDestinationAction(
       }
 
       let shippingAddressId: string | null = null;
+      const makeShippingDefault = formData.get("makeShippingDefault") === "on";
 
       if (addressMode === "saved") {
         const selectedAddressId = getRequiredString(
@@ -245,6 +246,11 @@ export async function saveCheckoutDestinationAction(
             "shippingCountryCode",
           )?.toUpperCase() ?? "PT";
 
+        if (makeShippingDefault) {
+          await supabaseAdmin.from("customer_addresses").update({ is_default: false })
+            .eq("user_id", user.id).eq("address_type", "shipping");
+        }
+
         const { data: createdAddress, error: addressError } =
           await supabaseAdmin
             .from("customer_addresses")
@@ -262,7 +268,7 @@ export async function saveCheckoutDestinationAction(
               city: shippingCity,
               district: shippingDistrict,
               country_code: shippingCountryCode,
-              is_default: false,
+              is_default: makeShippingDefault,
             })
             .select("id")
             .single<InsertedAddressRecord>();
@@ -279,6 +285,39 @@ export async function saveCheckoutDestinationAction(
         shippingAddressId = createdAddress.id;
       }
 
+      if (addressMode === "saved" && makeShippingDefault && shippingAddressId) {
+        await supabaseAdmin.from("customer_addresses").update({ is_default: false })
+          .eq("user_id", user.id).eq("address_type", "shipping");
+        await supabaseAdmin.from("customer_addresses").update({ is_default: true })
+          .eq("id", shippingAddressId).eq("user_id", user.id);
+      }
+
+      let billingAddressId: string | null = null;
+      const { data: currentBilling } = await supabaseAdmin.from("customer_addresses")
+        .select("id").eq("user_id", user.id).eq("address_type", "billing")
+        .eq("is_default", true).maybeSingle<{ id: string }>();
+      billingAddressId = currentBilling?.id ?? null;
+
+      if (formData.get("billingSameAsShipping") === "on" && shippingAddressId) {
+        const { data: shippingAddress } = await supabaseAdmin.from("customer_addresses")
+          .select("company_name,tax_id,contact_name,contact_email,contact_phone,address_line_1,address_line_2,postal_code,city,district,country_code")
+          .eq("id", shippingAddressId).eq("user_id", user.id).single();
+        if (shippingAddress) {
+          await supabaseAdmin.from("customer_addresses").update({ is_default: false })
+            .eq("user_id", user.id).eq("address_type", "billing");
+          const { data: billing } = await supabaseAdmin.from("customer_addresses").insert({
+            ...shippingAddress, user_id: user.id, address_type: "billing", label: "Faturação", company_name: companyName ?? shippingAddress.company_name,
+            tax_id: companyTaxId ?? shippingAddress.tax_id, contact_email: customerEmail, is_default: true,
+          }).select("id").single<{ id: string }>();
+          billingAddressId = billing?.id ?? billingAddressId;
+        }
+      }
+
+      await supabaseAdmin.from("profiles").update({
+        full_name: customerName, phone: customerPhone, company_name: companyName, tax_id: companyTaxId,
+        billing_email: customerEmail,
+      }).eq("id", user.id);
+
       const currentMetadata = getMetadataRecord(cart.metadata);
 
       const currentCheckoutMetadata =
@@ -292,6 +331,7 @@ export async function saveCheckoutDestinationAction(
         .from("carts")
         .update({
           shipping_address_id: shippingAddressId,
+          billing_address_id: billingAddressId,
           customer_name: customerName,
           customer_email: customerEmail,
           customer_phone: customerPhone,

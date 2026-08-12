@@ -211,6 +211,21 @@ export default function CheckoutForm({
       </section>
 
       <section className="border-t border-neutral-200 pt-8">
+        <h2 className="text-xl font-semibold text-neutral-950">Guardar na conta</h2>
+        <p className="mt-1 text-sm text-neutral-500">Estes dados ficarão disponíveis para as próximas encomendas e podem ser alterados na Área Cliente.</p>
+        <div className="mt-5 space-y-3 rounded-2xl bg-neutral-50 p-4">
+          <label className="flex items-start gap-3 text-sm text-neutral-700">
+            <input type="checkbox" name="makeShippingDefault" defaultChecked className="mt-0.5 h-4 w-4" />
+            <span>Definir esta como a minha morada de entrega preferida.</span>
+          </label>
+          <label className="flex items-start gap-3 text-sm text-neutral-700">
+            <input type="checkbox" name="billingSameAsShipping" defaultChecked className="mt-0.5 h-4 w-4" />
+            <span>Utilizar também esta morada para faturação. Podes adicionar uma morada de faturação diferente na Área Cliente.</span>
+          </label>
+        </div>
+      </section>
+
+      <section className="border-t border-neutral-200 pt-8">
         <div className="flex items-center gap-3">
           <div className="rounded-2xl bg-neutral-100 p-3">
             <MapPin className="h-5 w-5 text-neutral-600" />

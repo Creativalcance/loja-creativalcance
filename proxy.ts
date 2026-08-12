@@ -16,12 +16,12 @@ export async function proxy(request: NextRequest) {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, headers) {
         cookiesToSet.forEach(({ name, value }) => {
           request.cookies.set(name, value);
         });
 
-        response = NextResponse.next({ request });
+        response = NextResponse.next({ request, headers });
 
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
@@ -34,6 +34,10 @@ export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAdminPath = path.startsWith("/admin") || path.startsWith("/api/admin");
   const isCustomerPath = path.startsWith("/area-cliente");
+
+  if (isCustomerPath || path === "/checkout" || path.startsWith("/checkout/")) {
+    response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  }
 
   if (isAdminPath || isCustomerPath) {
     const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;

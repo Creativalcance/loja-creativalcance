@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Search, ShoppingCart, UserRound } from "lucide-react";
+import { Search, ShoppingCart, Store, UserRound } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Profile = {
@@ -8,7 +8,11 @@ type Profile = {
   role: string;
 };
 
-export default async function SiteHeader() {
+type SiteHeaderProps = {
+  context?: "store" | "customer";
+};
+
+export default async function SiteHeader({ context = "store" }: SiteHeaderProps) {
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -74,11 +78,17 @@ export default async function SiteHeader() {
 
           {user ? (
             <Link
-              href={isAdmin ? "/admin" : "/area-cliente"}
+              href={context === "customer" ? "/" : isAdmin ? "/admin" : "/area-cliente"}
               className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold !text-white transition hover:bg-neutral-800"
             >
-              <UserRound className="mr-2 h-4 w-4 !text-white" />
-              <span className="!text-white">{isAdmin ? "Admin" : "Área cliente"}</span>
+              {context === "customer" ? (
+                <Store className="mr-2 h-4 w-4 !text-white" />
+              ) : (
+                <UserRound className="mr-2 h-4 w-4 !text-white" />
+              )}
+              <span className="!text-white">
+                {context === "customer" ? "Ver loja" : isAdmin ? "Admin" : "Área Cliente"}
+              </span>
             </Link>
           ) : (
             <Link

@@ -1,0 +1,155 @@
+work/loja-360-current/proxy.ts:7:  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+work/loja-360-current/proxy.ts:8:  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+work/loja-360-current/proxy.ts:54:      .select("role, is_active")
+work/loja-360-current/proxy.ts:56:      .maybeSingle<{ role: string; is_active: boolean }>();
+work/loja-360-current/proxy.ts:59:      ((isAdminPath && profile?.role === "admin") ||
+work/loja-360-current/proxy.ts:60:        (isCustomerPath && profile?.role === "customer"));
+work/loja-360-current/proxy.ts:68:      destination.pathname = profile?.role === "admin" ? "/admin" : "/";
+work/loja-360-current/supabase/functions/stricker-sync-products/index.ts:156:  const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+work/loja-360-current/supabase/functions/stricker-sync-products/index.ts:157:  const supabaseServiceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+work/loja-360-current/src/types/user.ts:28:  role: UserRole;
+work/loja-360-current/src/components/product/ProductCustomizationSimulator.tsx:692:                      role="button"
+work/loja-360-current/src/components/product/ProductCustomizationEditor.tsx:1367:                    role="button"
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:458:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:466:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:487:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:495:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:516:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:524:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:545:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:553:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:574:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:582:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:603:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:611:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:625:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:633:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:647:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0006_stricker_catalog_customization_schema.sql:655:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0005_stricker_sessions_datasets_colors.sql:137:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0005_stricker_sessions_datasets_colors.sql:145:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0005_stricker_sessions_datasets_colors.sql:159:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0005_stricker_sessions_datasets_colors.sql:167:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0005_stricker_sessions_datasets_colors.sql:188:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0005_stricker_sessions_datasets_colors.sql:196:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0003_quote_requests.sql:119:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0003_quote_requests.sql:133:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0003_quote_requests.sql:141:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0003_quote_requests.sql:168:            and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:11:      and pg_get_constraintdef(oid) ilike '%role%'
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:19:set role = case when role in ('admin', 'super_admin') then 'admin' else 'customer' end;
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:21:alter table public.profiles alter column role set default 'customer';
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:24:  add constraint profiles_role_check check (role in ('customer', 'admin'));
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:33:  insert into public.profiles (id, email, full_name, role, is_active)
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:58:    where id = auth.uid() and role = 'admin' and is_active = true
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:67:-- Um Cliente pode editar apenas dados pessoais; nunca role/is_active/email/id.
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:74:using ((id = auth.uid() and role = 'customer' and is_active = true) or public.is_admin())
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:75:with check ((id = auth.uid() and role = 'customer' and is_active = true) or public.is_admin());
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:92:declare role_clause text := '(select public.is_admin())';
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:98:      and (coalesce(qual, '') ~ 'super_admin|sales' or coalesce(with_check, '') ~ 'super_admin|sales')
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:101:      '\(p\.id = auth\.uid\(\)\) AND \(p\.role = ANY \(ARRAY\[[^]]+\]\)\)', role_clause, 'g');
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:103:      '\(profiles\.id = auth\.uid\(\)\) AND \(profiles\.role = ANY \(ARRAY\[[^]]+\]\)\)', role_clause, 'g');
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:105:      '\(p\.id = auth\.uid\(\)\) AND \(p\.role = ANY \(ARRAY\[[^]]+\]\)\)', role_clause, 'g');
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:107:      '\(profiles\.id = auth\.uid\(\)\) AND \(profiles\.role = ANY \(ARRAY\[[^]]+\]\)\)', role_clause, 'g');
+work/loja-360-current/supabase/migrations/20260811_auth_customer_admin.sql:112:      array_to_string(p.roles, ', '),
+work/loja-360-current/src/lib/checkout/payment-actions.ts:254:  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+work/loja-360-current/src/lib/checkout/payment-actions.ts:264:        "NEXT_PUBLIC_SITE_URL não pode apontar para localhost em produção.",
+work/loja-360-current/src/lib/checkout/payment-actions.ts:289:    "Não foi possível determinar o endereço público da loja. Configura NEXT_PUBLIC_SITE_URL na Vercel.",
+work/loja-360-current/src/app/area-cliente/page.tsx:18:  role: string;
+work/loja-360-current/src/app/area-cliente/page.tsx:95:      .select("full_name, email, role")
+work/loja-360-current/src/app/admin/sincronizacao/page.tsx:21:  role: string;
+work/loja-360-current/src/app/admin/sincronizacao/page.tsx:119:    .select("role")
+work/loja-360-current/src/app/admin/sincronizacao/page.tsx:123:  if (!profile || profile.role !== "admin") {
+work/loja-360-current/src/lib/auth/assert-customer.ts:8:  const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{role:string;is_active:boolean}>();
+work/loja-360-current/src/lib/auth/assert-customer.ts:10:  if (profile.role !== "customer") redirect(profile.role === "admin" ? "/admin" : "/");
+work/loja-360-current/src/app/admin/encomendas/[id]/actions.ts:93:    .select("role")
+work/loja-360-current/src/app/admin/encomendas/[id]/actions.ts:95:    .maybeSingle<{ role: string }>();
+work/loja-360-current/src/app/admin/encomendas/[id]/actions.ts:97:  if (!profile || profile.role !== "admin") {
+work/loja-360-current/src/lib/auth/actions.ts:12:  role: string;
+work/loja-360-current/src/lib/auth/actions.ts:37:function getDefaultRedirectPath(role: string | null | undefined): string {
+work/loja-360-current/src/lib/auth/actions.ts:38:  if (role === "admin") {
+work/loja-360-current/src/lib/auth/actions.ts:45:function canUseRequestedPath(role: string | null | undefined, path: string): boolean {
+work/loja-360-current/src/lib/auth/actions.ts:47:    return role === "admin";
+work/loja-360-current/src/lib/auth/actions.ts:51:    return role === "customer";
+work/loja-360-current/src/lib/auth/actions.ts:91:        .select("role, is_active")
+work/loja-360-current/src/lib/auth/actions.ts:100:      if (!destinationPath || !canUseRequestedPath(profile.role, destinationPath)) {
+work/loja-360-current/src/lib/auth/actions.ts:101:        destinationPath = getDefaultRedirectPath(profile.role);
+work/loja-360-current/src/lib/auth/actions.ts:150:    const { data, error } = await supabase.auth.signUp({
+work/loja-360-current/src/lib/auth/actions.ts:154:        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=/area-cliente`,
+work/loja-360-current/src/lib/auth/assert-admin.ts:8:  role: string;
+work/loja-360-current/src/lib/auth/assert-admin.ts:66:        role,
+work/loja-360-current/src/lib/auth/assert-admin.ts:83:  if (!ADMIN_ROLES.has(profile.role) || profile.is_active === false) {
+work/loja-360-current/src/lib/supabase/server.ts:7:  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+work/loja-360-current/src/lib/supabase/server.ts:8:  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+work/loja-360-current/src/lib/supabase/server.ts:11:    throw new Error("NEXT_PUBLIC_SUPABASE_URL não está configurado.");
+work/loja-360-current/src/lib/supabase/server.ts:15:    throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY não está configurado.");
+work/loja-360-current/src/lib/supabase/admin.ts:4:  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+work/loja-360-current/src/lib/supabase/admin.ts:5:  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+work/loja-360-current/src/lib/supabase/admin.ts:8:    throw new Error("NEXT_PUBLIC_SUPABASE_URL não está configurado.");
+work/loja-360-current/src/lib/supabase/admin.ts:12:    throw new Error("SUPABASE_SERVICE_ROLE_KEY não está configurado.");
+work/loja-360-current/src/lib/supabase/browser.ts:4:  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+work/loja-360-current/src/lib/supabase/browser.ts:5:  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+work/loja-360-current/src/lib/supabase/browser.ts:8:    throw new Error("NEXT_PUBLIC_SUPABASE_URL não está configurado.");
+work/loja-360-current/src/lib/supabase/browser.ts:12:    throw new Error("NEXT_PUBLIC_SUPABASE_ANON_KEY não está configurado.");
+work/loja-360-current/src/app/admin/produtos/page.tsx:32:  role: string;
+work/loja-360-current/src/app/admin/produtos/page.tsx:91:    .select("role")
+work/loja-360-current/src/app/admin/produtos/page.tsx:95:  if (!profile || profile.role !== "admin") {
+work/loja-360-current/src/app/admin/pedidos-de-orcamento/[id]/page.tsx:17:  role: string;
+work/loja-360-current/src/app/admin/pedidos-de-orcamento/[id]/page.tsx:143:    .select("role")
+work/loja-360-current/src/app/admin/pedidos-de-orcamento/[id]/page.tsx:147:  if (!profile || profile.role !== "admin") {
+work/loja-360-current/src/app/admin/pedidos-de-orcamento/page.tsx:16:  role: string;
+work/loja-360-current/src/app/admin/pedidos-de-orcamento/page.tsx:139:    .select("role")
+work/loja-360-current/src/app/admin/pedidos-de-orcamento/page.tsx:143:  if (!profile || profile.role !== "admin") {
+work/loja-360-current/src/app/admin/page.tsx:97:              {profile.role}
+work/loja-360-current/supabase/migrations/0007_supplier_manual_import_files.sql:56:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0007_supplier_manual_import_files.sql:64:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/src/components/layout/SiteHeader.tsx:8:  role: string;
+work/loja-360-current/src/components/layout/SiteHeader.tsx:23:      .select("full_name, email, role")
+work/loja-360-current/src/components/layout/SiteHeader.tsx:30:  const isAdmin = profile?.role === "admin";
+work/loja-360-current/src/app/admin/utilizadores/actions.ts:14:  const {error:profileError}=await admin.from("profiles").upsert({id:data.user.id,email,full_name:fullName,role:"admin",is_active:true});
+work/loja-360-current/src/app/admin/utilizadores/actions.ts:19:export async function updateUserAccessAction(formData: FormData): Promise<void> {
+work/loja-360-current/src/app/admin/utilizadores/actions.ts:21:  const id=String(formData.get("id")??"");const role=String(formData.get("role")??"");const active=String(formData.get("is_active")??"")==="true";
+work/loja-360-current/src/app/admin/utilizadores/actions.ts:22:  if(!id||!(["customer","admin"] as string[]).includes(role))return;
+work/loja-360-current/src/app/admin/utilizadores/actions.ts:23:  if(id===current&&(!active||role!=="admin"))throw new Error("Não podes retirar o teu próprio acesso de Administração.");
+work/loja-360-current/src/app/admin/utilizadores/actions.ts:24:  const admin=createSupabaseAdminClient();const{error}=await admin.from("profiles").update({role,is_active:active}).eq("id",id);if(error)throw new Error(error.message);revalidatePath("/admin/utilizadores");
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:463:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:471:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:485:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:493:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:518:            and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:532:            and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:563:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:577:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:590:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:597:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:615:            and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:630:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:637:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:655:            and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:670:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:677:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:690:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:697:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:711:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:719:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:733:      and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/supabase/migrations/0004_commerce_orders_cart.sql:751:            and p.role in ('admin', 'super_admin', 'sales')
+work/loja-360-current/src/app/admin/utilizadores/page.tsx:5:import { updateUserAccessAction } from "./actions";
+work/loja-360-current/src/app/admin/utilizadores/page.tsx:6:type Row={id:string;full_name:string|null;email:string;role:"customer"|"admin";is_active:boolean;created_at:string};
+work/loja-360-current/src/app/admin/utilizadores/page.tsx:7:export default async function UsersPage(){await assertAdminAccess("/admin/utilizadores");const admin=createSupabaseAdminClient();const{data,error}=await admin.from("profiles").select("id,full_name,email,role,is_active,created_at").order("created_at",{ascending:false}).returns<Row[]>();if(error)throw new Error(error.message);return <main className="min-h-screen bg-neutral-950 px-6 py-12 text-white"><section className="mx-auto max-w-7xl"><Link href="/admin" className="text-sm text-white/60">← Administração</Link><h1 className="mt-6 text-4xl font-semibold">Clientes e Admins</h1><p className="mt-3 text-white/60">Apenas um Admin pode criar ou promover outro Admin.</p><div className="mt-8"><CreateAdminForm/></div><div className="mt-8 overflow-x-auto rounded-3xl border border-white/10"><table className="w-full text-left text-sm"><thead className="bg-white/5 text-white/60"><tr><th className="p-4">Utilizador</th><th className="p-4">Perfil</th><th className="p-4">Estado</th><th className="p-4">Ação</th></tr></thead><tbody>{(data??[]).map(row=><tr key={row.id} className="border-t border-white/10"><td className="p-4"><strong>{row.full_name||"Sem nome"}</strong><div className="text-white/50">{row.email}</div></td><td className="p-4">{row.role==="admin"?"Admin":"Cliente"}</td><td className="p-4">{row.is_active?"Ativo":"Inativo"}</td><td className="p-4"><form action={updateUserAccessAction} className="flex flex-wrap gap-2"><input type="hidden" name="id" value={row.id}/><select name="role" defaultValue={row.role} className="rounded-lg bg-white px-3 py-2 text-neutral-950"><option value="customer">Cliente</option><option value="admin">Admin</option></select><select name="is_active" defaultValue={String(row.is_active)} className="rounded-lg bg-white px-3 py-2 text-neutral-950"><option value="true">Ativo</option><option value="false">Inativo</option></select><button className="rounded-lg border border-white/20 px-3 py-2">Guardar</button></form></td></tr>)}</tbody></table></div></section></main>}
+work/loja-360-current/src/app/nova-password/actions.ts:14:  const { error } = await supabase.auth.updateUser({ password });
+work/loja-360-current/src/app/layout.tsx:12:    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+work/loja-360-current/src/app/login/page.tsx:38:    const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
+work/loja-360-current/src/app/login/page.tsx:39:    if (profile?.is_active !== false) redirect(profile?.role === "admin" ? "/admin" : "/area-cliente");
+work/loja-360-current/src/app/auth/callback/route.ts:14:    const { error } = await supabase.auth.exchangeCodeForSession(code);
+work/loja-360-current/src/app/api/stripe/webhook/route.ts:1167:    process.env.STRIPE_WEBHOOK_SECRET;
+work/loja-360-current/src/app/api/stripe/webhook/route.ts:1173:          "STRIPE_WEBHOOK_SECRET não está configurada.",
+work/loja-360-current/src/app/recuperar-password/actions.ts:11:  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+work/loja-360-current/src/app/recuperar-password/actions.ts:12:  await supabase.auth.resetPasswordForEmail(email, {
+work/loja-360-current/src/app/api/admin/stricker/sync-products/route.ts:9:  role: string;
+work/loja-360-current/src/app/api/admin/stricker/sync-products/route.ts:23:  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+work/loja-360-current/src/app/api/admin/stricker/sync-products/route.ts:26:    throw new Error("NEXT_PUBLIC_SUPABASE_URL não está configurado.");
+work/loja-360-current/src/app/api/admin/stricker/sync-products/route.ts:53:      .select("role")
+work/loja-360-current/src/app/api/admin/stricker/sync-products/route.ts:67:    if (profile.role !== "admin") {
+work/loja-360-current/src/lib/stripe/server.ts:4:  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+work/loja-360-current/src/lib/stripe/server.ts:7:    throw new Error("STRIPE_SECRET_KEY não está configurada.");
