@@ -1,5 +1,5 @@
-import Link from "next/link";
 import SiteHeader from "@/components/layout/SiteHeader";
+import CustomerDashboardLink from "@/components/customer/CustomerDashboardLink";
 import { assertCustomerAccess } from "@/lib/auth/assert-customer";
 
 type Order = {
@@ -12,6 +12,8 @@ type Order = {
   currency: string;
   created_at: string;
 };
+
+export const dynamic = "force-dynamic";
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat("pt-PT", {
@@ -47,12 +49,7 @@ export default async function CustomerOrdersPage() {
 
       <main className="min-h-screen bg-neutral-50 px-6 py-10">
         <section className="mx-auto max-w-5xl">
-          <Link
-            href="/area-cliente"
-            className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
-          >
-            ← Voltar à área cliente
-          </Link>
+          <CustomerDashboardLink />
 
           <h1 className="mt-8 text-4xl font-semibold tracking-tight text-neutral-950">
             As minhas encomendas

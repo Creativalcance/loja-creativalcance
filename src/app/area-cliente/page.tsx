@@ -18,6 +18,8 @@ type Profile = {
   role: string;
 };
 
+export const dynamic = "force-dynamic";
+
 type OrderSummary = {
   id: string;
   order_number: string;

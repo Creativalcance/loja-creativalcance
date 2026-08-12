@@ -79,6 +79,7 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
           {user ? (
             <Link
               href={context === "customer" ? "/" : isAdmin ? "/admin" : "/area-cliente"}
+              prefetch={false}
               className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold !text-white transition hover:bg-neutral-800"
             >
               {context === "customer" ? (
