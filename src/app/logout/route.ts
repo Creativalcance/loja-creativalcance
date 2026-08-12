@@ -1,10 +1,15 @@
-import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
+import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function GET(request: Request) {
+export async function POST(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
+  const { data } = await supabase.auth.getClaims();
 
-  await supabase.auth.signOut();
+  if (data?.claims) {
+    await supabase.auth.signOut();
+  }
 
-  return NextResponse.redirect(new URL("/login", request.url));
+  revalidatePath("/", "layout");
+  return NextResponse.redirect(new URL("/login", request.url), { status: 303 });
 }

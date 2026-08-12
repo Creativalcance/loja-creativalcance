@@ -152,13 +152,15 @@ export default async function CustomerAreaPage() {
                 {profile?.email ?? user.email}
               </p>
 
-              <Link
-                href="/logout"
-                className="mt-5 inline-flex items-center rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sair
-              </Link>
+              <form action="/logout" method="post" className="mt-5">
+                <button
+                  type="submit"
+                  className="inline-flex items-center rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
+                </button>
+              </form>
             </aside>
           </div>
 
