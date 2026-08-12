@@ -163,19 +163,17 @@ export default async function CustomerAreaPage() {
           </div>
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">
-            <Link
+            <a
               href="/area-cliente/dados"
-              prefetch={false}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <Settings className="h-7 w-7 text-neutral-500" />
               <p className="mt-6 text-sm text-neutral-500">Conta</p>
               <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Dados pessoais</p>
               <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">Gerir dados<ArrowRight className="ml-2 h-4 w-4" /></span>
-            </Link>
-            <Link
+            </a>
+            <a
               href="/area-cliente/encomendas"
-              prefetch={false}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <Package className="h-7 w-7 text-neutral-500" />
@@ -190,11 +188,10 @@ export default async function CustomerAreaPage() {
                 Ver encomendas
                 <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
               </span>
-            </Link>
+            </a>
 
-            <Link
+            <a
               href="/area-cliente/pedidos"
-              prefetch={false}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <ClipboardList className="h-7 w-7 text-neutral-500" />
@@ -211,7 +208,7 @@ export default async function CustomerAreaPage() {
                 Ver pedidos
                 <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
               </span>
-            </Link>
+            </a>
 
             <Link
               href="/carrinho"
