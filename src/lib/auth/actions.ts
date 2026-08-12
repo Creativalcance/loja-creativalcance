@@ -130,10 +130,15 @@ export async function registerAction(
     };
   }
 
-  if (password.length < 8) {
+  const hasMinimumLength = password.length >= 8;
+  const hasLetter = /\p{L}/u.test(password);
+  const hasNumber = /\d/.test(password);
+
+  if (!hasMinimumLength || !hasLetter || !hasNumber) {
     return {
       success: false,
-      message: "A palavra-passe deve ter pelo menos 8 caracteres.",
+      message:
+        "A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número.",
     };
   }
 
@@ -172,11 +177,6 @@ export async function registerAction(
       };
     }
 
-    return {
-      success: true,
-      message:
-        "Conta criada com sucesso. Se a confirmação por e-mail estiver activa, confirma o e-mail antes de iniciar sessão.",
-    };
   } catch (error) {
     return {
       success: false,
@@ -186,4 +186,6 @@ export async function registerAction(
           : "Erro técnico inesperado ao criar conta.",
     };
   }
+
+  redirect("/login?registo=sucesso");
 }

@@ -11,9 +11,13 @@ const initialState: AuthActionState = {
 
 type LoginFormProps = {
   nextPath?: string;
+  registrationSucceeded?: boolean;
 };
 
-export function LoginForm({ nextPath }: LoginFormProps) {
+export function LoginForm({
+  nextPath,
+  registrationSucceeded = false,
+}: LoginFormProps) {
   const [state, formAction, isPending] = useActionState(
     loginAction,
     initialState,
@@ -22,6 +26,14 @@ export function LoginForm({ nextPath }: LoginFormProps) {
   return (
     <form action={formAction} className="mt-8 space-y-5">
       {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+
+      {registrationSucceeded ? (
+        <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">
+          Conta criada com sucesso. Enviámos um email de confirmação para o
+          endereço indicado. Confirma a conta através desse email antes de
+          iniciares sessão.
+        </div>
+      ) : null}
 
       <div>
         <label

@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 type LoginPageProps = {
   searchParams?: Promise<{
     next?: string;
+    registo?: string;
   }>;
 };
 
@@ -41,6 +42,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   }
   const resolvedSearchParams = await searchParams;
   const nextPath = getSafeNextPath(resolvedSearchParams?.next);
+  const registrationSucceeded = resolvedSearchParams?.registo === "sucesso";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-6 py-12">
@@ -57,7 +59,10 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           Acede à tua Área de Cliente ou ao backoffice de Administração.
         </p>
 
-        <LoginForm nextPath={nextPath} />
+        <LoginForm
+          nextPath={nextPath}
+          registrationSucceeded={registrationSucceeded}
+        />
       </section>
     </main>
   );

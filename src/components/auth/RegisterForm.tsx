@@ -70,9 +70,15 @@ export default function RegisterForm() {
           autoComplete="new-password"
           required
           minLength={8}
+          pattern="(?=.*[A-Za-zÀ-ÿ])(?=.*[0-9]).{8,}"
+          title="A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número."
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Mínimo 8 caracteres"
+          placeholder="Mínimo 8 caracteres, com letras e números"
         />
+
+        <p className="mt-2 text-xs leading-5 text-neutral-500">
+          Mínimo de 8 caracteres, incluindo pelo menos uma letra e um número.
+        </p>
       </div>
 
       <div>
@@ -90,6 +96,8 @@ export default function RegisterForm() {
           autoComplete="new-password"
           required
           minLength={8}
+          pattern="(?=.*[A-Za-zÀ-ÿ])(?=.*[0-9]).{8,}"
+          title="A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número."
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           placeholder="Repetir palavra-passe"
         />

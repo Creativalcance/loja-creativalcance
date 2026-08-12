@@ -6,7 +6,16 @@ import type { AuthActionState } from "@/lib/auth/actions";
 export async function updatePasswordAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
   const password = String(formData.get("password") ?? "");
   const confirmation = String(formData.get("confirmation") ?? "");
-  if (password.length < 8) return { success: false, message: "A palavra-passe deve ter pelo menos 8 caracteres." };
+  const hasMinimumLength = password.length >= 8;
+  const hasLetter = /\p{L}/u.test(password);
+  const hasNumber = /\d/.test(password);
+  if (!hasMinimumLength || !hasLetter || !hasNumber) {
+    return {
+      success: false,
+      message:
+        "A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número.",
+    };
+  }
   if (password !== confirmation) return { success: false, message: "As palavras-passe não coincidem." };
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
