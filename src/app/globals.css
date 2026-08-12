@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #0a0a0a;
+  --button-background: #171717;
+  --button-background-hover: #2b2b2b;
+  --button-foreground: #ffffff;
+  --button-focus: rgba(23, 23, 23, 0.22);
 }
 
 * {
@@ -30,4 +34,84 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+/*
+ * Sistema transversal de botões da 360 Merchandising.
+ * Abrange botões nativos e links de ação, independentemente da página onde
+ * são usados. Os controlos compactos sem texto (ícones, fechar, remover) não
+ * recebem preenchimento, mas partilham foco e animação.
+ */
+:is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"] {
+  border-color: var(--button-background) !important;
+  background-color: var(--button-background) !important;
+  color: var(--button-foreground) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 16px rgba(0, 0, 0, 0.08);
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    opacity 180ms ease !important;
+  will-change: transform;
+}
+
+:is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"]:hover:not(:disabled) {
+  border-color: var(--button-background-hover) !important;
+  background-color: var(--button-background-hover) !important;
+  color: var(--button-foreground) !important;
+  box-shadow: 0 3px 7px rgba(0, 0, 0, 0.12), 0 10px 24px rgba(0, 0, 0, 0.14);
+  transform: translateY(-2px);
+}
+
+:is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"]:active:not(:disabled) {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transform: translateY(0) scale(0.985);
+  transition-duration: 80ms !important;
+}
+
+:is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"]:focus-visible,
+button:focus-visible {
+  outline: 3px solid var(--button-focus) !important;
+  outline-offset: 3px;
+}
+
+button:disabled,
+:is(button, a)[aria-disabled="true"] {
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+  opacity: 0.5 !important;
+  transform: none !important;
+}
+
+/* Controlos de seleção e botões de ícone partilham a mesma animação. */
+button {
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease !important;
+}
+
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"],
+  button {
+    transition: none !important;
+  }
+
+  :is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"]:hover,
+  :is(button, a)[class*="font-semibold"][class*="rounded"][class*="px-"]:active,
+  button:hover,
+  button:active {
+    transform: none !important;
+  }
 }
