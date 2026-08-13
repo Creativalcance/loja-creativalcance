@@ -44,8 +44,8 @@ export type SmartMerchResult = {
   isSustainable: boolean;
   quantity: number;
   minimumOrderQuantity: number;
-  unitPrice: number;
-  productTotal: number;
+  unitPrice: number | null;
+  productTotal: number | null;
   currency: string;
   variantId: string | null;
   variantSku: string | null;

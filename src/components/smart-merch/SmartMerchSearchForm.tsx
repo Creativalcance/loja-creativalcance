@@ -94,7 +94,7 @@ export default function SmartMerchSearchForm({
         type="submit"
         className="mt-4 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-neutral-800 active:translate-y-0"
       >
-        Criar seleção inteligente
+        Mostrar produtos
       </button>
     </form>
   );

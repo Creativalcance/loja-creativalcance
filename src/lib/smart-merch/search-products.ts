@@ -66,8 +66,20 @@ type CandidateProduct = {
 
 type ResolvedVariant = {
   variant: CandidateVariant | null;
-  price: CandidatePrice;
+  price: CandidatePrice | null;
   stock: number;
+};
+
+const SEARCH_SYNONYMS: Record<string, string[]> = {
+  caneta: ["esferografica", "escrita"],
+  canetas: ["esferografica", "escrita"],
+  esferografica: ["caneta", "escrita"],
+  garrafa: ["garrafas", "cantil", "cantis"],
+  garrafas: ["garrafa", "cantil", "cantis"],
+  caderno: ["bloco", "notas"],
+  cadernos: ["bloco", "notas"],
+  tecnologico: ["tecnologia", "electronica"],
+  tecnologicos: ["tecnologia", "electronica"],
 };
 
 const PRODUCT_SELECT = `
@@ -90,14 +102,20 @@ function normalize(value: string | null | undefined): string {
 }
 
 function uniqueTerms(values: string[]): string[] {
-  return Array.from(
+  const baseTerms = Array.from(
     new Set(
       values
         .flatMap((value) => normalize(value).split(" "))
         .filter((value) => value.length >= 3)
         .map((value) => value.slice(0, 50)),
     ),
-  ).slice(0, 8);
+  );
+  const expandedTerms = baseTerms.flatMap((term) => [
+    term,
+    ...(SEARCH_SYNONYMS[term] ?? []),
+  ]);
+
+  return Array.from(new Set(expandedTerms)).slice(0, 12);
 }
 
 function getSearchTerms(query: SmartQuery): string[] {
@@ -252,10 +270,9 @@ function resolveVariant(product: CandidateProduct, query: SmartQuery): ResolvedV
     (variant) => variant.is_active && variantMatchesColors(variant, query.colors),
   );
 
-  const options: ResolvedVariant[] = variants.flatMap((variant) => {
+  const options: ResolvedVariant[] = variants.map((variant) => {
     const price = getPriceForQuantity(prices, quantity, variant.id);
-    if (!price) return [];
-    return [{ variant, price, stock: getVariantStock(stocks, variant.id) }];
+    return { variant, price, stock: getVariantStock(stocks, variant.id) };
   });
 
   const productPrice = getPriceForQuantity(prices, quantity, null);
@@ -270,7 +287,14 @@ function resolveVariant(product: CandidateProduct, query: SmartQuery): ResolvedV
   return (
     options
       .filter((option) => option.stock >= quantity)
-      .sort((a, b) => Number(a.price.final_price) - Number(b.price.final_price))[0] ?? null
+      .sort((a, b) => {
+        if (a.price && !b.price) return -1;
+        if (!a.price && b.price) return 1;
+        if (a.price && b.price) {
+          return Number(a.price.final_price) - Number(b.price.final_price);
+        }
+        return b.stock - a.stock;
+      })[0] ?? null
   );
 }
 
@@ -287,13 +311,18 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
   const resolved = resolveVariant(product, query);
   if (!resolved) return null;
 
-  const unitPrice = Number(resolved.price.final_price);
-  if (!Number.isFinite(unitPrice) || unitPrice <= 0) return null;
-  const productTotal = unitPrice * quantity;
+  const parsedUnitPrice = resolved.price ? Number(resolved.price.final_price) : null;
+  const unitPrice =
+    parsedUnitPrice !== null && Number.isFinite(parsedUnitPrice) && parsedUnitPrice > 0
+      ? parsedUnitPrice
+      : null;
+  const productTotal = unitPrice === null ? null : unitPrice * quantity;
+  const hasBudgetConstraint = query.totalBudget !== null || query.maximumUnitBudget !== null;
+  if (hasBudgetConstraint && unitPrice === null) return null;
   const withinBudget = query.totalBudget !== null
-    ? productTotal <= query.totalBudget
+    ? productTotal !== null && productTotal <= query.totalBudget
     : query.maximumUnitBudget !== null
-      ? unitPrice <= query.maximumUnitBudget
+      ? unitPrice !== null && unitPrice <= query.maximumUnitBudget
       : null;
   if (withinBudget === false) return null;
 
@@ -342,7 +371,7 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
     minimumOrderQuantity: product.min_order_quantity,
     unitPrice,
     productTotal,
-    currency: resolved.price.currency,
+    currency: resolved.price?.currency ?? "EUR",
     variantId: resolved.variant?.id ?? null,
     variantSku: resolved.variant?.sku ?? null,
     variantColor: resolved.variant?.color_name ?? null,
@@ -364,10 +393,14 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
 
 function sortResults(results: SmartMerchResult[], query: SmartQuery): SmartMerchResult[] {
   return [...results].sort((a, b) => {
-    if (query.sort === "lowest_price") return a.unitPrice - b.unitPrice;
+    if (query.sort === "lowest_price") return (a.unitPrice ?? Number.POSITIVE_INFINITY) - (b.unitPrice ?? Number.POSITIVE_INFINITY);
     if (query.sort === "sustainable") return Number(b.isSustainable) - Number(a.isSustainable) || b.matchScore - a.matchScore;
-    if (query.sort === "best_value") return b.matchScore / b.unitPrice - a.matchScore / a.unitPrice;
-    return b.matchScore - a.matchScore || a.unitPrice - b.unitPrice;
+    if (query.sort === "best_value") {
+      const valueA = a.unitPrice ? a.matchScore / a.unitPrice : -1;
+      const valueB = b.unitPrice ? b.matchScore / b.unitPrice : -1;
+      return valueB - valueA;
+    }
+    return b.matchScore - a.matchScore || (a.unitPrice ?? Number.POSITIVE_INFINITY) - (b.unitPrice ?? Number.POSITIVE_INFINITY);
   });
 }
 

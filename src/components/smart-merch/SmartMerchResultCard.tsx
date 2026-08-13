@@ -32,8 +32,8 @@ export default function SmartMerchResultCard({ result }: { result: SmartMerchRes
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 border-t border-neutral-100 pt-5">
-            <div><p className="text-xs text-neutral-500">Produto/unidade</p><p className="mt-1 font-semibold text-neutral-950">{formatMoney(result.unitPrice, result.currency)}</p></div>
-            <div><p className="text-xs text-neutral-500">Produto total</p><p className="mt-1 font-semibold text-neutral-950">{formatMoney(result.productTotal, result.currency)}</p></div>
+            <div><p className="text-xs text-neutral-500">Produto/unidade</p><p className="mt-1 font-semibold text-neutral-950">{result.unitPrice === null ? "Sob consulta" : formatMoney(result.unitPrice, result.currency)}</p></div>
+            <div><p className="text-xs text-neutral-500">Produto total</p><p className="mt-1 font-semibold text-neutral-950">{result.productTotal === null ? "Por calcular" : formatMoney(result.productTotal, result.currency)}</p></div>
           </div>
 
           <div className="mt-4 flex items-center text-xs font-medium text-neutral-600"><PackageCheck className="mr-2 h-4 w-4 text-emerald-600" />{result.availableStock.toLocaleString("pt-PT")} un. disponíveis</div>
