@@ -325,7 +325,11 @@ function normalizeRecord(
       ],
       true,
     ),
-    is_featured: false,
+    is_featured: getFirstBoolean(
+      record,
+      ["Novelties", "novelties", "IsFeatured", "isFeatured", "is_featured"],
+      false,
+    ),
     supplier_payload: record,
   };
 }

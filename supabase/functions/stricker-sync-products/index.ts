@@ -89,6 +89,17 @@ function toNullableNumber(value: unknown): number | null {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+function toBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "sim", "s"].includes(normalized)) return true;
+    if (["false", "0", "no", "não", "nao", "n"].includes(normalized)) return false;
+  }
+  return fallback;
+}
+
 function createPayloadHash(payload: unknown): string {
   const json = JSON.stringify(payload);
 
@@ -267,7 +278,13 @@ Deno.serve(async () => {
             weight: toNullableNumber(rawProduct.weight),
             status: "active",
             is_active: true,
-            is_featured: false,
+            is_featured: toBoolean(
+              rawProduct.Novelties ??
+                rawProduct.novelties ??
+                rawProduct.IsFeatured ??
+                rawProduct.is_featured,
+              false,
+            ),
             is_customizable: true,
             min_order_quantity: 1,
             supplier_payload: rawProduct,

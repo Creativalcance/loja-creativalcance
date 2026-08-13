@@ -4,12 +4,6 @@ add column if not exists featured_override boolean;
 comment on column public.products.featured_override is
 'Escolha manual do administrador. NULL mantém o destaque definido pela Stricker.';
 
-update public.products
-set is_featured = true
-where status = 'active'
-  and is_active = true
-  and featured_override is null;
-
 create or replace function public.preserve_product_featured_override()
 returns trigger
 language plpgsql
@@ -17,9 +11,7 @@ set search_path = public
 as $$
 begin
   if tg_op = 'INSERT' then
-    if new.featured_override is null and new.status = 'active' and new.is_active then
-      new.is_featured := true;
-    elsif new.featured_override is not null then
+    if new.featured_override is not null then
       new.is_featured := new.featured_override;
     end if;
   elsif old.featured_override is not null and new.featured_override is not distinct from old.featured_override then
