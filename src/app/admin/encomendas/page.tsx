@@ -12,11 +12,9 @@ import {
   Search,
   ShoppingBag,
   Truck,
-  Trash2,
 } from "lucide-react";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { deleteAdminOrderAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -1218,7 +1216,7 @@ export default async function AdminOrdersPage({
                       )}
                     </p>
 
-                    <div className="mt-4 flex gap-2 xl:justify-end"><Link href={`/admin/encomendas/${order.id}`} className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">Editar<ArrowRight className="ml-2 h-4 w-4"/></Link><form action={deleteAdminOrderAction}><input type="hidden" name="orderId" value={order.id}/><button title="Eliminar encomenda" aria-label={`Eliminar encomenda ${order.order_number}`} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-red-200 text-red-700"><Trash2 className="h-4 w-4"/></button></form></div>
+                    <div className="mt-4 flex gap-2 xl:justify-end"><Link href={`/admin/encomendas/${order.id}`} className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">Ver encomenda<ArrowRight className="ml-2 h-4 w-4"/></Link></div>
                   </div>
                 </div>
 

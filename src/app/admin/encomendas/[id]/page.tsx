@@ -28,6 +28,7 @@ import {
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommercialForm";
+import AdminDeleteOrderForm from "@/components/admin/orders/AdminDeleteOrderForm";
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +90,7 @@ type OrderRecord = {
   shipping_method: string | null;
   shipping_carrier: string | null;
   requested_shipping_date: string | null;
+  supplier_shipping_date: string | null;
   no_shipping: boolean;
 
   tracking_number: string | null;
@@ -945,6 +947,7 @@ const supabaseAdmin = createSupabaseAdminClient();
           shipping_method,
           shipping_carrier,
           requested_shipping_date,
+          supplier_shipping_date,
           no_shipping,
           tracking_number,
           tracking_url,
@@ -2036,6 +2039,11 @@ const supabaseAdmin = createSupabaseAdminClient();
                 />
 
                 <DataRow
+                  label="Data de expedição Stricker"
+                  value={formatDate(order.supplier_shipping_date)}
+                />
+
+                <DataRow
                   label="Tracking"
                   value={order.tracking_number ?? "—"}
                 />
@@ -2457,6 +2465,9 @@ const supabaseAdmin = createSupabaseAdminClient();
             </section>
           </aside>
         </div>
+        <section className="mt-10 flex justify-end border-t border-neutral-200 pt-8">
+          <AdminDeleteOrderForm orderId={order.id} orderNumber={order.order_number} />
+        </section>
       </section>
     </main>
   );

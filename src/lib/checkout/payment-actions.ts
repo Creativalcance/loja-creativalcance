@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getStrickerConfig } from "@/lib/stricker/config";
 
 export type CheckoutPaymentActionState = {
   success: boolean;
@@ -677,6 +678,7 @@ export async function createPaymentCheckoutSessionAction(
       .maybeSingle<ExistingOrder>();
 
     let order: CreatedOrder;
+    const strickerOrderTestMode = getStrickerConfig().orderTestMode;
 
     if (existingOrderData) {
       if (existingOrderData.payment_status === "paid") {
@@ -711,6 +713,7 @@ export async function createPaymentCheckoutSessionAction(
             customer_notes: cart.customer_notes,
             source_cart_id: cart.id,
             supplier_submission_status: "not_submitted",
+            supplier_test_mode: strickerOrderTestMode,
             shipping_method: cart.shipping_method_name,
             shipping_carrier: cart.shipping_provider,
             requested_shipping_date: cart.requested_delivery_date,
@@ -783,6 +786,7 @@ export async function createPaymentCheckoutSessionAction(
             source_cart_id: cart.id,
             invoice_status: "pending",
             supplier_submission_status: "not_submitted",
+            supplier_test_mode: strickerOrderTestMode,
             shipping_method: cart.shipping_method_name,
             shipping_carrier: cart.shipping_provider,
             requested_shipping_date: cart.requested_delivery_date,

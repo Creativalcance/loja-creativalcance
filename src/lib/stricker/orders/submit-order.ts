@@ -8,6 +8,7 @@ import {
   extractStrickerOrderStatus,
   extractStrickerTrackingNumber,
   extractStrickerTrackingUrl,
+  extractStrickerShippingDate,
   submitStrickerProductOrder,
   submitStrickerServiceOrder,
 } from "@/lib/stricker/orders/client";
@@ -1008,6 +1009,7 @@ export async function submitPaidOrderToStricker(
         extractStrickerTrackingUrl(
           productResult.orderDetails,
         );
+      const supplierShippingDate = extractStrickerShippingDate(productResult.orderDetails);
 
       const responseLines =
         extractStrickerOrderLines(
@@ -1056,6 +1058,9 @@ export async function submitPaidOrderToStricker(
 
           supplier_tracking_url:
             trackingUrl,
+
+          supplier_shipping_date:
+            supplierShippingDate,
 
           supplier_submitted_at:
             new Date().toISOString(),

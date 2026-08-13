@@ -552,7 +552,9 @@ export function mapOrderToStricker(
          * Criamos primeiro a linha PRINT e enviamos a arte
          * imediatamente depois por ServiceOrderV1.
          */
-        WaitArtWork: item.personalization_required,
+        // A arte é enviada imediatamente em ServiceOrderV1 (manual, fluxo 10).
+        // true fica reservado ao fluxo "artwork later".
+        WaitArtWork: false,
 
         Sample: false,
 

@@ -12,6 +12,7 @@
     { "path": "/api/cron/stricker/optionals", "schedule": "20 2,8,14,20 * * *" },
     { "path": "/api/cron/stricker/canceled-products", "schedule": "35 2,8,14,20 * * *" },
     { "path": "/api/cron/stricker/restricted-products", "schedule": "45 2,8,14,20 * * *" },
-    { "path": "/api/cron/stricker/customization-options", "schedule": "55 * * * *" }
+    { "path": "/api/cron/stricker/customization-options", "schedule": "55 * * * *" },
+    { "path": "/api/cron/stricker/orders-status", "schedule": "10,40 * * * *" }
   ]
 }

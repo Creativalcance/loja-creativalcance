@@ -169,7 +169,7 @@ async function readJsonResponse(
 }
 
 async function callStrickerOrderMethod(params: {
-  method: "OrderV1" | "ServiceOrderV1";
+  method: "OrderV1" | "ServiceOrderV1" | "OrderDetailsV1";
   payload: JsonRecord;
   testMode: boolean;
   timeoutMs?: number;
@@ -184,6 +184,9 @@ async function callStrickerOrderMethod(params: {
     "test",
     params.testMode ? "true" : "false",
   );
+  if (params.method === "OrderDetailsV1") {
+    url.searchParams.set("orderStamp", String(params.payload.OrderStamp ?? ""));
+  }
 
   const abortController = new AbortController();
 
@@ -193,12 +196,12 @@ async function callStrickerOrderMethod(params: {
 
   try {
     const response = await fetch(url.toString(), {
-      method: "POST",
+      method: params.method === "OrderDetailsV1" ? "GET" : "POST",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(params.payload),
+      body: params.method === "OrderDetailsV1" ? undefined : JSON.stringify(params.payload),
       cache: "no-store",
       signal: abortController.signal,
     });
@@ -282,6 +285,23 @@ export async function submitStrickerServiceOrder(
   };
 }
 
+export async function getStrickerOrderDetails(
+  orderStamp: string,
+  options: StrickerOrderRequestOptions,
+): Promise<{ response: StrickerOrderApiResponse; orderDetails: StrickerOrderDetails }> {
+  const rawResponse = await callStrickerOrderMethod({
+    method: "OrderDetailsV1",
+    payload: { OrderStamp: orderStamp },
+    testMode: options.testMode,
+    timeoutMs: options.timeoutMs,
+  });
+  const response = rawResponse as StrickerOrderApiResponse;
+  assertSuccessfulResponse(response, "OrderDetailsV1");
+  const orderDetails = extractOrderDetailsValue(response);
+  if (!orderDetails) throw new Error("A Stricker não devolveu os detalhes da encomenda.");
+  return { response, orderDetails };
+}
+
 export function extractStrickerOrderStamp(
   orderDetails: StrickerOrderDetails,
 ): string | null {
@@ -317,6 +337,10 @@ export function extractStrickerTrackingUrl(
     getNullableString(orderDetails.TrackingLink) ??
     getNullableString(orderDetails.trackingLink)
   );
+}
+
+export function extractStrickerShippingDate(orderDetails: StrickerOrderDetails): string | null {
+  return getNullableString(orderDetails.ShippingDate) ?? getNullableString(orderDetails.shippingDate);
 }
 
 export function extractStrickerOrderLines(
