@@ -37,12 +37,18 @@ type JsonResult = Record<string, unknown>;
 
 const LOCK_TTL_SECONDS = 330;
 const CUSTOMIZATION_BATCH_SIZE = 50;
+const OPTIONALS_BATCH_SIZE = 500;
 
 type CustomizationCursorPayload = {
   hasMore?: unknown;
   nextOffset?: unknown;
   nextCursor?: unknown;
   recordsTotal?: unknown;
+};
+
+type OptionalsProgressPayload = {
+  hasMore?: unknown;
+  nextOffset?: unknown;
 };
 
 function safeSecretEquals(received: string, expected: string): boolean {
@@ -184,6 +190,51 @@ async function syncNextCustomizationOptionsBatch(): Promise<JsonResult> {
   });
 }
 
+async function syncNextOptionalsBatch(): Promise<JsonResult> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const supplierId = await getStrickerSupplierId();
+  const { data, error } = await supabaseAdmin
+    .from("supplier_dataset_imports")
+    .select("status, raw_payload, finished_at")
+    .eq("dataset_name", "optionals")
+    .eq("supplier_id", supplierId)
+    .in("status", ["success", "partial_success"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Não foi possível recuperar o progresso das variantes: ${error.message}`,
+    );
+  }
+
+  const rawPayload = (data?.raw_payload ?? {}) as OptionalsProgressPayload;
+  const previousCycleCompleted = rawPayload.hasMore === false;
+
+  if (
+    previousCycleCompleted &&
+    data?.finished_at &&
+    isSameUtcDay(data.finished_at, new Date())
+  ) {
+    return {
+      dataset: "optionals",
+      cycleComplete: true,
+      message: "O ciclo diário de variantes e preços já foi concluído.",
+    };
+  }
+
+  const offset = rawPayload.hasMore === true
+    ? (getPositiveInteger(rawPayload.nextOffset) ?? 0)
+    : 0;
+
+  return syncRestOptionals({
+    lang: "PT",
+    offset,
+    limit: OPTIONALS_BATCH_SIZE,
+  });
+}
+
 async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
   switch (job) {
     case "stocks-pt":
@@ -201,7 +252,7 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
     case "products":
       return syncRestProducts({ lang: "PT" });
     case "optionals":
-      return syncRestOptionals({ lang: "PT" });
+      return syncNextOptionalsBatch();
     case "customization-tables":
       return syncRestCustomizationTables({ lang: "PT" });
     case "customization-options":

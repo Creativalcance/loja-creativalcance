@@ -304,6 +304,12 @@ export type SyncRestOptionalsResult = {
   imagesImported: number;
   componentsImported: number;
   locationsImported: number;
+  recordsTotal: number;
+  recordsProcessed: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  hasMore: boolean;
   datasetImportId: string;
 };
 
@@ -311,7 +317,7 @@ const UPSERT_CHUNK_SIZE = 500;
 const QUERY_CHUNK_SIZE = 400;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
-const DATABASE_WRITE_CONCURRENCY = 4;
+const DATABASE_WRITE_CONCURRENCY = 1;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
   const chunks: TValue[][] = [];
@@ -1237,6 +1243,8 @@ async function upsertLocations(params: {
 
 export async function syncRestOptionals(params: {
   lang: StrickerLanguage;
+  offset?: number;
+  limit?: number;
 }): Promise<SyncRestOptionalsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -1261,9 +1269,16 @@ export async function syncRestOptionals(params: {
       },
     );
 
-    const records = Array.isArray(payload.Optionals)
+    const allRecords = Array.isArray(payload.Optionals)
       ? (payload.Optionals as StrickerOptionalRecord[])
       : [];
+    const offset = Math.max(0, Math.floor(params.offset ?? 0));
+    const limit = Math.min(1_000, Math.max(1, Math.floor(params.limit ?? 500)));
+    const recordsTotal = allRecords.length;
+    const records = allRecords.slice(offset, offset + limit);
+    const processedUntil = offset + records.length;
+    const hasMore = processedUntil < recordsTotal;
+    const nextOffset = hasMore ? processedUntil : null;
 
     const references = records
       .map((record) => getProdReference(record))
@@ -1388,9 +1403,15 @@ export async function syncRestOptionals(params: {
       recordsImported: importedVariants.length,
       recordsFailed: Math.max(records.length - importedVariants.length, 0),
       rawPayload: {
-        Count: payload.Count ?? records.length,
+        Count: payload.Count ?? recordsTotal,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
+        offset,
+        limit,
+        recordsTotal,
+        recordsProcessed: records.length,
+        nextOffset,
+        hasMore,
         variantTranslationsImported,
         pricesImported: priceRows.length,
         pricingRulesLoaded: pricingRules.length,
@@ -1409,6 +1430,12 @@ export async function syncRestOptionals(params: {
       imagesImported: imageRows.length,
       componentsImported: importedComponents.length,
       locationsImported: locationRows.length,
+      recordsTotal,
+      recordsProcessed: records.length,
+      offset,
+      limit,
+      nextOffset,
+      hasMore,
       datasetImportId,
     };
   } catch (error) {
