@@ -75,37 +75,34 @@ export function extractStrickerPriceTiers(
   currency = "EUR",
 ): StrickerPriceTier[] {
   const tiers: Array<Omit<StrickerPriceTier, "quantity_max">> = [];
+  const yourPrice = getNumberField(record, "YourPrice");
 
-  for (let index = 1; index <= 10; index += 1) {
-    const minQuantityField = `MinQt${index}`;
-    const priceField = `Price${index}`;
-
-    const quantityMin = getNumberField(record, minQuantityField);
-    const supplierPrice = getNumberField(record, priceField);
-
-    if (!quantityMin || !supplierPrice || supplierPrice <= 0) {
-      continue;
-    }
-
+  if (yourPrice && yourPrice > 0) {
     tiers.push({
-      quantity_min: Math.floor(quantityMin),
-      supplier_price: supplierPrice,
+      quantity_min: 1,
+      supplier_price: yourPrice,
       currency,
-      source_price_field: priceField,
-      source_min_quantity_field: minQuantityField,
+      source_price_field: "YourPrice",
+      source_min_quantity_field: "special_price",
     });
-  }
+  } else {
+    for (let index = 1; index <= 10; index += 1) {
+      const minQuantityField = `MinQt${index}`;
+      const priceField = `Price${index}`;
 
-  if (tiers.length === 0) {
-    const yourPrice = getNumberField(record, "YourPrice");
+      const quantityMin = getNumberField(record, minQuantityField);
+      const supplierPrice = getNumberField(record, priceField);
 
-    if (yourPrice && yourPrice > 0) {
+      if (!quantityMin || !supplierPrice || supplierPrice <= 0) {
+        continue;
+      }
+
       tiers.push({
-        quantity_min: 1,
-        supplier_price: yourPrice,
+        quantity_min: Math.floor(quantityMin),
+        supplier_price: supplierPrice,
         currency,
-        source_price_field: "YourPrice",
-        source_min_quantity_field: "fallback",
+        source_price_field: priceField,
+        source_min_quantity_field: minQuantityField,
       });
     }
   }

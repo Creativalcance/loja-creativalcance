@@ -314,6 +314,7 @@ export type SyncRestOptionalsResult = {
 };
 
 const UPSERT_CHUNK_SIZE = 500;
+const CUSTOMIZATION_UPSERT_CHUNK_SIZE = 100;
 const QUERY_CHUNK_SIZE = 400;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
@@ -781,29 +782,29 @@ function buildPriceRows(params: {
       sourcePriceField: string;
     }[] = [];
 
-    for (let index = 1; index <= 10; index += 1) {
-      const quantityMin = getRecordSlotNumber(record, "MinQt", index);
-      const price = getRecordSlotNumber(record, "Price", index);
-
-      if (!quantityMin || quantityMin <= 0 || price === null || price <= 0) {
-        continue;
-      }
-
-      tiers.push({
-        quantityMin: Math.round(quantityMin),
-        quantityMax: null,
-        supplierPrice: price,
-        sourcePriceField: `Price${index}`,
-      });
-    }
-
-    if (tiers.length === 0 && yourPrice !== null && yourPrice > 0) {
+    if (yourPrice !== null && yourPrice > 0) {
       tiers.push({
         quantityMin: 1,
         quantityMax: null,
         supplierPrice: yourPrice,
         sourcePriceField: "YourPrice",
       });
+    } else {
+      for (let index = 1; index <= 10; index += 1) {
+        const quantityMin = getRecordSlotNumber(record, "MinQt", index);
+        const price = getRecordSlotNumber(record, "Price", index);
+
+        if (!quantityMin || quantityMin <= 0 || price === null || price <= 0) {
+          continue;
+        }
+
+        tiers.push({
+          quantityMin: Math.round(quantityMin),
+          quantityMax: null,
+          supplierPrice: price,
+          sourcePriceField: `Price${index}`,
+        });
+      }
     }
 
     tiers.sort((a, b) => a.quantityMin - b.quantityMin);
@@ -985,7 +986,7 @@ async function upsertComponents(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationComponentUpsertRow[];
 }): Promise<ImportedComponentRow[]> {
-  const chunks = chunkArray(params.rows, UPSERT_CHUNK_SIZE);
+  const chunks = chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE);
   const chunkResults = await mapWithConcurrency(
     chunks,
     DATABASE_WRITE_CONCURRENCY,
@@ -1225,7 +1226,7 @@ async function upsertLocations(params: {
   rows: ProductCustomizationLocationUpsertRow[];
 }): Promise<void> {
   await mapWithConcurrency(
-    chunkArray(params.rows, UPSERT_CHUNK_SIZE),
+    chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE),
     DATABASE_WRITE_CONCURRENCY,
     async (rowChunk) => {
     const { error } = await params.supabaseAdmin
