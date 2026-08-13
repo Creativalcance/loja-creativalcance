@@ -840,3 +840,32 @@ export async function updateOrderStatusAction(
     };
   }
 }
+
+export async function updateOrderCommercialDataAction(
+  _previousState: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  try {
+    const access = await assertAdminAccess("/admin/encomendas");
+    const orderId = getRequiredFormString(formData, "orderId");
+    const supplierCost = Number(String(formData.get("supplierCostTotal") ?? "0").replace(",", "."));
+    const supplierInvoiceUrl = getFormString(formData, "supplierInvoiceUrl");
+    if (!Number.isFinite(supplierCost) || supplierCost < 0) return { success:false, message:"O custo Stricker não é válido." };
+    if (!isValidHttpUrl(supplierInvoiceUrl)) return { success:false, message:"A ligação da fatura de compra não é válida." };
+    const payload = {
+      customer_name: getRequiredFormString(formData, "customerName"),
+      customer_email: getRequiredFormString(formData, "customerEmail").toLowerCase(),
+      customer_phone: getFormString(formData, "customerPhone"),
+      company_name: getFormString(formData, "companyName"),
+      company_tax_id: getFormString(formData, "companyTaxId"),
+      supplier_invoice_number: getFormString(formData, "supplierInvoiceNumber"),
+      supplier_invoice_url: supplierInvoiceUrl,
+      supplier_invoice_status: getFormString(formData, "supplierInvoiceStatus") ?? "pending",
+      supplier_cost_total: supplierCost,
+      updated_at: new Date().toISOString(),
+    };
+    const admin=createSupabaseAdminClient();const{error}=await admin.from("orders").update(payload).eq("id",orderId).is("deleted_at",null);if(error)throw new Error(error.message);
+    await insertOrderHistory({orderId,previousStatus:null,newStatus:"commercial_data_updated",changedBy:access.userId,notes:"Dados comerciais e fatura de compra atualizados.",metadata:{action:"commercial_data_updated"}});
+    revalidateOrderPaths(orderId);return{success:true,message:"Dados da encomenda atualizados com sucesso."};
+  } catch(error){return{success:false,message:error instanceof Error?error.message:"Não foi possível editar a encomenda."};}
+}

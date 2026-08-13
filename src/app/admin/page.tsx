@@ -42,9 +42,9 @@ const adminModules: AdminModule[] = [
     icon: BadgeEuro,
   },
   {
-    title: "Utilizadores",
+    title: "Utilizadores e Contas",
     description:
-      "Consultar Clientes e criar, promover, bloquear ou reativar contas de Administração.",
+      "Consultar clientes, contactos e moradas, exportar a base de dados e gerir contas de Administração.",
     href: "/admin/utilizadores",
     icon: Building2,
   },

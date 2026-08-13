@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import { redirect } from "next/navigation";
 import {
   calculateSellingPrice,
   type PricingMode,
@@ -41,6 +42,60 @@ export type UpdateAdminPriceState = {
   success: boolean;
   message: string;
 };
+
+export async function applyBulkMarginAction(formData: FormData): Promise<void> {
+  const access = await assertAdminAccess("/admin/precos");
+  const target = String(formData.get("target") ?? "");
+  const rawMargin = String(formData.get("margin") ?? "").replace(",", ".");
+  const margin = Number(rawMargin);
+
+  if ((target !== "products" && target !== "personalizations") || !Number.isFinite(margin) || margin < 0 || margin >= 95) {
+    redirect("/admin/precos?erro=margem-global-invalida");
+  }
+
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data: batch, error: batchError } = await supabaseAdmin
+    .from("bulk_price_change_batches")
+    .insert({ target_type: target, margin_percentage: margin, created_by: access.userId })
+    .select("id")
+    .single<{ id: string }>();
+
+  if (batchError || !batch) throw new Error(batchError?.message ?? "Não foi possível criar o histórico global.");
+  const { error } = await supabaseAdmin.rpc("apply_bulk_price_margin", {
+    target_batch_id: batch.id,
+    target_type: target,
+    target_margin_percentage: margin,
+  });
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/admin/precos");
+  revalidatePath("/");
+  redirect(`/admin/precos?tab=${target === "products" ? "produtos" : "personalizacoes"}&sucesso=margem-global`);
+}
+
+export async function revertBulkMarginAction(formData: FormData): Promise<void> {
+  const access = await assertAdminAccess("/admin/precos");
+  const batchId = String(formData.get("batchId") ?? "").trim();
+  if (!batchId) redirect("/admin/precos?erro=alteracao-nao-encontrada");
+
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data: batch, error: findError } = await supabaseAdmin
+    .from("bulk_price_change_batches")
+    .select("id,target_type,status")
+    .eq("id", batchId)
+    .eq("status", "applied")
+    .maybeSingle<{ id: string; target_type: string; status: string }>();
+  if (findError || !batch) redirect("/admin/precos?erro=alteracao-nao-encontrada");
+
+  const { error } = await supabaseAdmin.rpc("revert_bulk_price_margin", { target_batch_id: batch.id });
+  if (error) throw new Error(error.message);
+  const { error: updateError } = await supabaseAdmin.from("bulk_price_change_batches").update({ status: "reverted", reverted_by: access.userId, reverted_at: new Date().toISOString() }).eq("id", batch.id);
+  if (updateError) throw new Error(updateError.message);
+
+  revalidatePath("/admin/precos");
+  revalidatePath("/");
+  redirect(`/admin/precos?tab=${batch.target_type === "products" ? "produtos" : "personalizacoes"}&sucesso=margem-revertida`);
+}
 
 function getFormString(
   formData: FormData,

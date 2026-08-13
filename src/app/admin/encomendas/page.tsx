@@ -5,15 +5,18 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDollarSign,
+  CheckCircle2,
   Clock3,
   Package,
   RefreshCw,
   Search,
   ShoppingBag,
   Truck,
+  Trash2,
 } from "lucide-react";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { deleteAdminOrderAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +96,12 @@ type OrderStatistics = {
   supplierErrors: number;
   inProduction: number;
   shipped: number;
+  completed: number;
+  cancelled: number;
+  delayed: number;
+  revenue: number;
+  supplierCosts: number;
+  margin: number;
 };
 
 const PAGE_SIZE = 25;
@@ -482,87 +491,9 @@ function sanitizeSearchQuery(value: string): string {
 
 async function getOrderStatistics(): Promise<OrderStatistics> {
   const supabaseAdmin = createSupabaseAdminClient();
-
-  const [
-    totalResult,
-    pendingResult,
-    paidResult,
-    supplierErrorResult,
-    productionResult,
-    shippedResult,
-  ] = await Promise.all([
-    supabaseAdmin
-      .from("orders")
-      .select("id", {
-        count: "exact",
-        head: true,
-      }),
-
-    supabaseAdmin
-      .from("orders")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
-      .eq("payment_status", "pending"),
-
-    supabaseAdmin
-      .from("orders")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
-      .eq("payment_status", "paid"),
-
-    supabaseAdmin
-      .from("orders")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
-      .eq("supplier_submission_status", "failed"),
-
-    supabaseAdmin
-      .from("orders")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
-      .eq("status", "in_production"),
-
-    supabaseAdmin
-      .from("orders")
-      .select("id", {
-        count: "exact",
-        head: true,
-      })
-      .in("fulfillment_status", [
-        "shipped",
-        "delivered",
-      ]),
-  ]);
-
-  const firstError =
-    totalResult.error ??
-    pendingResult.error ??
-    paidResult.error ??
-    supplierErrorResult.error ??
-    productionResult.error ??
-    shippedResult.error;
-
-  if (firstError) {
-    throw new Error(firstError.message);
-  }
-
-  return {
-    total: totalResult.count ?? 0,
-    pendingPayment: pendingResult.count ?? 0,
-    paid: paidResult.count ?? 0,
-    supplierErrors:
-      supplierErrorResult.count ?? 0,
-    inProduction: productionResult.count ?? 0,
-    shipped: shippedResult.count ?? 0,
-  };
+  const { data, error } = await supabaseAdmin.from("orders").select("status,payment_status,fulfillment_status,supplier_submission_status,grand_total,supplier_cost_total,requested_shipping_date").is("deleted_at", null).returns<Array<{status:string;payment_status:string;fulfillment_status:string;supplier_submission_status:string;grand_total:number;supplier_cost_total:number;requested_shipping_date:string|null}>>();
+  if(error)throw new Error(error.message);const rows=data??[];const today=new Date().toISOString().slice(0,10);const paid=rows.filter(row=>row.payment_status==="paid");const revenue=paid.reduce((sum,row)=>sum+Number(row.grand_total??0),0);const supplierCosts=paid.reduce((sum,row)=>sum+Number(row.supplier_cost_total??0),0);
+  return {total:rows.length,pendingPayment:rows.filter(row=>row.payment_status==="pending").length,paid:paid.length,supplierErrors:rows.filter(row=>row.supplier_submission_status==="failed").length,inProduction:rows.filter(row=>row.status==="in_production").length,shipped:rows.filter(row=>row.fulfillment_status==="shipped").length,completed:rows.filter(row=>row.status==="delivered"||row.fulfillment_status==="delivered").length,cancelled:rows.filter(row=>row.status==="cancelled").length,delayed:rows.filter(row=>Boolean(row.requested_shipping_date&&row.requested_shipping_date<today)&&!["delivered","cancelled"].includes(row.fulfillment_status)).length,revenue,supplierCosts,margin:revenue-supplierCosts};
 }
 
 async function getOrders(params: {
@@ -623,6 +554,7 @@ async function getOrders(params: {
     .order("created_at", {
       ascending: false,
     })
+    .is("deleted_at", null)
     .range(from, to);
 
   if (params.query) {
@@ -902,7 +834,7 @@ export default async function AdminOrdersPage({
           </Link>
         </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <StatisticsCard
             label="Total"
             value={statistics.total}
@@ -949,6 +881,15 @@ export default async function AdminOrdersPage({
             icon={Truck}
             variant="success"
           />
+          <StatisticsCard label="Concluídas" value={statistics.completed} description="Entregues ao cliente final." icon={CheckCircle2} variant="success" />
+          <StatisticsCard label="Canceladas" value={statistics.cancelled} description="Encomendas canceladas." icon={AlertTriangle} variant="error" />
+          <StatisticsCard label="Atrasadas" value={statistics.delayed} description="Ultrapassaram a data de entrega solicitada." icon={Clock3} variant="error" />
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <FinancialCard label="Faturação paga" value={statistics.revenue} description="Total de encomendas com pagamento confirmado." />
+          <FinancialCard label="Custos Stricker" value={statistics.supplierCosts} description="Valores de compra registados nas encomendas." />
+          <FinancialCard label="Margem bruta" value={statistics.margin} description="Faturação paga menos os custos Stricker registados." />
         </div>
 
         <form
@@ -1277,13 +1218,7 @@ export default async function AdminOrdersPage({
                       )}
                     </p>
 
-                    <Link
-                      href={`/admin/encomendas/${order.id}`}
-                      className="mt-4 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
-                    >
-                      Abrir
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
+                    <div className="mt-4 flex gap-2 xl:justify-end"><Link href={`/admin/encomendas/${order.id}`} className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white">Editar<ArrowRight className="ml-2 h-4 w-4"/></Link><form action={deleteAdminOrderAction}><input type="hidden" name="orderId" value={order.id}/><button title="Eliminar encomenda" aria-label={`Eliminar encomenda ${order.order_number}`} className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-red-200 text-red-700"><Trash2 className="h-4 w-4"/></button></form></div>
                   </div>
                 </div>
 
@@ -1413,4 +1348,8 @@ export default async function AdminOrdersPage({
       </section>
     </main>
   );
+}
+
+function FinancialCard({ label, value, description }: { label: string; value: number; description: string }) {
+  return <article className="rounded-3xl border border-neutral-200 bg-neutral-950 p-5 text-white shadow-sm"><p className="text-sm text-white/60">{label}</p><p className="mt-2 text-2xl font-semibold">{formatPrice(value)}</p><p className="mt-4 text-xs leading-5 text-white/50">{description}</p></article>;
 }

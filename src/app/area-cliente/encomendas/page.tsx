@@ -38,6 +38,7 @@ export default async function CustomerOrdersPage() {
       "id, order_number, status, payment_status, fulfillment_status, grand_total, currency, created_at",
     )
     .eq("user_id", user.id)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .returns<Order[]>();
 

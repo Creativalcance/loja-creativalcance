@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  ArrowLeft,
   ChevronLeft,
   ChevronRight,
   CircleAlert,
@@ -11,6 +12,7 @@ import AdminPriceEditForm from "@/components/admin/pricing/AdminPriceEditForm";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { PricingMode } from "@/lib/pricing/calculate-selling-price";
+import { applyBulkMarginAction, revertBulkMarginAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +95,8 @@ type AdminPricesPageProps = {
     tab?: string;
     q?: string;
     pagina?: string;
+    sucesso?: string;
+    erro?: string;
   }>;
 };
 
@@ -513,6 +517,16 @@ export default async function AdminPricesPage({
           page,
         });
 
+  const supabaseAdmin = createSupabaseAdminClient();
+  const { data: bulkBatches } = await supabaseAdmin
+    .from("bulk_price_change_batches")
+    .select("id,target_type,margin_percentage,affected_rows,status,created_at")
+    .eq("status", "applied")
+    .order("created_at", { ascending: false })
+    .limit(5)
+    .returns<Array<{id:string;target_type:string;margin_percentage:number;affected_rows:number;status:string;created_at:string}>>();
+  const latestBulkBatch = (bulkBatches ?? []).find((batch) => batch.target_type === (activeTab === "produtos" ? "products" : "personalizations"));
+
   const totalPages = Math.max(
     1,
     Math.ceil(result.count / PAGE_SIZE),
@@ -531,6 +545,9 @@ export default async function AdminPricesPage({
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
       <section className="mx-auto max-w-[1600px]">
+        <Link href="/admin" className="mb-6 inline-flex items-center text-sm font-medium text-neutral-600 hover:text-neutral-950">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar ao dashboard admin
+        </Link>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-neutral-500">
@@ -562,6 +579,29 @@ export default async function AdminPricesPage({
             </div>
           </div>
         </div>
+
+        {resolvedSearchParams?.sucesso ? <div className="mt-6 rounded-2xl bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-800">Alteração global concluída com sucesso.</div> : null}
+        {resolvedSearchParams?.erro ? <div className="mt-6 rounded-2xl bg-red-50 px-5 py-4 text-sm font-medium text-red-800">Não foi possível concluir a alteração global. Confirme a margem indicada.</div> : null}
+
+        <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[.14em] text-neutral-500">Ação global</p>
+              <h2 className="mt-2 text-xl font-semibold text-neutral-950">Aplicar a mesma margem a {activeTab === "produtos" ? "todos os produtos" : "todas as personalizações"}</h2>
+              <p className="mt-2 max-w-3xl text-sm text-neutral-600">A alteração guarda uma cópia dos valores anteriores e pode ser revertida. O transporte não é incluído nem recebe margem.</p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <form action={applyBulkMarginAction} className="flex gap-2">
+                <input type="hidden" name="target" value={activeTab === "produtos" ? "products" : "personalizations"} />
+                <label className="sr-only" htmlFor="global-margin">Margem global</label>
+                <div className="relative"><input id="global-margin" name="margin" type="number" min="0" max="94.99" step="0.01" required placeholder="35" className="w-32 rounded-2xl border border-neutral-300 px-4 py-3 pr-9 text-sm"/><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-neutral-500">%</span></div>
+                <button className="rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white">Aplicar a todos</button>
+              </form>
+              {latestBulkBatch ? <form action={revertBulkMarginAction}><input type="hidden" name="batchId" value={latestBulkBatch.id}/><button className="h-full rounded-2xl border border-neutral-300 px-5 py-3 text-sm font-semibold">Reverter última ação</button></form> : null}
+            </div>
+          </div>
+          {latestBulkBatch ? <p className="mt-4 text-xs text-neutral-500">Última ação activa: margem de {Number(latestBulkBatch.margin_percentage).toLocaleString("pt-PT")}% aplicada a {latestBulkBatch.affected_rows.toLocaleString("pt-PT")} preços.</p> : null}
+        </section>
 
         <div className="mt-8 flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">

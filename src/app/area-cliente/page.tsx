@@ -104,6 +104,7 @@ export default async function CustomerAreaPage() {
         { count: "exact" },
       )
       .eq("user_id", user.id)
+      .is("deleted_at", null)
       .order("created_at", { ascending: false })
       .limit(5)
       .returns<OrderSummary[]>(),

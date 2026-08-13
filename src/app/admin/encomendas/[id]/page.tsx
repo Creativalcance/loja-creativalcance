@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommercialForm";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,10 @@ type OrderRecord = {
   invoice_number: string | null;
   invoice_url: string | null;
   invoice_status: string | null;
+  supplier_invoice_number: string | null;
+  supplier_invoice_url: string | null;
+  supplier_invoice_status: string | null;
+  supplier_cost_total: number;
 
   customer_notes: string | null;
   internal_notes: string | null;
@@ -927,6 +932,10 @@ const supabaseAdmin = createSupabaseAdminClient();
           invoice_number,
           invoice_url,
           invoice_status,
+          supplier_invoice_number,
+          supplier_invoice_url,
+          supplier_invoice_status,
+          supplier_cost_total,
           customer_notes,
           internal_notes,
           internal_reference,
@@ -951,6 +960,7 @@ const supabaseAdmin = createSupabaseAdminClient();
         `,
       )
       .eq("id", id)
+      .is("deleted_at", null)
       .maybeSingle<OrderRecord>(),
 
     supabaseAdmin
@@ -2229,6 +2239,21 @@ const supabaseAdmin = createSupabaseAdminClient();
                   Faturação
                 </h2>
               </div>
+
+              <AdminOrderCommercialForm
+                orderId={order.id}
+                customerName={order.customer_name}
+                customerEmail={order.customer_email}
+                customerPhone={order.customer_phone}
+                companyName={order.company_name}
+                companyTaxId={order.company_tax_id}
+                supplierInvoiceNumber={order.supplier_invoice_number}
+                supplierInvoiceUrl={order.supplier_invoice_url}
+                supplierInvoiceStatus={order.supplier_invoice_status}
+                supplierCostTotal={Number(order.supplier_cost_total ?? 0)}
+              />
+
+              <div className="my-6 border-t border-neutral-200" />
 
               <dl className="mt-5">
                 <DataRow
