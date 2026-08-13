@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, Info, Sparkles } from "lucide-react";
+import { ArrowLeft, CalendarCheck2, Info, Sparkles } from "lucide-react";
 import SmartMerchResultCard from "@/components/smart-merch/SmartMerchResultCard";
 import SmartMerchSearchForm from "@/components/smart-merch/SmartMerchSearchForm";
 import { interpretSmartQuery } from "@/lib/smart-merch/interpret-smart-query";
@@ -103,11 +103,11 @@ export default async function SmartMerchPage({ searchParams }: SmartMerchPagePro
                 {response.query.deadline ? <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-neutral-200">Data pretendida: {response.query.deadline}</span> : null}
               </div>
             </div>
-            <SmartMerchSearchForm compact defaultRequest={request} defaultQuantity={quantity} defaultBudget={budget} defaultDeadline={deadline} />
+            <SmartMerchSearchForm compact defaultRequest={request} defaultQuantity={quantity} defaultBudget={budget} defaultDeadline={deadline} minimumDeadline={response.earliestAvailableDate} />
           </div>
 
           <div className="mt-8 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"><Info className="mr-2 inline h-4 w-4" />{response.pricingNotice}</div>
-          {response.deadlineNotice ? <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><AlertCircle className="mr-2 inline h-4 w-4" />{response.deadlineNotice}</div> : null}
+          {response.deadlineNotice ? <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"><CalendarCheck2 className="mr-2 inline h-4 w-4" />{response.deadlineNotice}</div> : null}
 
           <form action="/smart-merch" className="mt-8 flex flex-col gap-3 rounded-2xl border border-neutral-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
             <input type="hidden" name="pedido" value={request} />
@@ -147,7 +147,7 @@ export default async function SmartMerchPage({ searchParams }: SmartMerchPagePro
         <section className="mx-auto max-w-4xl">
           <Link href="/" className="inline-flex items-center text-sm font-medium text-neutral-500 hover:text-neutral-950"><ArrowLeft className="mr-2 h-4 w-4" />Voltar à página inicial</Link>
           <div className="mt-10 rounded-3xl border border-red-200 bg-white p-8 shadow-sm">
-            <AlertCircle className="h-8 w-8 text-red-600" />
+            <Info className="h-8 w-8 text-red-600" />
             <h1 className="mt-4 text-2xl font-semibold text-neutral-950">{missingKey ? "O 360 Smart Merch ainda não está configurado" : "Não foi possível criar a seleção"}</h1>
             <p className="mt-3 text-neutral-600">{missingKey ? "Adicione a chave da OpenAI às variáveis de ambiente e publique novamente o projeto." : "Tente novamente dentro de alguns instantes ou reformule o pedido."}</p>
           </div>

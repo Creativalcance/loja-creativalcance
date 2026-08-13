@@ -1,5 +1,11 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildRecommendationReasons, calculateMatchScore } from "@/lib/smart-merch/match-score";
+import {
+  calculateEstimatedDelivery,
+  resolveProductionDays,
+  type DeliverySla,
+  type FulfillmentSetting,
+} from "@/lib/smart-merch/delivery";
 import type {
   SmartMerchResult,
   SmartMerchSearchResponse,
@@ -41,6 +47,12 @@ type CandidateStock = {
   available_quantity: number;
 };
 
+type CandidateCustomizationOption = {
+  product_id?: string;
+  table_code_option: string | null;
+  is_active: boolean;
+};
+
 type CandidateProduct = {
   id: string;
   sku: string;
@@ -62,12 +74,19 @@ type CandidateProduct = {
   product_variants: CandidateVariant[] | null;
   product_prices: CandidatePrice[] | null;
   product_stocks: CandidateStock[] | null;
+  product_customization_options: CandidateCustomizationOption[] | null;
 };
 
 type ResolvedVariant = {
   variant: CandidateVariant | null;
   price: CandidatePrice | null;
   stock: number;
+  warehouseCode: "PT" | "CZ";
+};
+
+type DeliveryContext = {
+  slas: DeliverySla[];
+  settings: Map<"PT" | "CZ", FulfillmentSetting>;
 };
 
 const SEARCH_SYNONYMS: Record<string, string[]> = {
@@ -91,6 +110,32 @@ const PRODUCT_SELECT = `
   product_prices (variant_id, final_price, quantity_min, quantity_max, currency, valid_until),
   product_stocks (variant_id, warehouse_code, available_quantity)
 `;
+
+async function attachCustomizationOptions(products: CandidateProduct[]): Promise<CandidateProduct[]> {
+  if (products.length === 0) return products;
+  const supabase = createSupabaseAdminClient();
+  const byProduct = new Map<string, CandidateCustomizationOption[]>();
+  const ids = products.map((product) => product.id);
+  for (let index = 0; index < ids.length; index += 300) {
+    const { data, error } = await supabase
+      .from("product_customization_options")
+      .select("product_id,table_code_option,is_active")
+      .in("product_id", ids.slice(index, index + 300))
+      .eq("is_active", true)
+      .not("table_code_option", "is", null);
+    if (error) throw new Error(`SMART_CUSTOMIZATION_QUERY_FAILED:${error.message}`);
+    for (const option of data ?? []) {
+      const productId = option.product_id as string;
+      const current = byProduct.get(productId) ?? [];
+      current.push(option as CandidateCustomizationOption);
+      byProduct.set(productId, current);
+    }
+  }
+  return products.map((product) => ({
+    ...product,
+    product_customization_options: byProduct.get(product.id) ?? [],
+  }));
+}
 
 function normalize(value: string | null | undefined): string {
   return (value ?? "")
@@ -256,9 +301,9 @@ function getPriceForQuantity(
   );
 }
 
-function getVariantStock(stocks: CandidateStock[], variantId: string | null): number {
+function getVariantStock(stocks: CandidateStock[], variantId: string | null, warehouse: "PT" | "CZ"): number {
   return stocks
-    .filter((stock) => stock.variant_id === variantId)
+    .filter((stock) => stock.variant_id === variantId && stock.warehouse_code === warehouse)
     .reduce((sum, stock) => sum + Math.max(0, stock.available_quantity), 0);
 }
 
@@ -272,7 +317,11 @@ function resolveVariant(product: CandidateProduct, query: SmartQuery): ResolvedV
 
   const options: ResolvedVariant[] = variants.map((variant) => {
     const price = getPriceForQuantity(prices, quantity, variant.id);
-    return { variant, price, stock: getVariantStock(stocks, variant.id) };
+    const ptStock = getVariantStock(stocks, variant.id, "PT");
+    const czStock = getVariantStock(stocks, variant.id, "CZ");
+    return ptStock >= quantity
+      ? { variant, price, stock: ptStock, warehouseCode: "PT" as const }
+      : { variant, price, stock: czStock, warehouseCode: "CZ" as const };
   });
 
   const productPrice = getPriceForQuantity(prices, quantity, null);
@@ -280,7 +329,8 @@ function resolveVariant(product: CandidateProduct, query: SmartQuery): ResolvedV
     options.push({
       variant: null,
       price: productPrice,
-      stock: stocks.reduce((sum, stock) => sum + Math.max(0, stock.available_quantity), 0),
+      stock: stocks.filter((stock) => stock.warehouse_code === "PT").reduce((sum, stock) => sum + Math.max(0, stock.available_quantity), 0),
+      warehouseCode: "PT",
     });
   }
 
@@ -304,7 +354,7 @@ function getImage(product: CandidateProduct): CandidateImage | null {
     [...images].sort((a, b) => a.sort_order - b.sort_order)[0] ?? null;
 }
 
-function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchResult | null {
+function buildResult(product: CandidateProduct, query: SmartQuery, delivery: DeliveryContext): SmartMerchResult | null {
   const quantity = query.quantity ?? product.min_order_quantity;
   if (quantity < product.min_order_quantity) return null;
 
@@ -325,6 +375,31 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
       ? unitPrice !== null && unitPrice <= query.maximumUnitBudget
       : null;
   if (withinBudget === false) return null;
+
+  const personalizationRequested = /personali|log[oó]tipo|impress[aã]o|grava[cç][aã]o/i.test(query.originalText);
+  const tableCodeOptions = (product.product_customization_options ?? [])
+    .filter((option) => option.is_active && option.table_code_option)
+    .map((option) => option.table_code_option as string);
+  const productionDays = personalizationRequested
+    ? resolveProductionDays({
+        slas: delivery.slas,
+        tableCodeOptions,
+        warehouse: resolved.warehouseCode,
+        quantity,
+      })
+    : 0;
+  if (personalizationRequested && productionDays === null) return null;
+  const fulfillmentSetting = delivery.settings.get(resolved.warehouseCode);
+  if (!fulfillmentSetting) return null;
+  const estimatedDeliveryDate = calculateEstimatedDelivery({
+    start: new Date(),
+    productionDays: productionDays ?? 0,
+    setting: fulfillmentSetting,
+  });
+  const deadlineMatch = query.deadline === null
+    ? null
+    : estimatedDeliveryDate <= query.deadline;
+  if (deadlineMatch === false) return null;
 
   const haystack = productHaystack(product);
   const intentScore = matchRatio(haystack, [
@@ -347,7 +422,7 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
     { weight: 25, value: intentScore },
     { weight: 20, value: withinBudget === null ? null : withinBudget ? 1 : 0 },
     { weight: 20, value: 1 },
-    { weight: 15, value: null },
+    { weight: 15, value: deadlineMatch === null ? null : deadlineMatch ? 1 : 0 },
     { weight: 10, value: useScore },
     { weight: 5, value: sustainableScore },
     { weight: 5, value: null },
@@ -376,6 +451,9 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
     variantSku: resolved.variant?.sku ?? null,
     variantColor: resolved.variant?.color_name ?? null,
     availableStock: resolved.stock,
+    warehouseCode: resolved.warehouseCode,
+    estimatedDeliveryDate,
+    deliveryIncludesPersonalization: personalizationRequested,
     matchScore,
     reasons: buildRecommendationReasons({
       withinBudget,
@@ -383,9 +461,9 @@ function buildResult(product: CandidateProduct, query: SmartQuery): SmartMerchRe
       intentScore,
       useScore,
       sustainableMatch: query.sustainable === true ? sustainable : null,
+      deadlineMatch,
     }),
     unavailableCriteria: [
-      ...(query.deadline ? (["deadline"] as const) : []),
       "popularity" as const,
     ],
   };
@@ -405,10 +483,21 @@ function sortResults(results: SmartMerchResult[], query: SmartQuery): SmartMerch
 }
 
 export async function searchSmartMerchProducts(query: SmartQuery): Promise<SmartMerchSearchResponse> {
-  const candidates = await loadCandidates(query);
+  const supabase = createSupabaseAdminClient();
+  const [{ data: slaData, error: slaError }, { data: settingData, error: settingError }] = await Promise.all([
+    supabase.from("supplier_printing_slas").select("table_code_option,warehouse_code,quantity_min,quantity_max,production_days,is_available"),
+    supabase.from("supplier_fulfillment_settings").select("warehouse_code,preparation_business_days,transport_business_days").eq("is_active", true),
+  ]);
+  if (slaError) throw new Error(`SMART_DELIVERY_SLA_QUERY_FAILED:${slaError.message}`);
+  if (settingError) throw new Error(`SMART_DELIVERY_SETTINGS_QUERY_FAILED:${settingError.message}`);
+  const delivery: DeliveryContext = {
+    slas: (slaData ?? []) as DeliverySla[],
+    settings: new Map((settingData ?? []).map((setting) => [setting.warehouse_code as "PT" | "CZ", setting as FulfillmentSetting])),
+  };
+  const candidates = await attachCustomizationOptions(await loadCandidates(query));
   const results = sortResults(
     candidates.flatMap((product) => {
-      const result = buildResult(product, query);
+      const result = buildResult(product, query, delivery);
       return result ? [result] : [];
     }),
     query,
@@ -424,7 +513,10 @@ export async function searchSmartMerchProducts(query: SmartQuery): Promise<Smart
     pricingNotice:
       "Os valores apresentados incluem apenas o produto para a quantidade indicada. Personalização, setup, portes e IVA são calculados quando existirem dados suficientes ou no checkout.",
     deadlineNotice: query.deadline
-      ? "A data pretendida foi registada, mas ainda não é usada para prometer a entrega enquanto os SLA de produção e transporte não estiverem totalmente integrados."
+      ? "A seleção apresenta apenas produtos cuja entrega estimada é compatível com a data pretendida."
+      : null,
+    earliestAvailableDate: results.length > 0
+      ? results.map((result) => result.estimatedDeliveryDate).sort()[0]
       : null,
   };
 }

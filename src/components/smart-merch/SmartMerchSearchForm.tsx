@@ -6,6 +6,7 @@ type SmartMerchSearchFormProps = {
   defaultBudget?: number | null;
   defaultDeadline?: string | null;
   compact?: boolean;
+  minimumDeadline?: string | null;
 };
 
 export default function SmartMerchSearchForm({
@@ -14,6 +15,7 @@ export default function SmartMerchSearchForm({
   defaultBudget = null,
   defaultDeadline = null,
   compact = false,
+  minimumDeadline = null,
 }: SmartMerchSearchFormProps) {
   return (
     <form
@@ -84,6 +86,7 @@ export default function SmartMerchSearchForm({
           <input
             type="date"
             name="data"
+            min={minimumDeadline ?? new Date().toISOString().slice(0, 10)}
             defaultValue={defaultDeadline ?? ""}
             className="w-full rounded-2xl border border-neutral-300 bg-white py-3 pl-11 pr-4 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />

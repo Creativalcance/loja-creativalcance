@@ -15,6 +15,7 @@ type SyncAction =
   | "optionals"
   | "customizationOptions"
   | "customizationTables"
+  | "printingSlas"
   | "stocksPT"
   | "stocksCZ"
   | "canceledProducts"
@@ -52,6 +53,8 @@ type SyncResponse = {
   variantsMatched?: number;
   stocksImported?: number;
   futureStocksImported?: number;
+  tiersChanged?: number;
+  tiersRemoved?: number;
   recordsTotal?: number;
   recordsProcessed?: number;
   offset?: number;
@@ -146,6 +149,12 @@ const ACTIONS: SyncActionCard[] = [
       "Importa tabelas e preços de personalização para printing_price_tables.",
   },
   {
+    action: "printingSlas",
+    title: "Sincronizar prazos de produção",
+    description:
+      "Importa os SLA de produção Stricker por técnica, quantidade e armazém.",
+  },
+  {
     action: "customizationOptions",
     title: "Gerar personalizações",
     description:
@@ -224,6 +233,10 @@ function getSyncEndpoint(action: SyncAction): string {
     return "/api/admin/stricker/rest/sync-customization-tables";
   }
 
+  if (action === "printingSlas") {
+    return "/api/admin/stricker/rest/sync-printing-slas";
+  }
+
   if (action === "customizationOptions") {
     return "/api/admin/stricker/rest/sync-customization-options";
   }
@@ -259,6 +272,7 @@ function buildSyncBody(params: {
     params.action === "optionals" ||
     params.action === "customizationOptions" ||
     params.action === "customizationTables"
+    || params.action === "printingSlas"
   ) {
     return {
       lang: params.language,

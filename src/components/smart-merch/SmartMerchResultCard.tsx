@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Leaf, PackageCheck, Sparkles } from "lucide-react";
+import { ArrowRight, CalendarCheck2, CheckCircle2, Leaf, PackageCheck, Sparkles } from "lucide-react";
 import type { SmartMerchResult } from "@/lib/smart-merch/types";
 
 function formatMoney(value: number, currency: string): string {
@@ -37,6 +37,7 @@ export default function SmartMerchResultCard({ result }: { result: SmartMerchRes
           </div>
 
           <div className="mt-4 flex items-center text-xs font-medium text-neutral-600"><PackageCheck className="mr-2 h-4 w-4 text-emerald-600" />{result.availableStock.toLocaleString("pt-PT")} un. disponíveis</div>
+          <div className="mt-2 flex items-center text-xs font-medium text-neutral-600"><CalendarCheck2 className="mr-2 h-4 w-4 text-emerald-600" />Entrega estimada: {new Intl.DateTimeFormat("pt-PT").format(new Date(`${result.estimatedDeliveryDate}T12:00:00Z`))}</div>
 
           <div className="mt-5 rounded-2xl bg-neutral-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Porque recomendamos</p>

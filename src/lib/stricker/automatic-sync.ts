@@ -12,6 +12,7 @@ import { syncRestCustomizationTables } from "@/lib/stricker/rest/sync-customizat
 import { syncRestOptionals } from "@/lib/stricker/rest/sync-optionals";
 import { syncRestProducts } from "@/lib/stricker/rest/sync-products";
 import { syncRestStocksByCountry } from "@/lib/stricker/rest/sync-stocks-by-country";
+import { syncRestPrintingSlas } from "@/lib/stricker/rest/sync-printing-slas";
 import { syncSubmittedStrickerOrders } from "@/lib/stricker/orders/sync-order-status";
 
 export const STRICKER_AUTOMATIC_SYNC_JOBS = [
@@ -26,6 +27,7 @@ export const STRICKER_AUTOMATIC_SYNC_JOBS = [
   "optionals",
   "customization-tables",
   "customization-options",
+  "printing-slas",
   "canceled-products",
   "restricted-products",
   "orders-status",
@@ -214,6 +216,8 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       return syncRestCustomizationTables({ lang: "PT" });
     case "customization-options":
       return syncNextCustomizationOptionsBatch();
+    case "printing-slas":
+      return syncRestPrintingSlas({ lang: "PT" });
     case "canceled-products":
       return syncCommercialDataset({ dataset: "canceledProducts" });
     case "restricted-products":

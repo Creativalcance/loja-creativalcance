@@ -30,6 +30,7 @@ export function buildRecommendationReasons(input: {
   intentScore: number;
   useScore: number | null;
   sustainableMatch: boolean | null;
+  deadlineMatch: boolean | null;
 }): SmartMerchReason[] {
   const reasons: SmartMerchReason[] = [];
 
@@ -38,6 +39,7 @@ export function buildRecommendationReasons(input: {
   if (input.intentScore >= 0.5) reasons.push({ code: "intent", label: "Corresponde ao produto procurado" });
   if (input.useScore !== null && input.useScore >= 0.5) reasons.push({ code: "use", label: "Adequado à utilização indicada" });
   if (input.sustainableMatch) reasons.push({ code: "sustainable", label: "Sustentabilidade confirmada nos dados do produto" });
+  if (input.deadlineMatch) reasons.push({ code: "deadline", label: "Compatível com a data pretendida" });
 
   return reasons.slice(0, 5);
 }

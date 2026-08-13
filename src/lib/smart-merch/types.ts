@@ -25,7 +25,7 @@ export type SmartQuery = {
 };
 
 export type SmartMerchReason = {
-  code: "budget" | "stock" | "intent" | "use" | "sustainable";
+  code: "budget" | "stock" | "intent" | "use" | "sustainable" | "deadline";
   label: string;
 };
 
@@ -51,6 +51,9 @@ export type SmartMerchResult = {
   variantSku: string | null;
   variantColor: string | null;
   availableStock: number;
+  warehouseCode: "PT" | "CZ";
+  estimatedDeliveryDate: string;
+  deliveryIncludesPersonalization: boolean;
   matchScore: number;
   reasons: SmartMerchReason[];
   unavailableCriteria: Array<"deadline" | "popularity">;
@@ -62,4 +65,5 @@ export type SmartMerchSearchResponse = {
   calculatedUnitBudget: number | null;
   pricingNotice: string;
   deadlineNotice: string | null;
+  earliestAvailableDate: string | null;
 };
