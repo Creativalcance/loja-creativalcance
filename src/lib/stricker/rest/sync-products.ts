@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import { buildStrickerProductImageUrl } from "@/lib/stricker/images";
 import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
@@ -135,6 +136,7 @@ export type SyncRestProductsResult = {
   lang: StrickerLanguage;
   recordsReceived: number;
   productsImported: number;
+  productsUnchanged: number;
   productTranslationsImported: number;
   imagesImported: number;
   datasetImportId: string;
@@ -271,6 +273,44 @@ function getProductShortDescription(
 
 function getProductMaterial(record: StrickerProductRecord): string | null {
   return getNullableString(record.Materials) ?? getNullableString(record.Material);
+}
+
+async function filterChangedProductRecords(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  records: StrickerProductRecord[];
+}): Promise<StrickerProductRecord[]> {
+  const recordsByReference = new Map<string, StrickerProductRecord>();
+
+  for (const record of params.records) {
+    const reference = getProductReference(record);
+    if (reference) recordsByReference.set(reference, record);
+  }
+
+  const changedReferences = new Set(recordsByReference.keys());
+
+  for (const referenceChunk of chunkArray([...recordsByReference.keys()], QUERY_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("products")
+      .select("external_id,supplier_payload")
+      .eq("supplier_id", params.supplierId)
+      .in("external_id", referenceChunk)
+      .returns<Array<{ external_id: string; supplier_payload: JsonRecord | null }>>();
+
+    if (error) throw new Error(error.message);
+
+    for (const existing of data ?? []) {
+      const nextRecord = recordsByReference.get(existing.external_id);
+      if (nextRecord && !hasSupplierPayloadChanged(existing.supplier_payload, nextRecord)) {
+        changedReferences.delete(existing.external_id);
+      }
+    }
+  }
+
+  return params.records.filter((record) => {
+    const reference = getProductReference(record);
+    return Boolean(reference && changedReferences.has(reference));
+  });
 }
 
 function buildProductRows(params: {
@@ -652,9 +692,15 @@ export async function syncRestProducts(params: {
       ? (payload.Products as StrickerProductRecord[])
       : [];
 
-    const productRows = buildProductRows({
+    const changedRecords = await filterChangedProductRecords({
+      supabaseAdmin,
       supplierId,
       records,
+    });
+
+    const productRows = buildProductRows({
+      supplierId,
+      records: changedRecords,
     });
 
     const importedProducts =
@@ -667,7 +713,7 @@ export async function syncRestProducts(params: {
 
     const productTranslationRows = buildProductTranslationRows({
       lang: params.lang,
-      records,
+      records: changedRecords,
       products: importedProducts,
     });
 
@@ -687,7 +733,7 @@ export async function syncRestProducts(params: {
     }
 
     const imageRows = buildImageRows({
-      records,
+      records: changedRecords,
       products: importedProducts,
     });
 
@@ -704,12 +750,13 @@ export async function syncRestProducts(params: {
       status: "success",
       recordsReceived: records.length,
       recordsImported: importedProducts.length,
-      recordsFailed: Math.max(records.length - importedProducts.length, 0),
+      recordsFailed: 0,
       rawPayload: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
         productTranslationsImported,
+        recordsUnchanged: records.length - changedRecords.length,
         sample: records.slice(0, 5),
       },
       errors: [],
@@ -720,6 +767,7 @@ export async function syncRestProducts(params: {
       lang: params.lang,
       recordsReceived: records.length,
       productsImported: importedProducts.length,
+      productsUnchanged: records.length - changedRecords.length,
       productTranslationsImported,
       imagesImported: imageRows.length,
       datasetImportId,

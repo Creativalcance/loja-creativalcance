@@ -36,27 +36,6 @@ const ALLOWED_LANGUAGES: StrickerLanguage[] = [
   "UA",
 ];
 
-const DEFAULT_BATCH_LIMIT = 500;
-const MAX_BATCH_LIMIT = 1_000;
-
-function normalizeInteger(params: {
-  value: unknown;
-  fallback: number;
-  min: number;
-  max: number;
-}): number {
-  const parsed =
-    typeof params.value === "number"
-      ? params.value
-      : typeof params.value === "string"
-        ? Number(params.value)
-        : Number.NaN;
-
-  return Number.isFinite(parsed)
-    ? Math.min(params.max, Math.max(params.min, Math.floor(parsed)))
-    : params.fallback;
-}
-
 function isAllowedLanguage(value: string): value is StrickerLanguage {
   return ALLOWED_LANGUAGES.includes(value as StrickerLanguage);
 }
@@ -67,8 +46,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = (await request.json().catch(() => ({}))) as {
       lang?: unknown;
-      offset?: unknown;
-      limit?: unknown;
     };
 
     const langRaw =
@@ -86,30 +63,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const offset = normalizeInteger({
-      value: body.offset,
-      fallback: 0,
-      min: 0,
-      max: 1_000_000,
-    });
-    const limit = normalizeInteger({
-      value: body.limit,
-      fallback: DEFAULT_BATCH_LIMIT,
-      min: 1,
-      max: MAX_BATCH_LIMIT,
-    });
-
     const result = await syncRestOptionals({
       lang: langRaw,
-      offset,
-      limit,
     });
 
     return NextResponse.json({
       success: true,
-      message: result.hasMore
-        ? "Lote de variantes e preços Stricker sincronizado."
-        : "Variantes e preços Stricker sincronizados com sucesso.",
+      message: "Variantes e preços Stricker sincronizados com sucesso.",
       ...result,
     });
   } catch (error) {

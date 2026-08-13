@@ -5,6 +5,7 @@ import {
 import { calculateProductSellingPrice } from "@/lib/pricing/calculate-product-price";
 import { type PricingRule } from "@/lib/pricing/types";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import {
   buildStrickerComponentImageUrl,
   buildStrickerLocationImageUrl,
@@ -299,17 +300,12 @@ export type SyncRestOptionalsResult = {
   lang: StrickerLanguage;
   recordsReceived: number;
   variantsImported: number;
+  variantsUnchanged: number;
   variantTranslationsImported: number;
   pricesImported: number;
   imagesImported: number;
   componentsImported: number;
   locationsImported: number;
-  recordsTotal: number;
-  recordsProcessed: number;
-  offset: number;
-  limit: number;
-  nextOffset: number | null;
-  hasMore: boolean;
   datasetImportId: string;
 };
 
@@ -318,7 +314,6 @@ const CUSTOMIZATION_UPSERT_CHUNK_SIZE = 100;
 const QUERY_CHUNK_SIZE = 400;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
-const DATABASE_WRITE_CONCURRENCY = 1;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
   const chunks: TValue[][] = [];
@@ -341,30 +336,6 @@ function getNullableString(value: unknown): string | null {
   }
 
   return null;
-}
-
-async function mapWithConcurrency<TValue, TResult>(
-  values: TValue[],
-  concurrency: number,
-  mapper: (value: TValue, index: number) => Promise<TResult>,
-): Promise<TResult[]> {
-  const results = new Array<TResult>(values.length);
-  let nextIndex = 0;
-
-  async function worker(): Promise<void> {
-    while (nextIndex < values.length) {
-      const currentIndex = nextIndex;
-      nextIndex += 1;
-      results[currentIndex] = await mapper(values[currentIndex], currentIndex);
-    }
-  }
-
-  const workerCount = Math.min(Math.max(concurrency, 1), values.length);
-  await Promise.all(
-    Array.from({ length: workerCount }, () => worker()),
-  );
-
-  return results;
 }
 
 function getFirstListValue(value: unknown): string | null {
@@ -600,6 +571,73 @@ function buildProductIdMap(products: ProductRow[]): Map<string, ProductRow> {
   return new Map(products.map((product) => [product.id, product]));
 }
 
+async function filterChangedOptionalRecords(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  records: StrickerOptionalRecord[];
+}): Promise<StrickerOptionalRecord[]> {
+  const recordsBySku = new Map<string, StrickerOptionalRecord>();
+
+  for (const record of params.records) {
+    const sku = getOptionalSku(record);
+    if (sku) recordsBySku.set(sku, record);
+  }
+
+  const changedSkus = new Set(recordsBySku.keys());
+  const existingVariants = new Map<
+    string,
+    { id: string; external_variant_id: string; supplier_payload: JsonRecord | null }
+  >();
+
+  for (const skuChunk of chunkArray([...recordsBySku.keys()], QUERY_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_variants")
+      .select("id,external_variant_id,supplier_payload")
+      .eq("supplier_id", params.supplierId)
+      .in("external_variant_id", skuChunk)
+      .returns<Array<{ id: string; external_variant_id: string; supplier_payload: JsonRecord | null }>>();
+
+    if (error) throw new Error(error.message);
+
+    for (const existing of data ?? []) {
+      existingVariants.set(existing.external_variant_id, existing);
+    }
+  }
+
+  const variantsWithPrices = new Set<string>();
+  const existingVariantIds = [...existingVariants.values()].map((variant) => variant.id);
+
+  for (const variantIdChunk of chunkArray(existingVariantIds, QUERY_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_prices")
+      .select("variant_id")
+      .in("variant_id", variantIdChunk)
+      .returns<Array<{ variant_id: string | null }>>();
+
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) {
+      if (row.variant_id) variantsWithPrices.add(row.variant_id);
+    }
+  }
+
+  for (const existing of existingVariants.values()) {
+    const nextRecord = recordsBySku.get(existing.external_variant_id);
+    const unchanged =
+      nextRecord &&
+      !hasSupplierPayloadChanged(existing.supplier_payload, nextRecord) &&
+      variantsWithPrices.has(existing.id);
+
+    if (unchanged) {
+      changedSkus.delete(existing.external_variant_id);
+    }
+  }
+
+  return params.records.filter((record) => {
+    const sku = getOptionalSku(record);
+    return Boolean(sku && changedSkus.has(sku));
+  });
+}
+
 function buildVariantRows(params: {
   records: StrickerOptionalRecord[];
   productsByReference: Map<string, ProductRow>;
@@ -653,11 +691,9 @@ async function upsertVariants(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductVariantUpsertRow[];
 }): Promise<ImportedVariantRow[]> {
-  const chunks = chunkArray(params.rows, UPSERT_CHUNK_SIZE);
-  const chunkResults = await mapWithConcurrency(
-    chunks,
-    DATABASE_WRITE_CONCURRENCY,
-    async (rowChunk) => {
+  const variants: ImportedVariantRow[] = [];
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
     const { data, error } = await params.supabaseAdmin
       .from("product_variants")
       .upsert(rowChunk, {
@@ -670,11 +706,10 @@ async function upsertVariants(params: {
       throw new Error(error.message);
     }
 
-      return data ?? [];
-    },
-  );
+    variants.push(...(data ?? []));
+  }
 
-  return chunkResults.flat();
+  return variants;
 }
 
 function buildVariantMap(
@@ -726,11 +761,9 @@ async function upsertVariantTranslations(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductVariantTranslationUpsertRow[];
 }): Promise<number> {
-  const chunks = chunkArray(params.rows, UPSERT_CHUNK_SIZE);
-  const importedCounts = await mapWithConcurrency(
-    chunks,
-    DATABASE_WRITE_CONCURRENCY,
-    async (rowChunk) => {
+  let importedCount = 0;
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
     const { error } = await params.supabaseAdmin
       .from("product_variant_translations")
       .upsert(rowChunk, {
@@ -741,11 +774,10 @@ async function upsertVariantTranslations(params: {
       throw new Error(error.message);
     }
 
-      return rowChunk.length;
-    },
-  );
+    importedCount += rowChunk.length;
+  }
 
-  return importedCounts.reduce((total, count) => total + count, 0);
+  return importedCount;
 }
 
 function buildPriceRows(params: {
@@ -986,11 +1018,9 @@ async function upsertComponents(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationComponentUpsertRow[];
 }): Promise<ImportedComponentRow[]> {
-  const chunks = chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE);
-  const chunkResults = await mapWithConcurrency(
-    chunks,
-    DATABASE_WRITE_CONCURRENCY,
-    async (rowChunk) => {
+  const components: ImportedComponentRow[] = [];
+
+  for (const rowChunk of chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE)) {
     const { data, error } = await params.supabaseAdmin
       .from("product_customization_components")
       .upsert(rowChunk, {
@@ -1003,11 +1033,10 @@ async function upsertComponents(params: {
       throw new Error(error.message);
     }
 
-      return data ?? [];
-    },
-  );
+    components.push(...(data ?? []));
+  }
 
-  return chunkResults.flat();
+  return components;
 }
 
 function buildComponentMap(
@@ -1154,43 +1183,34 @@ async function deleteExistingVariantRelatedRows(params: {
   variantIds: string[];
 }): Promise<void> {
   const uniqueVariantIds = Array.from(new Set(params.variantIds));
-  const chunks = chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE);
 
-  await mapWithConcurrency(
-    chunks,
-    DATABASE_WRITE_CONCURRENCY,
-    async (variantIdChunk) => {
-      const [pricesResult, imagesResult] = await Promise.all([
-        params.supabaseAdmin
-          .from("product_prices")
-          .delete()
-          .in("variant_id", variantIdChunk),
-        params.supabaseAdmin
-          .from("product_images")
-          .delete()
-          .in("variant_id", variantIdChunk)
-          .eq("image_type", "variant"),
-      ]);
+  for (const variantIdChunk of chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE)) {
+    const { error: pricesError } = await params.supabaseAdmin
+      .from("product_prices")
+      .delete()
+      .in("variant_id", variantIdChunk);
 
-      if (pricesResult.error) {
-        throw new Error(pricesResult.error.message);
-      }
+    if (pricesError) {
+      throw new Error(pricesError.message);
+    }
 
-      if (imagesResult.error) {
-        throw new Error(imagesResult.error.message);
-      }
-    },
-  );
+    const { error: imagesError } = await params.supabaseAdmin
+      .from("product_images")
+      .delete()
+      .in("variant_id", variantIdChunk)
+      .eq("image_type", "variant");
+
+    if (imagesError) {
+      throw new Error(imagesError.message);
+    }
+  }
 }
 
 async function insertPrices(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductPriceInsertRow[];
 }): Promise<void> {
-  await mapWithConcurrency(
-    chunkArray(params.rows, UPSERT_CHUNK_SIZE),
-    DATABASE_WRITE_CONCURRENCY,
-    async (rowChunk) => {
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
     const { error } = await params.supabaseAdmin
       .from("product_prices")
       .insert(rowChunk);
@@ -1198,18 +1218,14 @@ async function insertPrices(params: {
     if (error) {
       throw new Error(error.message);
     }
-    },
-  );
+  }
 }
 
 async function insertImages(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductImageInsertRow[];
 }): Promise<void> {
-  await mapWithConcurrency(
-    chunkArray(params.rows, UPSERT_CHUNK_SIZE),
-    DATABASE_WRITE_CONCURRENCY,
-    async (rowChunk) => {
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
     const { error } = await params.supabaseAdmin
       .from("product_images")
       .insert(rowChunk);
@@ -1217,18 +1233,14 @@ async function insertImages(params: {
     if (error) {
       throw new Error(error.message);
     }
-    },
-  );
+  }
 }
 
 async function upsertLocations(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationLocationUpsertRow[];
 }): Promise<void> {
-  await mapWithConcurrency(
-    chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE),
-    DATABASE_WRITE_CONCURRENCY,
-    async (rowChunk) => {
+  for (const rowChunk of chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE)) {
     const { error } = await params.supabaseAdmin
       .from("product_customization_locations")
       .upsert(rowChunk, {
@@ -1238,14 +1250,11 @@ async function upsertLocations(params: {
     if (error) {
       throw new Error(error.message);
     }
-    },
-  );
+  }
 }
 
 export async function syncRestOptionals(params: {
   lang: StrickerLanguage;
-  offset?: number;
-  limit?: number;
 }): Promise<SyncRestOptionalsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -1270,18 +1279,17 @@ export async function syncRestOptionals(params: {
       },
     );
 
-    const allRecords = Array.isArray(payload.Optionals)
+    const records = Array.isArray(payload.Optionals)
       ? (payload.Optionals as StrickerOptionalRecord[])
       : [];
-    const offset = Math.max(0, Math.floor(params.offset ?? 0));
-    const limit = Math.min(1_000, Math.max(1, Math.floor(params.limit ?? 500)));
-    const recordsTotal = allRecords.length;
-    const records = allRecords.slice(offset, offset + limit);
-    const processedUntil = offset + records.length;
-    const hasMore = processedUntil < recordsTotal;
-    const nextOffset = hasMore ? processedUntil : null;
 
-    const references = records
+    const changedRecords = await filterChangedOptionalRecords({
+      supabaseAdmin,
+      supplierId,
+      records,
+    });
+
+    const references = changedRecords
       .map((record) => getProdReference(record))
       .filter((value): value is string => Boolean(value));
 
@@ -1299,7 +1307,7 @@ export async function syncRestOptionals(params: {
     });
 
     const variantRows = buildVariantRows({
-      records,
+      records: changedRecords,
       productsByReference,
     });
 
@@ -1312,7 +1320,7 @@ export async function syncRestOptionals(params: {
 
     const variantTranslationRows = buildVariantTranslationRows({
       lang: params.lang,
-      records,
+      records: changedRecords,
       variantsBySku,
     });
 
@@ -1334,7 +1342,7 @@ export async function syncRestOptionals(params: {
     }
 
     const priceRows = buildPriceRows({
-      records,
+      records: changedRecords,
       variantsBySku,
       productsById,
       pricingRules,
@@ -1348,7 +1356,7 @@ export async function syncRestOptionals(params: {
     }
 
     const imageRows = buildImageRows({
-      records,
+      records: changedRecords,
       variantsBySku,
     });
 
@@ -1360,7 +1368,7 @@ export async function syncRestOptionals(params: {
     }
 
     const componentRows = buildComponentRows({
-      records,
+      records: changedRecords,
       variantsBySku,
     });
 
@@ -1375,7 +1383,7 @@ export async function syncRestOptionals(params: {
     const componentsByKey = buildComponentMap(importedComponents);
 
     const locationRows = buildLocationRows({
-      records,
+      records: changedRecords,
       variantsBySku,
       componentsByKey,
     });
@@ -1387,10 +1395,13 @@ export async function syncRestOptionals(params: {
       });
     }
 
-    const status = importedVariants.length > 0 ? "success" : "partial_success";
+    const status =
+      changedRecords.length === 0 || importedVariants.length > 0
+        ? "success"
+        : "partial_success";
 
     const errors =
-      importedVariants.length > 0
+      changedRecords.length === 0 || importedVariants.length > 0
         ? []
         : [
             "Optionals recebidos da Stricker, mas nenhum produto correspondente foi encontrado em products.",
@@ -1402,20 +1413,15 @@ export async function syncRestOptionals(params: {
       status,
       recordsReceived: records.length,
       recordsImported: importedVariants.length,
-      recordsFailed: Math.max(records.length - importedVariants.length, 0),
+      recordsFailed: Math.max(changedRecords.length - importedVariants.length, 0),
       rawPayload: {
-        Count: payload.Count ?? recordsTotal,
+        Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
-        offset,
-        limit,
-        recordsTotal,
-        recordsProcessed: records.length,
-        nextOffset,
-        hasMore,
         variantTranslationsImported,
         pricesImported: priceRows.length,
         pricingRulesLoaded: pricingRules.length,
+        recordsUnchanged: records.length - changedRecords.length,
         sample: records.slice(0, 5),
       },
       errors,
@@ -1426,17 +1432,12 @@ export async function syncRestOptionals(params: {
       lang: params.lang,
       recordsReceived: records.length,
       variantsImported: importedVariants.length,
+      variantsUnchanged: records.length - changedRecords.length,
       variantTranslationsImported,
       pricesImported: priceRows.length,
       imagesImported: imageRows.length,
       componentsImported: importedComponents.length,
       locationsImported: locationRows.length,
-      recordsTotal,
-      recordsProcessed: records.length,
-      offset,
-      limit,
-      nextOffset,
-      hasMore,
       datasetImportId,
     };
   } catch (error) {

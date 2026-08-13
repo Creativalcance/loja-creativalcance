@@ -381,71 +381,6 @@ async function requestAllCustomizationOptions(
   );
 }
 
-async function requestAllOptionals(
-  language: StrickerLanguage,
-  onProgress: (processed: number, total: number) => void,
-): Promise<SyncResponse> {
-  const limit = 500;
-  let offset = 0;
-  let recordsReceived = 0;
-  let recordsProcessed = 0;
-  let variantsImported = 0;
-  let variantTranslationsImported = 0;
-  let pricesImported = 0;
-  let imagesImported = 0;
-  let componentsImported = 0;
-  let locationsImported = 0;
-  let lastPayload: SyncResponse | null = null;
-
-  for (let batch = 0; batch < 100; batch += 1) {
-    const payload = await requestSync({
-      action: "optionals",
-      body: { lang: language, offset, limit },
-    });
-
-    lastPayload = payload;
-    recordsReceived += payload.recordsReceived ?? 0;
-    recordsProcessed += payload.recordsProcessed ?? 0;
-    variantsImported += payload.variantsImported ?? 0;
-    variantTranslationsImported += payload.variantTranslationsImported ?? 0;
-    pricesImported += payload.pricesImported ?? 0;
-    imagesImported += payload.imagesImported ?? 0;
-    componentsImported += payload.componentsImported ?? 0;
-    locationsImported += payload.locationsImported ?? 0;
-    onProgress(recordsProcessed, payload.recordsTotal ?? recordsProcessed);
-
-    if (!payload.hasMore || payload.nextOffset === null) {
-      return {
-        ...payload,
-        recordsReceived,
-        recordsProcessed,
-        variantsImported,
-        variantTranslationsImported,
-        pricesImported,
-        imagesImported,
-        componentsImported,
-        locationsImported,
-        hasMore: false,
-        nextOffset: null,
-      };
-    }
-
-    const nextOffset = payload.nextOffset;
-
-    if (nextOffset === undefined || nextOffset === null || nextOffset <= offset) {
-      throw new Error("A paginação de Optionals devolveu um offset inválido.");
-    }
-
-    offset = nextOffset;
-  }
-
-  throw new Error(
-    `A sincronização de Optionals excedeu o limite de segurança. Último lote: ${
-      lastPayload?.offset ?? offset
-    }.`,
-  );
-}
-
 function getImportedCount(payload: SyncResponse): number {
   return (
     payload.productsPurchasable ??
@@ -553,18 +488,7 @@ export default function StrickerRestCatalogSyncActions() {
       });
 
       const payload =
-        action === "optionals"
-          ? await requestAllOptionals(
-              selectedLanguage,
-              (processed, total) => {
-                setState({
-                  loadingAction: action,
-                  message: `A sincronizar variantes e preços: ${processed} de ${total} registos processados.`,
-                  error: null,
-                });
-              },
-            )
-          : action === "customizationOptions"
+        action === "customizationOptions"
           ? await requestAllCustomizationOptions(
               selectedLanguage,
               (processed, total) => {

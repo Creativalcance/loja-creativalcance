@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import {
@@ -104,6 +105,7 @@ export type SyncRestCatalogDatasetResult = {
   lang: StrickerLanguage;
   recordsReceived: number;
   recordsImported: number;
+  recordsUnchanged: number;
   translationsImported: number;
   datasetImportId: string;
 };
@@ -559,11 +561,18 @@ export async function syncRestCatalogDataset(params: {
         records,
       });
 
+      const changedRows = await filterChangedRows({
+        supabaseAdmin,
+        supplierId,
+        table: "supplier_colors",
+        rows,
+      });
+
       const recordsImported =
-        rows.length > 0
+        changedRows.length > 0
           ? await upsertSupplierColors({
               supabaseAdmin,
-              rows,
+              rows: changedRows,
             })
           : 0;
 
@@ -573,12 +582,13 @@ export async function syncRestCatalogDataset(params: {
         status: "success",
         recordsReceived: records.length,
         recordsImported,
-        recordsFailed: Math.max(records.length - recordsImported, 0),
+        recordsFailed: 0,
         rawPayload: {
           Count: payload.Count ?? records.length,
           Currency: payload.Currency ?? null,
           Language: payload.Language ?? params.lang,
           translationsImported: 0,
+          recordsUnchanged: rows.length - changedRows.length,
           sample: records.slice(0, 5),
         },
         errors: [],
@@ -589,6 +599,7 @@ export async function syncRestCatalogDataset(params: {
         lang: params.lang,
         recordsReceived: records.length,
         recordsImported,
+        recordsUnchanged: rows.length - changedRows.length,
         translationsImported: 0,
         datasetImportId,
       };
@@ -615,11 +626,18 @@ export async function syncRestCatalogDataset(params: {
           records: records as StrickerProductTypeRecord[],
         });
 
+    const changedRows = await filterChangedRows({
+      supabaseAdmin,
+      supplierId,
+      table: "supplier_catalog_categories",
+      rows,
+    });
+
     const importedCategories =
-      rows.length > 0
+      changedRows.length > 0
         ? await upsertSupplierCatalogCategories({
             supabaseAdmin,
-            rows,
+            rows: changedRows,
           })
         : [];
 
@@ -642,12 +660,13 @@ export async function syncRestCatalogDataset(params: {
       status: "success",
       recordsReceived: records.length,
       recordsImported: importedCategories.length,
-      recordsFailed: Math.max(rows.length - importedCategories.length, 0),
+      recordsFailed: 0,
       rawPayload: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
         translationsImported,
+        recordsUnchanged: rows.length - changedRows.length,
         sample: records.slice(0, 5),
       },
       errors: [],
@@ -658,6 +677,7 @@ export async function syncRestCatalogDataset(params: {
       lang: params.lang,
       recordsReceived: records.length,
       recordsImported: importedCategories.length,
+      recordsUnchanged: rows.length - changedRows.length,
       translationsImported,
       datasetImportId,
     };
@@ -679,4 +699,42 @@ export async function syncRestCatalogDataset(params: {
 
     throw error;
   }
+}
+
+async function filterChangedRows<TRow extends {
+  external_id: string;
+  language: string;
+  raw_payload: JsonRecord;
+}>(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  table: "supplier_colors" | "supplier_catalog_categories";
+  rows: TRow[];
+}): Promise<TRow[]> {
+  const rowsByKey = new Map(
+    params.rows.map((row) => [`${row.external_id}:${row.language}`, row]),
+  );
+  const changedKeys = new Set(rowsByKey.keys());
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const externalIds = [...new Set(rowChunk.map((row) => row.external_id))];
+    const { data, error } = await params.supabaseAdmin
+      .from(params.table)
+      .select("external_id,language,raw_payload")
+      .eq("supplier_id", params.supplierId)
+      .in("external_id", externalIds)
+      .returns<Array<{ external_id: string; language: string; raw_payload: JsonRecord | null }>>();
+
+    if (error) throw new Error(error.message);
+
+    for (const existing of data ?? []) {
+      const key = `${existing.external_id}:${existing.language}`;
+      const nextRow = rowsByKey.get(key);
+      if (nextRow && !hasSupplierPayloadChanged(existing.raw_payload, nextRow.raw_payload)) {
+        changedKeys.delete(key);
+      }
+    }
+  }
+
+  return params.rows.filter((row) => changedKeys.has(`${row.external_id}:${row.language}`));
 }

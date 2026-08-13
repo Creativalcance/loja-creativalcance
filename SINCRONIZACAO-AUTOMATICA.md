@@ -19,26 +19,24 @@ produção. A Vercel envia automaticamente o cabeçalho
 
 | Dados | Frequência |
 | --- | --- |
-| Stock PT | De hora a hora, ao minuto 05 |
-| Stock CZ | De hora a hora, ao minuto 15 |
-| Disponibilidade comercial | De hora a hora, ao minuto 25 |
-| Cores, tipos, árvore e tabelas de personalização | Diariamente, durante a madrugada |
-| Produtos, imagens e traduções | 4 vezes por dia |
-| Variantes, preços, imagens e componentes | 4 vezes por dia |
-| Cancelados e restrições PT | 4 vezes por dia |
-| Opções de personalização derivadas | Um lote por hora até concluir o ciclo diário |
+| Stocks PT e CZ + disponibilidade comercial | De hora a hora, numa única execução |
+| Cores, tipos, árvore e tabelas de personalização | Uma vez por dia, durante a madrugada |
+| Produtos, imagens e traduções | Uma vez por dia, durante a madrugada |
+| Variantes, preços, imagens e componentes | Uma vez por dia, durante a madrugada |
+| Cancelados e restrições PT | Uma vez por dia, durante a madrugada |
+| Opções de personalização derivadas | Em lotes, apenas entre as 04:00 e as 05:59 UTC |
+| Estado das encomendas Stricker | Uma vez por dia, no final da janela noturna |
 
-Esta cadência consome 24 pedidos diários por endpoint de stock e 4 pedidos
-diários por cada método incremental, mantendo margem face aos limites Stricker
-de 96 pedidos/dia para stocks e 22 pedidos/dia para os restantes métodos.
+Durante o dia só é descarregado o stock. Os restantes datasets são consultados
+na janela noturna e as rotinas incrementais preservam os registos cujo payload
+da Stricker não sofreu alterações.
 
 ## Segurança e controlo
 
 - As rotas rejeitam pedidos sem o `CRON_SECRET` correto.
-- Cada tarefa obtém um bloqueio atómico no Supabase antes de começar.
-- Uma execução duplicada é ignorada enquanto a primeira estiver ativa.
+- Todas as tarefas automáticas partilham um bloqueio atómico no Supabase.
+- Uma nova execução é ignorada enquanto outra sincronização automática estiver ativa.
 - O bloqueio expira automaticamente após 330 segundos em caso de interrupção.
 - Os resultados continuam registados em `supplier_dataset_imports` e visíveis
   em `/admin/sincronizacao`.
 - Os botões manuais continuam disponíveis para recuperação e controlo.
-
