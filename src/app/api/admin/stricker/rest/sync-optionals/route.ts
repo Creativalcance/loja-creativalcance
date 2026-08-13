@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
-import { syncRestProducts } from "@/lib/stricker/rest/sync-products";
+import { syncRestOptionals } from "@/lib/stricker/rest/sync-optionals";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 
 export const runtime = "nodejs";
@@ -63,13 +63,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const result = await syncRestProducts({
+    const result = await syncRestOptionals({
       lang: langRaw,
     });
 
     return NextResponse.json({
       success: true,
-      message: "Produtos Stricker sincronizados com sucesso.",
+      message: "Variantes e preços Stricker sincronizados com sucesso.",
       ...result,
     });
   } catch (error) {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado na sincronização REST de produtos.",
+            : "Erro inesperado na sincronização REST de variantes e preços.",
       },
       { status: 500 },
     );

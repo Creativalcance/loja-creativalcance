@@ -814,7 +814,10 @@ function buildPriceRows(params: {
         final_price: calculatedPrice.finalPrice,
         catalog_price: currentTier.supplierPrice,
         your_price: yourPrice,
-        price_source: "stricker_optionals",
+        price_source:
+          currentTier.sourcePriceField === "YourPrice"
+            ? "your_price"
+            : "price",
         source_sku: sourceSku,
         source_web_sku: sourceWebSku,
         source_price_field: currentTier.sourcePriceField,
