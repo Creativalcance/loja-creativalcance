@@ -2,7 +2,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   findBestPricingRule,
 } from "@/lib/pricing/apply-pricing-rule";
-import { calculateProductSellingPrice } from "@/lib/pricing/calculate-product-price";
+import {
+  calculateSellingPrice,
+  type PricingMode,
+} from "@/lib/pricing/calculate-selling-price";
 import { type PricingRule } from "@/lib/pricing/types";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
@@ -235,6 +238,28 @@ type ProductPriceInsertRow = {
   source_price_field: string | null;
   source_updated_at: string;
   calculated_at: string;
+  pricing_mode: PricingMode;
+  markup_percentage: number | null;
+  fixed_markup: number | null;
+  manual_price: number | null;
+  is_manual_override: boolean;
+  override_reason: string | null;
+  override_updated_at: string | null;
+  override_updated_by: string | null;
+};
+
+type ExistingProductPriceRow = {
+  variant_id: string;
+  quantity_min: number;
+  pricing_mode: PricingMode | null;
+  margin_percentage: number | null;
+  markup_percentage: number | null;
+  fixed_markup: number | null;
+  manual_price: number | null;
+  is_manual_override: boolean | null;
+  override_reason: string | null;
+  override_updated_at: string | null;
+  override_updated_by: string | null;
 };
 
 type ProductImageInsertRow = {
@@ -605,27 +630,40 @@ async function filterChangedOptionalRecords(params: {
   }
 
   const variantsWithPrices = new Set<string>();
+  const variantsWithQuantityTiers = new Set<string>();
   const existingVariantIds = [...existingVariants.values()].map((variant) => variant.id);
 
   for (const variantIdChunk of chunkArray(existingVariantIds, QUERY_CHUNK_SIZE)) {
     const { data, error } = await params.supabaseAdmin
       .from("product_prices")
-      .select("variant_id")
+      .select("variant_id,source_price_field")
       .in("variant_id", variantIdChunk)
-      .returns<Array<{ variant_id: string | null }>>();
+      .returns<Array<{ variant_id: string | null; source_price_field: string | null }>>();
 
     if (error) throw new Error(error.message);
     for (const row of data ?? []) {
-      if (row.variant_id) variantsWithPrices.add(row.variant_id);
+      if (row.variant_id) {
+        variantsWithPrices.add(row.variant_id);
+        if (/^Price\d+$/.test(row.source_price_field ?? "")) {
+          variantsWithQuantityTiers.add(row.variant_id);
+        }
+      }
     }
   }
 
   for (const existing of existingVariants.values()) {
     const nextRecord = recordsBySku.get(existing.external_variant_id);
+    const expectsQuantityTiers = Array.from({ length: 10 }, (_, index) => index + 1)
+      .some((index) => {
+        const quantityMin = getRecordSlotNumber(nextRecord ?? {}, "MinQt", index);
+        const price = getRecordSlotNumber(nextRecord ?? {}, "Price", index);
+        return Boolean(quantityMin && quantityMin > 0 && price && price > 0);
+      });
     const unchanged =
       nextRecord &&
       !hasSupplierPayloadChanged(existing.supplier_payload, nextRecord) &&
-      variantsWithPrices.has(existing.id);
+      variantsWithPrices.has(existing.id) &&
+      (!expectsQuantityTiers || variantsWithQuantityTiers.has(existing.id));
 
     if (unchanged) {
       changedSkus.delete(existing.external_variant_id);
@@ -785,6 +823,7 @@ function buildPriceRows(params: {
   variantsBySku: Map<string, ImportedVariantRow>;
   productsById: Map<string, ProductRow>;
   pricingRules: PricingRule[];
+  existingPricesByTier: Map<string, ExistingProductPriceRow>;
 }): ProductPriceInsertRow[] {
   const rows: ProductPriceInsertRow[] = [];
   const calculatedAt = new Date().toISOString();
@@ -814,29 +853,29 @@ function buildPriceRows(params: {
       sourcePriceField: string;
     }[] = [];
 
-    if (yourPrice !== null && yourPrice > 0) {
+    for (let index = 1; index <= 10; index += 1) {
+      const quantityMin = getRecordSlotNumber(record, "MinQt", index);
+      const price = getRecordSlotNumber(record, "Price", index);
+
+      if (!quantityMin || quantityMin <= 0 || price === null || price <= 0) {
+        continue;
+      }
+
+      tiers.push({
+        quantityMin: Math.round(quantityMin),
+        quantityMax: null,
+        supplierPrice: price,
+        sourcePriceField: `Price${index}`,
+      });
+    }
+
+    if (tiers.length === 0 && yourPrice !== null && yourPrice > 0) {
       tiers.push({
         quantityMin: 1,
         quantityMax: null,
         supplierPrice: yourPrice,
         sourcePriceField: "YourPrice",
       });
-    } else {
-      for (let index = 1; index <= 10; index += 1) {
-        const quantityMin = getRecordSlotNumber(record, "MinQt", index);
-        const price = getRecordSlotNumber(record, "Price", index);
-
-        if (!quantityMin || quantityMin <= 0 || price === null || price <= 0) {
-          continue;
-        }
-
-        tiers.push({
-          quantityMin: Math.round(quantityMin),
-          quantityMax: null,
-          supplierPrice: price,
-          sourcePriceField: `Price${index}`,
-        });
-      }
     }
 
     tiers.sort((a, b) => a.quantityMin - b.quantityMin);
@@ -857,13 +896,36 @@ function buildPriceRows(params: {
         quantity: currentTier.quantityMin,
       });
 
-      const calculatedPrice = calculateProductSellingPrice({
+      const existingPrice = params.existingPricesByTier.get(
+        `${variant.id}:${currentTier.quantityMin}`,
+      );
+      const hasAdminOverride = Boolean(
+        existingPrice?.is_manual_override ||
+          (existingPrice?.pricing_mode &&
+            existingPrice.pricing_mode !== "automatic"),
+      );
+      const pricingMode: PricingMode = hasAdminOverride
+        ? existingPrice?.pricing_mode ?? "margin"
+        : "automatic";
+      const automaticMarginPercentage =
+        (pricingRule?.margin_rate ?? DEFAULT_MARGIN_RATE) * 100;
+      const calculatedPrice = calculateSellingPrice({
         supplierPrice: currentTier.supplierPrice,
-        marginRate: pricingRule?.margin_rate ?? DEFAULT_MARGIN_RATE,
-        markupRate: pricingRule?.markup_rate ?? null,
-        fixedFee: pricingRule?.fixed_fee ?? 0,
+        handlingCost: pricingRule?.fixed_fee ?? 0,
+        pricingMode,
+        automaticMarginPercentage,
+        marginPercentage: hasAdminOverride
+          ? existingPrice?.margin_percentage
+          : automaticMarginPercentage,
+        markupPercentage: hasAdminOverride
+          ? existingPrice?.markup_percentage
+          : pricingRule?.markup_rate
+            ? pricingRule.markup_rate * 100
+            : null,
+        fixedMarkup: hasAdminOverride ? existingPrice?.fixed_markup : null,
+        manualPrice: hasAdminOverride ? existingPrice?.manual_price : null,
         minimumProfit: pricingRule?.minimum_profit ?? 0,
-        roundingMode: pricingRule?.rounding_mode ?? "commercial_05",
+        roundingMode: "nearest_cent",
       });
 
       rows.push({
@@ -875,13 +937,17 @@ function buildPriceRows(params: {
         quantity_max: quantityMax,
         supplier_price: currentTier.supplierPrice,
         base_price: currentTier.supplierPrice,
-        margin_percentage: calculatedPrice.marginRate
-          ? Number((calculatedPrice.marginRate * 100).toFixed(4))
-          : 0,
-        margin_rate: calculatedPrice.marginRate,
-        markup_rate: calculatedPrice.markupRate,
-        fixed_fee: calculatedPrice.fixedFee,
-        minimum_profit: calculatedPrice.minimumProfit,
+        margin_percentage: Number(
+          calculatedPrice.marginPercentage.toFixed(4),
+        ),
+        margin_rate: Number(
+          (calculatedPrice.marginPercentage / 100).toFixed(6),
+        ),
+        markup_rate: Number(
+          (calculatedPrice.markupPercentage / 100).toFixed(6),
+        ),
+        fixed_fee: pricingRule?.fixed_fee ?? 0,
+        minimum_profit: pricingRule?.minimum_profit ?? 0,
         pricing_rule_id: pricingRule?.id ?? null,
         final_price: calculatedPrice.finalPrice,
         catalog_price: currentTier.supplierPrice,
@@ -895,11 +961,64 @@ function buildPriceRows(params: {
         source_price_field: currentTier.sourcePriceField,
         source_updated_at: calculatedAt,
         calculated_at: calculatedAt,
+        pricing_mode: pricingMode,
+        markup_percentage:
+          pricingMode === "markup"
+            ? existingPrice?.markup_percentage ?? null
+            : Number(calculatedPrice.markupPercentage.toFixed(4)),
+        fixed_markup:
+          pricingMode === "fixed_markup"
+            ? existingPrice?.fixed_markup ?? null
+            : null,
+        manual_price:
+          pricingMode === "manual"
+            ? existingPrice?.manual_price ?? null
+            : null,
+        is_manual_override: hasAdminOverride,
+        override_reason: hasAdminOverride
+          ? existingPrice?.override_reason ?? null
+          : null,
+        override_updated_at: hasAdminOverride
+          ? existingPrice?.override_updated_at ?? null
+          : null,
+        override_updated_by: hasAdminOverride
+          ? existingPrice?.override_updated_by ?? null
+          : null,
       });
     }
   }
 
   return rows;
+}
+
+async function fetchExistingProductPrices(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  variantIds: string[];
+}): Promise<Map<string, ExistingProductPriceRow>> {
+  const pricesByTier = new Map<string, ExistingProductPriceRow>();
+
+  for (const variantIdChunk of chunkArray(
+    Array.from(new Set(params.variantIds)),
+    QUERY_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_prices")
+      .select(
+        "variant_id,quantity_min,pricing_mode,margin_percentage,markup_percentage,fixed_markup,manual_price,is_manual_override,override_reason,override_updated_at,override_updated_by",
+      )
+      .in("variant_id", variantIdChunk)
+      .returns<ExistingProductPriceRow[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const price of data ?? []) {
+      pricesByTier.set(`${price.variant_id}:${price.quantity_min}`, price);
+    }
+  }
+
+  return pricesByTier;
 }
 
 function buildImageRows(params: {
@@ -1334,6 +1453,11 @@ export async function syncRestOptionals(params: {
 
     const variantIds = importedVariants.map((variant) => variant.id);
 
+    const existingPricesByTier = await fetchExistingProductPrices({
+      supabaseAdmin,
+      variantIds,
+    });
+
     if (variantIds.length > 0) {
       await deleteExistingVariantRelatedRows({
         supabaseAdmin,
@@ -1346,6 +1470,7 @@ export async function syncRestOptionals(params: {
       variantsBySku,
       productsById,
       pricingRules,
+      existingPricesByTier,
     });
 
     if (priceRows.length > 0) {

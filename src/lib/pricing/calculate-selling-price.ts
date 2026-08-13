@@ -216,7 +216,10 @@ export function calculateSellingPrice(
 ): SellingPriceResult {
   const supplierPrice = normaliseMoney(input.supplierPrice);
   const handlingCost = normaliseMoney(input.handlingCost);
-  const costPrice = roundToCent(supplierPrice + handlingCost);
+  // Os custos Stricker têm quatro casas decimais. Arredondar o custo antes de
+  // aplicar a margem altera o preço de venda e destrói diferenças entre
+  // escalões próximos; o arredondamento pertence apenas ao preço final.
+  const costPrice = supplierPrice + handlingCost;
 
   const automaticMarginPercentage = normalisePercentage(
     input.automaticMarginPercentage,
