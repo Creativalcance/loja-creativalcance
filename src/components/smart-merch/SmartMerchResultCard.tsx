@@ -37,7 +37,7 @@ export default function SmartMerchResultCard({ result }: { result: SmartMerchRes
           </div>
 
           <div className="mt-4 flex items-center text-xs font-medium text-neutral-600"><PackageCheck className="mr-2 h-4 w-4 text-emerald-600" />{result.availableStock.toLocaleString("pt-PT")} un. disponíveis</div>
-          <div className="mt-2 flex items-center text-xs font-medium text-neutral-600"><CalendarCheck2 className="mr-2 h-4 w-4 text-emerald-600" />Entrega estimada: {new Intl.DateTimeFormat("pt-PT").format(new Date(`${result.estimatedDeliveryDate}T12:00:00Z`))}</div>
+          <div className="mt-2 flex items-start text-xs font-medium text-neutral-600"><CalendarCheck2 className="mr-2 mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /><span>Entrega estimada: {new Intl.DateTimeFormat("pt-PT").format(new Date(`${result.estimatedDeliveryDate}T12:00:00Z`))}<span className="mt-0.5 block font-normal text-neutral-400">{result.deliveryIncludesPersonalization ? "Considera a personalização mais rápida disponível" : "Produto sem personalização incluída"}</span></span></div>
 
           <div className="mt-5 rounded-2xl bg-neutral-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Porque recomendamos</p>
