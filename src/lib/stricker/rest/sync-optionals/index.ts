@@ -530,6 +530,7 @@ async function fetchPricingRules(params: {
         id,
         supplier_id,
         scope,
+        price_type,
         category_name,
         product_id,
         variant_id,
@@ -545,6 +546,7 @@ async function fetchPricingRules(params: {
         is_active
       `,
     )
+    .eq("price_type", "product")
     .eq("is_active", true)
     .returns<PricingRule[]>();
 
