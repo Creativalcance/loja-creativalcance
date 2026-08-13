@@ -311,6 +311,7 @@ const UPSERT_CHUNK_SIZE = 500;
 const QUERY_CHUNK_SIZE = 400;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
+const DATABASE_WRITE_CONCURRENCY = 4;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {
   const chunks: TValue[][] = [];
@@ -333,6 +334,30 @@ function getNullableString(value: unknown): string | null {
   }
 
   return null;
+}
+
+async function mapWithConcurrency<TValue, TResult>(
+  values: TValue[],
+  concurrency: number,
+  mapper: (value: TValue, index: number) => Promise<TResult>,
+): Promise<TResult[]> {
+  const results = new Array<TResult>(values.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < values.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(values[currentIndex], currentIndex);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(concurrency, 1), values.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, () => worker()),
+  );
+
+  return results;
 }
 
 function getFirstListValue(value: unknown): string | null {
@@ -619,9 +644,11 @@ async function upsertVariants(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductVariantUpsertRow[];
 }): Promise<ImportedVariantRow[]> {
-  const variants: ImportedVariantRow[] = [];
-
-  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+  const chunks = chunkArray(params.rows, UPSERT_CHUNK_SIZE);
+  const chunkResults = await mapWithConcurrency(
+    chunks,
+    DATABASE_WRITE_CONCURRENCY,
+    async (rowChunk) => {
     const { data, error } = await params.supabaseAdmin
       .from("product_variants")
       .upsert(rowChunk, {
@@ -634,10 +661,11 @@ async function upsertVariants(params: {
       throw new Error(error.message);
     }
 
-    variants.push(...(data ?? []));
-  }
+      return data ?? [];
+    },
+  );
 
-  return variants;
+  return chunkResults.flat();
 }
 
 function buildVariantMap(
@@ -689,9 +717,11 @@ async function upsertVariantTranslations(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductVariantTranslationUpsertRow[];
 }): Promise<number> {
-  let importedCount = 0;
-
-  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+  const chunks = chunkArray(params.rows, UPSERT_CHUNK_SIZE);
+  const importedCounts = await mapWithConcurrency(
+    chunks,
+    DATABASE_WRITE_CONCURRENCY,
+    async (rowChunk) => {
     const { error } = await params.supabaseAdmin
       .from("product_variant_translations")
       .upsert(rowChunk, {
@@ -702,10 +732,11 @@ async function upsertVariantTranslations(params: {
       throw new Error(error.message);
     }
 
-    importedCount += rowChunk.length;
-  }
+      return rowChunk.length;
+    },
+  );
 
-  return importedCount;
+  return importedCounts.reduce((total, count) => total + count, 0);
 }
 
 function buildPriceRows(params: {
@@ -946,9 +977,11 @@ async function upsertComponents(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationComponentUpsertRow[];
 }): Promise<ImportedComponentRow[]> {
-  const components: ImportedComponentRow[] = [];
-
-  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+  const chunks = chunkArray(params.rows, UPSERT_CHUNK_SIZE);
+  const chunkResults = await mapWithConcurrency(
+    chunks,
+    DATABASE_WRITE_CONCURRENCY,
+    async (rowChunk) => {
     const { data, error } = await params.supabaseAdmin
       .from("product_customization_components")
       .upsert(rowChunk, {
@@ -961,10 +994,11 @@ async function upsertComponents(params: {
       throw new Error(error.message);
     }
 
-    components.push(...(data ?? []));
-  }
+      return data ?? [];
+    },
+  );
 
-  return components;
+  return chunkResults.flat();
 }
 
 function buildComponentMap(
@@ -1111,34 +1145,43 @@ async function deleteExistingVariantRelatedRows(params: {
   variantIds: string[];
 }): Promise<void> {
   const uniqueVariantIds = Array.from(new Set(params.variantIds));
+  const chunks = chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE);
 
-  for (const variantIdChunk of chunkArray(uniqueVariantIds, QUERY_CHUNK_SIZE)) {
-    const { error: pricesError } = await params.supabaseAdmin
-      .from("product_prices")
-      .delete()
-      .in("variant_id", variantIdChunk);
+  await mapWithConcurrency(
+    chunks,
+    DATABASE_WRITE_CONCURRENCY,
+    async (variantIdChunk) => {
+      const [pricesResult, imagesResult] = await Promise.all([
+        params.supabaseAdmin
+          .from("product_prices")
+          .delete()
+          .in("variant_id", variantIdChunk),
+        params.supabaseAdmin
+          .from("product_images")
+          .delete()
+          .in("variant_id", variantIdChunk)
+          .eq("image_type", "variant"),
+      ]);
 
-    if (pricesError) {
-      throw new Error(pricesError.message);
-    }
+      if (pricesResult.error) {
+        throw new Error(pricesResult.error.message);
+      }
 
-    const { error: imagesError } = await params.supabaseAdmin
-      .from("product_images")
-      .delete()
-      .in("variant_id", variantIdChunk)
-      .eq("image_type", "variant");
-
-    if (imagesError) {
-      throw new Error(imagesError.message);
-    }
-  }
+      if (imagesResult.error) {
+        throw new Error(imagesResult.error.message);
+      }
+    },
+  );
 }
 
 async function insertPrices(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductPriceInsertRow[];
 }): Promise<void> {
-  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+  await mapWithConcurrency(
+    chunkArray(params.rows, UPSERT_CHUNK_SIZE),
+    DATABASE_WRITE_CONCURRENCY,
+    async (rowChunk) => {
     const { error } = await params.supabaseAdmin
       .from("product_prices")
       .insert(rowChunk);
@@ -1146,14 +1189,18 @@ async function insertPrices(params: {
     if (error) {
       throw new Error(error.message);
     }
-  }
+    },
+  );
 }
 
 async function insertImages(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductImageInsertRow[];
 }): Promise<void> {
-  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+  await mapWithConcurrency(
+    chunkArray(params.rows, UPSERT_CHUNK_SIZE),
+    DATABASE_WRITE_CONCURRENCY,
+    async (rowChunk) => {
     const { error } = await params.supabaseAdmin
       .from("product_images")
       .insert(rowChunk);
@@ -1161,14 +1208,18 @@ async function insertImages(params: {
     if (error) {
       throw new Error(error.message);
     }
-  }
+    },
+  );
 }
 
 async function upsertLocations(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationLocationUpsertRow[];
 }): Promise<void> {
-  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+  await mapWithConcurrency(
+    chunkArray(params.rows, UPSERT_CHUNK_SIZE),
+    DATABASE_WRITE_CONCURRENCY,
+    async (rowChunk) => {
     const { error } = await params.supabaseAdmin
       .from("product_customization_locations")
       .upsert(rowChunk, {
@@ -1178,7 +1229,8 @@ async function upsertLocations(params: {
     if (error) {
       throw new Error(error.message);
     }
-  }
+    },
+  );
 }
 
 export async function syncRestOptionals(params: {
