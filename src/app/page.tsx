@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import SiteHeader from "@/components/layout/SiteHeader";
+import SmartMerchSearchForm from "@/components/smart-merch/SmartMerchSearchForm";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -513,22 +514,25 @@ export default async function HomePage() {
       <main className="min-h-screen bg-neutral-950 text-white">
         <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-14 lg:pb-12 lg:pt-16">
           <div className="max-w-5xl">
-            <p className="mb-5 inline-flex rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
-              Loja Creativ — Brindes e Gifts com e sem personalização
+            <p className="mb-5 inline-flex items-center rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
+              <Sparkles className="mr-2 h-4 w-4" />
+              360 Smart Merch — A forma inteligente de comprar merchandising
             </p>
 
             <h1 className="text-5xl font-semibold tracking-tight text-white md:text-7xl">
-              Brindes promocionais e merchandising corporativo com compra
-              directa online.
+              Encontre o merchandising certo em segundos.
             </h1>
 
             <p className="mt-8 max-w-2xl text-lg leading-8 text-white/70">
-              Compra produtos personalizados, merchandising, vestuário
-              promocional e gifts empresariais de forma simples, rápida e
-              orientada à encomenda online.
+              Diga-nos o que precisa, quantas unidades pretende, quanto quer
+              gastar e quando precisa de receber.
             </p>
 
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+            <div className="mt-10 max-w-4xl">
+              <SmartMerchSearchForm />
+            </div>
+
+            <div className="mt-6 flex flex-col gap-4 sm:flex-row">
               <Link
                 href="/categorias"
                 className="inline-flex items-center justify-center rounded-full border border-white/30 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/60 hover:!bg-white/10"
