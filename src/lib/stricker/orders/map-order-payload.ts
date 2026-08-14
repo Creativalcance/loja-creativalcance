@@ -111,28 +111,6 @@ function normalizeCourier(
   return "Economy";
 }
 
-function formatShippingDate(value: string | null): string {
-  if (!value) {
-    return "";
-  }
-
-  const parsedDate = new Date(value);
-
-  if (Number.isNaN(parsedDate.getTime())) {
-    return value;
-  }
-
-  const year = parsedDate.getUTCFullYear();
-  const month = String(
-    parsedDate.getUTCMonth() + 1,
-  ).padStart(2, "0");
-  const day = String(
-    parsedDate.getUTCDate(),
-  ).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
 function getItemSku(
   item: StrickerOrderDatabaseItem,
 ): string | null {
@@ -559,10 +537,7 @@ export function mapOrderToStricker(
 
     relatedOrderStamp: null,
 
-    shippingDate:
-      formatShippingDate(
-        order.requested_shipping_date,
-      ) || null,
+    shippingDate: null,
 
     noShipping: order.no_shipping,
 
