@@ -153,10 +153,10 @@ function getStatusLabel(status: string): string {
       return "Em processamento";
 
     case "sent_to_supplier":
-      return "Enviada à Stricker";
+      return "Enviada ao fornecedor";
 
     case "supplier_confirmed":
-      return "Confirmada pela Stricker";
+      return "Confirmada pelo fornecedor";
 
     case "in_production":
       return "Em produção";
@@ -850,7 +850,7 @@ export async function updateOrderCommercialDataAction(
     const orderId = getRequiredFormString(formData, "orderId");
     const supplierCost = Number(String(formData.get("supplierCostTotal") ?? "0").replace(",", "."));
     const supplierInvoiceUrl = getFormString(formData, "supplierInvoiceUrl");
-    if (!Number.isFinite(supplierCost) || supplierCost < 0) return { success:false, message:"O custo Stricker não é válido." };
+    if (!Number.isFinite(supplierCost) || supplierCost < 0) return { success:false, message:"O custo do fornecedor não é válido." };
     if (!isValidHttpUrl(supplierInvoiceUrl)) return { success:false, message:"A ligação da fatura de compra não é válida." };
     const payload = {
       customer_name: getRequiredFormString(formData, "customerName"),

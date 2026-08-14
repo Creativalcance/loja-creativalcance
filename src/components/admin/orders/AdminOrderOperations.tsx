@@ -138,11 +138,11 @@ export function AdminOrderStatusForm({
           </option>
 
           <option value="sent_to_supplier">
-            Enviada à Stricker
+            Enviada ao fornecedor
           </option>
 
           <option value="supplier_confirmed">
-            Confirmada pela Stricker
+            Confirmada pelo fornecedor
           </option>
 
           <option value="in_production">
@@ -273,7 +273,7 @@ export function AdminTrackingForm({
           name="shippingCarrier"
           type="text"
           defaultValue={shippingCarrier ?? ""}
-          placeholder="Ex.: DHL, DPD, UPS ou transportadora Stricker"
+          placeholder="Ex.: DHL, DPD, UPS ou transportadora do fornecedor"
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
         />
       </div>
@@ -652,11 +652,11 @@ export function AdminOrderOperations({
 
           <div>
             <p className="text-sm font-semibold text-blue-950">
-              Submissão Stricker automática
+              Submissão automática ao fornecedor
             </p>
 
             <p className="mt-1 text-sm leading-6 text-blue-800">
-              O estado Stricker não é alterado manualmente neste painel.
+              O estado do fornecedor não é alterado manualmente neste painel.
               A plataforma deve submeter automaticamente a encomenda após
               confirmar o pagamento e validar todos os requisitos técnicos.
             </p>

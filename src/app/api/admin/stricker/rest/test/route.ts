@@ -140,7 +140,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: false,
-          message: "Dataset Stricker inválido.",
+          message: "Dataset do fornecedor inválido.",
         },
         { status: 400 },
       );
@@ -150,7 +150,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: false,
-          message: "Idioma Stricker inválido.",
+          message: "Idioma do fornecedor inválido.",
         },
         { status: 400 },
       );
@@ -160,7 +160,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: false,
-          message: "País Stricker inválido.",
+          message: "País do fornecedor inválido.",
         },
         { status: 400 },
       );
@@ -184,7 +184,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       success: true,
-      message: "Ligação REST Stricker testada com sucesso.",
+      message: "Ligação REST ao fornecedor testada com sucesso.",
       dataset: datasetRaw,
       lang: langRaw,
       country: datasetRaw === "stocksByCountry" ? countryRaw : null,
@@ -200,7 +200,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado no teste REST Stricker.",
+            : "Erro inesperado no teste REST do fornecedor.",
       },
       { status: 500 },
     );

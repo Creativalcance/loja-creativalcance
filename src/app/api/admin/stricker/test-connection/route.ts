@@ -21,7 +21,7 @@ async function testRestAuthentication(): Promise<TestResult> {
 
     return {
       success: true,
-      message: "Autenticação REST Stricker validada com sucesso.",
+      message: "Autenticação REST do fornecedor validada com sucesso.",
     };
   } catch (error) {
     return {
@@ -29,7 +29,7 @@ async function testRestAuthentication(): Promise<TestResult> {
       message:
         error instanceof Error
           ? error.message
-          : "Erro inesperado na autenticação REST Stricker.",
+          : "Erro inesperado na autenticação REST do fornecedor.",
     };
   }
 }
@@ -57,7 +57,7 @@ async function testDirectDownload(): Promise<TestResult> {
 
     return {
       success: true,
-      message: "Direct download Stricker validado com sucesso.",
+      message: "Direct download do fornecedor validado com sucesso.",
       details: {
         dataset: "colors",
         language: config.defaultLanguage,
@@ -72,7 +72,7 @@ async function testDirectDownload(): Promise<TestResult> {
       message:
         error instanceof Error
           ? error.message
-          : "Erro inesperado no direct download Stricker.",
+          : "Erro inesperado no direct download do fornecedor.",
     };
   }
 }
@@ -91,8 +91,8 @@ export async function GET(): Promise<NextResponse> {
       success,
       message:
         success
-          ? "Todas as vias de ligação Stricker foram validadas."
-          : "Uma ou mais vias de ligação Stricker falharam.",
+          ? "Todas as vias de ligação ao fornecedor foram validadas."
+          : "Uma ou mais vias de ligação ao fornecedor falharam.",
       rest,
       direct_download: directDownload,
       recommendation:
@@ -101,7 +101,7 @@ export async function GET(): Promise<NextResponse> {
           : !rest.success && directDownload.success
             ? "O direct download funciona; confirme as credenciais da autenticação REST."
             : !success
-              ? "Confirme as credenciais e a configuração das duas vias Stricker."
+              ? "Confirme as credenciais e a configuração das duas vias do fornecedor."
               : "As duas vias estão operacionais.",
     });
   } catch (error) {
@@ -111,7 +111,7 @@ export async function GET(): Promise<NextResponse> {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao testar ligação Stricker.",
+            : "Erro inesperado ao testar a ligação ao fornecedor.",
       },
       {
         status: 500,

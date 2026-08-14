@@ -70,7 +70,7 @@ export default function AdminPriceEditForm({
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl bg-neutral-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
-            Custo Stricker
+            Custo do fornecedor
           </p>
 
           <p className="mt-2 text-lg font-semibold text-neutral-950">

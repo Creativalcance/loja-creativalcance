@@ -5,7 +5,6 @@ import {
   CalendarDays,
   Check,
   PackageCheck,
-  Store,
   Truck,
 } from "lucide-react";
 import {
@@ -80,7 +79,9 @@ export default function CheckoutShippingForm({
 }: CheckoutShippingFormProps) {
   const [shippingMethod, setShippingMethod] =
     useState<CheckoutShippingMethod>(
-      initialShippingMethod ?? "store_transport",
+      initialShippingMethod === "customer_transport"
+        ? "customer_transport"
+        : "store_transport",
     );
 
   const [acceptsDeliveryAfterDate, setAcceptsDeliveryAfterDate] =
@@ -310,76 +311,6 @@ export default function CheckoutShippingForm({
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setShippingMethod("pickup")}
-            className={`rounded-3xl border p-5 text-left transition ${
-              shippingMethod === "pickup"
-                ? "border-neutral-950 bg-neutral-950 text-white"
-                : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-5">
-              <div className="flex items-start gap-4">
-                <div
-                  className={`rounded-2xl p-3 ${
-                    shippingMethod === "pickup"
-                      ? "bg-white/10"
-                      : "bg-neutral-100"
-                  }`}
-                >
-                  <Store
-                    className={`h-5 w-5 ${
-                      shippingMethod === "pickup"
-                        ? "text-white"
-                        : "text-neutral-600"
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <p className="font-semibold">
-                    Recolha em ponto a confirmar
-                  </p>
-
-                  <p
-                    className={`mt-2 text-sm leading-6 ${
-                      shippingMethod === "pickup"
-                        ? "text-neutral-300"
-                        : "text-neutral-500"
-                    }`}
-                  >
-                    A equipa entra em contacto para confirmar o
-                    local e a disponibilidade para recolha.
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
-                  shippingMethod === "pickup"
-                    ? "border-white bg-white text-neutral-950"
-                    : "border-neutral-300 bg-white text-transparent"
-                }`}
-              >
-                <Check className="h-4 w-4" />
-              </div>
-            </div>
-
-            <div
-              className={`mt-5 flex items-center justify-between border-t pt-4 ${
-                shippingMethod === "pickup"
-                  ? "border-white/10"
-                  : "border-neutral-200"
-              }`}
-            >
-              <span className="text-sm">Custo</span>
-
-              <span className="font-semibold">
-                {formatPrice(0, currency)}
-              </span>
-            </div>
-          </button>
         </div>
       </section>
 

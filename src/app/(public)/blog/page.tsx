@@ -140,7 +140,7 @@ export default function BlogPage() {
           </h2>
 
           <p className="mt-3 max-w-3xl text-white/70">
-            Depois de estabilizarmos checkout, encomendas e integração Stricker,
+            Depois de estabilizarmos checkout, encomendas e integração com o fornecedor,
             esta área deverá receber artigos programáticos para dominar pesquisas
             como brindes promocionais, merchandising corporativo, brindes
             personalizados, gifts empresariais e vestuário promocional.

@@ -305,7 +305,7 @@ export async function updateAdminSupplierStatusAction(
 
     return {
       success: true,
-      message: "Estado Stricker atualizado.",
+      message: "Estado do fornecedor atualizado.",
     };
   } catch (error) {
     return {
@@ -313,7 +313,7 @@ export async function updateAdminSupplierStatusAction(
       message:
         error instanceof Error
           ? error.message
-          : "Não foi possível atualizar o estado Stricker.",
+          : "Não foi possível atualizar o estado do fornecedor.",
     };
   }
 }

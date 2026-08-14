@@ -50,7 +50,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: false,
-          message: "Idioma Stricker inválido.",
+          message: "Idioma do fornecedor inválido.",
         },
         { status: 400 },
       );
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json({
       success: true,
-      message: "Produtos Stricker sincronizados com sucesso.",
+      message: "Produtos do fornecedor sincronizados com sucesso.",
       ...result,
     });
   } catch (error) {

@@ -116,25 +116,25 @@ const ACTIONS: SyncActionCard[] = [
     action: "colors",
     title: "Sincronizar cores",
     description:
-      "Importa cores da Stricker via REST para supplier_colors.",
+      "Importa cores do fornecedor via REST para supplier_colors.",
   },
   {
     action: "productTypes",
     title: "Sincronizar tipos",
     description:
-      "Importa tipos e subtipos da Stricker via REST para supplier_catalog_categories e category_translations.",
+      "Importa tipos e subtipos do fornecedor via REST para supplier_catalog_categories e category_translations.",
   },
   {
     action: "productsTree",
     title: "Sincronizar árvore de produtos",
     description:
-      "Importa a estrutura hierárquica da Stricker para as categorias e subcategorias do catálogo.",
+      "Importa a estrutura hierárquica do fornecedor para as categorias e subcategorias do catálogo.",
   },
   {
     action: "products",
     title: "Sincronizar produtos",
     description:
-      "Importa produtos base da Stricker via REST para products, product_translations e product_images.",
+      "Importa produtos base do fornecedor via REST para products, product_translations e product_images.",
   },
   {
     action: "optionals",
@@ -152,7 +152,7 @@ const ACTIONS: SyncActionCard[] = [
     action: "printingSlas",
     title: "Sincronizar prazos de produção",
     description:
-      "Importa os SLA de produção Stricker por técnica, quantidade e armazém.",
+      "Importa os SLA de produção do fornecedor por técnica, quantidade e armazém.",
   },
   {
     action: "customizationOptions",
@@ -176,13 +176,13 @@ const ACTIONS: SyncActionCard[] = [
     action: "canceledProducts",
     title: "Sincronizar cancelados",
     description:
-      "Importa os artigos retirados do catálogo comercial pela Stricker.",
+      "Importa os artigos retirados do catálogo comercial pelo fornecedor.",
   },
   {
     action: "restrictedProducts",
     title: "Sincronizar restrições PT",
     description:
-      "Importa os artigos que a Stricker não permite vender em Portugal.",
+      "Importa os artigos que o fornecedor não permite vender em Portugal.",
   },
   {
     action: "reconcileAvailability",
@@ -552,7 +552,7 @@ export default function StrickerRestCatalogSyncActions() {
       <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-start">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            Stricker REST
+            Fornecedor REST
           </p>
 
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">

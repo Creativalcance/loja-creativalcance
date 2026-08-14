@@ -826,7 +826,7 @@ export async function addToCartAction(
       if (!safeTableCode) {
         return {
           success: false,
-          message: "A maquete não contém uma tabela Stricker válida.",
+          message: "A maquete não contém uma tabela válida do fornecedor.",
         };
       }
 

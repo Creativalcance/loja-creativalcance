@@ -100,7 +100,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: false,
-          message: "Idioma Stricker inválido.",
+          message: "Idioma do fornecedor inválido.",
         },
         { status: 400 },
       );
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       success: true,
       message: hasPendingRecords
         ? `Sincronização concluída com ${result.optionsFailed} opção pendente neste lote.`
-        : "Opções de personalização Stricker sincronizadas com sucesso.",
+        : "Opções de personalização do fornecedor sincronizadas com sucesso.",
       ...result,
     });
   } catch (error) {

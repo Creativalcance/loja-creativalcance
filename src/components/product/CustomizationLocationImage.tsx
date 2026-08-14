@@ -335,7 +335,7 @@ function CustomizationLocationImageContent({
 
         {artworkUrl && printArea ? (
           <div
-            aria-label="Área de personalização definida pela Stricker"
+            aria-label="Área de personalização definida pelo fornecedor"
             className="pointer-events-none absolute overflow-hidden"
             style={{
               left: `${printArea.left}%`,

@@ -698,7 +698,7 @@ export async function syncRestCatalogDataset(params: {
       errors: [
         error instanceof Error
           ? error.message
-          : "Erro inesperado na sincronização REST Stricker.",
+          : "Erro inesperado na sincronização REST do fornecedor.",
       ],
     });
 

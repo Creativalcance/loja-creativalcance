@@ -37,7 +37,7 @@ export async function GET(
     const message =
       error instanceof Error
         ? error.message
-        : "Erro inesperado na sincronização automática Stricker.";
+        : "Erro inesperado na sincronização automática do fornecedor.";
     const status = message.includes("não autorizado") ? 401 : 500;
 
     return NextResponse.json(
@@ -46,4 +46,3 @@ export async function GET(
     );
   }
 }
-

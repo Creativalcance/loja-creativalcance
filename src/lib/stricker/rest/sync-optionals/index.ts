@@ -1537,7 +1537,7 @@ export async function syncRestOptionals(params: {
       changedRecords.length === 0 || importedVariants.length > 0
         ? []
         : [
-            "Optionals recebidos da Stricker, mas nenhum produto correspondente foi encontrado em products.",
+            "Optionals recebidos do fornecedor, mas nenhum produto correspondente foi encontrado em products.",
           ];
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });

@@ -559,8 +559,8 @@ export default async function AdminPricesPage({
             </h1>
 
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
-              Compare o custo original importado da
-              Stricker com o preço apresentado pela
+              Compare o custo original importado do
+              fornecedor com o preço apresentado pela
               Loja Creativ e altere a regra comercial
               aplicada a cada escalão.
             </p>
@@ -730,7 +730,7 @@ export default async function AdminPricesPage({
 
                     <div>
                       <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-                        Stricker
+                        Fornecedor
                       </p>
 
                       <p className="mt-1 font-semibold text-neutral-950">
@@ -916,7 +916,7 @@ export default async function AdminPricesPage({
 
                     <div>
                       <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-                        Stricker
+                        Fornecedor
                       </p>
 
                       <p className="mt-1 font-semibold text-neutral-950">
@@ -1092,7 +1092,7 @@ export default async function AdminPricesPage({
 
             <p className="mt-2 text-sm text-neutral-600">
               Altere os termos de pesquisa ou confirme se
-              os dados da Stricker já foram sincronizados.
+              os dados do fornecedor já foram sincronizados.
             </p>
           </div>
         ) : null}

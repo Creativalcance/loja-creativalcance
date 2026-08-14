@@ -44,7 +44,6 @@ type ShippingCalculation = {
 const ALLOWED_SHIPPING_METHODS = new Set<ShippingMethod>([
   "store_transport",
   "customer_transport",
-  "pickup",
 ]);
 
 function getRequiredString(formData: FormData, key: string): string {
@@ -114,18 +113,6 @@ function calculateShipping(params: {
     return {
       method: "customer_transport",
       methodName: "Transporte organizado pelo cliente",
-      provider: null,
-      originCountryCode: "PT",
-      estimatedDaysMin: null,
-      estimatedDaysMax: null,
-      shippingTotal: 0,
-    };
-  }
-
-  if (params.method === "pickup") {
-    return {
-      method: "pickup",
-      methodName: "Recolha em ponto a confirmar",
       provider: null,
       originCountryCode: "PT",
       estimatedDaysMin: null,

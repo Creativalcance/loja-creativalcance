@@ -26,7 +26,7 @@ const adminModules: AdminModule[] = [
   {
     title: "Sincronização",
     description:
-      "Acompanhar integrações com fornecedores, batches, logs e estado da Stricker.",
+      "Acompanhar integrações com fornecedores, batches, logs e estado da sincronização.",
     href: "/admin/sincronizacao",
     icon: ServerCog,
   },
@@ -54,7 +54,7 @@ const adminModules: AdminModule[] = [
   {
     title: "Encomendas",
     description:
-      "Acompanhar pagamentos, maquetes, produção, submissão à Stricker, expedição e faturação.",
+      "Acompanhar pagamentos, maquetes, produção, submissão ao fornecedor, expedição e faturação.",
     href: "/admin/encomendas",
     icon: ShoppingBag,
   },
@@ -104,7 +104,7 @@ export default async function AdminPage() {
             </h1>
 
             <p className="mt-4 max-w-2xl text-white/60">
-              Gestão de produtos, fornecedores, sincronização Stricker,
+              Gestão de produtos, fornecedores, sincronização do catálogo,
               clientes, encomendas, pagamentos, preços e operação comercial.
             </p>
           </div>
@@ -184,7 +184,7 @@ export default async function AdminPage() {
               <div>
                 <h2 className="text-xl font-semibold">Notificações operacionais</h2>
                 <p className="mt-1 text-sm text-white/55">
-                  Submissões à Stricker e respetivo estado do email.
+                  Submissões ao fornecedor e respetivo estado do email.
                 </p>
               </div>
             </div>

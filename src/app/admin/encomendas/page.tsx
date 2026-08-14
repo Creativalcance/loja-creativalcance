@@ -123,11 +123,11 @@ const ORDER_STATUS_OPTIONS = [
   },
   {
     value: "sent_to_supplier",
-    label: "Enviada à Stricker",
+    label: "Enviada ao fornecedor",
   },
   {
     value: "supplier_confirmed",
-    label: "Confirmada pela Stricker",
+    label: "Confirmada pelo fornecedor",
   },
   {
     value: "in_production",
@@ -189,7 +189,7 @@ const PAYMENT_STATUS_OPTIONS = [
 const SUPPLIER_STATUS_OPTIONS = [
   {
     value: "",
-    label: "Todos os estados Stricker",
+    label: "Todos os estados do fornecedor",
   },
   {
     value: "not_submitted",
@@ -311,10 +311,10 @@ function getStatusLabel(
       return "Em processamento";
 
     case "sent_to_supplier":
-      return "Enviada à Stricker";
+      return "Enviada ao fornecedor";
 
     case "supplier_confirmed":
-      return "Confirmada pela Stricker";
+      return "Confirmada pelo fornecedor";
 
     case "in_production":
       return "Em produção";
@@ -818,7 +818,7 @@ export default async function AdminOrdersPage({
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
               Acompanhe pagamentos, produtos,
               personalizações, aprovação de artes,
-              submissão automática à Stricker,
+              submissão automática ao fornecedor,
               produção, expedição, tracking e
               faturação.
             </p>
@@ -857,7 +857,7 @@ export default async function AdminOrdersPage({
           />
 
           <StatisticsCard
-            label="Erros Stricker"
+            label="Erros do fornecedor"
             value={statistics.supplierErrors}
             description="Submissões que exigem atenção."
             icon={AlertTriangle}
@@ -886,8 +886,8 @@ export default async function AdminOrdersPage({
 
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <FinancialCard label="Faturação paga" value={statistics.revenue} description="Total de encomendas com pagamento confirmado." />
-          <FinancialCard label="Custos Stricker" value={statistics.supplierCosts} description="Valores de compra registados nas encomendas." />
-          <FinancialCard label="Margem bruta" value={statistics.margin} description="Faturação paga menos os custos Stricker registados." />
+          <FinancialCard label="Custos do fornecedor" value={statistics.supplierCosts} description="Valores de compra registados nas encomendas." />
+          <FinancialCard label="Margem bruta" value={statistics.margin} description="Faturação paga menos os custos do fornecedor registados." />
         </div>
 
         <form
@@ -1062,7 +1062,7 @@ export default async function AdminOrdersPage({
                     <p>
                       {hasPaymentError
                         ? "O pagamento desta encomenda falhou."
-                        : "A submissão desta encomenda à Stricker requer atenção."}
+                        : "A submissão desta encomenda ao fornecedor requer atenção."}
                     </p>
                   </div>
                 ) : null}
@@ -1168,7 +1168,7 @@ export default async function AdminOrdersPage({
 
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
-                      Stricker
+                      Fornecedor
                     </p>
 
                     <div className="mt-2">

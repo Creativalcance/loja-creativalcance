@@ -48,7 +48,7 @@ function buildEmailContent(params: {
 }): { subject: string; html: string; text: string } {
   const { order, supplierOrderStamp } = params;
   const modeLabel = order.supplier_test_mode ? "TESTE" : "PRODUÇÃO";
-  const subject = `${order.supplier_test_mode ? "[TESTE] " : ""}Encomenda ${order.order_number} submetida à Stricker`;
+  const subject = `${order.supplier_test_mode ? "[TESTE] " : ""}Encomenda ${order.order_number} submetida ao fornecedor`;
   const orderUrl = `${getSiteUrl()}/admin/encomendas/${encodeURIComponent(order.id)}`;
   const totalQuantity = order.order_items.reduce(
     (total, item) => total + Number(item.quantity || 0),
@@ -72,7 +72,7 @@ function buildEmailContent(params: {
     .join("");
 
   const text = [
-    "Encomenda submetida à Stricker",
+    "Encomenda submetida ao fornecedor",
     `Modo: ${modeLabel}`,
     `Encomenda: ${order.order_number}`,
     `OrderStamp: ${supplierOrderStamp}`,
@@ -93,7 +93,7 @@ function buildEmailContent(params: {
     <div style="max-width:680px;margin:0 auto;padding:32px 16px;">
       <div style="background:#171717;color:#fff;border-radius:18px 18px 0 0;padding:24px 28px;">
         <div style="font-size:12px;letter-spacing:2px;color:#bdbdbd;">360 MERCHANDISING · ${modeLabel}</div>
-        <h1 style="font-size:24px;margin:12px 0 0;">Encomenda submetida à Stricker</h1>
+        <h1 style="font-size:24px;margin:12px 0 0;">Encomenda submetida ao fornecedor</h1>
       </div>
       <div style="background:#fff;border-radius:0 0 18px 18px;padding:28px;">
         <p style="margin-top:0;">A encomenda <strong>${escapeHtml(order.order_number)}</strong> foi submetida com sucesso ao fornecedor.</p>
@@ -146,7 +146,7 @@ async function ensureNotification(params: {
         event_key: eventKey,
         event_type: "stricker_order_submitted",
         order_id: params.order.id,
-        title: `Encomenda ${params.order.order_number} submetida à Stricker`,
+        title: `Encomenda ${params.order.order_number} submetida ao fornecedor`,
         message: `${totalQuantity} unidades · ${params.supplierOrderStamp}${params.order.supplier_test_mode ? " · modo teste" : ""}`,
         metadata,
         email_to: params.emailTo,

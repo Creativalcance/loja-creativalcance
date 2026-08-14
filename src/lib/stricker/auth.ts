@@ -74,7 +74,7 @@ export async function getStrickerSupplierId(): Promise<string> {
   }
 
   if (!supplier) {
-    throw new Error("Fornecedor Stricker não encontrado com slug 'stricker'.");
+    throw new Error("Fornecedor configurado não encontrado.");
   }
 
   return supplier.id;
@@ -95,7 +95,7 @@ url.searchParams.set("accessKey", config.accessKey);
   });
 
   if (!response.ok) {
-    throw new Error(`Erro HTTP Stricker AuthenticateClient: ${response.status}`);
+    throw new Error(`Erro HTTP do fornecedor ao autenticar: ${response.status}`);
   }
 
   const payload = (await response.json()) as StrickerAuthResponse;

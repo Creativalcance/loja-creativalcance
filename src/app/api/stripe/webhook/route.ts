@@ -759,7 +759,7 @@ async function submitOrderAfterPayment(
       success: true,
       status: "already_submitted",
       message:
-        "A encomenda já tinha sido submetida à Stricker.",
+        "A encomenda já tinha sido submetida ao fornecedor.",
     };
   }
 
@@ -770,7 +770,7 @@ async function submitOrderAfterPayment(
     previousStatus,
     newStatus: previousStatus,
     notes:
-      "Pagamento validado. Iniciada a submissão automática da encomenda à Stricker.",
+      "Pagamento validado. Iniciada a submissão automática da encomenda ao fornecedor.",
     metadata: {
       source: "stripe_webhook",
       action: "supplier_submission_started",
@@ -815,10 +815,10 @@ async function submitOrderAfterPayment(
           ? "sent_to_supplier"
           : previousStatus),
       notes: isSuccessful
-        ? "Encomenda submetida automaticamente à Stricker."
+        ? "Encomenda submetida automaticamente ao fornecedor."
         : isPartial
-          ? "Encomenda submetida parcialmente à Stricker."
-          : "A submissão à Stricker terminou com um estado não conclusivo.",
+          ? "Encomenda submetida parcialmente ao fornecedor."
+          : "A submissão ao fornecedor terminou com um estado não conclusivo.",
       metadata: {
         source: "stripe_webhook",
         action: "supplier_submission_finished",
@@ -834,7 +834,7 @@ async function submitOrderAfterPayment(
         success: true,
         status: "submitted",
         message:
-          "Encomenda submetida automaticamente à Stricker.",
+          "Encomenda submetida automaticamente ao fornecedor.",
       };
     }
 
@@ -844,7 +844,7 @@ async function submitOrderAfterPayment(
         status: "partially_submitted",
         message:
           updatedOrder?.supplier_submission_error ??
-          "A encomenda foi submetida parcialmente à Stricker.",
+          "A encomenda foi submetida parcialmente ao fornecedor.",
       };
     }
 
@@ -853,13 +853,13 @@ async function submitOrderAfterPayment(
       status: "failed",
       message:
         updatedOrder?.supplier_submission_error ??
-        "A submissão à Stricker não ficou concluída.",
+        "A submissão ao fornecedor não ficou concluída.",
     };
   } catch (error) {
     const errorMessage =
       error instanceof Error
         ? error.message
-        : "Erro inesperado durante a submissão à Stricker.";
+        : "Erro inesperado durante a submissão ao fornecedor.";
 
     await supabaseAdmin
       .from("orders")
@@ -886,7 +886,7 @@ async function submitOrderAfterPayment(
       previousStatus,
       newStatus: previousStatus,
       notes:
-        "O pagamento foi confirmado, mas a submissão automática à Stricker falhou.",
+        "O pagamento foi confirmado, mas a submissão automática ao fornecedor falhou.",
       metadata: {
         source: "stripe_webhook",
         action: "supplier_submission_failed",
@@ -1237,7 +1237,7 @@ export async function POST(request: Request) {
 
           if (!supplierResult.success) {
             console.error(
-              "Pagamento confirmado, mas submissão à Stricker não concluída:",
+              "Pagamento confirmado, mas submissão ao fornecedor não concluída:",
               supplierResult,
             );
           }
@@ -1260,7 +1260,7 @@ export async function POST(request: Request) {
 
         if (!supplierResult.success) {
           console.error(
-            "Pagamento assíncrono confirmado, mas submissão à Stricker não concluída:",
+            "Pagamento assíncrono confirmado, mas submissão ao fornecedor não concluída:",
             supplierResult,
           );
         }
@@ -1284,7 +1284,7 @@ export async function POST(request: Request) {
 
         if (!supplierResult.success) {
           console.error(
-            "Payment Intent confirmado, mas submissão à Stricker não concluída:",
+            "Payment Intent confirmado, mas submissão ao fornecedor não concluída:",
             supplierResult,
           );
         }

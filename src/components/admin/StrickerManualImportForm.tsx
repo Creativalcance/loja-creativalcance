@@ -92,11 +92,11 @@ export default function StrickerManualImportForm() {
         </p>
 
         <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-          Importar XML/CSV Stricker
+          Importar XML/CSV do fornecedor
         </h2>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
-          Carrega ficheiros exportados manualmente pela Stricker. O sistema
+          Carrega ficheiros exportados manualmente pelo fornecedor. O sistema
           guarda o ficheiro, regista a importação e cria uma pré-análise para
           posterior normalização.
         </p>

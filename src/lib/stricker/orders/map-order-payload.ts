@@ -439,7 +439,7 @@ export function validateOrderForStricker(
         field: "supplier_sku",
         orderItemId: item.id,
         message:
-          `O produto "${item.product_name}" não possui SKU Stricker.`,
+          `O produto "${item.product_name}" não possui SKU do fornecedor.`,
       });
     }
 
@@ -463,7 +463,7 @@ export function validateOrderForStricker(
           field: "service_code",
           orderItemId: item.id,
           message:
-            `A personalização de "${item.product_name}" não possui código de serviço Stricker.`,
+            `A personalização de "${item.product_name}" não possui código de serviço do fornecedor.`,
         });
       }
 
@@ -516,7 +516,7 @@ export function mapOrderToStricker(
       .join(" ");
 
     throw new Error(
-      `A encomenda não reúne condições para submissão à Stricker. ${errorMessage}`,
+      `A encomenda não reúne condições para submissão ao fornecedor. ${errorMessage}`,
     );
   }
 
@@ -531,7 +531,7 @@ export function mapOrderToStricker(
 
       if (!sku) {
         throw new Error(
-          `Não foi possível determinar o SKU Stricker de "${item.product_name}".`,
+          `Não foi possível determinar o SKU do fornecedor de "${item.product_name}".`,
         );
       }
 

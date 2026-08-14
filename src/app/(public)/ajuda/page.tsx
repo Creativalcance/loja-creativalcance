@@ -25,7 +25,7 @@ const helpTopics = [
   {
     title: "Stock e prazos",
     description:
-      "Os stocks, preços e características são sincronizados com fornecedores como a Stricker.",
+      "Os stocks, preços e características são sincronizados diretamente com o fornecedor.",
     icon: PackageCheck,
   },
   {

@@ -153,7 +153,7 @@ async function createStoredSession(params: {
     .single<StrickerStoredSession>();
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Não foi possível guardar a sessão Stricker.");
+    throw new Error(error?.message ?? "Não foi possível guardar a sessão do fornecedor.");
   }
 
   return data;
@@ -175,7 +175,7 @@ async function createNewValidSession(params: {
   const token = authentication.Token?.trim();
 
   if (!token) {
-    throw new Error("A Stricker não devolveu token de autenticação.");
+    throw new Error("O fornecedor não devolveu token de autenticação.");
   }
 
   await createStoredSession({
@@ -252,7 +252,7 @@ export async function getValidStrickerSessionToken(): Promise<string> {
         reason:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao validar sessão Stricker.",
+            : "Erro inesperado ao validar a sessão do fornecedor.",
       },
     });
 

@@ -66,7 +66,7 @@ function assertSuccessfulResponse(
   if (errorCode || errorMessage) {
     throw new Error(
       [
-        `Erro Stricker ${method}`,
+        `Erro do fornecedor ${method}`,
         errorCode ? `código ${errorCode}` : null,
         errorMessage,
       ]
@@ -74,6 +74,22 @@ function assertSuccessfulResponse(
         .join(": "),
     );
   }
+}
+
+function unwrapMethodResult(
+  response: JsonRecord,
+  resultKey:
+    | "OrderV1Result"
+    | "ServiceOrderV1Result"
+    | "OrderDetailsV1Result",
+): StrickerOrderApiResponse {
+  const wrappedResult = response[resultKey];
+
+  if (isJsonRecord(wrappedResult)) {
+    return wrappedResult as StrickerOrderApiResponse;
+  }
+
+  return response as StrickerOrderApiResponse;
 }
 
 function extractOrderDetailsValue(
@@ -132,7 +148,7 @@ async function readJsonResponse(
 
   if (!response.ok) {
     throw new Error(
-      `Erro HTTP Stricker ${method}: ${response.status} ${
+      `Erro HTTP do fornecedor ${method}: ${response.status} ${
         trimmedResponse || response.statusText
       }`,
     );
@@ -140,7 +156,7 @@ async function readJsonResponse(
 
   if (!trimmedResponse) {
     throw new Error(
-      `A Stricker devolveu uma resposta vazia em ${method}.`,
+      `O fornecedor devolveu uma resposta vazia em ${method}.`,
     );
   }
 
@@ -149,7 +165,7 @@ async function readJsonResponse(
 
     if (!isJsonRecord(parsed)) {
       throw new Error(
-        `A resposta Stricker ${method} não é um objeto JSON.`,
+        `A resposta do fornecedor ${method} não é um objeto JSON.`,
       );
     }
 
@@ -157,7 +173,7 @@ async function readJsonResponse(
   } catch (error) {
     if (error instanceof SyntaxError) {
       throw new Error(
-        `A resposta Stricker ${method} não pôde ser convertida para JSON: ${trimmedResponse.slice(
+        `A resposta do fornecedor ${method} não pôde ser convertida para JSON: ${trimmedResponse.slice(
           0,
           500,
         )}`,
@@ -213,7 +229,7 @@ async function callStrickerOrderMethod(params: {
       error.name === "AbortError"
     ) {
       throw new Error(
-        `A ligação à Stricker excedeu o limite de ${
+        `A ligação ao fornecedor excedeu o limite de ${
           params.timeoutMs ?? DEFAULT_TIMEOUT_MS
         } ms.`,
       );
@@ -239,8 +255,10 @@ export async function submitStrickerProductOrder(
     timeoutMs: options.timeoutMs,
   });
 
-  const response =
-    rawResponse as StrickerOrderApiResponse;
+  const response = unwrapMethodResult(
+    rawResponse,
+    "OrderV1Result",
+  );
 
   assertSuccessfulResponse(response, "OrderV1");
 
@@ -249,7 +267,7 @@ export async function submitStrickerProductOrder(
 
   if (!orderDetails) {
     throw new Error(
-      "A Stricker aceitou o pedido, mas não devolveu os detalhes da encomenda.",
+      "O fornecedor aceitou o pedido, mas não devolveu os detalhes da encomenda.",
     );
   }
 
@@ -273,8 +291,10 @@ export async function submitStrickerServiceOrder(
     timeoutMs: options.timeoutMs,
   });
 
-  const response =
-    rawResponse as StrickerServiceOrderApiResponse;
+  const response = unwrapMethodResult(
+    rawResponse,
+    "ServiceOrderV1Result",
+  ) as StrickerServiceOrderApiResponse;
 
   assertSuccessfulResponse(response, "ServiceOrderV1");
 
@@ -295,10 +315,13 @@ export async function getStrickerOrderDetails(
     testMode: options.testMode,
     timeoutMs: options.timeoutMs,
   });
-  const response = rawResponse as StrickerOrderApiResponse;
+  const response = unwrapMethodResult(
+    rawResponse,
+    "OrderDetailsV1Result",
+  );
   assertSuccessfulResponse(response, "OrderDetailsV1");
   const orderDetails = extractOrderDetailsValue(response);
-  if (!orderDetails) throw new Error("A Stricker não devolveu os detalhes da encomenda.");
+  if (!orderDetails) throw new Error("O fornecedor não devolveu os detalhes da encomenda.");
   return { response, orderDetails };
 }
 

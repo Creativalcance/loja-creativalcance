@@ -1854,7 +1854,7 @@ export default function ProductCustomizationEditor({
                     ))}
                   </div>
                   <p className="mt-3 text-xs leading-5 text-neutral-400">
-                    Opções disponibilizadas pela tabela de personalização Stricker selecionada.
+                    Opções disponibilizadas pela tabela de personalização do fornecedor selecionada.
                   </p>
                 </div>
               ) : null}

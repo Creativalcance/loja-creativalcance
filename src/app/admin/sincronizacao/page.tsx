@@ -14,6 +14,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StrickerManualImportForm from "@/components/admin/StrickerManualImportForm";
 import NormalizeManualImportButton from "@/components/admin/NormalizeManualImportButton";
 import RunningSynchronizations from "@/components/admin/RunningSynchronizations";
+import { replaceSupplierBrandName } from "@/lib/supplier/display";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -93,13 +94,13 @@ function getErrorsPreview(errors: unknown): string {
     .slice(0, 3)
     .map((error) => {
       if (typeof error === "string") {
-        return error;
+        return replaceSupplierBrandName(error);
       }
 
       try {
-        return JSON.stringify(error);
+        return replaceSupplierBrandName(JSON.stringify(error));
       } catch {
-        return String(error);
+        return replaceSupplierBrandName(String(error));
       }
     })
     .join(" | ");

@@ -29,6 +29,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommercialForm";
 import AdminDeleteOrderForm from "@/components/admin/orders/AdminDeleteOrderForm";
+import { replaceSupplierBrandName } from "@/lib/supplier/display";
 
 export const dynamic = "force-dynamic";
 
@@ -356,10 +357,10 @@ function getStatusLabel(status: string | null | undefined): string {
       return "Em processamento";
 
     case "sent_to_supplier":
-      return "Enviada à Stricker";
+      return "Enviada ao fornecedor";
 
     case "supplier_confirmed":
-      return "Confirmada pela Stricker";
+      return "Confirmada pelo fornecedor";
 
     case "in_production":
       return "Em produção";
@@ -672,7 +673,9 @@ function buildTimeline(params: {
         history.new_status,
       )}`,
       description:
-        history.notes ??
+        (history.notes
+          ? replaceSupplierBrandName(history.notes)
+          : null) ??
         (history.previous_status
           ? `Estado anterior: ${getStatusLabel(
               history.previous_status,
@@ -781,7 +784,7 @@ function buildTimeline(params: {
       date: params.order.paid_at,
       title: "Pagamento confirmado",
       description:
-        "A encomenda foi marcada como paga e ficou elegível para submissão automática à Stricker.",
+        "A encomenda foi marcada como paga e ficou elegível para submissão automática ao fornecedor.",
       category: "payment",
       status: "success",
     });
@@ -791,9 +794,9 @@ function buildTimeline(params: {
     events.push({
       id: `supplier-${params.order.id}`,
       date: params.order.supplier_submitted_at,
-      title: "Encomenda submetida à Stricker",
+      title: "Encomenda submetida ao fornecedor",
       description: params.order.supplier_order_stamp
-        ? `Referência Stricker: ${params.order.supplier_order_stamp}.`
+        ? `Referência do fornecedor: ${params.order.supplier_order_stamp}.`
         : null,
       category: "supplier",
       status:
@@ -1328,7 +1331,7 @@ const supabaseAdmin = createSupabaseAdminClient();
 
             <div className="rounded-2xl border border-neutral-200 bg-white px-5 py-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Stricker
+                Fornecedor
               </p>
 
               <div className="mt-2">
@@ -1373,11 +1376,11 @@ const supabaseAdmin = createSupabaseAdminClient();
 
             <div>
               <p className="font-semibold">
-                Erro na submissão à Stricker
+                Erro na submissão ao fornecedor
               </p>
 
               <p className="mt-1 leading-6">
-                {supplierError}
+                {replaceSupplierBrandName(supplierError)}
               </p>
             </div>
           </div>
@@ -1642,7 +1645,7 @@ const supabaseAdmin = createSupabaseAdminClient();
                               <RefreshCw className="h-4 w-4 text-neutral-500" />
 
                               <p className="font-semibold text-neutral-950">
-                                Stricker
+                                Fornecedor
                               </p>
                             </div>
 
@@ -2039,7 +2042,7 @@ const supabaseAdmin = createSupabaseAdminClient();
                 />
 
                 <DataRow
-                  label="Data de expedição Stricker"
+                  label="Data de expedição do fornecedor"
                   value={formatDate(order.supplier_shipping_date)}
                 />
 
@@ -2171,7 +2174,7 @@ const supabaseAdmin = createSupabaseAdminClient();
                 <RefreshCw className="h-5 w-5 text-neutral-500" />
 
                 <h2 className="text-lg font-semibold text-neutral-950">
-                  Estado Stricker
+                  Estado do fornecedor
                 </h2>
               </div>
 

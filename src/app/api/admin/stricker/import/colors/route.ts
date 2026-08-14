@@ -131,7 +131,7 @@ export async function POST(): Promise<NextResponse> {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao importar cores Stricker.",
+            : "Erro inesperado ao importar cores do fornecedor.",
       },
       {
         status: 500,

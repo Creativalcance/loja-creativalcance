@@ -47,7 +47,7 @@ function buildReadableDownloadError(responseText: string): string {
       ? `${responseText.slice(0, 300)}...`
       : responseText;
 
-  return `Resposta Stricker não é JSON. Pré-visualização: ${preview}`;
+  return `A resposta do fornecedor não é JSON. Pré-visualização: ${preview}`;
 }
 
 export function buildStrickerDownloadUrl(

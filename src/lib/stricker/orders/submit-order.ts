@@ -402,7 +402,7 @@ async function markOrderAsFailed(params: {
     previousStatus: params.order.status,
     newStatus: "failed",
     notes:
-      "Falha na submissão automática da encomenda à Stricker.",
+      "Falha na submissão automática da encomenda ao fornecedor.",
     metadata: {
       source: "stricker_submission",
       error: params.message,
@@ -611,7 +611,7 @@ async function submitPersonalizations(params: {
 
     if (!orderLineStamp) {
       const message =
-        `A Stricker não devolveu o OrderLineStamp de "${freshItem.product_name}".`;
+        `O fornecedor não devolveu o OrderLineStamp de "${freshItem.product_name}".`;
 
       errors.push(message);
 
@@ -826,7 +826,7 @@ export async function submitPaidOrderToStricker(
           ),
 
       message:
-        "A encomenda já tinha sido submetida à Stricker.",
+        "A encomenda já tinha sido submetida ao fornecedor.",
 
       errors: [],
     };
@@ -854,7 +854,7 @@ export async function submitPaidOrderToStricker(
       personalizationSubmitted: false,
 
       message:
-        "A encomenda já está a ser submetida à Stricker.",
+        "A encomenda já está a ser submetida ao fornecedor.",
 
       errors: [
         "Foi detetado outro processo de submissão em curso.",
@@ -1009,7 +1009,7 @@ export async function submitPaidOrderToStricker(
 
       if (!supplierOrderStamp) {
         throw new Error(
-          "A Stricker não devolveu o OrderStamp da encomenda.",
+          "O fornecedor não devolveu o OrderStamp da encomenda.",
         );
       }
 
@@ -1088,7 +1088,7 @@ export async function submitPaidOrderToStricker(
         previousStatus: order.status,
         newStatus: "sent_to_supplier",
         notes:
-          "Encomenda de produtos submetida automaticamente à Stricker após confirmação do pagamento.",
+          "Encomenda de produtos submetida automaticamente ao fornecedor após confirmação do pagamento.",
         metadata: {
           source: "stricker_submission",
           supplierOrderStamp,
@@ -1159,7 +1159,7 @@ export async function submitPaidOrderToStricker(
           : "processing",
       notes:
         finalSubmissionStatus === "submitted"
-          ? "Produtos e personalizações submetidos à Stricker."
+          ? "Produtos e personalizações submetidos ao fornecedor."
           : "Produtos submetidos, mas existem personalizações pendentes ou com erro.",
       metadata: {
         source: "stricker_submission",
@@ -1179,7 +1179,7 @@ export async function submitPaidOrderToStricker(
         });
       } catch (error) {
         console.error(
-          "A encomenda foi submetida à Stricker, mas a notificação administrativa falhou:",
+          "A encomenda foi submetida ao fornecedor, mas a notificação administrativa falhou:",
           error,
         );
       }
@@ -1200,7 +1200,7 @@ export async function submitPaidOrderToStricker(
 
       message:
         finalSubmissionStatus === "submitted"
-          ? "Encomenda submetida automaticamente à Stricker."
+          ? "Encomenda submetida automaticamente ao fornecedor."
           : "Os produtos foram submetidos, mas existem personalizações que exigem intervenção.",
 
       errors: personalizationResult.errors,
@@ -1209,7 +1209,7 @@ export async function submitPaidOrderToStricker(
     const message =
       error instanceof Error
         ? error.message
-        : "Erro inesperado na submissão à Stricker.";
+        : "Erro inesperado na submissão ao fornecedor.";
 
     if (productEventId) {
       try {
@@ -1243,7 +1243,7 @@ export async function submitPaidOrderToStricker(
       personalizationSubmitted,
 
       message:
-        "A submissão automática à Stricker falhou.",
+        "A submissão automática ao fornecedor falhou.",
 
       errors: [message],
     };

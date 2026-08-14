@@ -104,8 +104,8 @@ function getErrorMessageFromPayload(payload: unknown): string | null {
     String(errorCode).trim().length > 0
   ) {
     return typeof errorMessage === "string" && errorMessage.trim().length > 0
-      ? `Erro Stricker ${String(errorCode)}: ${errorMessage}`
-      : `Erro Stricker ${String(errorCode)}.`;
+      ? `Erro do fornecedor ${String(errorCode)}: ${errorMessage}`
+      : `Erro do fornecedor ${String(errorCode)}.`;
   }
 
   if (typeof errorMessage === "string" && errorMessage.trim().length > 0) {
@@ -142,12 +142,12 @@ function isRetryableFetchError(error: unknown): boolean {
 
 function getReadableFetchError(error: unknown, timeoutMs: number): Error {
   if (error instanceof DOMException && error.name === "AbortError") {
-    return new Error(`Timeout ao contactar a Stricker após ${timeoutMs}ms.`);
+    return new Error(`Timeout ao contactar o fornecedor após ${timeoutMs}ms.`);
   }
 
   if (error instanceof TypeError && error.message === "fetch failed") {
     return new Error(
-      "Falha de rede ao contactar a Stricker. O endpoint pode ter fechado a ligação durante a transferência do dataset.",
+      "Falha de rede ao contactar o fornecedor. O endpoint pode ter fechado a ligação durante a transferência do dataset.",
     );
   }
 
@@ -155,7 +155,7 @@ function getReadableFetchError(error: unknown, timeoutMs: number): Error {
     return error;
   }
 
-  return new Error("Erro inesperado ao contactar a Stricker.");
+  return new Error("Erro inesperado ao contactar o fornecedor.");
 }
 
 function sleep(ms: number): Promise<void> {
@@ -244,7 +244,7 @@ async function fetchJson<TResponse>(
 
   throw lastError instanceof Error
     ? lastError
-    : new Error("Erro inesperado ao contactar a Stricker.");
+    : new Error("Erro inesperado ao contactar o fornecedor.");
 }
 
 function getDatasetPathname(dataset: StrickerDatasetName): string {
@@ -304,7 +304,7 @@ function getDatasetPathname(dataset: StrickerDatasetName): string {
     return "printingslas";
   }
 
-  throw new Error(`Dataset Stricker não suportado: ${dataset}`);
+  throw new Error(`Dataset do fornecedor não suportado: ${dataset}`);
 }
 
 export async function authenticateStrickerClient(

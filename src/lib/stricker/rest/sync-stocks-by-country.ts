@@ -550,7 +550,7 @@ export async function syncRestStocksByCountry(params: {
       stockRows.length > 0
         ? []
         : [
-            "Stocks recebidos da Stricker, mas nenhuma variante correspondente foi encontrada em product_variants.",
+            "Stocks recebidos do fornecedor, mas nenhuma variante correspondente foi encontrada em product_variants.",
           ];
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });

@@ -709,7 +709,7 @@ export async function syncRestCustomizationTables(params: {
         rows.length > 0
           ? []
           : [
-              "CustomizationTables recebidas da Stricker, mas nenhuma tabela válida foi importada.",
+              "CustomizationTables recebidas do fornecedor, mas nenhuma tabela válida foi importada.",
             ],
     });
 

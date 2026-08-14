@@ -676,7 +676,7 @@ export async function saveCustomizationDraftAction(
     if (!tableCode) {
       return {
         success: false,
-        message: "Não foi possível identificar a tabela Stricker desta personalização.",
+        message: "Não foi possível identificar a tabela do fornecedor desta personalização.",
         draftId: null,
         redirectUrl: null,
       };
@@ -719,7 +719,7 @@ export async function saveCustomizationDraftAction(
     if (priceTierError || !confirmedCustomizationPrice) {
       return {
         success: false,
-        message: "Não foi possível confirmar o preço Stricker desta personalização para a quantidade selecionada.",
+        message: "Não foi possível confirmar o preço do fornecedor desta personalização para a quantidade selecionada.",
         draftId: null,
         redirectUrl: null,
       };

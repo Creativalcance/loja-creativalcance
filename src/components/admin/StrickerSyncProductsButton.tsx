@@ -65,7 +65,7 @@ export default function StrickerSyncProductsButton() {
         <RefreshCw
           className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
         />
-        {isLoading ? "A sincronizar..." : "Sincronizar produtos Stricker"}
+        {isLoading ? "A sincronizar..." : "Sincronizar produtos do fornecedor"}
       </button>
 
       {resultMessage ? (

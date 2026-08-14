@@ -133,7 +133,7 @@ export async function POST() {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao iniciar sincronização Stricker.",
+            : "Erro inesperado ao iniciar a sincronização do fornecedor.",
       },
       { status: 500 },
     );

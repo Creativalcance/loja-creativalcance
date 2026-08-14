@@ -53,7 +53,7 @@ export default function StrickerSyncActions() {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao testar ligação Stricker.",
+            : "Erro inesperado ao testar a ligação ao fornecedor.",
       });
     } finally {
       setIsTestingConnection(false);
@@ -79,7 +79,7 @@ export default function StrickerSyncActions() {
         message:
           error instanceof Error
             ? error.message
-            : "Erro inesperado ao importar cores Stricker.",
+            : "Erro inesperado ao importar cores do fornecedor.",
       });
     } finally {
       setIsImportingColors(false);
@@ -93,7 +93,7 @@ export default function StrickerSyncActions() {
       <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
         <div>
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            Stricker
+            Fornecedor
           </p>
 
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
@@ -101,7 +101,7 @@ export default function StrickerSyncActions() {
           </h2>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
-            Testa a ligação à Stricker e executa importações controladas. Para
+            Testa a ligação ao fornecedor e executa importações controladas. Para
             já, a importação inicial validada é o dataset de cores.
           </p>
         </div>
