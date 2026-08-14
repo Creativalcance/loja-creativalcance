@@ -95,13 +95,9 @@ function normalizeCountryCode(value: string | null): string {
 }
 
 function normalizeCourier(
-  shippingMethod: string | null,
   shippingCarrier: string | null,
 ): string {
-  const source =
-    shippingCarrier?.trim() ||
-    shippingMethod?.trim() ||
-    "Economy";
+  const source = shippingCarrier?.trim() ?? "";
 
   const normalized = source.toLowerCase();
 
@@ -112,7 +108,7 @@ function normalizeCourier(
     return "Express";
   }
 
-  return source;
+  return "Economy";
 }
 
 function formatShippingDate(value: string | null): string {
@@ -287,7 +283,7 @@ function buildServiceOrderLine(
 
     Group: getCustomizationGroup(item),
 
-    Approved: getArtworkApproved(item),
+    Appproved: getArtworkApproved(item),
 
     /*
      * Os bytes do ficheiro são carregados imediatamente
@@ -309,40 +305,30 @@ function buildDestination(
     );
   }
 
+  const postalCodeParts = address.postal_code
+    .trim()
+    .match(/^(\d{4})[-\s]?(\d{3})$/);
+
   return {
-    CompanyName:
-      address.company_name ??
-      order.company_name ??
-      "",
+    AddressLine1: address.address_line_1,
+    AddressLine2: address.address_line_2 ?? "",
 
-    ContactName:
-      address.contact_name ||
-      order.customer_name,
+    Postalcode:
+      postalCodeParts?.[1] ?? address.postal_code,
+    ExtentionPostalcode:
+      postalCodeParts?.[2] ?? "",
 
-    Address1: address.address_line_1,
-    Address2: address.address_line_2 ?? "",
-
-    PostalCode: address.postal_code,
     City: address.city,
-    District: address.district ?? "",
 
     Country: normalizeCountryCode(
       address.country_code,
     ),
 
-    Phone:
+    PhoneNumber: (
       address.contact_phone ??
       order.customer_phone ??
-      "",
-
-    Email:
-      address.contact_email ??
-      order.customer_email,
-
-    TaxId:
-      address.tax_id ??
-      order.company_tax_id ??
-      "",
+      ""
+    ).replace(/[^\d]/g, ""),
   };
 }
 
@@ -552,55 +538,38 @@ export function mapOrderToStricker(
          * Criamos primeiro a linha PRINT e enviamos a arte
          * imediatamente depois por ServiceOrderV1.
          */
-        // A arte é enviada imediatamente em ServiceOrderV1 (manual, fluxo 10).
-        // true fica reservado ao fluxo "artwork later".
-        WaitArtWork: false,
+        // A linha é criada a aguardar arte e é completada
+        // imediatamente depois através de ServiceOrderV1.
+        WaitArtWork: item.personalization_required,
 
         Sample: false,
-
-        ServiceOrderLines: [],
       };
     });
 
-  const emailToMockup =
-    getRecordString(
-      order.metadata,
-      "artworkEmail",
-    ) ??
-    getRecordString(
-      order.metadata,
-      "artwork_email",
-    ) ??
-    order.customer_email;
-
   const productPayload: StrickerPlaceOrderPayload = {
-    Destination: buildDestination(order),
+    destination: buildDestination(order),
 
-    Courier: normalizeCourier(
-      order.shipping_method,
+    courier: normalizeCourier(
       order.shipping_carrier,
     ),
 
-    InternalReference:
+    internalReference:
       order.internal_reference ??
       order.order_number,
 
-    RelatedOrderStamp: "",
+    relatedOrderStamp: null,
 
-    ShippingDate: formatShippingDate(
-      order.requested_shipping_date,
-    ),
+    shippingDate:
+      formatShippingDate(
+        order.requested_shipping_date,
+      ) || null,
 
-    NoShipping: order.no_shipping,
+    noShipping: order.no_shipping,
 
-    Observation:
+    observation:
       order.customer_notes ?? "",
 
-    EmailToMockup: emailToMockup
-      ? [emailToMockup]
-      : [],
-
-    Order: productLines,
+    order: productLines,
   };
 
   const serviceItems = order.order_items

@@ -24,17 +24,13 @@ export type StrickerOrderStatus =
   | string;
 
 export type StrickerDestinationPayload = {
-  CompanyName: string;
-  ContactName: string;
-  Address1: string;
-  Address2: string;
-  PostalCode: string;
+  AddressLine1: string;
+  AddressLine2: string;
+  Postalcode: string;
+  ExtentionPostalcode: string;
   City: string;
-  District: string;
   Country: string;
-  Phone: string;
-  Email: string;
-  TaxId: string;
+  PhoneNumber: string;
 };
 
 export type StrickerServiceArtworkFile = {
@@ -58,7 +54,7 @@ export type StrickerServiceOrderLinePayload = {
   LogoHeight: number;
 
   Group: number;
-  Approved: boolean;
+  Appproved: boolean;
 
   Files: StrickerServiceArtworkFile[];
 };
@@ -69,19 +65,17 @@ export type StrickerProductOrderLinePayload = {
   LineType: StrickerOrderLineType;
   WaitArtWork: boolean;
   Sample: boolean;
-  ServiceOrderLines: StrickerServiceOrderLinePayload[];
 };
 
 export type StrickerPlaceOrderPayload = {
-  Destination: StrickerDestinationPayload;
-  Courier: string;
-  InternalReference: string;
-  RelatedOrderStamp: string;
-  ShippingDate: string;
-  NoShipping: boolean;
-  Observation: string;
-  EmailToMockup: string[];
-  Order: StrickerProductOrderLinePayload[];
+  destination: StrickerDestinationPayload;
+  courier: string;
+  internalReference: string;
+  relatedOrderStamp: string | null;
+  shippingDate: string | null;
+  noShipping: boolean;
+  observation: string;
+  order: StrickerProductOrderLinePayload[];
 };
 
 export type StrickerServiceOrderPayload = {
