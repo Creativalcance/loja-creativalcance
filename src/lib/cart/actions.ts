@@ -2,6 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateCartItemPricing } from "@/lib/pricing/calculate-cart-item";
@@ -12,6 +13,11 @@ import {
 import type { PricingRule } from "@/lib/pricing/types";
 
 export type AddToCartActionState = {
+  success: boolean;
+  message: string;
+};
+
+export type RemoveCartItemActionState = {
   success: boolean;
   message: string;
 };
@@ -298,6 +304,197 @@ async function recalculateCartTotals(
   if (updateError) {
     throw new Error(updateError.message);
   }
+}
+
+const REMOVE_RETURN_PATHS = new Set([
+  "/carrinho",
+  "/checkout",
+  "/checkout/expedicao",
+]);
+
+function getSafeRemoveReturnPath(
+  value: FormDataEntryValue | null,
+): "/carrinho" | "/checkout" | "/checkout/expedicao" {
+  const path = String(value ?? "").trim();
+
+  if (REMOVE_RETURN_PATHS.has(path)) {
+    return path as
+      | "/carrinho"
+      | "/checkout"
+      | "/checkout/expedicao";
+  }
+
+  return "/carrinho";
+}
+
+export async function removeCartItemAction(
+  _previousState: RemoveCartItemActionState,
+  formData: FormData,
+): Promise<RemoveCartItemActionState> {
+  const itemId = String(formData.get("itemId") ?? "").trim();
+  const returnTo = getSafeRemoveReturnPath(formData.get("returnTo"));
+  let redirectUrl: string | null = null;
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(itemId)) {
+    return {
+      success: false,
+      message: "O produto selecionado não é válido.",
+    };
+  }
+
+  try {
+    const userId = await getCurrentUserId();
+    const cookieStore = await cookies();
+    const sessionId =
+      cookieStore.get(CART_SESSION_COOKIE)?.value?.trim() ?? "";
+
+    if (!userId && !sessionId) {
+      return {
+        success: false,
+        message: "O carrinho já não está disponível. Atualiza a página.",
+      };
+    }
+
+    const supabaseAdmin = createSupabaseAdminClient();
+    const cartQuery = supabaseAdmin
+      .from("carts")
+      .select("id,shipping_address_id")
+      .eq("status", "active")
+      .limit(1);
+    const { data: cart, error: cartError } = userId
+      ? await cartQuery
+          .eq("user_id", userId)
+          .maybeSingle<{ id: string; shipping_address_id: string | null }>()
+      : await cartQuery
+          .eq("session_id", sessionId)
+          .is("user_id", null)
+          .maybeSingle<{ id: string; shipping_address_id: string | null }>();
+
+    if (cartError || !cart) {
+      return {
+        success: false,
+        message: "O carrinho não foi encontrado ou já não está ativo.",
+      };
+    }
+
+    const { data: cartItem, error: itemError } = await supabaseAdmin
+      .from("cart_items")
+      .select("id,customization_draft_id")
+      .eq("id", itemId)
+      .eq("cart_id", cart.id)
+      .maybeSingle<{
+        id: string;
+        customization_draft_id: string | null;
+      }>();
+
+    if (itemError || !cartItem) {
+      return {
+        success: false,
+        message: "O produto já não existe neste carrinho.",
+      };
+    }
+
+    const { error: checkoutResetError } = await supabaseAdmin
+      .from("carts")
+      .update({
+        checkout_step: cart.shipping_address_id
+          ? "shipping"
+          : "destination",
+        shipping_method: null,
+        shipping_method_name: null,
+        shipping_provider: null,
+        shipping_origin_country_code: null,
+        shipping_estimated_days_min: null,
+        shipping_estimated_days_max: null,
+        shipping_completed_at: null,
+        shipping_total: 0,
+        tax_total: 0,
+      })
+      .eq("id", cart.id)
+      .eq("status", "active");
+
+    if (checkoutResetError) {
+      return {
+        success: false,
+        message:
+          "Não foi possível atualizar a expedição antes de remover o produto.",
+      };
+    }
+
+    const { data: deletedItem, error: deleteError } = await supabaseAdmin
+      .from("cart_items")
+      .delete()
+      .eq("id", cartItem.id)
+      .eq("cart_id", cart.id)
+      .select("id")
+      .maybeSingle<{ id: string }>();
+
+    if (deleteError || !deletedItem) {
+      return {
+        success: false,
+        message:
+          deleteError?.message ??
+          "Não foi possível remover o produto do carrinho.",
+      };
+    }
+
+    if (cartItem.customization_draft_id) {
+      const { error: draftError } = await supabaseAdmin
+        .from("product_customization_drafts")
+        .update({
+          status: "ready_for_review",
+          flow_step: "review",
+          converted_cart_item_id: null,
+          converted_at: null,
+        })
+        .eq("id", cartItem.customization_draft_id);
+
+      if (draftError) {
+        console.error(
+          "O produto foi removido, mas não foi possível libertar a maquete:",
+          draftError,
+        );
+      }
+    }
+
+    await recalculateCartTotals(cart.id);
+
+    const { data: remainingItem, error: remainingItemError } =
+      await supabaseAdmin
+        .from("cart_items")
+        .select("id")
+        .eq("cart_id", cart.id)
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+
+    if (remainingItemError) {
+      throw new Error(remainingItemError.message);
+    }
+
+    revalidatePath("/carrinho");
+    revalidatePath("/checkout");
+    revalidatePath("/checkout/expedicao");
+    revalidatePath("/checkout/pagamento");
+
+    redirectUrl = remainingItem ? returnTo : "/carrinho";
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? `Não foi possível remover o produto: ${error.message}`
+          : "Não foi possível remover o produto do carrinho.",
+    };
+  }
+
+  if (redirectUrl) {
+    redirect(redirectUrl);
+  }
+
+  return {
+    success: false,
+    message: "Não foi possível atualizar o carrinho.",
+  };
 }
 
 function getActivePrices(params: {

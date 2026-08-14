@@ -12,6 +12,7 @@ import {
 import CheckoutForm, {
   type CheckoutSavedAddress,
 } from "@/components/checkout/CheckoutForm";
+import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -382,9 +383,17 @@ export default async function CheckoutPage() {
                         </p>
                       </div>
 
-                      <p className="shrink-0 text-sm font-semibold text-neutral-950">
-                        {formatPrice(item.total, currency)}
-                      </p>
+                      <div className="flex shrink-0 flex-col items-end gap-3">
+                        <p className="text-sm font-semibold text-neutral-950">
+                          {formatPrice(item.total, currency)}
+                        </p>
+
+                        <RemoveCartItemButton
+                          itemId={item.id}
+                          productName={item.product_name}
+                          returnTo="/checkout"
+                        />
+                      </div>
                     </div>
 
                     {item.personalization_required ? (

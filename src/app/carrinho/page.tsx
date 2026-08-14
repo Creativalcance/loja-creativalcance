@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
+import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -159,7 +160,7 @@ export default async function CartPage() {
                       ) : null}
                     </div>
 
-                    <div className="text-sm text-neutral-600 md:text-right">
+                    <div className="flex flex-col items-start text-sm text-neutral-600 md:items-end md:text-right">
                       <p>
                         Unitário:{" "}
                         <span className="font-semibold text-neutral-950">
@@ -184,6 +185,14 @@ export default async function CartPage() {
                       <p className="mt-4 text-lg font-semibold text-neutral-950">
                         {formatPrice(item.total, currency)}
                       </p>
+
+                      <div className="mt-5">
+                        <RemoveCartItemButton
+                          itemId={item.id}
+                          productName={item.product_name}
+                          returnTo="/carrinho"
+                        />
+                      </div>
                     </div>
                   </div>
                 </article>
