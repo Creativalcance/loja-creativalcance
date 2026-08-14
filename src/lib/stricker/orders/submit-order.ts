@@ -39,6 +39,13 @@ type OrderItemLineAssignment = {
   lineStamp: string;
 };
 
+type SupplierCustomizationOption = {
+  variant_id: string;
+  service_code: string;
+  table_code_option: string | null;
+  location_name: string | null;
+};
+
 const ARTWORK_BUCKET =
   process.env.STRICKER_ARTWORK_BUCKET?.trim() ||
   "customization-artwork";
@@ -55,18 +62,129 @@ function toJsonRecord(value: unknown): JsonRecord {
   return value as JsonRecord;
 }
 
-function getNullableString(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
+function normalizeComparable(value: string | null): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
 
-    return trimmed.length > 0 ? trimmed : null;
+function getLocationAliases(value: string | null): Set<string> {
+  const normalized = normalizeComparable(value);
+  const aliases = new Set([normalized]);
+  const translations: Record<string, string[]> = {
+    costas: ["back"],
+    peito: ["chest"],
+    frente: ["front"],
+    manga: ["sleeve"],
+    "manga esquerda": ["left sleeve"],
+    "manga direita": ["right sleeve"],
+    lateral: ["side"],
+  };
+
+  for (const alias of translations[normalized] ?? []) {
+    aliases.add(alias);
   }
 
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
+  return aliases;
+}
+
+function isSupplierServiceCode(value: string | null): value is string {
+  return Boolean(
+    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
+  );
+}
+
+async function resolveSupplierServiceCodes(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  items: StrickerOrderDatabaseItem[];
+}): Promise<StrickerOrderDatabaseItem[]> {
+  const unresolvedItems = params.items.filter(
+    (item) =>
+      item.personalization_required &&
+      item.variant_id &&
+      item.table_code_option &&
+      !isSupplierServiceCode(item.service_code),
+  );
+
+  if (unresolvedItems.length === 0) {
+    return params.items;
   }
 
-  return null;
+  const variantIds = Array.from(
+    new Set(unresolvedItems.flatMap((item) => item.variant_id ?? [])),
+  );
+  const tableCodeOptions = Array.from(
+    new Set(
+      unresolvedItems.flatMap((item) => item.table_code_option ?? []),
+    ),
+  );
+
+  const { data, error } = await params.supabaseAdmin
+    .from("product_customization_options")
+    .select(
+      "variant_id,service_code,table_code_option,location_name",
+    )
+    .in("variant_id", variantIds)
+    .in("table_code_option", tableCodeOptions)
+    .eq("is_active", true);
+
+  if (error) {
+    throw new Error(
+      `Não foi possível validar o código de serviço do fornecedor: ${error.message}`,
+    );
+  }
+
+  const options = (data ?? []) as SupplierCustomizationOption[];
+
+  return Promise.all(
+    params.items.map(async (item) => {
+      if (
+        !unresolvedItems.some((candidate) => candidate.id === item.id) ||
+        !item.variant_id ||
+        !item.table_code_option
+      ) {
+        return item;
+      }
+
+      const candidates = options.filter(
+        (option) =>
+          option.variant_id === item.variant_id &&
+          option.table_code_option === item.table_code_option &&
+          isSupplierServiceCode(option.service_code),
+      );
+      const locationAliases = getLocationAliases(
+        item.customization_location_name,
+      );
+      const locationMatches = candidates.filter((option) =>
+        locationAliases.has(normalizeComparable(option.location_name)),
+      );
+      const selected =
+        locationMatches.length === 1
+          ? locationMatches[0]
+          : candidates.length === 1
+            ? candidates[0]
+            : null;
+
+      if (!selected) {
+        return { ...item, service_code: null };
+      }
+
+      const { error: updateError } = await params.supabaseAdmin
+        .from("order_items")
+        .update({ service_code: selected.service_code })
+        .eq("id", item.id);
+
+      if (updateError) {
+        throw new Error(
+          `Não foi possível guardar o código de serviço validado: ${updateError.message}`,
+        );
+      }
+
+      return { ...item, service_code: selected.service_code };
+    }),
+  );
 }
 
 function getFileNameParts(fileName: string): {
@@ -233,6 +351,11 @@ async function fetchOrderForSubmission(params: {
     ? rawOrder.shipping_address[0] ?? null
     : rawOrder.shipping_address ?? null;
 
+  const orderItems = await resolveSupplierServiceCodes({
+    supabaseAdmin: params.supabaseAdmin,
+    items: rawOrder.order_items ?? [],
+  });
+
   return {
     ...rawOrder,
     supplier_last_response: toJsonRecord(
@@ -243,7 +366,7 @@ async function fetchOrderForSubmission(params: {
     ),
     metadata: toJsonRecord(rawOrder.metadata),
     shipping_address: shippingAddress,
-    order_items: rawOrder.order_items ?? [],
+    order_items: orderItems,
   };
 }
 

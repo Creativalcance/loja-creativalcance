@@ -124,12 +124,7 @@ function getItemSku(
 function getServiceCode(
   item: StrickerOrderDatabaseItem,
 ): string | null {
-  return (
-    item.service_code?.trim() ||
-    item.table_code_option?.trim() ||
-    item.table_code?.trim() ||
-    null
-  );
+  return item.service_code?.trim() || null;
 }
 
 function getArtworkApproved(
