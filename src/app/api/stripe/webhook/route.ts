@@ -765,25 +765,6 @@ async function submitOrderAfterPayment(
 
   const previousStatus = order.status;
 
-  const { error: startError } = await supabaseAdmin
-    .from("orders")
-    .update({
-      supplier_submission_status: "submitting",
-      supplier_submission_error: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", orderId)
-    .eq("payment_status", "paid")
-    .neq("supplier_submission_status", "submitted");
-
-  if (startError) {
-    return {
-      success: false,
-      status: "failed",
-      message: startError.message,
-    };
-  }
-
   await createOrderHistoryEntry({
     orderId,
     previousStatus,
