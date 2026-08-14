@@ -1,4 +1,5 @@
 import path from "node:path";
+import { notifyStrickerOrderSubmitted } from "@/lib/notifications/stricker-order-submitted";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   extractStrickerLineSku,
@@ -787,6 +788,18 @@ export async function submitPaidOrderToStricker(
       "submitted" &&
     order.supplier_order_stamp
   ) {
+    try {
+      await notifyStrickerOrderSubmitted({
+        order,
+        supplierOrderStamp: order.supplier_order_stamp,
+      });
+    } catch (error) {
+      console.error(
+        "A encomenda já estava submetida, mas a notificação administrativa falhou:",
+        error,
+      );
+    }
+
     return {
       ...baseResult,
       success: true,
@@ -1157,6 +1170,20 @@ export async function submitPaidOrderToStricker(
           personalizationResult.errors,
       },
     });
+
+    if (finalSubmissionStatus === "submitted") {
+      try {
+        await notifyStrickerOrderSubmitted({
+          order,
+          supplierOrderStamp,
+        });
+      } catch (error) {
+        console.error(
+          "A encomenda foi submetida à Stricker, mas a notificação administrativa falhou:",
+          error,
+        );
+      }
+    }
 
     return {
       ...baseResult,

@@ -3,6 +3,7 @@ import {
   BadgeEuro,
   Building2,
   FileText,
+  Bell,
   LogOut,
   PackageSearch,
   ServerCog,
@@ -10,7 +11,9 @@ import {
   Store,
   type LucideIcon,
 } from "lucide-react";
+import { markAllAdminNotificationsAsRead } from "@/lib/admin/notifications/actions";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type AdminModule = {
   title: string;
@@ -65,7 +68,27 @@ const adminModules: AdminModule[] = [
 ];
 
 export default async function AdminPage() {
-  const { profile } = await assertAdminAccess("/admin");
+  const { profile, userId } = await assertAdminAccess("/admin");
+  const supabase = createSupabaseAdminClient();
+  const { data: notifications, error: notificationsError } = await supabase
+    .from("admin_notifications")
+    .select("id,order_id,title,message,email_status,created_at,admin_notification_reads!left(user_id)")
+    .order("created_at", { ascending: false })
+    .limit(8);
+
+  if (notificationsError) {
+    throw new Error(
+      `Não foi possível carregar as notificações administrativas: ${notificationsError.message}`,
+    );
+  }
+
+  const latestNotifications = (notifications ?? []).map((notification) => ({
+    ...notification,
+    read: Array.isArray(notification.admin_notification_reads)
+      ? notification.admin_notification_reads.some((read) => read.user_id === userId)
+      : false,
+  }));
+  const unreadCount = latestNotifications.filter((notification) => !notification.read).length;
 
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-12 text-white">
@@ -146,6 +169,72 @@ export default async function AdminPage() {
             );
           })}
         </div>
+
+        <section className="mt-12 rounded-3xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white text-neutral-950">
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 ? (
+                  <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white">
+                    {unreadCount}
+                  </span>
+                ) : null}
+              </span>
+              <div>
+                <h2 className="text-xl font-semibold">Notificações operacionais</h2>
+                <p className="mt-1 text-sm text-white/55">
+                  Submissões à Stricker e respetivo estado do email.
+                </p>
+              </div>
+            </div>
+
+            {unreadCount > 0 ? (
+              <form action={markAllAdminNotificationsAsRead}>
+                <button
+                  type="submit"
+                  className="rounded-full border border-white/15 px-4 py-2 text-sm font-semibold transition hover:bg-white/10"
+                >
+                  Marcar como lidas
+                </button>
+              </form>
+            ) : null}
+          </div>
+
+          <div className="mt-6 divide-y divide-white/10">
+            {latestNotifications.length > 0 ? (
+              latestNotifications.map((notification) => (
+                <Link
+                  key={notification.id}
+                  href={notification.order_id ? `/admin/encomendas/${notification.order_id}` : "/admin/encomendas"}
+                  className="flex flex-col gap-2 py-4 transition hover:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between sm:px-3"
+                >
+                  <div>
+                    <p className={`font-medium ${notification.read ? "text-white/65" : "text-white"}`}>
+                      {!notification.read ? <span className="mr-2 inline-block h-2 w-2 rounded-full bg-sky-400" /> : null}
+                      {notification.title}
+                    </p>
+                    <p className="mt-1 text-sm text-white/50">{notification.message}</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-white/45">
+                    <span className={notification.email_status === "sent" ? "text-emerald-300" : notification.email_status === "failed" ? "text-red-300" : "text-amber-300"}>
+                      {notification.email_status === "sent" ? "Email enviado" : notification.email_status === "failed" ? "Email por enviar" : "Email em processamento"}
+                    </span>
+                    <time dateTime={notification.created_at}>
+                      {new Intl.DateTimeFormat("pt-PT", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                        timeZone: "Europe/Lisbon",
+                      }).format(new Date(notification.created_at))}
+                    </time>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <p className="py-8 text-sm text-white/50">Ainda não existem notificações.</p>
+            )}
+          </div>
+        </section>
       </section>
     </main>
   );
