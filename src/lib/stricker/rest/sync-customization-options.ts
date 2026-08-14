@@ -5,6 +5,7 @@ import {
 } from "@/lib/stricker/images";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -467,7 +468,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -1132,6 +1134,8 @@ export async function syncRestCustomizationOptions(params: {
     const locations = locationsResult.rows;
     const recordsTotal = locationsResult.total;
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     const variantIds = locations
       .map((location) => location.variant_id)
       .filter((value): value is string => Boolean(value));
@@ -1190,6 +1194,8 @@ export async function syncRestCustomizationOptions(params: {
       priceTableMaps,
     });
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     let importedCount = 0;
     let failedOptionRecords: string[] = [];
 
@@ -1216,6 +1222,7 @@ export async function syncRestCustomizationOptions(params: {
         ? "partial_success"
         : "success";
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

@@ -3,6 +3,7 @@ import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -157,7 +158,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -266,6 +268,8 @@ export async function syncCommercialDataset(params: {
       },
     );
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     const records = getRecords(params.dataset, payload);
     let recordsImported = 0;
 
@@ -315,6 +319,7 @@ export async function syncCommercialDataset(params: {
       recordsImported = rows.length;
     }
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

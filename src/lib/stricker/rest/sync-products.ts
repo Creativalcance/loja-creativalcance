@@ -6,6 +6,7 @@ import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -573,7 +574,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -698,6 +700,8 @@ export async function syncRestProducts(params: {
       records,
     });
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     const productRows = buildProductRows({
       supplierId,
       records: changedRecords,
@@ -725,6 +729,8 @@ export async function syncRestProducts(params: {
           })
         : 0;
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     if (importedProducts.length > 0) {
       await deleteProductImages({
         supabaseAdmin,
@@ -744,6 +750,7 @@ export async function syncRestProducts(params: {
       });
     }
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

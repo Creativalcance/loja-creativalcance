@@ -7,6 +7,7 @@ import {
   type StrickerLanguage,
 } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -276,7 +277,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -517,6 +519,8 @@ export async function syncRestStocksByCountry(params: {
       });
     }
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     await resetWarehouseStocks({
       supabaseAdmin,
       supplierId,
@@ -530,6 +534,8 @@ export async function syncRestStocksByCountry(params: {
         rows: stockRows,
       });
     }
+
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     if (futureStockRows.length > 0) {
       await upsertFutureStocks({
@@ -547,6 +553,7 @@ export async function syncRestStocksByCountry(params: {
             "Stocks recebidos da Stricker, mas nenhuma variante correspondente foi encontrada em product_variants.",
           ];
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

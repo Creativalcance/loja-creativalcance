@@ -7,6 +7,7 @@ import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -532,7 +533,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -659,6 +661,8 @@ export async function syncRestCustomizationTables(params: {
       },
     );
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     const records = Array.isArray(payload.CustomizationTables)
       ? (payload.CustomizationTables as StrickerCustomizationTableRecord[])
       : [];
@@ -685,6 +689,7 @@ export async function syncRestCustomizationTables(params: {
       countUniqueTechniqueTranslations(records);
     const status = rows.length > 0 ? "success" : "partial_success";
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

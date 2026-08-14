@@ -19,6 +19,7 @@ import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -516,7 +517,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -1408,6 +1410,8 @@ export async function syncRestOptionals(params: {
       records,
     });
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     const references = changedRecords
       .map((record) => getProdReference(record))
       .filter((value): value is string => Boolean(value));
@@ -1434,6 +1438,8 @@ export async function syncRestOptionals(params: {
       supabaseAdmin,
       rows: variantRows,
     });
+
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     const variantsBySku = buildVariantMap(importedVariants);
 
@@ -1479,6 +1485,8 @@ export async function syncRestOptionals(params: {
         rows: priceRows,
       });
     }
+
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     const imageRows = buildImageRows({
       records: changedRecords,
@@ -1532,6 +1540,7 @@ export async function syncRestOptionals(params: {
             "Optionals recebidos da Stricker, mas nenhum produto correspondente foi encontrado em products.",
           ];
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

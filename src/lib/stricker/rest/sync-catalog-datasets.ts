@@ -8,6 +8,7 @@ import {
   type StrickerLanguage,
 } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
+import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -233,7 +234,8 @@ async function finishDatasetImport(params: {
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
-    .eq("id", params.datasetImportId);
+    .eq("id", params.datasetImportId)
+    .eq("status", "running");
 
   if (error) {
     throw new Error(error.message);
@@ -550,6 +552,8 @@ export async function syncRestCatalogDataset(params: {
       },
     );
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+
     if (params.dataset === "colors") {
       const records = Array.isArray(payload.Colors)
         ? (payload.Colors as StrickerColorRecord[])
@@ -654,6 +658,7 @@ export async function syncRestCatalogDataset(params: {
           })
         : 0;
 
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,

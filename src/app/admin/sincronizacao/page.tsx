@@ -13,6 +13,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import StrickerManualImportForm from "@/components/admin/StrickerManualImportForm";
 import NormalizeManualImportButton from "@/components/admin/NormalizeManualImportButton";
+import RunningSynchronizations from "@/components/admin/RunningSynchronizations";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -61,6 +62,7 @@ function getStatusLabel(status: string): string {
     success: "Sucesso",
     partial_success: "Sucesso parcial",
     failed: "Falhou",
+    canceled: "Cancelada",
   };
 
   return labels[status] ?? status;
@@ -75,7 +77,7 @@ function getStatusClassName(status: string): string {
     return "bg-amber-50 text-amber-700 ring-amber-200";
   }
 
-  if (status === "failed") {
+  if (status === "failed" || status === "canceled") {
     return "bg-red-50 text-red-700 ring-red-200";
   }
 
@@ -250,6 +252,7 @@ export default async function AdminSyncPage() {
         </div>
 
         <div className="mt-10 grid gap-6">
+          <RunningSynchronizations />
           <StrickerSyncActions />
           <StrickerRestCatalogSyncActions />
           <StrickerManualImportForm />
