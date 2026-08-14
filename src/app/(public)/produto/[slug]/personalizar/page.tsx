@@ -85,7 +85,10 @@ type PrintingPriceTable = {
   handling_cost: number;
   handling_cost_code: string | null;
   currency: string;
+  price_by_color: boolean;
   price_by_area: boolean;
+  allow_full_color: boolean;
+  max_colors: number | null;
   area_cm2: number | null;
 };
 
@@ -557,7 +560,10 @@ function buildEditorLocations(params: {
             handling_cost: price.handling_cost,
             handling_cost_code: price.handling_cost_code,
             currency: price.currency,
+            price_by_color: price.price_by_color,
             price_by_area: price.price_by_area,
+            allow_full_color: price.allow_full_color,
+            max_colors: price.max_colors,
             area_cm2: price.area_cm2,
           })),
       });
@@ -731,7 +737,7 @@ export default async function ProductPersonalizePage({
     ? await supabase
         .from("printing_price_tables")
         .select(
-          "id,table_code,table_code_option,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency,price_by_area,area_cm2",
+          "id,table_code,table_code_option,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency,price_by_color,price_by_area,allow_full_color,max_colors,area_cm2",
         )
         .eq("supplier_id", product.supplier_id)
         .eq("is_active", true)

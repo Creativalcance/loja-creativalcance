@@ -73,8 +73,18 @@ export type ProductEditorCustomizationPrice = {
   supplier_handling_cost: number;
   handling_cost_code: string | null;
   currency: string;
+  price_by_color: boolean;
   price_by_area: boolean;
+  allow_full_color: boolean;
+  max_colors: number | null;
   area_cm2: number | null;
+};
+
+type PrintColorMode = "full" | `colors:${number}`;
+
+type PrintColorOption = {
+  mode: PrintColorMode;
+  label: string;
 };
 
 type LogoPosition = {
@@ -306,7 +316,14 @@ function getSafeLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
 }): LogoPosition {
-  const safeWidth = clamp(params.position.width, 10, 100);
+  const rotationRadians = (Math.abs(params.position.rotation) * Math.PI) / 180;
+  const cosine = Math.cos(rotationRadians);
+  const sine = Math.sin(rotationRadians);
+  const heightRatio = params.printAreaAspectRatio / params.logoAspectRatio;
+  const widthLimit = 100 / Math.max(cosine + heightRatio * sine, 0.0001);
+  const heightLimit = 100 / Math.max(sine + heightRatio * cosine, 0.0001);
+  const maximumWidth = Math.min(100, widthLimit, heightLimit);
+  const safeWidth = clamp(params.position.width, Math.min(10, maximumWidth), maximumWidth);
 
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: safeWidth,
@@ -314,12 +331,76 @@ function getSafeLogoPosition(params: {
     logoAspectRatio: params.logoAspectRatio,
   });
 
+  const rotatedWidth = safeWidth * cosine + logoHeight * sine;
+  const rotatedHeight = safeWidth * sine + logoHeight * cosine;
+  const horizontalRotationOffset = Math.max(0, (rotatedWidth - safeWidth) / 2);
+  const verticalRotationOffset = Math.max(0, (rotatedHeight - logoHeight) / 2);
+
   return {
-    x: clamp(params.position.x, 0, Math.max(0, 100 - safeWidth)),
-    y: clamp(params.position.y, 0, Math.max(0, 100 - logoHeight)),
+    x: clamp(
+      params.position.x,
+      horizontalRotationOffset,
+      Math.max(horizontalRotationOffset, 100 - safeWidth - horizontalRotationOffset),
+    ),
+    y: clamp(
+      params.position.y,
+      verticalRotationOffset,
+      Math.max(verticalRotationOffset, 100 - logoHeight - verticalRotationOffset),
+    ),
     width: safeWidth,
     rotation: clamp(params.position.rotation, -15, 15),
   };
+}
+
+function getMaximumLogoWidthPercent(params: {
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+  rotation: number;
+}): number {
+  return getSafeLogoPosition({
+    position: { x: 0, y: 0, width: 100, rotation: params.rotation },
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  }).width;
+}
+
+function getPrintColorMode(tier: ProductEditorCustomizationPrice): PrintColorMode | null {
+  if (tier.allow_full_color || /-F$/i.test(tier.table_code_option ?? "")) {
+    return "full";
+  }
+
+  if (tier.price_by_color && tier.max_colors && tier.max_colors > 0) {
+    return `colors:${tier.max_colors}`;
+  }
+
+  return null;
+}
+
+function getPrintColorOptions(tiers: ProductEditorCustomizationPrice[]): PrintColorOption[] {
+  const modes = new Set<PrintColorMode>();
+
+  for (const tier of tiers) {
+    const mode = getPrintColorMode(tier);
+    if (mode) modes.add(mode);
+  }
+
+  return [...modes]
+    .sort((left, right) => {
+      if (left === "full") return 1;
+      if (right === "full") return -1;
+      return Number(left.split(":")[1]) - Number(right.split(":")[1]);
+    })
+    .map((mode) => {
+      if (mode === "full") {
+        return { mode, label: "Todas as cores da imagem" };
+      }
+
+      const count = Number(mode.split(":")[1]);
+      return {
+        mode,
+        label: `${count} ${count === 1 ? "cor" : "cores"}`,
+      };
+    });
 }
 
 function getPreferredPreviewImage(params: {
@@ -341,6 +422,7 @@ function findCustomizationPriceTier(
   tiers: ProductEditorCustomizationPrice[],
   quantity: number,
   areaCm2?: number | null,
+  printColorMode?: PrintColorMode | null,
 ): ProductEditorCustomizationPrice | null {
   const requestedArea = areaCm2 && areaCm2 > 0 ? areaCm2 : null;
   const series = new Map<string, ProductEditorCustomizationPrice[]>();
@@ -366,18 +448,24 @@ function findCustomizationPriceTier(
       prices,
       seriesArea,
       colors: colors && Number.isFinite(colors) ? colors : null,
+      printColorMode: getPrintColorMode(prices[0]),
     };
   });
 
+  const colorCandidates = printColorMode
+    ? candidates.filter((candidate) => candidate.printColorMode === printColorMode)
+    : candidates;
+  const selectableCandidates = colorCandidates.length > 0 ? colorCandidates : candidates;
+
   const areaCandidates = requestedArea
-    ? candidates.filter(
+    ? selectableCandidates.filter(
         (candidate) =>
           candidate.seriesArea === null ||
           candidate.seriesArea >= requestedArea,
       )
-    : candidates;
+    : selectableCandidates;
   const applicableCandidates =
-    areaCandidates.length > 0 ? areaCandidates : candidates;
+    areaCandidates.length > 0 ? areaCandidates : selectableCandidates;
   const selectedSeries = [...applicableCandidates].sort((a, b) => {
     const aArea = a.seriesArea ?? Number.POSITIVE_INFINITY;
     const bArea = b.seriesArea ?? Number.POSITIVE_INFINITY;
@@ -424,6 +512,7 @@ function findCustomizationPriceTier(
 function getCustomizationQuantityBreaks(params: {
   tiers: ProductEditorCustomizationPrice[];
   areaCm2?: number | null;
+  printColorMode?: PrintColorMode | null;
 }): number[] {
   const quantities = new Set<number>();
 
@@ -440,6 +529,7 @@ function getCustomizationQuantityBreaks(params: {
         params.tiers,
         quantity,
         params.areaCm2,
+        params.printColorMode,
       );
 
       if (!tier) {
@@ -454,6 +544,7 @@ function getCustomizationQuantityBreaks(params: {
         params.tiers,
         allQuantities[index - 1],
         params.areaCm2,
+        params.printColorMode,
       );
 
       return (
@@ -563,7 +654,9 @@ export default function ProductCustomizationEditor({
     [initialVariantId, variants],
   );
 
-  const [quantity, setQuantity] = useState(Math.max(1, initialQuantity));
+  const initialSafeQuantity = Math.max(1, Math.floor(initialQuantity));
+  const [quantity, setQuantity] = useState(initialSafeQuantity);
+  const [quantityInput, setQuantityInput] = useState(String(initialSafeQuantity));
 
   const locationGroups = useMemo(
     () =>
@@ -631,6 +724,18 @@ export default function ProductCustomizationEditor({
   const [internalReference, setInternalReference] = useState("");
   const [notes, setNotes] = useState("");
 
+  const printColorOptions = useMemo(
+    () => getPrintColorOptions(selectedLocation?.price_tiers ?? []),
+    [selectedLocation?.price_tiers],
+  );
+  const [selectedPrintColorMode, setSelectedPrintColorMode] =
+    useState<PrintColorMode | null>(null);
+  const effectivePrintColorMode =
+    selectedPrintColorMode &&
+    printColorOptions.some((option) => option.mode === selectedPrintColorMode)
+      ? selectedPrintColorMode
+      : (printColorOptions[0]?.mode ?? null);
+
   const printAreaDimensions = parsePrintAreaDimensions(
     selectedLocation?.max_printing_area_mm ?? null,
   );
@@ -678,6 +783,7 @@ export default function ProductCustomizationEditor({
     selectedLocation?.price_tiers ?? [],
     quantity,
     logoWidthMm && logoHeightMm ? (logoWidthMm * logoHeightMm) / 100 : null,
+    effectivePrintColorMode,
   );
   const personalizationUnitPrice =
     personalizationPriceTier?.final_price ?? 0;
@@ -691,8 +797,9 @@ export default function ProductCustomizationEditor({
           logoWidthMm && logoHeightMm
             ? (logoWidthMm * logoHeightMm) / 100
             : null,
+        printColorMode: effectivePrintColorMode,
       }),
-    [logoHeightMm, logoWidthMm, selectedLocation?.price_tiers],
+    [logoHeightMm, logoWidthMm, selectedLocation?.price_tiers, effectivePrintColorMode],
   );
 
   const nextSavingTier = (() => {
@@ -711,6 +818,7 @@ export default function ProductCustomizationEditor({
         logoWidthMm && logoHeightMm
           ? (logoWidthMm * logoHeightMm) / 100
           : null,
+        effectivePrintColorMode,
       );
 
       if (tier && tier.final_price < personalizationUnitPrice) {
@@ -831,17 +939,46 @@ export default function ProductCustomizationEditor({
     );
   }
 
+  function updateQuantity(value: number) {
+    const safeQuantity = Math.max(1, Math.floor(value));
+    setQuantity(safeQuantity);
+    setQuantityInput(String(safeQuantity));
+  }
+
+  function handleQuantityInput(value: string) {
+    setQuantityInput(value);
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed >= 1) {
+      setQuantity(Math.floor(parsed));
+    }
+  }
+
+  function normalizeQuantityInput() {
+    updateQuantity(quantity);
+  }
+
   function resetPosition() {
     setPosition(initialPosition);
   }
 
   function fitLogoToArea() {
+    const maximumWidth = getMaximumLogoWidthPercent({
+      printAreaAspectRatio,
+      logoAspectRatio,
+      rotation: 0,
+    });
+    const maximumHeight = getLogoHeightPercent({
+      logoWidthPercent: maximumWidth,
+      printAreaAspectRatio,
+      logoAspectRatio,
+    });
+
     setPosition(
       getSafeLogoPosition({
         position: {
-          x: 5,
-          y: 20,
-          width: 90,
+          x: (100 - maximumWidth) / 2,
+          y: (100 - maximumHeight) / 2,
+          width: maximumWidth,
           rotation: 0,
         },
         printAreaAspectRatio,
@@ -1632,7 +1769,7 @@ export default function ProductCustomizationEditor({
                 {nextSavingTier ? (
                   <button
                     type="button"
-                    onClick={() => setQuantity(nextSavingTier.quantity)}
+                    onClick={() => updateQuantity(nextSavingTier.quantity)}
                     className="mt-3 w-full rounded-xl bg-emerald-400/15 px-3 py-3 text-left ring-1 ring-inset ring-emerald-300/20 transition hover:bg-emerald-400/20"
                   >
                     <span className="block text-xs text-emerald-100">
@@ -1655,7 +1792,7 @@ export default function ProductCustomizationEditor({
                         <button
                           key={tierQuantity}
                           type="button"
-                          onClick={() => setQuantity(tierQuantity)}
+                          onClick={() => updateQuantity(tierQuantity)}
                           aria-pressed={quantity === tierQuantity}
                           className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
                             quantity === tierQuantity
@@ -1669,7 +1806,58 @@ export default function ProductCustomizationEditor({
                     </div>
                   </div>
                 ) : null}
+
+                <label className="mt-4 block">
+                  <span className="text-xs font-medium text-neutral-300">
+                    Introduzir outra quantidade
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    inputMode="numeric"
+                    value={quantityInput}
+                    onChange={(event) => handleQuantityInput(event.target.value)}
+                    onBlur={normalizeQuantityInput}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        normalizeQuantityInput();
+                      }
+                    }}
+                    className="mt-2 w-full rounded-xl border border-white/15 bg-white px-4 py-3 text-base font-semibold text-neutral-950 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/30"
+                    aria-label="Quantidade pretendida"
+                  />
+                </label>
               </div>
+
+              {printColorOptions.length > 0 ? (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-300">
+                    Cores da personalização
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {printColorOptions.map((option) => (
+                      <button
+                        key={option.mode}
+                        type="button"
+                        onClick={() => setSelectedPrintColorMode(option.mode)}
+                        aria-pressed={effectivePrintColorMode === option.mode}
+                        className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                          effectivePrintColorMode === option.mode
+                            ? "bg-white text-neutral-950"
+                            : "bg-white/10 text-white hover:bg-white/15"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-neutral-400">
+                    Opções disponibilizadas pela tabela de personalização Stricker selecionada.
+                  </p>
+                </div>
+              ) : null}
 
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
@@ -1787,7 +1975,7 @@ export default function ProductCustomizationEditor({
                   onClick={() => setShowProductionTimes(true)}
                   className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
                 >
-                  Produção
+                  Tempos de produção
                 </button>
               </div>
 
@@ -1807,15 +1995,15 @@ export default function ProductCustomizationEditor({
                 type="button"
                 onClick={handleConfirmCustomization}
                 disabled={isSavingDraft}
-                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-white px-5 py-4 text-sm font-semibold !text-neutral-950 transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-neutral-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <span className="!text-neutral-950">
+                <span className="text-neutral-950">
                   {isSavingDraft
                     ? "A confirmar maquete..."
                     : "Confirmar maquete e avançar para checkout"}
                 </span>
 
-                <ArrowRight className="ml-2 h-4 w-4 !text-neutral-950" />
+                <ArrowRight className="ml-2 h-4 w-4 text-neutral-950" />
               </button>
             </div>
           </aside>
@@ -1883,6 +2071,7 @@ export default function ProductCustomizationEditor({
                             logoWidthMm && logoHeightMm
                               ? (logoWidthMm * logoHeightMm) / 100
                               : null,
+                            effectivePrintColorMode,
                           )?.final_price ?? 0,
                           productCurrency,
                         )}
