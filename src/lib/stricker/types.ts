@@ -24,6 +24,8 @@ export type StrickerDatasetName =
   | "optionals"
   | "optionalsPrice"
   | "optionalscomplete"
+  | "optionalscomplete_textil_products"
+  | "optionalscomplete_without_textil"
   | "customizationOptions"
   | "customizationTables"
   | "colors"
