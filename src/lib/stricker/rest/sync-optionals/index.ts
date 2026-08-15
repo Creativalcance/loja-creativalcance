@@ -927,7 +927,7 @@ function buildPriceRows(params: {
         fixedMarkup: hasAdminOverride ? existingPrice?.fixed_markup : null,
         manualPrice: hasAdminOverride ? existingPrice?.manual_price : null,
         minimumProfit: pricingRule?.minimum_profit ?? 0,
-        roundingMode: "nearest_cent",
+        roundingMode: "up_cent",
       });
 
       rows.push({

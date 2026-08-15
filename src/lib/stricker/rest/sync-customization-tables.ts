@@ -110,7 +110,7 @@ export type SyncRestCustomizationTablesResult = {
 };
 
 const UPSERT_CHUNK_SIZE = 500;
-const DEFAULT_PERSONALIZATION_MARGIN_RATE = 0.5;
+const DEFAULT_PERSONALIZATION_MARGIN_RATE = 0.3;
 const DEFAULT_SETUP_MARGIN_RATE = 0.3;
 
 function chunkArray<TValue>(values: TValue[], size: number): TValue[][] {

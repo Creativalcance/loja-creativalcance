@@ -224,7 +224,7 @@ async function updateProductPrice(params: {
     fixedMarkup: params.fixedMarkup,
     manualPrice: params.manualPrice,
     minimumProfit: 0,
-    roundingMode: "nearest_cent",
+    roundingMode: "up_cent",
   });
 
   const isManualOverride = params.pricingMode !== "automatic";
@@ -343,7 +343,7 @@ async function updatePrintingPrice(params: {
     fixedMarkup: params.fixedMarkup,
     manualPrice: params.manualPrice,
     minimumProfit: 0,
-    roundingMode: "nearest_cent",
+    roundingMode: "up_cent",
   });
 
   const isManualOverride = params.pricingMode !== "automatic";
@@ -427,7 +427,7 @@ async function updatePrintingSetup(params: {
     automaticMarginPercentage: params.marginPercentage ?? Number(data.handling_margin_rate ?? 0.3) * 100,
     marginPercentage: params.marginPercentage, markupPercentage: params.markupPercentage,
     fixedMarkup: params.fixedMarkup, manualPrice: params.manualPrice,
-    minimumProfit: 0, roundingMode: "nearest_cent",
+    minimumProfit: 0, roundingMode: "up_cent",
   });
   const nextValues = {
     handling_cost: calculated.finalPrice,
