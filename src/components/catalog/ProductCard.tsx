@@ -104,14 +104,14 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <Link
       href={`/produto/${product.slug}`}
-      className="group overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+      className="product-card group overflow-hidden rounded-[1.75rem] border border-[#162334]/10 bg-white shadow-[0_12px_40px_rgba(22,35,52,0.06)] transition duration-300 hover:-translate-y-1.5 hover:border-[#ff6a00]/30 hover:shadow-[0_22px_60px_rgba(22,35,52,0.12)]"
     >
-      <div className="aspect-square bg-neutral-100">
+      <div className="aspect-square overflow-hidden bg-gradient-to-b from-[#f8f9fb] to-[#f1f3f6]">
         {imageUrl ? (
           <img
             src={imageUrl}
             alt={primaryImage?.alt_text ?? product.name}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            className="h-full w-full object-contain p-5 transition duration-500 group-hover:scale-[1.04]"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-400">
@@ -120,14 +120,14 @@ export default function ProductCard({ product }: ProductCardProps) {
         )}
       </div>
 
-      <div className="p-5">
+      <div className="p-5 md:p-6">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-neutral-400">
             {product.sku}
           </p>
 
           {product.is_featured ? (
-            <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+            <span className="inline-flex items-center rounded-full bg-[#fff3eb] px-2.5 py-1 text-xs font-semibold text-[#d95700] ring-1 ring-[#ff6a00]/20">
               <Star className="mr-1 h-3 w-3" />
               Destaque
             </span>
@@ -146,7 +146,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
         <div className="mt-5 flex flex-wrap gap-2">
           {product.is_customizable ? (
-            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
+            <span className="inline-flex items-center rounded-full bg-[#162334]/5 px-2.5 py-1 text-xs font-semibold text-[#162334] ring-1 ring-[#162334]/10">
               <CheckCircle2 className="mr-1 h-3 w-3" />
               Personalizável
             </span>
@@ -186,7 +186,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </div>
         </div>
 
-        <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">
+        <span className="mt-6 inline-flex items-center text-sm font-semibold text-[#e85f00]">
           Ver produto
           <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
         </span>

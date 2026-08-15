@@ -11,12 +11,21 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { Metadata } from "next";
+import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
 import SmartMerchSearchForm from "@/components/smart-merch/SmartMerchSearchForm";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: "Merchandising personalizado para empresas",
+  description:
+    "Encontre brindes promocionais, merchandising corporativo, vestuário e gifts empresariais com pesquisa inteligente, preços por quantidade e personalização.",
+  alternates: { canonical: "/" },
+};
 
 type ProductImage = {
   external_url: string | null;
@@ -179,12 +188,35 @@ const buyingSteps = [
 ];
 
 const benefits = [
-  "Compra directa online",
-  "Escalões de preço por quantidade",
-  "Stock e cores por produto",
-  "Produtos com personalização disponível",
-  "Catálogo permanente evolução",
-  "Envios em 24H*",
+  "Compra online simples e transparente",
+  "Preços ajustados à quantidade",
+  "Stock e variantes por produto",
+  "Opções de personalização validadas",
+  "Catálogo em atualização contínua",
+  "Acompanhamento da encomenda",
+];
+
+const frequentlyAskedQuestions = [
+  {
+    question: "Como encontro produtos dentro do meu orçamento?",
+    answer:
+      "Indique o que procura, a quantidade e o orçamento no 360 Smart Merch. A plataforma cruza esses critérios com os dados reais do catálogo e apresenta sugestões compatíveis.",
+  },
+  {
+    question: "Os produtos podem ser personalizados?",
+    answer:
+      "Quando existe personalização disponível, a página do produto apresenta as técnicas, posições e opções compatíveis para criar a sua seleção.",
+  },
+  {
+    question: "Os preços variam com a quantidade?",
+    answer:
+      "Sim. Os valores do produto e da personalização são calculados de acordo com a quantidade selecionada e apresentados separadamente sempre que existam dados suficientes.",
+  },
+  {
+    question: "Posso pedir apoio para uma campanha especial?",
+    answer:
+      "Sim. Pode enviar um pedido personalizado com os objetivos, quantidades, orçamento e prazo da campanha para receber apoio da nossa equipa.",
+  },
 ];
 
 function normalizeText(value: string | null | undefined): string {
@@ -511,21 +543,23 @@ export default async function HomePage() {
     <>
       <SiteHeader />
 
-      <main className="min-h-screen bg-neutral-950 text-white">
-        <section className="mx-auto w-full max-w-7xl px-6 pb-10 pt-14 lg:pb-12 lg:pt-16">
+      <main className="min-h-screen overflow-hidden bg-neutral-950 text-white">
+        <section className="home-hero relative mx-auto w-full max-w-7xl px-6 pb-16 pt-14 lg:pb-20 lg:pt-20">
+          <div className="ambient-orb ambient-orb-orange pointer-events-none absolute -right-48 -top-56 h-[34rem] w-[34rem] rounded-full bg-[#ff6a00]/15 blur-3xl" />
+          <div className="ambient-orb ambient-orb-light pointer-events-none absolute -left-48 bottom-0 h-80 w-80 rounded-full bg-white/5 blur-3xl" />
           <div className="max-w-5xl">
-            <p className="mb-5 inline-flex items-center rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
-              <Sparkles className="mr-2 h-4 w-4" />
-              360 Smart Merch — A forma inteligente de comprar merchandising
+            <p className="mb-6 inline-flex items-center rounded-full border border-[#ff6a00]/35 bg-[#ff6a00]/10 px-4 py-2 text-sm font-medium text-[#ff9b57]">
+              <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+              360 Smart Merch · Compra inteligente
             </p>
 
-            <h1 className="text-5xl font-semibold tracking-tight text-white md:text-7xl">
-              Encontre o merchandising certo em segundos.
+            <h1 className="max-w-5xl text-5xl font-semibold leading-[0.98] tracking-[-0.045em] text-white md:text-7xl lg:text-[5.25rem]">
+              O merchandising certo, sem perder tempo a procurá-lo.
             </h1>
 
-            <p className="mt-8 max-w-2xl text-lg leading-8 text-white/70">
-              Diga-nos o que precisa, quantas unidades pretende, quanto quer
-              gastar e quando precisa de receber.
+            <p className="mt-8 max-w-2xl text-lg leading-8 text-white/68 md:text-xl">
+              Diga-nos o que precisa, quantas unidades pretende e quanto quer
+              investir. A nossa tecnologia ajuda a chegar mais depressa às opções certas.
             </p>
 
             <div className="mt-10 max-w-4xl">
@@ -552,7 +586,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section id="categorias" className="mx-auto w-full max-w-7xl px-6 pb-20">
+        <section id="categorias" className="mx-auto w-full max-w-7xl px-6 pb-24">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
@@ -560,11 +594,11 @@ export default async function HomePage() {
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                Brindes & Gifts? Temos.
+                Uma seleção para cada objetivo.
               </h2>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/55">
-                Explore as nossas categorias.
+                Explore produtos pensados para campanhas, equipas, eventos e relações empresariais.
               </p>
             </div>
 
@@ -718,9 +752,9 @@ export default async function HomePage() {
               </h2>
 
               <p className="mt-5 text-sm leading-7 text-white/60">
-                A Loja Creativ foi desenhada para acelerar a compra e a personalização de produtos
-                promocionais, reduzindo pedidos manuais, facilitando a escolha
-                por categoria, cor, stock, quantidade e personalização.
+                A 360 Merchandising foi desenhada para simplificar a compra e a
+                personalização de produtos promocionais. Menos passos manuais,
+                mais informação útil para decidir com confiança.
               </p>
             </div>
 
@@ -763,7 +797,37 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
+
+        <section className="mx-auto w-full max-w-7xl px-6 pb-24" aria-labelledby="faq-title">
+          <div className="grid gap-10 border-t border-white/10 pt-20 lg:grid-cols-[0.72fr_1.28fr]">
+            <div>
+              <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#ff8a3d]">
+                Perguntas frequentes
+              </p>
+              <h2 id="faq-title" className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Tudo o que precisa para avançar.
+              </h2>
+              <p className="mt-5 max-w-md text-sm leading-7 text-white/60">
+                Respostas diretas às dúvidas mais comuns sobre pesquisa, preços e personalização.
+              </p>
+            </div>
+
+            <div className="divide-y divide-white/10 rounded-[2rem] border border-white/10 bg-white/[0.035] px-6 md:px-8">
+              {frequentlyAskedQuestions.map((item) => (
+                <details key={item.question} className="group py-6">
+                  <summary className="cursor-pointer list-none pr-8 text-lg font-semibold text-white marker:hidden">
+                    {item.question}
+                  </summary>
+                  <p className="mt-3 max-w-2xl text-sm leading-7 text-white/60">
+                    {item.answer}
+                  </p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
       </main>
+      <SiteFooter />
     </>
   );
 }

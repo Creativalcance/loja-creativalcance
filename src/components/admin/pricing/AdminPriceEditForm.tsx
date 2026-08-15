@@ -243,7 +243,7 @@ export default function AdminPriceEditForm({
       >
         {isPending
           ? "A guardar..."
-          : "Guardar preço Loja Creativ"}
+          : "Guardar preço 360 Merchandising"}
       </button>
     </form>
   );

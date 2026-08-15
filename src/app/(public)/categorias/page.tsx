@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { ArrowRight, Boxes, Search } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -29,6 +30,13 @@ type CatalogCategory = {
   count: number;
   imageUrl: string | null;
   imageAlt: string;
+};
+
+export const metadata: Metadata = {
+  title: "Categorias de merchandising e brindes",
+  description:
+    "Explore categorias de brindes promocionais, merchandising corporativo, vestuário personalizado e gifts empresariais.",
+  alternates: { canonical: "/categorias" },
 };
 
 function normalizeText(value: string | null | undefined): string {
