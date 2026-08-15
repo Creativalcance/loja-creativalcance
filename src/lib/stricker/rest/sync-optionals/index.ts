@@ -345,6 +345,7 @@ export type SyncRestOptionalsResult = {
 const UPSERT_CHUNK_SIZE = 500;
 const CUSTOMIZATION_UPSERT_CHUNK_SIZE = 100;
 const QUERY_CHUNK_SIZE = 400;
+const SYNC_STATE_PAGE_SIZE = 500;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
 
@@ -622,68 +623,65 @@ async function filterChangedOptionalRecords(params: {
   const changedSkus = new Set(recordsBySku.keys());
   const existingVariants = new Map<
     string,
-    { id: string; external_variant_id: string; supplier_payload: JsonRecord | null }
+    {
+      id: string;
+      external_variant_id: string;
+      supplier_payload: JsonRecord | null;
+      prices: Array<{ source_price_field: string | null }>;
+      locations: Array<{
+        external_location_id: string;
+        is_active: boolean;
+        supplier_id: string;
+      }>;
+    }
   >();
 
-  for (const skuChunk of chunkArray([...recordsBySku.keys()], QUERY_CHUNK_SIZE)) {
+  for (let offset = 0; ; offset += SYNC_STATE_PAGE_SIZE) {
     const { data, error } = await params.supabaseAdmin
       .from("product_variants")
-      .select("id,external_variant_id,supplier_payload")
+      .select(
+        `
+          id,
+          external_variant_id,
+          supplier_payload,
+          prices:product_prices!product_prices_variant_id_fkey(source_price_field),
+          locations:product_customization_locations!product_customization_locations_variant_id_fkey(
+            external_location_id,
+            is_active,
+            supplier_id
+          )
+        `,
+      )
       .eq("supplier_id", params.supplierId)
-      .in("external_variant_id", skuChunk)
-      .returns<Array<{ id: string; external_variant_id: string; supplier_payload: JsonRecord | null }>>();
-
-    if (error) throw new Error(error.message);
-
-    for (const existing of data ?? []) {
-      existingVariants.set(existing.external_variant_id, existing);
-    }
-  }
-
-  const variantsWithPrices = new Set<string>();
-  const variantsWithQuantityTiers = new Set<string>();
-  const customizationLocationsByVariant = new Map<string, Set<string>>();
-  const existingVariantIds = [...existingVariants.values()].map((variant) => variant.id);
-
-  for (const variantIdChunk of chunkArray(existingVariantIds, QUERY_CHUNK_SIZE)) {
-    const { data, error } = await params.supabaseAdmin
-      .from("product_prices")
-      .select("variant_id,source_price_field")
-      .in("variant_id", variantIdChunk)
-      .returns<Array<{ variant_id: string | null; source_price_field: string | null }>>();
-
-    if (error) throw new Error(error.message);
-    for (const row of data ?? []) {
-      if (row.variant_id) {
-        variantsWithPrices.add(row.variant_id);
-        if (/^Price\d+$/.test(row.source_price_field ?? "")) {
-          variantsWithQuantityTiers.add(row.variant_id);
-        }
-      }
-    }
-  }
-
-  for (const variantIdChunk of chunkArray(existingVariantIds, QUERY_CHUNK_SIZE)) {
-    const { data, error } = await params.supabaseAdmin
-      .from("product_customization_locations")
-      .select("variant_id,external_location_id")
-      .eq("supplier_id", params.supplierId)
-      .in("variant_id", variantIdChunk)
-      .eq("is_active", true)
+      .order("id", { ascending: true })
+      .range(offset, offset + SYNC_STATE_PAGE_SIZE - 1)
       .returns<
-        Array<{ variant_id: string | null; external_location_id: string }>
+        Array<{
+          id: string;
+          external_variant_id: string;
+          supplier_payload: JsonRecord | null;
+          prices: Array<{ source_price_field: string | null }> | null;
+          locations: Array<{
+            external_location_id: string;
+            is_active: boolean;
+            supplier_id: string;
+          }> | null;
+        }>
       >();
 
     if (error) throw new Error(error.message);
 
-    for (const row of data ?? []) {
-      if (!row.variant_id) continue;
+    for (const existing of data ?? []) {
+      if (!recordsBySku.has(existing.external_variant_id)) continue;
 
-      const locations =
-        customizationLocationsByVariant.get(row.variant_id) ?? new Set<string>();
-      locations.add(row.external_location_id);
-      customizationLocationsByVariant.set(row.variant_id, locations);
+      existingVariants.set(existing.external_variant_id, {
+        ...existing,
+        prices: existing.prices ?? [],
+        locations: existing.locations ?? [],
+      });
     }
+
+    if ((data?.length ?? 0) < SYNC_STATE_PAGE_SIZE) break;
   }
 
   for (const existing of existingVariants.values()) {
@@ -706,16 +704,26 @@ async function filterChangedOptionalRecords(params: {
         ? [`${existing.external_variant_id}:C${index}:L${index}`]
         : [];
     });
-    const existingCustomizationLocations =
-      customizationLocationsByVariant.get(existing.id) ?? new Set<string>();
+    const existingCustomizationLocations = new Set(
+      existing.locations
+        .filter(
+          (location) =>
+            location.is_active && location.supplier_id === params.supplierId,
+        )
+        .map((location) => location.external_location_id),
+    );
     const hasAllCustomizationLocations = expectedCustomizationLocationIds.every(
       (locationId) => existingCustomizationLocations.has(locationId),
+    );
+    const hasPrices = existing.prices.length > 0;
+    const hasQuantityTiers = existing.prices.some((price) =>
+      /^Price\d+$/.test(price.source_price_field ?? ""),
     );
     const unchanged =
       nextRecord &&
       !hasSupplierPayloadChanged(existing.supplier_payload, nextRecord) &&
-      variantsWithPrices.has(existing.id) &&
-      (!expectsQuantityTiers || variantsWithQuantityTiers.has(existing.id)) &&
+      hasPrices &&
+      (!expectsQuantityTiers || hasQuantityTiers) &&
       hasAllCustomizationLocations;
 
     if (unchanged) {
