@@ -679,7 +679,7 @@ export default async function ProductPersonalizePage({
 
   const variants = product.product_variants ?? [];
 
-  const selectedVariant =
+  const requestedVariant =
     variants.find((variant) => variant.id === selectedColorId) ??
     null;
 
@@ -694,16 +694,34 @@ export default async function ProductPersonalizePage({
     ),
   );
 
-  const activeVariantId = selectedVariant?.id ?? variants[0]?.id ?? null;
+  const customizableVariantIds = new Set(
+    customizationLocations
+      .map((location) => location.variant_id)
+      .filter((variantId): variantId is string => Boolean(variantId)),
+  );
 
-  const { data: customizationOptionData } = activeVariantId
+  const selectedVariant =
+    (requestedVariant && customizableVariantIds.has(requestedVariant.id)
+      ? requestedVariant
+      : null) ??
+    variants.find((variant) => customizableVariantIds.has(variant.id)) ??
+    requestedVariant ??
+    variants[0] ??
+    null;
+
+  const selectedVariantWasReplaced = Boolean(
+    requestedVariant &&
+      selectedVariant &&
+      requestedVariant.id !== selectedVariant.id,
+  );
+
+  const { data: customizationOptionData } = customizationLocations.length > 0
     ? await supabase
         .from("product_customization_options")
         .select(
           "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active",
         )
         .eq("product_id", product.id)
-        .eq("variant_id", activeVariantId)
         .eq("is_active", true)
     : { data: [] };
 
@@ -761,11 +779,7 @@ export default async function ProductPersonalizePage({
   );
 
   const editorLocations = buildEditorLocations({
-    locations: activeVariantId
-      ? customizationLocations.filter(
-          (location) => location.variant_id === activeVariantId,
-        )
-      : customizationLocations,
+    locations: customizationLocations,
     componentsById,
     printingPrices: (printingPriceData ?? []) as PrintingPriceTable[],
     customizationOptions,
@@ -782,8 +796,8 @@ export default async function ProductPersonalizePage({
   }));
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-6 py-12">
-      <section className="mx-auto max-w-[1600px]">
+    <main className="min-h-screen max-w-full overflow-x-hidden bg-neutral-50 px-4 py-8 sm:px-6 sm:py-12">
+      <section className="mx-auto min-w-0 max-w-[1600px]">
         <Link
           href={`/produto/${product.slug}`}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
@@ -792,14 +806,14 @@ export default async function ProductPersonalizePage({
           Voltar ao produto
         </Link>
 
-        <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="mt-6 min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
                 Passo 2 · Personalização
               </p>
 
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
+              <h1 className="mt-3 break-words text-3xl font-semibold tracking-tight text-neutral-950 [overflow-wrap:anywhere] sm:text-4xl">
                 {product.name}
               </h1>
 
@@ -829,6 +843,12 @@ export default async function ProductPersonalizePage({
                   </span>
                 </p>
               ) : null}
+
+              {selectedVariantWasReplaced ? (
+                <p className="mt-3 border-t border-neutral-200 pt-3 text-xs leading-5 text-neutral-500">
+                  A variante {getVariantLabel(requestedVariant) ?? "selecionada"} não tem áreas de personalização comunicadas pelo fornecedor. Apresentamos a primeira variante compatível.
+                </p>
+              ) : null}
             </div>
           </div>
         </div>
@@ -844,7 +864,7 @@ export default async function ProductPersonalizePage({
             locations={editorLocations}
             productPrices={editorPrices}
             initialDraftId={selectedDraftId}
-            initialVariantId={selectedColorId}
+            initialVariantId={selectedVariant?.id ?? null}
             initialLocationId={selectedLocationId}
             initialQuantity={
               selectedQuantity > 0 ? selectedQuantity : 1

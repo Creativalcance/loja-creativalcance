@@ -584,6 +584,28 @@ function getQuantityLabel(
   )}+`;
 }
 
+function formatProductText(value: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const formatted = value
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n\s*\n+/g, "\n")
+    .trim();
+
+  return formatted.length > 0 ? formatted : null;
+}
+
 export default function ProductDirectPurchasePanel({
   productId,
   productSlug,
@@ -605,6 +627,8 @@ export default function ProductDirectPurchasePanel({
   futureStocks,
   customizationDraft,
 }: ProductDirectPurchasePanelProps) {
+  const formattedShortDescription = formatProductText(shortDescription);
+  const formattedProductDescription = formatProductText(productDescription);
   const hasSizes = useMemo(
     () =>
       colors.some((color) =>
@@ -919,8 +943,8 @@ export default function ProductDirectPurchasePanel({
   }
 
   return (
-    <div className="mt-8 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.85fr)]">
-      <div className="space-y-6">
+    <div className="mt-8 grid min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.85fr)] lg:gap-10">
+      <div className="min-w-0 max-w-full space-y-6">
         <div className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="mx-auto flex aspect-[4/3] max-h-[560px] items-center justify-center overflow-hidden rounded-3xl bg-neutral-50">
             <ProductDetailImage
@@ -1071,9 +1095,9 @@ export default function ProductDirectPurchasePanel({
             Informação adicional
           </h2>
 
-          <p className="mt-4 leading-8 text-neutral-600">
-            {productDescription ??
-              shortDescription ??
+          <p className="mt-4 whitespace-pre-line break-words leading-8 text-neutral-600 [overflow-wrap:anywhere]">
+            {formattedProductDescription ??
+              formattedShortDescription ??
               "Produto disponível para encomenda online."}
           </p>
 
@@ -1119,18 +1143,18 @@ export default function ProductDirectPurchasePanel({
         </section>
       </div>
 
-      <div>
+      <div className="min-w-0 max-w-full">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
           {brand ?? "Produto"}
         </p>
 
-        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
+        <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight text-neutral-950 [overflow-wrap:anywhere] sm:text-4xl">
           {productName}
         </h1>
 
-        {shortDescription ? (
-          <p className="mt-5 text-lg leading-8 text-neutral-600">
-            {shortDescription}
+        {formattedShortDescription ? (
+          <p className="mt-5 whitespace-pre-line break-words text-base leading-7 text-neutral-600 [overflow-wrap:anywhere] sm:text-lg sm:leading-8">
+            {formattedShortDescription}
           </p>
         ) : null}
 
@@ -1199,8 +1223,8 @@ export default function ProductDirectPurchasePanel({
           </h2>
 
           {activePrices.length > 0 ? (
-            <div className="mt-5 overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-0 text-sm">
+            <div className="mt-5 w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain">
+              <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                 <thead>
                   <tr>
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
@@ -1423,8 +1447,8 @@ export default function ProductDirectPurchasePanel({
             />
 
             {visibleVariants.length > 0 ? (
-              <div className="overflow-x-auto rounded-2xl border border-neutral-200">
-                <table className="min-w-full border-separate border-spacing-0 text-sm">
+              <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-neutral-200">
+                <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
                   <thead className="bg-neutral-50">
                     <tr>
                       <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
