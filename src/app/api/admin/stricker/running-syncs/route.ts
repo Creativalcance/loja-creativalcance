@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { expireStaleSupplierSyncs } from "@/lib/stricker/sync-control";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export async function GET(): Promise<NextResponse> {
   try {
     await assertAdminAccess("/admin/sincronizacao");
     const supabase = createSupabaseAdminClient();
+    await expireStaleSupplierSyncs({ supabaseAdmin: supabase });
     const { data, error } = await supabase
       .from("supplier_dataset_imports")
       .select("id,dataset_name,language,country,status,records_received,records_imported,started_at,created_at")

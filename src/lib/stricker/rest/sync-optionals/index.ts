@@ -10,16 +10,21 @@ import { type PricingRule } from "@/lib/pricing/types";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import {
+  downloadStrickerDataset,
+  extractDatasetRecords,
+} from "@/lib/stricker/download-client";
+import {
   buildStrickerComponentImageUrl,
   buildStrickerLocationImageUrl,
   buildStrickerPrintingLinesImageUrl,
   buildStrickerProductImageUrl,
 } from "@/lib/stricker/images";
-import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
-import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
-import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
+import {
+  assertSyncNotCancelled,
+  expireStaleSupplierSyncs,
+} from "@/lib/stricker/sync-control";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -466,6 +471,8 @@ async function createDatasetImport(params: {
   supplierId: string;
   lang: StrickerLanguage;
 }): Promise<string> {
+  await expireStaleSupplierSyncs({ supabaseAdmin: params.supabaseAdmin });
+
   const { data, error } = await params.supabaseAdmin
     .from("supplier_dataset_imports")
     .insert({
@@ -633,6 +640,7 @@ async function filterChangedOptionalRecords(params: {
 
   const variantsWithPrices = new Set<string>();
   const variantsWithQuantityTiers = new Set<string>();
+  const customizationLocationsByVariant = new Map<string, Set<string>>();
   const existingVariantIds = [...existingVariants.values()].map((variant) => variant.id);
 
   for (const variantIdChunk of chunkArray(existingVariantIds, QUERY_CHUNK_SIZE)) {
@@ -653,6 +661,29 @@ async function filterChangedOptionalRecords(params: {
     }
   }
 
+  for (const variantIdChunk of chunkArray(existingVariantIds, QUERY_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_customization_locations")
+      .select("variant_id,external_location_id")
+      .eq("supplier_id", params.supplierId)
+      .in("variant_id", variantIdChunk)
+      .eq("is_active", true)
+      .returns<
+        Array<{ variant_id: string | null; external_location_id: string }>
+      >();
+
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      if (!row.variant_id) continue;
+
+      const locations =
+        customizationLocationsByVariant.get(row.variant_id) ?? new Set<string>();
+      locations.add(row.external_location_id);
+      customizationLocationsByVariant.set(row.variant_id, locations);
+    }
+  }
+
   for (const existing of existingVariants.values()) {
     const nextRecord = recordsBySku.get(existing.external_variant_id);
     const expectsQuantityTiers = Array.from({ length: 10 }, (_, index) => index + 1)
@@ -661,11 +692,29 @@ async function filterChangedOptionalRecords(params: {
         const price = getRecordSlotNumber(nextRecord ?? {}, "Price", index);
         return Boolean(quantityMin && quantityMin > 0 && price && price > 0);
       });
+    const expectedCustomizationLocationIds = Array.from(
+      { length: MAX_CUSTOMIZATION_SLOTS },
+      (_, index) => index + 1,
+    ).flatMap((index) => {
+      const locationName =
+        getRecordSlotString(nextRecord ?? {}, "Location", index) ??
+        getRecordSlotString(nextRecord ?? {}, "ComposedLocation", index);
+
+      return locationName
+        ? [`${existing.external_variant_id}:C${index}:L${index}`]
+        : [];
+    });
+    const existingCustomizationLocations =
+      customizationLocationsByVariant.get(existing.id) ?? new Set<string>();
+    const hasAllCustomizationLocations = expectedCustomizationLocationIds.every(
+      (locationId) => existingCustomizationLocations.has(locationId),
+    );
     const unchanged =
       nextRecord &&
       !hasSupplierPayloadChanged(existing.supplier_payload, nextRecord) &&
       variantsWithPrices.has(existing.id) &&
-      (!expectsQuantityTiers || variantsWithQuantityTiers.has(existing.id));
+      (!expectsQuantityTiers || variantsWithQuantityTiers.has(existing.id)) &&
+      hasAllCustomizationLocations;
 
     if (unchanged) {
       changedSkus.delete(existing.external_variant_id);
@@ -927,7 +976,7 @@ function buildPriceRows(params: {
         fixedMarkup: hasAdminOverride ? existingPrice?.fixed_markup : null,
         manualPrice: hasAdminOverride ? existingPrice?.manual_price : null,
         minimumProfit: pricingRule?.minimum_profit ?? 0,
-        roundingMode: "up_cent",
+        roundingMode: "nearest_cent",
       });
 
       rows.push({
@@ -1387,22 +1436,50 @@ export async function syncRestOptionals(params: {
   });
 
   try {
-    const token = await getValidStrickerSessionToken();
-
-    const payload = await fetchStrickerDataset(
+    const downloadResult = await downloadStrickerDataset(
       {
-        dataset: "optionals",
-        token,
+        datasetName: "optionals",
         lang: params.lang,
+        extension: "json",
       },
       {
-        timeoutMs: 300_000,
+        timeoutMs: 120_000,
       },
     );
 
-    const records = Array.isArray(payload.Optionals)
-      ? (payload.Optionals as StrickerOptionalRecord[])
-      : [];
+    const payloadMetadata = toJsonRecord(downloadResult.payload);
+    const records = extractDatasetRecords(downloadResult.payload, [
+      "Optionals",
+      "optionals",
+      "Data",
+      "data",
+      "Items",
+      "items",
+    ]) as StrickerOptionalRecord[];
+
+    if (records.length === 0) {
+      throw new Error(
+        "O dataset de variantes foi descarregado sem registos. A sincronização foi interrompida sem alterar os dados existentes.",
+      );
+    }
+
+    const { error: downloadProgressError } = await supabaseAdmin
+      .from("supplier_dataset_imports")
+      .update({
+        records_received: records.length,
+        raw_payload: {
+          phase: "downloaded",
+          source: "direct-download",
+          payloadHash: downloadResult.payloadHash,
+          recordsReceived: records.length,
+        },
+      })
+      .eq("id", datasetImportId)
+      .eq("status", "running");
+
+    if (downloadProgressError) {
+      throw new Error(downloadProgressError.message);
+    }
 
     const changedRecords = await filterChangedOptionalRecords({
       supabaseAdmin,
@@ -1549,9 +1626,11 @@ export async function syncRestOptionals(params: {
       recordsImported: importedVariants.length,
       recordsFailed: Math.max(changedRecords.length - importedVariants.length, 0),
       rawPayload: {
-        Count: payload.Count ?? records.length,
-        Currency: payload.Currency ?? null,
-        Language: payload.Language ?? params.lang,
+        Count: payloadMetadata.Count ?? records.length,
+        Currency: payloadMetadata.Currency ?? null,
+        Language: payloadMetadata.Language ?? params.lang,
+        source: "direct-download",
+        payloadHash: downloadResult.payloadHash,
         variantTranslationsImported,
         pricesImported: priceRows.length,
         pricingRulesLoaded: pricingRules.length,

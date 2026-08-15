@@ -11,6 +11,10 @@ export type StrickerDatasetDownloadResult = {
   payloadHash: string;
 };
 
+type StrickerDatasetDownloadOptions = {
+  timeoutMs?: number;
+};
+
 function hashPayload(payload: unknown): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
@@ -66,51 +70,70 @@ export function buildStrickerDownloadUrl(
 
 export async function downloadStrickerDataset(
   params: StrickerDatasetDownloadParams,
+  options: StrickerDatasetDownloadOptions = {},
 ): Promise<StrickerDatasetDownloadResult> {
   const url = buildStrickerDownloadUrl(params);
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json, text/xml, application/xml, text/plain",
-    },
-    cache: "no-store",
-  });
-
-  const responseText = await response.text();
-
-  if (!response.ok) {
-    throw new Error(
-      `Erro ao descarregar dataset Stricker '${params.datasetName}': ${
-        response.status
-      } ${responseText || response.statusText}`,
-    );
-  }
-
-  const trimmedResponse = responseText.trim();
-
-  if (trimmedResponse.startsWith("<")) {
-    throw new Error(buildReadableDownloadError(trimmedResponse));
-  }
-
-  let payload: unknown;
+  const timeoutMs = options.timeoutMs ?? 120_000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    payload = JSON.parse(trimmedResponse);
-  } catch {
-    throw new Error(
-      `Resposta Stricker não pôde ser convertida para JSON. Pré-visualização: ${trimmedResponse.slice(
-        0,
-        300,
-      )}`,
-    );
-  }
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json, text/xml, application/xml, text/plain",
+      },
+      cache: "no-store",
+      signal: controller.signal,
+    });
 
-  return {
-    url,
-    payload,
-    payloadHash: hashPayload(payload),
-  };
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        `Erro ao descarregar dataset do fornecedor '${params.datasetName}': ${
+          response.status
+        } ${responseText || response.statusText}`,
+      );
+    }
+
+    const trimmedResponse = responseText.trim();
+
+    if (trimmedResponse.startsWith("<")) {
+      throw new Error(buildReadableDownloadError(trimmedResponse));
+    }
+
+    let payload: unknown;
+
+    try {
+      payload = JSON.parse(trimmedResponse);
+    } catch {
+      throw new Error(
+        `Resposta do fornecedor não pôde ser convertida para JSON. Pré-visualização: ${trimmedResponse.slice(
+          0,
+          300,
+        )}`,
+      );
+    }
+
+    return {
+      url,
+      payload,
+      payloadHash: hashPayload(payload),
+    };
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error(
+        `O download do dataset '${params.datasetName}' excedeu ${Math.round(
+          timeoutMs / 1000,
+        )} segundos.`,
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 export function extractDatasetRecords(
