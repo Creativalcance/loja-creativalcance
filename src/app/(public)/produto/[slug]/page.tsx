@@ -589,10 +589,11 @@ export default async function ProductDetailPage({
     componentsById,
   });
 
-  const hasActiveCustomizationOptions = activeCustomizationOptionError
-    ? product.is_customizable || customizationOptions.length > 0
-    : (activeCustomizationOptionCount ?? 0) > 0 ||
-      customizationOptions.length > 0;
+  const hasActiveCustomizationOptions =
+    product.is_customizable ||
+    customizationOptions.length > 0 ||
+    (!activeCustomizationOptionError &&
+      (activeCustomizationOptionCount ?? 0) > 0);
 
   const purchaseColors: ProductPurchaseColor[] = colors.map((color) => ({
     id: color.id,
