@@ -4,7 +4,6 @@ import { useActionState, useMemo, useState } from "react";
 import {
   CalendarDays,
   Check,
-  PackageCheck,
   Truck,
 } from "lucide-react";
 import {
@@ -12,10 +11,7 @@ import {
   type CheckoutShippingActionState,
 } from "@/lib/checkout/shipping-actions";
 
-export type CheckoutShippingMethod =
-  | "store_transport"
-  | "customer_transport"
-  | "pickup";
+export type CheckoutShippingMethod = "store_transport";
 
 type CheckoutShippingFormProps = {
   cartId: string;
@@ -60,9 +56,35 @@ function getEstimatedShippingPrice(params: {
 }
 
 function getMinimumDeliveryDate(): string {
-  const date = new Date();
+  const todayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Lisbon",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
 
-  date.setDate(date.getDate() + 2);
+  const year = Number(
+    todayParts.find((part) => part.type === "year")?.value,
+  );
+  const month = Number(
+    todayParts.find((part) => part.type === "month")?.value,
+  );
+  const day = Number(
+    todayParts.find((part) => part.type === "day")?.value,
+  );
+
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  let businessDaysAdded = 0;
+
+  while (businessDaysAdded < 2) {
+    date.setUTCDate(date.getUTCDate() + 1);
+
+    const weekDay = date.getUTCDay();
+
+    if (weekDay !== 0 && weekDay !== 6) {
+      businessDaysAdded += 1;
+    }
+  }
 
   return date.toISOString().slice(0, 10);
 }
@@ -79,8 +101,8 @@ export default function CheckoutShippingForm({
 }: CheckoutShippingFormProps) {
   const [shippingMethod, setShippingMethod] =
     useState<CheckoutShippingMethod>(
-      initialShippingMethod === "customer_transport"
-        ? "customer_transport"
+      initialShippingMethod === "store_transport"
+        ? initialShippingMethod
         : "store_transport",
     );
 
@@ -238,79 +260,6 @@ export default function CheckoutShippingForm({
             </div>
           </button>
 
-          <button
-            type="button"
-            onClick={() =>
-              setShippingMethod("customer_transport")
-            }
-            className={`rounded-3xl border p-5 text-left transition ${
-              shippingMethod === "customer_transport"
-                ? "border-neutral-950 bg-neutral-950 text-white"
-                : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-5">
-              <div className="flex items-start gap-4">
-                <div
-                  className={`rounded-2xl p-3 ${
-                    shippingMethod === "customer_transport"
-                      ? "bg-white/10"
-                      : "bg-neutral-100"
-                  }`}
-                >
-                  <PackageCheck
-                    className={`h-5 w-5 ${
-                      shippingMethod === "customer_transport"
-                        ? "text-white"
-                        : "text-neutral-600"
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <p className="font-semibold">
-                    Transporte organizado pelo cliente
-                  </p>
-
-                  <p
-                    className={`mt-2 text-sm leading-6 ${
-                      shippingMethod === "customer_transport"
-                        ? "text-neutral-300"
-                        : "text-neutral-500"
-                    }`}
-                  >
-                    A recolha será efetuada por uma transportadora
-                    ou operador indicado pelo cliente.
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
-                  shippingMethod === "customer_transport"
-                    ? "border-white bg-white text-neutral-950"
-                    : "border-neutral-300 bg-white text-transparent"
-                }`}
-              >
-                <Check className="h-4 w-4" />
-              </div>
-            </div>
-
-            <div
-              className={`mt-5 flex items-center justify-between border-t pt-4 ${
-                shippingMethod === "customer_transport"
-                  ? "border-white/10"
-                  : "border-neutral-200"
-              }`}
-            >
-              <span className="text-sm">Custo da loja</span>
-
-              <span className="font-semibold">
-                {formatPrice(0, currency)}
-              </span>
-            </div>
-          </button>
-
         </div>
       </section>
 
@@ -348,9 +297,17 @@ export default function CheckoutShippingForm({
               type="date"
               required
               min={minimumDeliveryDate}
-              defaultValue={initialRequestedDeliveryDate}
+              defaultValue={
+                initialRequestedDeliveryDate >= minimumDeliveryDate
+                  ? initialRequestedDeliveryDate
+                  : ""
+              }
               className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
             />
+
+            <p className="mt-2 text-xs leading-5 text-neutral-500">
+              A primeira data disponível corresponde ao segundo dia útil após hoje.
+            </p>
           </div>
 
           <label className="mt-5 flex gap-3 rounded-2xl bg-neutral-50 p-4">

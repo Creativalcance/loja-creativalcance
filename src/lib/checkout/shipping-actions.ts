@@ -9,10 +9,7 @@ export type CheckoutShippingActionState = {
   message: string;
 };
 
-type ShippingMethod =
-  | "store_transport"
-  | "customer_transport"
-  | "pickup";
+type ShippingMethod = "store_transport";
 
 type CartRecord = {
   id: string;
@@ -43,7 +40,6 @@ type ShippingCalculation = {
 
 const ALLOWED_SHIPPING_METHODS = new Set<ShippingMethod>([
   "store_transport",
-  "customer_transport",
 ]);
 
 function getRequiredString(formData: FormData, key: string): string {
@@ -82,17 +78,54 @@ function parseShippingMethod(value: string): ShippingMethod | null {
 }
 
 function parseOptionalDate(value: string | null): string | null {
-  if (!value) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
   }
 
-  const parsedDate = new Date(`${value}T00:00:00`);
+  const parsedDate = new Date(`${value}T12:00:00Z`);
 
-  if (Number.isNaN(parsedDate.getTime())) {
+  if (
+    Number.isNaN(parsedDate.getTime()) ||
+    parsedDate.toISOString().slice(0, 10) !== value
+  ) {
     return null;
   }
 
   return value;
+}
+
+function getMinimumDeliveryDate(): string {
+  const todayParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Lisbon",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = Number(
+    todayParts.find((part) => part.type === "year")?.value,
+  );
+  const month = Number(
+    todayParts.find((part) => part.type === "month")?.value,
+  );
+  const day = Number(
+    todayParts.find((part) => part.type === "day")?.value,
+  );
+
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  let businessDaysAdded = 0;
+
+  while (businessDaysAdded < 2) {
+    date.setUTCDate(date.getUTCDate() + 1);
+
+    const weekDay = date.getUTCDay();
+
+    if (weekDay !== 0 && weekDay !== 6) {
+      businessDaysAdded += 1;
+    }
+  }
+
+  return date.toISOString().slice(0, 10);
 }
 
 function getMetadataRecord(
@@ -109,18 +142,6 @@ function calculateShipping(params: {
   method: ShippingMethod;
   merchandiseTotal: number;
 }): ShippingCalculation {
-  if (params.method === "customer_transport") {
-    return {
-      method: "customer_transport",
-      methodName: "Transporte organizado pelo cliente",
-      provider: null,
-      originCountryCode: "PT",
-      estimatedDaysMin: null,
-      estimatedDaysMax: null,
-      shippingTotal: 0,
-    };
-  }
-
   /*
    * Valor provisório até a integração definitiva com as tabelas
    * de transporte do fornecedor ou com uma transportadora.
@@ -192,6 +213,19 @@ export async function saveCheckoutShippingAction(
       return {
         success: false,
         message: "Indica uma data pretendida de entrega.",
+      };
+    }
+
+    const minimumDeliveryDate = getMinimumDeliveryDate();
+
+    if (
+      requestedDeliveryDate &&
+      requestedDeliveryDate < minimumDeliveryDate
+    ) {
+      return {
+        success: false,
+        message:
+          "A data pretendida deve ser igual ou posterior ao segundo dia útil após hoje.",
       };
     }
 
@@ -296,13 +330,9 @@ export async function saveCheckoutShippingAction(
           shipping_estimated_days_max:
             shipping.estimatedDaysMax,
           requested_delivery_date:
-            requestedShippingMethod === "store_transport"
-              ? requestedDeliveryDate
-              : null,
+            requestedDeliveryDate,
           accepts_delivery_after_date:
-            requestedShippingMethod === "store_transport"
-              ? acceptsDeliveryAfterDate
-              : true,
+            acceptsDeliveryAfterDate,
           internal_reference: internalReference,
           shipping_notes: shippingNotes,
           shipping_total: shipping.shippingTotal,
@@ -317,9 +347,7 @@ export async function saveCheckoutShippingAction(
               shippingCompleted: true,
               shippingCompletedAt: completedAt,
               shippingPricingStatus:
-                shipping.method === "store_transport"
-                  ? "provisional"
-                  : "not_applicable",
+                "provisional",
             },
           },
         })
