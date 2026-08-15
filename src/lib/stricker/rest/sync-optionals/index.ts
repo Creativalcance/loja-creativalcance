@@ -12,6 +12,8 @@ import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import {
   downloadStrickerDataset,
   extractDatasetRecords,
+  StrickerDownloadHttpError,
+  type StrickerDatasetDownloadResult,
 } from "@/lib/stricker/download-client";
 import {
   buildStrickerComponentImageUrl,
@@ -1436,16 +1438,97 @@ export async function syncRestOptionals(params: {
   });
 
   try {
-    const downloadResult = await downloadStrickerDataset(
-      {
-        datasetName: "optionals",
-        lang: params.lang,
-        extension: "json",
-      },
-      {
-        timeoutMs: 120_000,
-      },
-    );
+    let downloadFormat: "json" | "csv" = "json";
+    let downloadSource = "direct-download";
+    let downloadResult: StrickerDatasetDownloadResult;
+
+    try {
+      downloadResult = await downloadStrickerDataset(
+        {
+          datasetName: "optionals",
+          lang: params.lang,
+          extension: "json",
+        },
+        {
+          timeoutMs: 60_000,
+        },
+      );
+    } catch (error) {
+      if (
+        !(
+          (error instanceof StrickerDownloadHttpError &&
+            [502, 503, 504].includes(error.status)) ||
+          (error instanceof Error && error.message.includes("excedeu"))
+        )
+      ) {
+        throw error;
+      }
+
+      try {
+        downloadFormat = "csv";
+        downloadResult = await downloadStrickerDataset(
+          {
+            datasetName: "optionals",
+            lang: params.lang,
+            extension: "csv",
+          },
+          {
+            timeoutMs: 60_000,
+          },
+        );
+      } catch (csvError) {
+        if (
+          !(
+            (csvError instanceof StrickerDownloadHttpError &&
+              [502, 503, 504].includes(csvError.status)) ||
+            (csvError instanceof Error && csvError.message.includes("excedeu"))
+          )
+        ) {
+          throw csvError;
+        }
+
+        downloadFormat = "json";
+        downloadSource = "direct-download-split";
+        const [textileResult, nonTextileResult] = await Promise.all([
+          downloadStrickerDataset(
+            {
+              datasetName: "optionalscomplete_textil_products",
+              lang: params.lang,
+              extension: "json",
+            },
+            { timeoutMs: 90_000 },
+          ),
+          downloadStrickerDataset(
+            {
+              datasetName: "optionalscomplete_without_textil",
+              lang: params.lang,
+              extension: "json",
+            },
+            { timeoutMs: 90_000 },
+          ),
+        ]);
+        const splitKeys = [
+          "OptionalsComplete",
+          "optionalsComplete",
+          "Optionals",
+          "optionals",
+          "Data",
+          "data",
+          "Items",
+          "items",
+        ];
+        const splitRecords = [
+          ...extractDatasetRecords(textileResult.payload, splitKeys),
+          ...extractDatasetRecords(nonTextileResult.payload, splitKeys),
+        ];
+
+        downloadResult = {
+          url: "split-feed",
+          payload: splitRecords,
+          payloadHash: `${textileResult.payloadHash}:${nonTextileResult.payloadHash}`,
+        };
+      }
+    }
 
     const payloadMetadata = toJsonRecord(downloadResult.payload);
     const records = extractDatasetRecords(downloadResult.payload, [
@@ -1469,7 +1552,8 @@ export async function syncRestOptionals(params: {
         records_received: records.length,
         raw_payload: {
           phase: "downloaded",
-          source: "direct-download",
+          source: downloadSource,
+          format: downloadFormat,
           payloadHash: downloadResult.payloadHash,
           recordsReceived: records.length,
         },
@@ -1629,7 +1713,8 @@ export async function syncRestOptionals(params: {
         Count: payloadMetadata.Count ?? records.length,
         Currency: payloadMetadata.Currency ?? null,
         Language: payloadMetadata.Language ?? params.lang,
-        source: "direct-download",
+        source: downloadSource,
+        format: downloadFormat,
         payloadHash: downloadResult.payloadHash,
         variantTranslationsImported,
         pricesImported: priceRows.length,

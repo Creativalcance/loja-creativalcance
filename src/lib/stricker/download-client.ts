@@ -11,12 +11,80 @@ export type StrickerDatasetDownloadResult = {
   payloadHash: string;
 };
 
+export class StrickerDownloadHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    datasetName: string,
+  ) {
+    super(
+      `O servidor de download do fornecedor devolveu o erro ${status} para o dataset '${datasetName}'.`,
+    );
+    this.name = "StrickerDownloadHttpError";
+  }
+}
+
 type StrickerDatasetDownloadOptions = {
   timeoutMs?: number;
 };
 
 function hashPayload(payload: unknown): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function detectCsvDelimiter(content: string): string {
+  const firstLine = content.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0] ?? "";
+  const candidates = [";", ",", "\t", "|"];
+
+  return candidates.reduce((best, candidate) =>
+    firstLine.split(candidate).length > firstLine.split(best).length
+      ? candidate
+      : best,
+  );
+}
+
+function parseCsvDataset(content: string): JsonRecord[] {
+  const delimiter = detectCsvDelimiter(content);
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let value = "";
+  let quoted = false;
+  const normalized = content.replace(/^\uFEFF/, "");
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index];
+    const nextCharacter = normalized[index + 1];
+
+    if (character === '"' && quoted && nextCharacter === '"') {
+      value += '"';
+      index += 1;
+    } else if (character === '"') {
+      quoted = !quoted;
+    } else if (character === delimiter && !quoted) {
+      row.push(value.trim());
+      value = "";
+    } else if ((character === "\n" || character === "\r") && !quoted) {
+      if (character === "\r" && nextCharacter === "\n") index += 1;
+      row.push(value.trim());
+      value = "";
+      if (row.some((cell) => cell.length > 0)) rows.push(row);
+      row = [];
+    } else {
+      value += character;
+    }
+  }
+
+  row.push(value.trim());
+  if (row.some((cell) => cell.length > 0)) rows.push(row);
+
+  const headers = rows.shift()?.map((header) => header.trim()) ?? [];
+  if (headers.length === 0) return [];
+
+  return rows.map((values) =>
+    headers.reduce<JsonRecord>((record, header, index) => {
+      if (header) record[header] = values[index] ?? "";
+      return record;
+    }, {}),
+  );
 }
 
 function extractXmlTagValue(xml: string, tagName: string): string | null {
@@ -90,11 +158,7 @@ export async function downloadStrickerDataset(
     const responseText = await response.text();
 
     if (!response.ok) {
-      throw new Error(
-        `Erro ao descarregar dataset do fornecedor '${params.datasetName}': ${
-          response.status
-        } ${responseText || response.statusText}`,
-      );
+      throw new StrickerDownloadHttpError(response.status, params.datasetName);
     }
 
     const trimmedResponse = responseText.trim();
@@ -105,15 +169,19 @@ export async function downloadStrickerDataset(
 
     let payload: unknown;
 
-    try {
-      payload = JSON.parse(trimmedResponse);
-    } catch {
-      throw new Error(
-        `Resposta do fornecedor não pôde ser convertida para JSON. Pré-visualização: ${trimmedResponse.slice(
-          0,
-          300,
-        )}`,
-      );
+    if (params.extension === "csv") {
+      payload = parseCsvDataset(trimmedResponse);
+    } else {
+      try {
+        payload = JSON.parse(trimmedResponse);
+      } catch {
+        throw new Error(
+          `Resposta do fornecedor não pôde ser convertida para JSON. Pré-visualização: ${trimmedResponse.slice(
+            0,
+            300,
+          )}`,
+        );
+      }
     }
 
     return {
