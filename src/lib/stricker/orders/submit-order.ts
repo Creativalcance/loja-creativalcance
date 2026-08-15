@@ -2,10 +2,6 @@ import path from "node:path";
 import { notifyStrickerOrderSubmitted } from "@/lib/notifications/stricker-order-submitted";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
-  fetchStrickerCustomizationOptions,
-} from "@/lib/stricker/rest/client";
-import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
-import {
   extractStrickerLineSku,
   extractStrickerOrderLineStamp,
   extractStrickerOrderLines,
@@ -50,31 +46,9 @@ type SupplierCustomizationOption = {
   location_name: string | null;
 };
 
-type OfficialCustomizationOption = {
-  ProdReference?: unknown;
-  ServiceCode?: unknown;
-  Component?: unknown;
-  Location?: unknown;
-  TableCode?: unknown;
-  TableCodeOption?: unknown;
-};
-
 const ARTWORK_BUCKET =
   process.env.STRICKER_ARTWORK_BUCKET?.trim() ||
   "customization-artwork";
-
-function getNullableString(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-
-  return null;
-}
 
 function toJsonRecord(value: unknown): JsonRecord {
   if (
@@ -122,67 +96,6 @@ function isSupplierServiceCode(value: string | null): value is string {
   );
 }
 
-function getOfficialCustomizationRecords(
-  value: unknown,
-): OfficialCustomizationOption[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.filter(
-    (record): record is OfficialCustomizationOption =>
-      Boolean(record) && typeof record === "object" && !Array.isArray(record),
-  );
-}
-
-function findOfficialServiceCode(params: {
-  item: StrickerOrderDatabaseItem;
-  records: OfficialCustomizationOption[];
-}): string | null {
-  const productReference = params.item.supplier_sku
-    ?.trim()
-    .split("-")[0] ?? null;
-  const locationAliases = getLocationAliases(
-    params.item.customization_location_name,
-  );
-  const componentAliases = getLocationAliases(
-    params.item.customization_component_name,
-  );
-
-  const candidates = params.records.filter((record) => {
-    const serviceCode = getNullableString(record.ServiceCode);
-
-    return (
-      getNullableString(record.ProdReference) === productReference &&
-      getNullableString(record.TableCodeOption) ===
-        params.item.table_code_option &&
-      isSupplierServiceCode(serviceCode)
-    );
-  });
-  const locationMatches = candidates.filter((record) =>
-    locationAliases.has(
-      normalizeComparable(getNullableString(record.Location)),
-    ),
-  );
-  const componentMatches = locationMatches.filter((record) =>
-    componentAliases.has(
-      normalizeComparable(getNullableString(record.Component)),
-    ),
-  );
-  const selected =
-    componentMatches.length === 1
-      ? componentMatches[0]
-      : locationMatches.length === 1
-        ? locationMatches[0]
-        : candidates.length === 1
-          ? candidates[0]
-          : null;
-
-  return selected
-    ? getNullableString(selected.ServiceCode)
-    : null;
-}
-
 async function resolveSupplierServiceCodes(params: {
   supabaseAdmin: SupabaseAdminClient;
   items: StrickerOrderDatabaseItem[];
@@ -225,7 +138,8 @@ async function resolveSupplierServiceCodes(params: {
 
   const options = (data ?? []) as SupplierCustomizationOption[];
 
-  const resolvedFromDatabase = params.items.map((item) => {
+  return Promise.all(
+    params.items.map(async (item) => {
       if (
         !unresolvedItems.some((candidate) => candidate.id === item.id) ||
         !item.variant_id ||
@@ -257,37 +171,9 @@ async function resolveSupplierServiceCodes(params: {
         return { ...item, service_code: null };
       }
 
-      return { ...item, service_code: selected.service_code };
-    });
-  const stillUnresolved = resolvedFromDatabase.filter(
-    (item) =>
-      item.personalization_required &&
-      !isSupplierServiceCode(item.service_code),
-  );
-
-  let officialRecords: OfficialCustomizationOption[] = [];
-
-  if (stillUnresolved.length > 0) {
-    const token = await getValidStrickerSessionToken();
-    const payload = await fetchStrickerCustomizationOptions(token, "PT");
-    officialRecords = getOfficialCustomizationRecords(
-      payload.CustomizationOptions,
-    );
-  }
-
-  return Promise.all(
-    resolvedFromDatabase.map(async (item) => {
-      const serviceCode = isSupplierServiceCode(item.service_code)
-        ? item.service_code
-        : findOfficialServiceCode({ item, records: officialRecords });
-
-      if (!serviceCode) {
-        return { ...item, service_code: null };
-      }
-
       const { error: updateError } = await params.supabaseAdmin
         .from("order_items")
-        .update({ service_code: serviceCode })
+        .update({ service_code: selected.service_code })
         .eq("id", item.id);
 
       if (updateError) {
@@ -296,7 +182,7 @@ async function resolveSupplierServiceCodes(params: {
         );
       }
 
-      return { ...item, service_code: serviceCode };
+      return { ...item, service_code: selected.service_code };
     }),
   );
 }

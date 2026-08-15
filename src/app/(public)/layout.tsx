@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
 
 type PublicLayoutProps = {
@@ -11,7 +10,6 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
     <>
       <SiteHeader />
       {children}
-      <SiteFooter />
     </>
   );
 }

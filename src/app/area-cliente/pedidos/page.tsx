@@ -45,7 +45,7 @@ export default async function CustomerQuoteRequestsPage() {
 
           <p className="mt-4 text-neutral-600">
             Consulta os pedidos de orçamento ou personalização submetidos através
-            da 360 Merchandising.
+            da Loja Creativ.
           </p>
 
           {quoteRequests.length > 0 ? (

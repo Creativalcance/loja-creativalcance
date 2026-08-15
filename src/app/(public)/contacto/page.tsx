@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import QuoteRequestForm from "@/components/quote/QuoteRequestForm";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -13,13 +12,6 @@ type ProductForQuotePage = {
   sku: string;
   name: string;
   min_order_quantity: number;
-};
-
-export const metadata: Metadata = {
-  title: "Pedido personalizado",
-  description:
-    "Peça apoio para campanhas de merchandising, grandes quantidades, personalizações específicas ou necessidades especiais.",
-  alternates: { canonical: "/contacto" },
 };
 
 export default async function ContactPage({ searchParams }: ContactPageProps) {
@@ -62,7 +54,7 @@ export default async function ContactPage({ searchParams }: ContactPageProps) {
           </h1>
 
           <p className="mt-4 max-w-3xl text-neutral-600">
-            Envie-nos os dados do pedido e a equipa 360 prepara uma
+            Envia-nos os dados do pedido e a equipa da Loja Creativ prepara uma
             proposta ajustada à quantidade, personalização, prazo e objectivo da
             campanha.
           </p>

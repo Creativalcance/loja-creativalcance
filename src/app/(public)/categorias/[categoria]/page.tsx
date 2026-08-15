@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { Search } from "lucide-react";
 import ProductCard, {
   type ProductCardProduct,
@@ -140,19 +139,4 @@ export default async function CategoryProductsPage({
       </section>
     </main>
   );
-}
-
-export async function generateMetadata({
-  params,
-}: CategoryProductsPageProps): Promise<Metadata> {
-  const resolvedParams = await params;
-  const categoryName = sanitizeCategoryValue(resolvedParams.categoria);
-
-  return {
-    title: categoryName,
-    description: `Explore produtos de ${categoryName} para empresas, campanhas, eventos e ações promocionais.`,
-    alternates: {
-      canonical: `/categorias/${encodeURIComponent(categoryName)}`,
-    },
-  };
 }

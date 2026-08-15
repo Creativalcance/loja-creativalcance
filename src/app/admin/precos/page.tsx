@@ -100,6 +100,25 @@ type AdminPricesPageProps = {
   }>;
 };
 
+function getBulkPriceErrorMessage(errorCode: string | undefined): string | null {
+  switch (errorCode) {
+    case "margem-global-invalida":
+      return "Introduza uma margem igual ou superior a 0% e inferior a 95%.";
+    case "tempo-limite":
+      return "A atualização excedeu o tempo disponível. Nenhum preço foi alterado; tente novamente dentro de alguns instantes.";
+    case "historico-global":
+      return "Não foi possível iniciar a alteração nem criar o respetivo histórico.";
+    case "aplicacao-global":
+      return "Não foi possível aplicar a margem. Nenhum preço foi alterado.";
+    case "alteracao-nao-encontrada":
+      return "A alteração selecionada não foi encontrada ou já não está ativa.";
+    default:
+      return errorCode
+        ? "Não foi possível concluir a alteração global."
+        : null;
+  }
+}
+
 const PAGE_SIZE = 30;
 
 function formatPrice(
@@ -484,6 +503,9 @@ export default async function AdminPricesPage({
 }: AdminPricesPageProps) {
   await assertAdminAccess("/admin/precos");
   const resolvedSearchParams = await searchParams;
+  const bulkPriceErrorMessage = getBulkPriceErrorMessage(
+    resolvedSearchParams?.erro,
+  );
 
   const activeTab: PricingTab =
     resolvedSearchParams?.tab ===
@@ -561,7 +583,7 @@ export default async function AdminPricesPage({
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
               Compare o custo original importado do
               fornecedor com o preço apresentado pela
-              360 Merchandising e altere a regra comercial
+              Loja Creativ e altere a regra comercial
               aplicada a cada escalão.
             </p>
           </div>
@@ -581,7 +603,11 @@ export default async function AdminPricesPage({
         </div>
 
         {resolvedSearchParams?.sucesso ? <div className="mt-6 rounded-2xl bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-800">Alteração global concluída com sucesso.</div> : null}
-        {resolvedSearchParams?.erro ? <div className="mt-6 rounded-2xl bg-red-50 px-5 py-4 text-sm font-medium text-red-800">Não foi possível concluir a alteração global. Confirme a margem indicada.</div> : null}
+        {bulkPriceErrorMessage ? (
+          <div className="mt-6 rounded-2xl bg-red-50 px-5 py-4 text-sm font-medium text-red-800">
+            {bulkPriceErrorMessage}
+          </div>
+        ) : null}
 
         <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -743,7 +769,7 @@ export default async function AdminPricesPage({
 
                     <div>
                       <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-                        360 Merchandising
+                        Loja Creativ
                       </p>
 
                       <p
@@ -940,7 +966,7 @@ export default async function AdminPricesPage({
 
                     <div>
                       <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-                        360 Merchandising
+                        Loja Creativ
                       </p>
 
                       <p

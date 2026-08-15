@@ -481,17 +481,7 @@ export default async function ProductDetailPage({
   }
 
   const product = data as unknown as ProductDetail;
-
-  const {
-    count: activeCustomizationOptionCount,
-    error: activeCustomizationOptionError,
-  } = await supabase
-    .from("product_customization_options")
-    .select("id", { count: "exact", head: true })
-    .eq("product_id", product.id)
-    .eq("is_active", true);
-
-  let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
+    let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
 
   if (customizationDraftId) {
     const {
@@ -589,12 +579,6 @@ export default async function ProductDetailPage({
     componentsById,
   });
 
-  const hasActiveCustomizationOptions =
-    product.is_customizable ||
-    customizationOptions.length > 0 ||
-    (!activeCustomizationOptionError &&
-      (activeCustomizationOptionCount ?? 0) > 0);
-
   const purchaseColors: ProductPurchaseColor[] = colors.map((color) => ({
     id: color.id,
     sku: color.sku,
@@ -666,7 +650,7 @@ export default async function ProductDetailPage({
   weight={product.weight}
   minimumQuantity={product.min_order_quantity}
   totalStock={getTotalStock(product)}
-  isCustomizable={hasActiveCustomizationOptions}
+  isCustomizable={customizationOptions.length > 0}
   prices={purchasePrices}
   colors={purchaseColors}
   stocks={purchaseStocks}

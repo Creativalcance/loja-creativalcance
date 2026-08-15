@@ -27,8 +27,8 @@ export default function SmartMerchSearchForm({
       method="get"
       className={
         compact
-          ? "smart-merch-form rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm"
-          : "smart-merch-form rounded-[2rem] border border-white/15 bg-white/[0.075] p-4 shadow-[0_28px_80px_rgba(0,0,0,0.25)] backdrop-blur-xl md:p-5"
+          ? "rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm"
+          : "rounded-[2rem] border border-white/15 bg-white/[0.07] p-4 shadow-2xl backdrop-blur md:p-5"
       }
     >
       <label className="block">
@@ -62,7 +62,7 @@ export default function SmartMerchSearchForm({
           suggestions
             ? compact
               ? "border-neutral-950 bg-neutral-950 text-white shadow-lg"
-              : "border-[#ff6a00] bg-[#fff7f2] text-neutral-950 shadow-xl"
+              : "border-white bg-white text-neutral-950 shadow-xl"
             : compact
               ? "border-neutral-200 bg-neutral-50 text-neutral-800 hover:border-neutral-400"
               : "border-white/20 bg-white/10 text-white hover:bg-white/15"
@@ -75,7 +75,7 @@ export default function SmartMerchSearchForm({
           className="sr-only"
         />
         <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${suggestions ? "border-emerald-400 bg-emerald-400 text-neutral-950" : "border-current/30"}`}>
-          {suggestions ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
+          {suggestions ? <Check className="h-4 w-4" /> : null}
         </span>
         <span>
           <span className="block text-sm font-semibold">Não sei! Aceito as vossas sugestões.</span>
@@ -124,10 +124,10 @@ export default function SmartMerchSearchForm({
         className={`mt-4 inline-flex w-full items-center justify-center rounded-2xl px-6 py-4 text-base font-semibold shadow-xl ring-1 transition hover:-translate-y-0.5 active:translate-y-0 ${
           compact
             ? "bg-neutral-950 text-white ring-neutral-950 hover:bg-neutral-800 hover:shadow-2xl"
-            : "brand-accent bg-[#ff6a00] text-white ring-[#ff6a00] hover:bg-[#e85f00] hover:shadow-2xl"
+            : "bg-white text-neutral-950 ring-white hover:bg-emerald-50 hover:shadow-2xl"
         }`}
       >
-        <Sparkles className="mr-2 h-5 w-5" aria-hidden="true" />
+        <Sparkles className="mr-2 h-5 w-5 text-emerald-500" />
         Mostrar sugestões
       </button>
     </form>

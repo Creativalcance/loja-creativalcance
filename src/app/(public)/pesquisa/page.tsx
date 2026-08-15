@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import { Search } from "lucide-react";
 import ProductCard, {
   type ProductCardProduct,
@@ -22,12 +21,6 @@ type FacetProduct = {
 };
 
 type SortOption = "destaque" | "recentes" | "nome_asc" | "nome_desc";
-
-export const metadata: Metadata = {
-  title: "Pesquisar produtos",
-  description: "Pesquise o catálogo de merchandising e brindes promocionais.",
-  robots: { index: false, follow: true },
-};
 
 function sanitizeSearchQuery(value: string): string {
   return value

@@ -60,13 +60,35 @@ export async function applyBulkMarginAction(formData: FormData): Promise<void> {
     .select("id")
     .single<{ id: string }>();
 
-  if (batchError || !batch) throw new Error(batchError?.message ?? "Não foi possível criar o histórico global.");
+  if (batchError || !batch) {
+    redirect(
+      `/admin/precos?tab=${target === "products" ? "produtos" : "personalizacoes"}&erro=historico-global`,
+    );
+  }
+
   const { error } = await supabaseAdmin.rpc("apply_bulk_price_margin", {
     target_batch_id: batch.id,
     target_type: target,
     target_margin_percentage: margin,
   });
-  if (error) throw new Error(error.message);
+
+  if (error) {
+    await supabaseAdmin
+      .from("bulk_price_change_batches")
+      .delete()
+      .eq("id", batch.id)
+      .eq("affected_rows", 0);
+
+    const errorCode =
+      error.code === "57014" ||
+      error.message.toLowerCase().includes("timeout")
+        ? "tempo-limite"
+        : "aplicacao-global";
+
+    redirect(
+      `/admin/precos?tab=${target === "products" ? "produtos" : "personalizacoes"}&erro=${errorCode}`,
+    );
+  }
 
   revalidatePath("/admin/precos");
   revalidatePath("/");

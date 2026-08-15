@@ -1,6 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
-import { Search, ShoppingCart, Sparkles, Store, UserRound } from "lucide-react";
+import { Search, ShoppingCart, Store, UserRound } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 type Profile = {
@@ -35,33 +34,27 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
   const isAdmin = profile?.role === "admin";
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#162334]/10 bg-white/90 shadow-[0_1px_0_rgba(22,35,52,0.04)] backdrop-blur-xl">
-      <div className="mx-auto flex h-[4.75rem] max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" className="group shrink-0" aria-label="360 Merchandising — página inicial">
-          <Image
-            src="/brand/360-merchandising.png"
-            alt="360 Merchandising"
-            width={2000}
-            height={452}
-            priority
-            className="brand-logo h-auto w-44 transition group-hover:opacity-80 sm:w-52"
-          />
+    <header className="sticky top-0 z-50 border-b border-neutral-200 bg-white/95 backdrop-blur">
+      <div className="mx-auto flex h-20 max-w-7xl items-center justify-between gap-6 px-6">
+        <Link href="/" className="group">
+          <span className="block text-lg font-semibold tracking-tight text-neutral-950">
+            360 Merchandising
+          </span>
+          <span className="block text-xs font-medium uppercase tracking-[0.24em] text-neutral-400">
+            B2B Premium
+          </span>
         </Link>
 
-        <nav className="hidden items-center gap-7 text-sm font-medium text-[#162334]/70 lg:flex" aria-label="Navegação principal">
-          <Link href="/smart-merch" className="inline-flex items-center gap-1.5 text-[#e85f00] transition hover:text-[#ff6a00]">
-            <Sparkles className="h-4 w-4" />
-            Smart Merch
-          </Link>
-          <Link href="/categorias" className="transition hover:text-[#162334]">
+        <nav className="hidden items-center gap-7 text-sm font-medium text-neutral-600 lg:flex">
+          <Link href="/categorias" className="transition hover:text-neutral-950">
             Categorias
           </Link>
 
-          <Link href="/blog" className="transition hover:text-[#162334]">
+          <Link href="/blog" className="transition hover:text-neutral-950">
             Guias B2B
           </Link>
 
-          <Link href="/ajuda" className="transition hover:text-[#162334]">
+          <Link href="/ajuda" className="transition hover:text-neutral-950">
             Ajuda
           </Link>
         </nav>
@@ -69,7 +62,7 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
         <div className="flex items-center gap-3">
           <Link
             href="/pesquisa"
-            className="hidden items-center rounded-full border border-[#162334]/12 bg-white px-4 py-2 text-sm font-semibold text-[#162334]/75 transition hover:border-[#162334]/35 hover:text-[#162334] md:inline-flex"
+            className="hidden items-center rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700 transition hover:border-neutral-950 hover:text-neutral-950 md:inline-flex"
           >
             <Search className="mr-2 h-4 w-4" />
             Pesquisar
@@ -77,7 +70,7 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
 
           <Link
             href="/carrinho"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#162334]/12 bg-white text-[#162334]/75 transition hover:border-[#162334]/35 hover:text-[#162334]"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-neutral-200 bg-white text-neutral-700 transition hover:border-neutral-950 hover:text-neutral-950"
             aria-label="Carrinho"
           >
             <ShoppingCart className="h-5 w-5" />
@@ -86,7 +79,7 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
           {user ? (
             <a
               href={context === "customer" ? "/" : isAdmin ? "/admin" : "/area-cliente"}
-              className="inline-flex items-center rounded-full bg-[#162334] px-4 py-2 text-sm font-semibold !text-white transition hover:bg-[#24364d]"
+              className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold !text-white transition hover:bg-neutral-800"
             >
               {context === "customer" ? (
                 <Store className="mr-2 h-4 w-4 !text-white" />
@@ -100,7 +93,7 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
           ) : (
             <Link
               href="/login"
-              className="inline-flex items-center rounded-full bg-[#162334] px-4 py-2 text-sm font-semibold !text-white transition hover:bg-[#24364d]"
+              className="inline-flex items-center rounded-full bg-neutral-950 px-4 py-2 text-sm font-semibold !text-white transition hover:bg-neutral-800"
             >
               <UserRound className="mr-2 h-4 w-4 !text-white" />
               <span className="!text-white">Entrar</span>

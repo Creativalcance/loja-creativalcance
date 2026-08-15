@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import {
   ArrowRight,
   BookOpen,
@@ -45,13 +44,6 @@ const articles = [
   },
 ];
 
-export const metadata: Metadata = {
-  title: "Guias de merchandising para empresas",
-  description:
-    "Guias práticos sobre brindes promocionais, merchandising corporativo, personalização e planeamento de campanhas B2B.",
-  alternates: { canonical: "/blog" },
-};
-
 export default function BlogPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
@@ -85,12 +77,13 @@ export default function BlogPage() {
               <BookOpen className="h-8 w-8 text-neutral-500" />
 
               <h2 className="mt-6 text-2xl font-semibold tracking-tight text-neutral-950">
-                Decisões mais simples, campanhas mais eficazes
+                Centro editorial em desenvolvimento
               </h2>
 
               <p className="mt-3 max-w-2xl text-neutral-600">
-                Reunimos critérios práticos para escolher produtos, materiais,
-                quantidades e técnicas de personalização adequados a cada objetivo.
+                Esta área será usada para SEO, conteúdos técnicos, guias de
+                compra, comparativos de materiais, técnicas de personalização e
+                páginas orientadas a intenção comercial.
               </p>
             </div>
 
@@ -143,12 +136,14 @@ export default function BlogPage() {
           <Lightbulb className="h-8 w-8 text-white/70" />
 
           <h2 className="mt-6 text-2xl font-semibold tracking-tight">
-            Precisa de transformar uma ideia numa seleção concreta?
+            Próxima fase editorial
           </h2>
 
           <p className="mt-3 max-w-3xl text-white/70">
-            Diga-nos o público, a ocasião, a quantidade e o orçamento. A equipa
-            ajuda a construir uma proposta coerente com a sua marca e campanha.
+            Depois de estabilizarmos checkout, encomendas e integração com o fornecedor,
+            esta área deverá receber artigos programáticos para dominar pesquisas
+            como brindes promocionais, merchandising corporativo, brindes
+            personalizados, gifts empresariais e vestuário promocional.
           </p>
         </section>
       </section>

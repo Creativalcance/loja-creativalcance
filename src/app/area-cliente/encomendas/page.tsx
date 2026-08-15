@@ -57,7 +57,7 @@ export default async function CustomerOrdersPage() {
           </h1>
 
           <p className="mt-4 text-neutral-600">
-            Consulte aqui as encomendas realizadas na 360 Merchandising.
+            Consulta aqui as encomendas realizadas na Loja Creativ.
           </p>
 
           {orders.length > 0 ? (

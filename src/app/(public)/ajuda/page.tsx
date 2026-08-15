@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { Metadata } from "next";
 import {
   ArrowRight,
   CreditCard,
@@ -32,17 +31,10 @@ const helpTopics = [
   {
     title: "Envio",
     description:
-      "As opções e os custos de expedição são apresentados no checkout antes da confirmação da encomenda.",
+      "A encomenda pode ser enviada directamente pelo fornecedor em nome da Loja Creativ.",
     icon: Truck,
   },
 ];
-
-export const metadata: Metadata = {
-  title: "Ajuda e apoio à compra",
-  description:
-    "Saiba como comprar, personalizar e acompanhar merchandising e brindes promocionais na 360 Merchandising.",
-  alternates: { canonical: "/ajuda" },
-};
 
 export default function HelpPage() {
   return (

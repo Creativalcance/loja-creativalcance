@@ -115,7 +115,7 @@ export default async function CartPage() {
 
         <div className="mt-8">
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            360 Merchandising
+            Loja Creativ
           </p>
 
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
