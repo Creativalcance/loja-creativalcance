@@ -315,6 +315,7 @@ function getSafeLogoPosition(params: {
   position: LogoPosition;
   printAreaAspectRatio: number;
   logoAspectRatio: number;
+  maximumWidthPercent?: number;
 }): LogoPosition {
   const rotationRadians = (Math.abs(params.position.rotation) * Math.PI) / 180;
   const cosine = Math.cos(rotationRadians);
@@ -322,7 +323,12 @@ function getSafeLogoPosition(params: {
   const heightRatio = params.printAreaAspectRatio / params.logoAspectRatio;
   const widthLimit = 100 / Math.max(cosine + heightRatio * sine, 0.0001);
   const heightLimit = 100 / Math.max(sine + heightRatio * cosine, 0.0001);
-  const maximumWidth = Math.min(100, widthLimit, heightLimit);
+  const maximumWidth = Math.min(
+    100,
+    widthLimit,
+    heightLimit,
+    params.maximumWidthPercent ?? 100,
+  );
   const safeWidth = clamp(params.position.width, Math.min(10, maximumWidth), maximumWidth);
 
   const logoHeight = getLogoHeightPercent({
@@ -743,10 +749,32 @@ export default function ProductCustomizationEditor({
   const printAreaAspectRatio =
     printAreaDimensions.widthMm / printAreaDimensions.heightMm;
 
+  const applicableAreaTiers = (selectedLocation?.price_tiers ?? []).filter(
+    (tier) =>
+      tier.area_cm2 !== null &&
+      tier.area_cm2 > 0 &&
+      (!effectivePrintColorMode ||
+        getPrintColorMode(tier) === effectivePrintColorMode),
+  );
+  const maximumPricedAreaCm2 = applicableAreaTiers.length
+    ? Math.max(...applicableAreaTiers.map((tier) => tier.area_cm2 as number))
+    : null;
+  const maximumPricedWidthPercent = maximumPricedAreaCm2
+    ? Math.min(
+        100,
+        (Math.sqrt(
+          maximumPricedAreaCm2 * 100 * Math.max(logoAspectRatio, 0.01),
+        ) /
+          printAreaDimensions.widthMm) *
+          100,
+      )
+    : 100;
+
   const safePosition = getSafeLogoPosition({
     position,
     printAreaAspectRatio,
     logoAspectRatio,
+    maximumWidthPercent: maximumPricedWidthPercent,
   });
 
   const logoHeightPercent = getLogoHeightPercent({

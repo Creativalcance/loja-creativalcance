@@ -33,7 +33,7 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
   if (!image.naturalWidth || !image.naturalHeight) return null;
 
   try {
-    const maximumSize = 900;
+    const maximumSize = 700;
     const scale = Math.min(
       1,
       maximumSize / Math.max(image.naturalWidth, image.naturalHeight),
@@ -54,8 +54,8 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
     const rowCounts = new Array<number>(height).fill(0);
     const columnCounts = new Array<number>(width).fill(0);
 
-    for (let y = Math.floor(height * 0.06); y < height * 0.94; y += 1) {
-      for (let x = Math.floor(width * 0.06); x < width * 0.94; x += 1) {
+    for (let y = Math.floor(height * 0.05); y < height * 0.95; y += 1) {
+      for (let x = Math.floor(width * 0.05); x < width * 0.95; x += 1) {
         const index = (y * width + x) * 4;
         const red = pixels[index];
         const green = pixels[index + 1];
@@ -64,7 +64,7 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
         const brightness = (red + green + blue) / 3;
         const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
 
-        if (alpha < 100 || brightness < 212 || spread > 38) continue;
+        if (alpha < 100 || brightness < 205 || spread > 42) continue;
 
         let hasDarkerNeighbour = false;
 
@@ -85,8 +85,8 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
             3;
 
           hasDarkerNeighbour =
-            horizontalBrightness < brightness - 34 ||
-            verticalBrightness < brightness - 34;
+            horizontalBrightness < brightness - 30 ||
+            verticalBrightness < brightness - 30;
         }
 
         if (!hasDarkerNeighbour) continue;
@@ -99,12 +99,12 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
 
     const rows = rowCounts
       .map((count, coordinate) => ({ count, coordinate }))
-      .filter(({ count }) => count >= Math.max(5, width * 0.008))
+      .filter(({ count }) => count >= Math.max(4, width * 0.008))
       .sort((a, b) => b.count - a.count)
       .slice(0, 36);
     const columns = columnCounts
       .map((count, coordinate) => ({ count, coordinate }))
-      .filter(({ count }) => count >= Math.max(5, height * 0.008))
+      .filter(({ count }) => count >= Math.max(4, height * 0.008))
       .sort((a, b) => b.count - a.count)
       .slice(0, 36);
 
@@ -118,7 +118,7 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
       let runs = 0;
       let currentRun = 0;
       let longestRun = 0;
-      const tolerance = horizontal ? 2 : Math.max(3, Math.round(width * 0.035));
+      const tolerance = horizontal ? 2 : Math.max(3, Math.round(width * 0.03));
 
       for (let coordinate = start; coordinate <= end; coordinate += 1) {
         let found = false;
@@ -156,12 +156,12 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
     for (const top of rows) {
       for (const bottom of rows) {
         const candidateHeight = bottom.coordinate - top.coordinate;
-        if (candidateHeight < height * 0.045 || candidateHeight > height * 0.48) continue;
+        if (candidateHeight < height * 0.035 || candidateHeight > height * 0.5) continue;
 
         for (const left of columns) {
           for (const right of columns) {
             const candidateWidth = right.coordinate - left.coordinate;
-            if (candidateWidth < width * 0.045 || candidateWidth > width * 0.58) continue;
+            if (candidateWidth < width * 0.05 || candidateWidth > width * 0.7) continue;
 
             const edges = [
               edgeStats(left.coordinate, right.coordinate, top.coordinate, true),
@@ -172,17 +172,18 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
             const coverage = edges.reduce((total, edge) => total + edge.coverage, 0);
             const weakest = Math.min(...edges.map((edge) => edge.coverage));
             const dashed =
-              edges[0].runs >= 3 &&
-              edges[1].runs >= 3 &&
-              edges[2].runs >= 2 &&
-              edges[3].runs >= 2 &&
-              edges.every((edge) => edge.longest < 0.72);
+              edges[0].runs >= 2 &&
+              edges[1].runs >= 2 &&
+              edges[2].runs >= 1 &&
+              edges[3].runs >= 1 &&
+              edges.every((edge) => edge.longest < 0.82);
 
-            if (!dashed || weakest < 0.07 || coverage < 0.5) continue;
+            if (!dashed || weakest < 0.06 || coverage < 0.42) continue;
 
             const relativeArea =
               (candidateWidth * candidateHeight) / (width * height);
-            const score = coverage * 240 + weakest * 160 + relativeArea * 520;
+            const runs = edges.reduce((total, edge) => total + edge.runs, 0);
+            const score = coverage * 240 + weakest * 140 + relativeArea * 300 + runs;
 
             if (!best || score > best.score) {
               best = {
@@ -200,7 +201,7 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
 
     if (!best) return null;
 
-    const inset = Math.max(1, Math.round(Math.min(width, height) * 0.002));
+    const inset = Math.max(1, Math.round(Math.min(width, height) * 0.003));
     const left = best.left + inset;
     const top = best.top + inset;
     const right = best.right - inset;
