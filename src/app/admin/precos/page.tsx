@@ -561,7 +561,7 @@ export default async function AdminPricesPage({
             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
               Compare o custo original importado do
               fornecedor com o preço apresentado pela
-              Loja Creativ e altere a regra comercial
+              360 Merchandising e altere a regra comercial
               aplicada a cada escalão.
             </p>
           </div>
@@ -743,7 +743,7 @@ export default async function AdminPricesPage({
 
                     <div>
                       <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-                        Loja Creativ
+                        360 Merchandising
                       </p>
 
                       <p
@@ -940,7 +940,7 @@ export default async function AdminPricesPage({
 
                     <div>
                       <p className="text-xs uppercase tracking-[0.12em] text-neutral-500">
-                        Loja Creativ
+                        360 Merchandising
                       </p>
 
                       <p
