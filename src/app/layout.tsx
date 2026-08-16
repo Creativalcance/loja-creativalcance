@@ -20,7 +20,9 @@ export const metadata: Metadata = {
     "gifts empresariais",
     "Portugal",
   ],
-  authors: [{ name: "360 Merchandising" }],
+  authors: [
+    { name: "360 Merchandising", url: "/autores/360-merchandising" },
+  ],
   creator: "360 Merchandising",
   publisher: "360 Merchandising",
   openGraph: {
@@ -78,6 +80,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
         name: "360 Merchandising",
         url: absoluteUrl("/"),
         logo: absoluteUrl("/brand/360-merchandising.png"),
+        description:
+          "Plataforma online de brindes personalizados, merchandising corporativo e gifts, com catálogo, personalização, conteúdos de apoio e compra online.",
+        publishingPrinciples: absoluteUrl("/metodologia-editorial"),
       },
       {
         "@type": "WebSite",

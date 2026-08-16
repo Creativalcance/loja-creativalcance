@@ -31,6 +31,9 @@ export async function generateMetadata({
   return {
     title: config.title,
     description: config.description,
+    authors: [
+      { name: "360 Merchandising", url: "/autores/360-merchandising" },
+    ],
     alternates: { canonical: path },
     openGraph: {
       type: "article",

@@ -237,16 +237,12 @@ export function buildEditorialStructuredData(
     },
     author: input.article
       ? {
-          "@type": "Organization",
-          "@id": `${absoluteUrl("/")}#organization`,
-          name: SITE_NAME,
+          "@id": `${absoluteUrl("/autores/360-merchandising")}#author`,
         }
       : undefined,
     publisher: input.article
       ? {
-          "@type": "Organization",
           "@id": `${absoluteUrl("/")}#organization`,
-          name: SITE_NAME,
         }
       : undefined,
   };
@@ -254,5 +250,45 @@ export function buildEditorialStructuredData(
   return {
     "@context": "https://schema.org",
     "@graph": [removeEmptyValues(page), buildBreadcrumbList(breadcrumbs)],
+  };
+}
+
+
+export function buildAuthorStructuredData(): Record<string, unknown> {
+  const authorUrl = absoluteUrl("/autores/360-merchandising");
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "ProfilePage",
+        "@id": `${authorUrl}#profilepage`,
+        url: authorUrl,
+        name: `${SITE_NAME} — autor editorial`,
+        description:
+          "Perfil editorial responsável pelos guias, páginas técnicas e conteúdos de apoio à compra publicados pela 360 Merchandising.",
+        inLanguage: "pt-PT",
+        isPartOf: {
+          "@id": `${absoluteUrl("/")}#website`,
+        },
+        mainEntity: {
+          "@id": `${authorUrl}#author`,
+        },
+      },
+      {
+        "@type": "Organization",
+        "@id": `${authorUrl}#author`,
+        name: SITE_NAME,
+        url: absoluteUrl("/sobre"),
+        logo: absoluteUrl("/brand/360-merchandising.png"),
+        description:
+          "Entidade editorial responsável pelos conteúdos institucionais e guias da 360 Merchandising.",
+        publishingPrinciples: absoluteUrl("/metodologia-editorial"),
+      },
+      buildBreadcrumbList([
+        { name: SITE_NAME, url: absoluteUrl("/") },
+        { name: "Autor editorial", url: authorUrl },
+      ]),
+    ],
   };
 }

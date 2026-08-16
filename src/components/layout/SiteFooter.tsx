@@ -20,6 +20,11 @@ const footerGroups = [
   {
     title: "Apoio",
     links: [
+      { label: "Sobre a 360", href: "/sobre" },
+      { label: "Como funciona", href: "/como-funciona" },
+      { label: "Qualidade e transparência", href: "/qualidade" },
+      { label: "Entregas e prazos", href: "/entregas-e-prazos" },
+      { label: "Metodologia editorial", href: "/metodologia-editorial" },
       { label: "Como comprar", href: "/ajuda" },
       { label: "Pedido personalizado", href: "/contacto" },
       { label: "Área de cliente", href: "/area-cliente" },

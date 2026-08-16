@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { getGuides } from "@/lib/seo/guide-pages";
+import { getInstitutionalPages } from "@/lib/seo/institutional-pages";
 import { getApplicationPages, getIndustryPages } from "@/lib/seo/landing-pages";
 import { getPersonalizationPages } from "@/lib/seo/personalization-pages";
 import { absoluteUrl } from "@/lib/seo/site";
@@ -113,6 +114,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
+  const institutionalEntries: MetadataRoute.Sitemap = [
+    ...getInstitutionalPages().map((page) => ({
+      url: absoluteUrl(`/${page.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: page.slug === "sobre" || page.slug === "como-funciona" ? 0.72 : 0.62,
+    })),
+    {
+      url: absoluteUrl("/autores/360-merchandising"),
+      changeFrequency: "monthly",
+      priority: 0.58,
+    },
+  ];
+
   const staticEntries: MetadataRoute.Sitemap = [
     {
       url: absoluteUrl("/"),
@@ -128,6 +142,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...industryEntries,
     ...guideEntries,
     ...personalizationEntries,
+    ...institutionalEntries,
     {
       url: absoluteUrl("/sustentabilidade"),
       changeFrequency: "monthly",

@@ -43,6 +43,22 @@ export default function GuidePage({
               <p className="mt-6 max-w-3xl text-lg leading-8 text-neutral-600">
                 {config.intro}
               </p>
+              <div className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-neutral-500">
+                <span>Conteúdo por</span>
+                <Link
+                  href="/autores/360-merchandising"
+                  className="font-semibold text-neutral-950 hover:underline"
+                >
+                  360 Merchandising
+                </Link>
+                <span aria-hidden="true">·</span>
+                <Link
+                  href="/metodologia-editorial"
+                  className="font-medium text-neutral-700 hover:text-neutral-950 hover:underline"
+                >
+                  Metodologia editorial
+                </Link>
+              </div>
             </div>
 
             <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-6 shadow-sm">
