@@ -67,6 +67,23 @@ type ProductFutureStockUpsertRow = {
   raw_payload: JsonRecord;
 };
 
+type ExistingProductStockRow = {
+  id: string;
+  variant_id: string;
+  available_quantity: number;
+  reserved_quantity: number;
+  incoming_quantity: number;
+  expected_restock_date: string | null;
+  future_quantities: JsonRecord[] | null;
+};
+
+type ExistingFutureStockRow = {
+  id: string;
+  variant_id: string;
+  expected_date: string;
+  expected_quantity: number;
+};
+
 export type SyncRestStocksByCountryResult = {
   dataset: "stocksByCountry";
   lang: StrickerLanguage;
@@ -363,38 +380,108 @@ async function upsertProductStocks(params: {
   }
 }
 
-async function resetWarehouseStocks(params: {
+function stockKey(row: Pick<ProductStockUpsertRow, "variant_id">): string {
+  return row.variant_id;
+}
+
+function futureStockKey(
+  row: Pick<ProductFutureStockUpsertRow, "variant_id" | "expected_date">,
+): string {
+  return `${row.variant_id}:${row.expected_date}`;
+}
+
+function normalizedJson(value: unknown): string {
+  return JSON.stringify(value ?? []);
+}
+
+async function fetchExistingWarehouseStocks(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
   warehouseCode: string;
-  syncedAt: string;
-}): Promise<void> {
-  const { error: stocksError } = await params.supabaseAdmin
+}): Promise<ExistingProductStockRow[]> {
+  const { data, error } = await params.supabaseAdmin
     .from("product_stocks")
-    .update({
-      available_quantity: 0,
-      reserved_quantity: 0,
-      incoming_quantity: 0,
-      expected_restock_date: null,
-      future_quantities: [],
-      last_synced_at: params.syncedAt,
-    })
+    .select(
+      "id,variant_id,available_quantity,reserved_quantity,incoming_quantity,expected_restock_date,future_quantities",
+    )
     .eq("supplier_id", params.supplierId)
-    .eq("warehouse_code", params.warehouseCode);
+    .eq("warehouse_code", params.warehouseCode)
+    .returns<ExistingProductStockRow[]>();
 
-  if (stocksError) {
-    throw new Error(stocksError.message);
-  }
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
 
-  const { error: futureStocksError } = await params.supabaseAdmin
+async function fetchExistingFutureStocks(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  warehouseCode: string;
+}): Promise<ExistingFutureStockRow[]> {
+  const { data, error } = await params.supabaseAdmin
     .from("product_future_stocks")
-    .delete()
+    .select("id,variant_id,expected_date,expected_quantity")
     .eq("supplier_id", params.supplierId)
-    .eq("warehouse_code", params.warehouseCode);
+    .eq("warehouse_code", params.warehouseCode)
+    .returns<ExistingFutureStockRow[]>();
 
-  if (futureStocksError) {
-    throw new Error(futureStocksError.message);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function zeroMissingWarehouseStocks(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: ExistingProductStockRow[];
+  syncedAt: string;
+}): Promise<number> {
+  let changed = 0;
+
+  for (const rowChunk of chunkArray(params.rows, UPSERT_CHUNK_SIZE)) {
+    const ids = rowChunk
+      .filter(
+        (row) =>
+          row.available_quantity !== 0 ||
+          row.reserved_quantity !== 0 ||
+          row.incoming_quantity !== 0 ||
+          row.expected_restock_date !== null ||
+          normalizedJson(row.future_quantities) !== "[]",
+      )
+      .map((row) => row.id);
+
+    if (ids.length === 0) continue;
+
+    const { error } = await params.supabaseAdmin
+      .from("product_stocks")
+      .update({
+        available_quantity: 0,
+        reserved_quantity: 0,
+        incoming_quantity: 0,
+        expected_restock_date: null,
+        future_quantities: [],
+        last_synced_at: params.syncedAt,
+      })
+      .in("id", ids);
+
+    if (error) throw new Error(error.message);
+    changed += ids.length;
   }
+
+  return changed;
+}
+
+async function deleteRemovedFutureStocks(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  ids: string[];
+}): Promise<number> {
+  for (const idChunk of chunkArray(params.ids, UPSERT_CHUNK_SIZE)) {
+    const { error } = await params.supabaseAdmin
+      .from("product_future_stocks")
+      .delete()
+      .in("id", idChunk);
+
+    if (error) throw new Error(error.message);
+  }
+
+  return params.ids.length;
 }
 
 async function upsertFutureStocks(params: {
@@ -447,6 +534,22 @@ export async function syncRestStocksByCountry(params: {
     const records = Array.isArray(payload.Stocks)
       ? (payload.Stocks as StrickerStockRecord[])
       : [];
+    const expectedRecordCount = Number(payload.Count);
+
+    if (records.length === 0) {
+      throw new Error(
+        "O fornecedor devolveu o dataset de stocks vazio. Os stocks existentes foram preservados.",
+      );
+    }
+
+    if (
+      Number.isFinite(expectedRecordCount) &&
+      expectedRecordCount > records.length
+    ) {
+      throw new Error(
+        `O dataset de stocks chegou incompleto (${records.length}/${expectedRecordCount}). Os stocks existentes foram preservados.`,
+      );
+    }
 
     const skus = records
       .map((record) => getStockSku(record))
@@ -521,26 +624,75 @@ export async function syncRestStocksByCountry(params: {
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
-    await resetWarehouseStocks({
+    const [existingStocks, existingFutureStocks] = await Promise.all([
+      fetchExistingWarehouseStocks({
+        supabaseAdmin,
+        supplierId,
+        warehouseCode,
+      }),
+      fetchExistingFutureStocks({
+        supabaseAdmin,
+        supplierId,
+        warehouseCode,
+      }),
+    ]);
+
+    const existingStocksByVariant = new Map(
+      existingStocks.map((row) => [row.variant_id, row]),
+    );
+    const incomingStockKeys = new Set(stockRows.map(stockKey));
+    const changedStockRows = stockRows.filter((row) => {
+      const current = existingStocksByVariant.get(stockKey(row));
+      return (
+        !current ||
+        current.available_quantity !== row.available_quantity ||
+        current.reserved_quantity !== row.reserved_quantity ||
+        current.incoming_quantity !== row.incoming_quantity ||
+        current.expected_restock_date !== row.expected_restock_date ||
+        normalizedJson(current.future_quantities) !==
+          normalizedJson(row.future_quantities)
+      );
+    });
+    const missingStocks = existingStocks.filter(
+      (row) => !incomingStockKeys.has(row.variant_id),
+    );
+
+    const existingFutureStocksByKey = new Map(
+      existingFutureStocks.map((row) => [futureStockKey(row), row]),
+    );
+    const incomingFutureStockKeys = new Set(futureStockRows.map(futureStockKey));
+    const changedFutureStockRows = futureStockRows.filter((row) => {
+      const current = existingFutureStocksByKey.get(futureStockKey(row));
+      return !current || current.expected_quantity !== row.expected_quantity;
+    });
+    const removedFutureStockIds = existingFutureStocks
+      .filter((row) => !incomingFutureStockKeys.has(futureStockKey(row)))
+      .map((row) => row.id);
+
+    const stocksReset = await zeroMissingWarehouseStocks({
       supabaseAdmin,
-      supplierId,
-      warehouseCode,
+      rows: missingStocks,
       syncedAt: now,
     });
 
-    if (stockRows.length > 0) {
+    if (changedStockRows.length > 0) {
       await upsertProductStocks({
         supabaseAdmin,
-        rows: stockRows,
+        rows: changedStockRows,
       });
     }
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
-    if (futureStockRows.length > 0) {
+    const futureStocksRemoved = await deleteRemovedFutureStocks({
+      supabaseAdmin,
+      ids: removedFutureStockIds,
+    });
+
+    if (changedFutureStockRows.length > 0) {
       await upsertFutureStocks({
         supabaseAdmin,
-        rows: futureStockRows,
+        rows: changedFutureStockRows,
       });
     }
 
@@ -559,7 +711,7 @@ export async function syncRestStocksByCountry(params: {
       datasetImportId,
       status,
       recordsReceived: records.length,
-      recordsImported: stockRows.length,
+      recordsImported: changedStockRows.length + stocksReset,
       recordsFailed: Math.max(records.length - stockRows.length, 0),
       rawPayload: {
         Count: payload.Count ?? records.length,
@@ -573,6 +725,12 @@ export async function syncRestStocksByCountry(params: {
         variantsMatched: variants.length,
         stocksBuilt: stockRows.length,
         futureStocksBuilt: futureStockRows.length,
+        stocksChanged: changedStockRows.length,
+        stocksReset,
+        stocksUnchanged:
+          stockRows.length - changedStockRows.length,
+        futureStocksChanged: changedFutureStockRows.length,
+        futureStocksRemoved,
       },
       errors,
     });
@@ -583,8 +741,8 @@ export async function syncRestStocksByCountry(params: {
       country: params.country,
       recordsReceived: records.length,
       variantsMatched: variants.length,
-      stocksImported: stockRows.length,
-      futureStocksImported: futureStockRows.length,
+      stocksImported: changedStockRows.length + stocksReset,
+      futureStocksImported: changedFutureStockRows.length,
       datasetImportId,
     };
   } catch (error) {

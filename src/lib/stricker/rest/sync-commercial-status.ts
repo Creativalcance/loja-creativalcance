@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import { fetchStrickerDataset } from "@/lib/stricker/rest/client";
 import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type JsonRecord } from "@/lib/stricker/types";
@@ -38,6 +39,21 @@ type ReconciliationRow = {
   products_unavailable: number;
   products_restricted: number;
   products_canceled: number;
+};
+
+type CommercialSyncRow = {
+  supplier_id: string;
+  external_product_id: string;
+  product_reference: string;
+  sku: string | null;
+  country_code?: string;
+  canceled_at?: string | null;
+  reason: string | null;
+  raw_payload: JsonRecord;
+};
+
+type ExistingCommercialRow = CommercialSyncRow & {
+  id: string;
 };
 
 export type SyncCommercialDatasetResult = {
@@ -151,10 +167,7 @@ async function finishDatasetImport(params: {
       status: params.status,
       records_received: params.recordsReceived,
       records_imported: params.recordsImported,
-      records_failed: Math.max(
-        params.recordsReceived - params.recordsImported,
-        params.status === "failed" ? 1 : 0,
-      ),
+      records_failed: params.status === "failed" ? 1 : 0,
       errors: params.errors,
       finished_at: new Date().toISOString(),
     })
@@ -245,6 +258,97 @@ function buildRestrictedRows(params: {
   });
 }
 
+function commercialRowKey(
+  dataset: CommercialDataset,
+  row: Pick<CommercialSyncRow, "product_reference" | "sku" | "country_code">,
+): string {
+  return [
+    row.product_reference,
+    row.sku ?? "",
+    dataset === "restrictedProducts" ? row.country_code ?? "PT" : "",
+  ].join(":");
+}
+
+async function synchronizeCommercialRows(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  dataset: CommercialDataset;
+  rows: CommercialSyncRow[];
+}): Promise<{ changed: number; removed: number; unchanged: number }> {
+  const table =
+    params.dataset === "canceledProducts"
+      ? "supplier_canceled_products"
+      : "supplier_restricted_products";
+  const selectColumns =
+    params.dataset === "canceledProducts"
+      ? "id,supplier_id,external_product_id,product_reference,sku,canceled_at,reason,raw_payload"
+      : "id,supplier_id,external_product_id,product_reference,sku,country_code,reason,raw_payload";
+
+  const { data, error } = await params.supabaseAdmin
+    .from(table)
+    .select(selectColumns)
+    .eq("supplier_id", params.supplierId)
+    .returns<ExistingCommercialRow[]>();
+
+  if (error) throw new Error(error.message);
+
+  const existingRows = data ?? [];
+  const existingByKey = new Map(
+    existingRows.map((row) => [commercialRowKey(params.dataset, row), row]),
+  );
+  const incomingKeys = new Set(
+    params.rows.map((row) => commercialRowKey(params.dataset, row)),
+  );
+  const rowsToInsert: CommercialSyncRow[] = [];
+  const rowsToUpdate: Array<{ id: string; row: CommercialSyncRow }> = [];
+  let unchanged = 0;
+
+  for (const row of params.rows) {
+    const current = existingByKey.get(commercialRowKey(params.dataset, row));
+
+    if (!current) {
+      rowsToInsert.push(row);
+    } else if (hasSupplierPayloadChanged(current.raw_payload, row.raw_payload)) {
+      rowsToUpdate.push({ id: current.id, row });
+    } else {
+      unchanged += 1;
+    }
+  }
+
+  for (const rowChunk of chunkArray(rowsToInsert, INSERT_CHUNK_SIZE)) {
+    const { error: insertError } = await params.supabaseAdmin
+      .from(table)
+      .insert(rowChunk);
+    if (insertError) throw new Error(insertError.message);
+  }
+
+  for (const item of rowsToUpdate) {
+    const { error: updateError } = await params.supabaseAdmin
+      .from(table)
+      .update(item.row)
+      .eq("id", item.id);
+    if (updateError) throw new Error(updateError.message);
+  }
+
+  const removedIds = existingRows
+    .filter((row) => !incomingKeys.has(commercialRowKey(params.dataset, row)))
+    .map((row) => row.id);
+
+  for (const idChunk of chunkArray(removedIds, INSERT_CHUNK_SIZE)) {
+    const { error: deleteError } = await params.supabaseAdmin
+      .from(table)
+      .delete()
+      .in("id", idChunk);
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  return {
+    changed: rowsToInsert.length + rowsToUpdate.length,
+    removed: removedIds.length,
+    unchanged,
+  };
+}
+
 export async function syncCommercialDataset(params: {
   dataset: CommercialDataset;
 }): Promise<SyncCommercialDatasetResult> {
@@ -271,53 +375,28 @@ export async function syncCommercialDataset(params: {
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     const records = getRecords(params.dataset, payload);
-    let recordsImported = 0;
+    const expectedRecordCount = Number(payload.Count);
 
-    if (params.dataset === "canceledProducts") {
-      const rows = buildCanceledRows({ supplierId, records });
-      const { error: deleteError } = await supabaseAdmin
-        .from("supplier_canceled_products")
-        .delete()
-        .eq("supplier_id", supplierId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      for (const rowChunk of chunkArray(rows, INSERT_CHUNK_SIZE)) {
-        const { error: insertError } = await supabaseAdmin
-          .from("supplier_canceled_products")
-          .insert(rowChunk);
-
-        if (insertError) {
-          throw new Error(insertError.message);
-        }
-      }
-
-      recordsImported = rows.length;
-    } else {
-      const rows = buildRestrictedRows({ supplierId, records });
-      const { error: deleteError } = await supabaseAdmin
-        .from("supplier_restricted_products")
-        .delete()
-        .eq("supplier_id", supplierId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      for (const rowChunk of chunkArray(rows, INSERT_CHUNK_SIZE)) {
-        const { error: insertError } = await supabaseAdmin
-          .from("supplier_restricted_products")
-          .insert(rowChunk);
-
-        if (insertError) {
-          throw new Error(insertError.message);
-        }
-      }
-
-      recordsImported = rows.length;
+    if (
+      Number.isFinite(expectedRecordCount) &&
+      expectedRecordCount > records.length
+    ) {
+      throw new Error(
+        `O dataset ${params.dataset} chegou incompleto (${records.length}/${expectedRecordCount}). Os dados existentes foram preservados.`,
+      );
     }
+
+    const rows: CommercialSyncRow[] =
+      params.dataset === "canceledProducts"
+        ? buildCanceledRows({ supplierId, records })
+        : buildRestrictedRows({ supplierId, records });
+    const synchronization = await synchronizeCommercialRows({
+      supabaseAdmin,
+      supplierId,
+      dataset: params.dataset,
+      rows,
+    });
+    const recordsImported = synchronization.changed;
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
     await finishDatasetImport({

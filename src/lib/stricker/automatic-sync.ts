@@ -39,7 +39,7 @@ export type StrickerAutomaticSyncJob =
 type JsonResult = Record<string, unknown>;
 
 const LOCK_TTL_SECONDS = 330;
-const CUSTOMIZATION_BATCH_SIZE = 50;
+const CUSTOMIZATION_BATCH_SIZE = 100;
 
 type CustomizationCursorPayload = {
   hasMore?: unknown;
@@ -123,12 +123,21 @@ function getPositiveInteger(value: unknown): number | null {
     : null;
 }
 
-function isSameUtcDay(left: string, right: Date): boolean {
+function isSameUtcWeek(left: string, right: Date): boolean {
   const parsed = new Date(left);
 
+  if (!Number.isFinite(parsed.getTime())) return false;
+
+  const startOfCurrentWeek = new Date(right);
+  startOfCurrentWeek.setUTCDate(right.getUTCDate() - right.getUTCDay());
+  startOfCurrentWeek.setUTCHours(0, 0, 0, 0);
+
+  const startOfNextWeek = new Date(startOfCurrentWeek);
+  startOfNextWeek.setUTCDate(startOfCurrentWeek.getUTCDate() + 7);
+
   return (
-    Number.isFinite(parsed.getTime()) &&
-    parsed.toISOString().slice(0, 10) === right.toISOString().slice(0, 10)
+    parsed.getTime() >= startOfCurrentWeek.getTime() &&
+    parsed.getTime() < startOfNextWeek.getTime()
   );
 }
 
@@ -157,12 +166,12 @@ async function syncNextCustomizationOptionsBatch(): Promise<JsonResult> {
   if (
     previousCycleCompleted &&
     data?.finished_at &&
-    isSameUtcDay(data.finished_at, new Date())
+    isSameUtcWeek(data.finished_at, new Date())
   ) {
     return {
       dataset: "customizationOptions",
       cycleComplete: true,
-      message: "O ciclo diário de personalizações já foi concluído.",
+      message: "O ciclo semanal de personalizações já foi concluído.",
     };
   }
 

@@ -2,16 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     { "path": "/api/cron/stricker/stocks", "schedule": "5 * * * *" },
-    { "path": "/api/cron/stricker/colors", "schedule": "10 0 * * *" },
-    { "path": "/api/cron/stricker/product-types", "schedule": "20 0 * * *" },
-    { "path": "/api/cron/stricker/products-tree", "schedule": "30 0 * * *" },
-    { "path": "/api/cron/stricker/customization-tables", "schedule": "45 0 * * *" },
-    { "path": "/api/cron/stricker/printing-slas", "schedule": "55 0 * * *" },
-    { "path": "/api/cron/stricker/products", "schedule": "15 1 * * *" },
-    { "path": "/api/cron/stricker/optionals", "schedule": "0 2 * * *" },
-    { "path": "/api/cron/stricker/canceled-products", "schedule": "15 3 * * *" },
-    { "path": "/api/cron/stricker/restricted-products", "schedule": "25 3 * * *" },
-    { "path": "/api/cron/stricker/customization-options", "schedule": "*/10 4-5 * * *" },
+    { "path": "/api/cron/stricker/colors", "schedule": "10 0 * * 0" },
+    { "path": "/api/cron/stricker/product-types", "schedule": "20 0 * * 0" },
+    { "path": "/api/cron/stricker/products-tree", "schedule": "30 0 * * 0" },
+    { "path": "/api/cron/stricker/customization-tables", "schedule": "45 0 * * 0" },
+    { "path": "/api/cron/stricker/printing-slas", "schedule": "55 0 * * 0" },
+    { "path": "/api/cron/stricker/products", "schedule": "15 1 * * 0" },
+    { "path": "/api/cron/stricker/optionals", "schedule": "0 2 * * 0" },
+    { "path": "/api/cron/stricker/canceled-products", "schedule": "15 3 * * 0" },
+    { "path": "/api/cron/stricker/restricted-products", "schedule": "25 3 * * 0" },
+    { "path": "/api/cron/stricker/customization-options", "schedule": "10,20,30,40,50 4-23 * * 0" },
     { "path": "/api/cron/stricker/orders-status", "schedule": "55 5 * * *" }
   ]
 }

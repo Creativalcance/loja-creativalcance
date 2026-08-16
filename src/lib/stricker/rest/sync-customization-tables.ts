@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import { findBestPricingRule } from "@/lib/pricing/apply-pricing-rule";
 import { calculateProductSellingPrice } from "@/lib/pricing/calculate-product-price";
 import { type PricingRule } from "@/lib/pricing/types";
@@ -615,6 +616,40 @@ async function upsertPrintingPriceTables(params: {
   }
 }
 
+async function filterChangedPrintingPriceTables(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  rows: PrintingPriceTableUpsertRow[];
+}): Promise<PrintingPriceTableUpsertRow[]> {
+  const existingPayloads = new Map<string, JsonRecord | null>();
+
+  for (const externalIdChunk of chunkArray(
+    params.rows.map((row) => row.external_id),
+    UPSERT_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("printing_price_tables")
+      .select("external_id,raw_payload")
+      .eq("supplier_id", params.supplierId)
+      .in("external_id", externalIdChunk)
+      .returns<Array<{ external_id: string; raw_payload: JsonRecord | null }>>();
+
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      existingPayloads.set(row.external_id, row.raw_payload);
+    }
+  }
+
+  return params.rows.filter((row) => {
+    const existingPayload = existingPayloads.get(row.external_id);
+    return (
+      existingPayload === undefined ||
+      hasSupplierPayloadChanged(existingPayload, row.raw_payload)
+    );
+  });
+}
+
 function countUniqueTechniqueTranslations(
   records: StrickerCustomizationTableRecord[],
 ): number {
@@ -678,10 +713,16 @@ export async function syncRestCustomizationTables(params: {
       pricingRules,
     });
 
-    if (rows.length > 0) {
+    const changedRows = await filterChangedPrintingPriceTables({
+      supabaseAdmin,
+      supplierId,
+      rows,
+    });
+
+    if (changedRows.length > 0) {
       await upsertPrintingPriceTables({
         supabaseAdmin,
-        rows,
+        rows: changedRows,
       });
     }
 
@@ -695,13 +736,14 @@ export async function syncRestCustomizationTables(params: {
       datasetImportId,
       status,
       recordsReceived: records.length,
-      recordsImported: rows.length,
+      recordsImported: changedRows.length,
       recordsFailed: Math.max(records.length - rows.length, 0),
       rawPayload: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
         pricingRulesLoaded: pricingRules.length,
+        recordsUnchanged: rows.length - changedRows.length,
         techniqueTranslationsImported,
         sample: records.slice(0, 5),
       },
@@ -717,7 +759,7 @@ export async function syncRestCustomizationTables(params: {
       dataset: "customizationTables",
       lang: params.lang,
       recordsReceived: records.length,
-      tablesImported: rows.length,
+      tablesImported: changedRows.length,
       techniqueTranslationsImported,
       datasetImportId,
     };
