@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -12,6 +13,14 @@ import { type ProductCustomizationOption } from "@/components/product/ProductCus
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildStrickerProductHighResolutionImageUrl } from "@/lib/stricker/images";
+import {
+  buildProductMetaDescription,
+  buildProductMetadata,
+} from "@/lib/seo/metadata";
+import {
+  buildProductStructuredData,
+  serializeJsonLd,
+} from "@/lib/seo/structured-data";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -112,6 +121,17 @@ type ProductDetail = {
   product_customization_locations: ProductCustomizationLocation[] | null;
 };
 
+type ProductMetadataRow = {
+  name: string;
+  slug: string;
+  short_description: string | null;
+  description: string | null;
+  brand: string | null;
+  material: string | null;
+  product_images: ProductImage[] | null;
+  product_variants: ProductVariant[] | null;
+};
+
 type ProductPageProps = {
   params: Promise<{
     slug: string;
@@ -157,6 +177,103 @@ function getPrimaryImage(product: ProductDetail): ProductImage | null {
     images.sort((a, b) => a.sort_order - b.sort_order)[0] ??
     null
   );
+}
+
+function getMetadataImageUrl(product: ProductMetadataRow): string | null {
+  const images = [...(product.product_images ?? [])];
+  const primaryImage =
+    images.find((image) => image.is_primary) ??
+    images.sort((a, b) => a.sort_order - b.sort_order)[0] ??
+    null;
+
+  const productImageUrl =
+    primaryImage?.storage_url?.trim() ||
+    primaryImage?.external_url?.trim() ||
+    null;
+
+  if (productImageUrl) {
+    return (
+      buildStrickerProductHighResolutionImageUrl(productImageUrl) ??
+      productImageUrl
+    );
+  }
+
+  for (const variant of product.product_variants ?? []) {
+    const variantImageUrl =
+      variant.optional_image_1_url?.trim() ||
+      variant.optional_image_2_url?.trim() ||
+      null;
+
+    if (variantImageUrl) {
+      return (
+        buildStrickerProductHighResolutionImageUrl(variantImageUrl) ??
+        variantImageUrl
+      );
+    }
+  }
+
+  return null;
+}
+
+export async function generateMetadata({
+  params,
+}: ProductPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const supabase = await createSupabaseServerClient();
+
+  const { data } = await supabase
+    .from("products")
+    .select(
+      `
+        name,
+        slug,
+        short_description,
+        description,
+        brand,
+        material,
+        product_images (
+          external_url,
+          storage_url,
+          alt_text,
+          is_primary,
+          sort_order,
+          image_type
+        ),
+        product_variants (
+          id,
+          sku,
+          color_name,
+          color_hex,
+          size,
+          material,
+          optional_image_1_url,
+          optional_image_2_url
+        )
+      `,
+    )
+    .eq("slug", slug)
+    .eq("status", "active")
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!data) {
+    return {
+      title: "Produto não encontrado",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const product = data as unknown as ProductMetadataRow;
+
+  return buildProductMetadata({
+    name: product.name,
+    slug: product.slug,
+    shortDescription: product.short_description,
+    description: product.description,
+    brand: product.brand,
+    material: product.material,
+    imageUrl: getMetadataImageUrl(product),
+  });
 }
 
 function getTotalStock(product: ProductDetail): number {
@@ -481,7 +598,7 @@ export default async function ProductDetailPage({
   }
 
   const product = data as unknown as ProductDetail;
-    let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
+  let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
 
   if (customizationDraftId) {
     const {
@@ -619,6 +736,32 @@ export default async function ProductDetailPage({
     expected_quantity: stock.expected_quantity,
   }));
 
+  const structuredDataImageUrl = highResolutionImageUrl ?? imageUrl ?? null;
+  const structuredData = buildProductStructuredData({
+    name: product.name,
+    slug: product.slug,
+    sku: product.sku,
+    description: buildProductMetaDescription({
+      name: product.name,
+      slug: product.slug,
+      shortDescription: product.short_description,
+      description: product.description,
+      brand: product.brand,
+      material: product.material,
+      imageUrl: structuredDataImageUrl,
+    }),
+    imageUrl: structuredDataImageUrl,
+    brand: product.brand,
+    material: product.material,
+    categoryName: product.type_name,
+    subcategoryName: product.subtype_name,
+    totalStock: getTotalStock(product),
+    prices: prices.map((price) => ({
+      final_price: Number(price.final_price),
+      currency: price.currency,
+    })),
+  });
+
   const categoryHref = buildCategoryHref(product);
   const backLabel = product.type_name
     ? `Voltar a ${product.type_name}`
@@ -658,6 +801,11 @@ export default async function ProductDetailPage({
   customizationDraft={customizationDraft}
 />
       </section>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
+      />
     </main>
   );
 }

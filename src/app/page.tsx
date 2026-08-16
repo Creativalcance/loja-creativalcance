@@ -11,12 +11,24 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import type { Metadata } from "next";
 import SiteHeader from "@/components/layout/SiteHeader";
 import SmartMerchSearchForm from "@/components/smart-merch/SmartMerchSearchForm";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: {
+    absolute: "360 Merchandising | Brindes Personalizados e Merchandising",
+  },
+  description:
+    "Encontre brindes personalizados, merchandising corporativo, gifts empresariais e vestuário promocional com pesquisa inteligente, preços por quantidade e personalização.",
+  alternates: {
+    canonical: "/",
+  },
+};
 
 type ProductImage = {
   external_url: string | null;
@@ -736,7 +748,7 @@ export default async function HomePage() {
               </h2>
 
               <p className="mt-5 text-sm leading-7 text-white/60">
-                A Loja Creativ foi desenhada para acelerar a compra e a personalização de produtos
+                A 360 Merchandising foi desenhada para acelerar a compra e a personalização de produtos
                 promocionais, reduzindo pedidos manuais, facilitando a escolha
                 por categoria, cor, stock, quantidade e personalização.
               </p>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import ProductCustomizationEditor, {
@@ -13,6 +14,14 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Personalizar produto",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 type JsonRecord = Record<string, unknown>;
 
