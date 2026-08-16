@@ -697,6 +697,7 @@ export default function ProductCustomizationEditor({
 }: ProductCustomizationEditorProps) {
   const router = useRouter();
 
+  const editorFrameRef = useRef<HTMLDivElement | null>(null);
   const printAreaRef = useRef<HTMLDivElement | null>(null);
 
   const dragStateRef = useRef<{
@@ -775,6 +776,10 @@ export default function ProductCustomizationEditor({
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
+  const [editorFrameSize, setEditorFrameSize] = useState({
+    width: 0,
+    height: 0,
+  });
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
   const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
@@ -797,12 +802,53 @@ export default function ProductCustomizationEditor({
       ? selectedPrintColorMode
       : (printColorOptions[0]?.mode ?? null);
 
-  const printAreaDimensions = parsePrintAreaDimensions(
+  const declaredPrintAreaDimensions = parsePrintAreaDimensions(
     selectedLocation?.max_printing_area_mm ?? null,
   );
 
+  const supplierGeometryAspectRatio = selectedLocation?.print_area_geometry
+    ? selectedLocation.print_area_geometry.width /
+      selectedLocation.print_area_geometry.height
+    : null;
+  const declaredPrintAreaIsHorizontal =
+    declaredPrintAreaDimensions.widthMm >= declaredPrintAreaDimensions.heightMm;
+  const supplierAreaIsHorizontal = supplierGeometryAspectRatio !== null
+    ? supplierGeometryAspectRatio >= 1
+    : declaredPrintAreaIsHorizontal;
+  const shouldSwapPrintAreaDimensions =
+    supplierGeometryAspectRatio !== null &&
+    declaredPrintAreaIsHorizontal !== supplierAreaIsHorizontal;
+  const printAreaDimensions = shouldSwapPrintAreaDimensions
+    ? {
+        widthMm: declaredPrintAreaDimensions.heightMm,
+        heightMm: declaredPrintAreaDimensions.widthMm,
+      }
+    : declaredPrintAreaDimensions;
+
   const printAreaAspectRatio =
     printAreaDimensions.widthMm / printAreaDimensions.heightMm;
+
+  const editorPrintAreaSize = useMemo(() => {
+    if (editorFrameSize.width <= 0 || editorFrameSize.height <= 0) {
+      return null;
+    }
+
+    const availableWidth = Math.max(1, editorFrameSize.width - 40);
+    const availableHeight = Math.max(1, editorFrameSize.height - 40);
+    const availableAspectRatio = availableWidth / availableHeight;
+
+    if (printAreaAspectRatio >= availableAspectRatio) {
+      return {
+        width: availableWidth,
+        height: availableWidth / printAreaAspectRatio,
+      };
+    }
+
+    return {
+      width: availableHeight * printAreaAspectRatio,
+      height: availableHeight,
+    };
+  }, [editorFrameSize.height, editorFrameSize.width, printAreaAspectRatio]);
 
   const applicableAreaTiers = (selectedLocation?.price_tiers ?? []).filter(
     (tier) =>
@@ -937,6 +983,26 @@ export default function ProductCustomizationEditor({
   const productionDays = getEstimatedProductionDays(
     selectedLocation?.technique ?? null,
   );
+
+  useEffect(() => {
+    const frame = editorFrameRef.current;
+
+    if (!frame) {
+      return;
+    }
+
+    const updateFrameSize = () => {
+      const rect = frame.getBoundingClientRect();
+      setEditorFrameSize({ width: rect.width, height: rect.height });
+    };
+
+    updateFrameSize();
+
+    const observer = new ResizeObserver(updateFrameSize);
+    observer.observe(frame);
+
+    return () => observer.disconnect();
+  }, [logoPreviewUrl]);
 
   useEffect(() => {
     if (
@@ -1600,35 +1666,47 @@ export default function ProductCustomizationEditor({
                 </div>
 
                 <div
-                  ref={printAreaRef}
-                  className="relative mt-5 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
-                  style={{
-                    aspectRatio: `${printAreaDimensions.widthMm} / ${printAreaDimensions.heightMm}`,
-                  }}
+                  ref={editorFrameRef}
+                  className="relative mt-5 flex h-72 w-full items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 p-5 sm:h-80"
                 >
                   <div
-                    role="button"
-                    tabIndex={0}
-                    onPointerDown={handleLogoPointerDown}
-                    onPointerMove={handleLogoPointerMove}
-                    onPointerUp={handleLogoPointerUp}
-                    onPointerCancel={handleLogoPointerUp}
-                    className="absolute cursor-grab touch-none active:cursor-grabbing"
-                    style={{
-                      left: `${safePosition.x}%`,
-                      top: `${safePosition.y}%`,
-                      width: `${safePosition.width}%`,
-                      height: `${logoHeightPercent}%`,
-                      transform: `rotate(${safePosition.rotation}deg)`,
-                      transformOrigin: "center center",
-                    }}
+                    ref={printAreaRef}
+                    aria-label={`Área de impressão ${printAreaDimensions.widthMm} por ${printAreaDimensions.heightMm} milímetros`}
+                    className="relative shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
+                    style={editorPrintAreaSize
+                      ? {
+                          width: `${editorPrintAreaSize.width}px`,
+                          height: `${editorPrintAreaSize.height}px`,
+                        }
+                      : {
+                          width: "80%",
+                          aspectRatio: `${printAreaDimensions.widthMm} / ${printAreaDimensions.heightMm}`,
+                        }}
                   >
-                    <img
-                      src={logoPreviewUrl}
-                      alt="Logótipo carregado"
-                      draggable={false}
-                      className="h-full w-full select-none object-contain"
-                    />
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onPointerDown={handleLogoPointerDown}
+                      onPointerMove={handleLogoPointerMove}
+                      onPointerUp={handleLogoPointerUp}
+                      onPointerCancel={handleLogoPointerUp}
+                      className="absolute cursor-grab touch-none active:cursor-grabbing"
+                      style={{
+                        left: `${safePosition.x}%`,
+                        top: `${safePosition.y}%`,
+                        width: `${safePosition.width}%`,
+                        height: `${logoHeightPercent}%`,
+                        transform: `rotate(${safePosition.rotation}deg)`,
+                        transformOrigin: "center center",
+                      }}
+                    >
+                      <img
+                        src={logoPreviewUrl}
+                        alt="Logótipo carregado"
+                        draggable={false}
+                        className="h-full w-full select-none object-contain"
+                      />
+                    </div>
                   </div>
                 </div>
 
