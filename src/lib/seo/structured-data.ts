@@ -196,3 +196,63 @@ export function buildCollectionStructuredData(
     ],
   };
 }
+
+type EditorialStructuredDataInput = {
+  name: string;
+  description: string;
+  path: string;
+  breadcrumbParentPath?: string;
+  breadcrumbParentLabel?: string;
+  breadcrumbLabel: string;
+  article?: boolean;
+};
+
+export function buildEditorialStructuredData(
+  input: EditorialStructuredDataInput,
+): Record<string, unknown> {
+  const pageUrl = absoluteUrl(input.path);
+  const breadcrumbs: BreadcrumbItem[] = [
+    { name: SITE_NAME, url: absoluteUrl("/") },
+  ];
+
+  if (input.breadcrumbParentPath && input.breadcrumbParentLabel) {
+    breadcrumbs.push({
+      name: input.breadcrumbParentLabel,
+      url: absoluteUrl(input.breadcrumbParentPath),
+    });
+  }
+
+  breadcrumbs.push({ name: input.breadcrumbLabel, url: pageUrl });
+
+  const page = {
+    "@type": input.article ? "Article" : "WebPage",
+    "@id": `${pageUrl}#${input.article ? "article" : "webpage"}`,
+    url: pageUrl,
+    name: input.name,
+    headline: input.article ? input.name : undefined,
+    description: input.description,
+    inLanguage: "pt-PT",
+    isPartOf: {
+      "@id": `${absoluteUrl("/")}#website`,
+    },
+    author: input.article
+      ? {
+          "@type": "Organization",
+          "@id": `${absoluteUrl("/")}#organization`,
+          name: SITE_NAME,
+        }
+      : undefined,
+    publisher: input.article
+      ? {
+          "@type": "Organization",
+          "@id": `${absoluteUrl("/")}#organization`,
+          name: SITE_NAME,
+        }
+      : undefined,
+  };
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [removeEmptyValues(page), buildBreadcrumbList(breadcrumbs)],
+  };
+}

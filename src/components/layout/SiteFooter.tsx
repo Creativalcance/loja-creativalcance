@@ -10,8 +10,11 @@ const footerGroups = [
       { label: "Categorias", href: "/categorias" },
       { label: "Aplicações", href: "/aplicacoes" },
       { label: "Indústrias", href: "/industrias" },
+      { label: "Guias", href: "/guias" },
+      { label: "Personalização", href: "/personalizacao" },
+      { label: "Sustentabilidade", href: "/sustentabilidade" },
+      { label: "Blog", href: "/blog" },
       { label: "Pesquisar produtos", href: "/pesquisa" },
-      { label: "Guias B2B", href: "/blog" },
     ],
   },
   {

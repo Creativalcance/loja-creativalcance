@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
+import { getGuides } from "@/lib/seo/guide-pages";
 import { getApplicationPages, getIndustryPages } from "@/lib/seo/landing-pages";
+import { getPersonalizationPages } from "@/lib/seo/personalization-pages";
 import { absoluteUrl } from "@/lib/seo/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -85,6 +87,32 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
+  const guideEntries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl("/guias"),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...getGuides().map((guide) => ({
+      url: absoluteUrl(`/guias/${guide.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.78,
+    })),
+  ];
+
+  const personalizationEntries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl("/personalizacao"),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...getPersonalizationPages().map((page) => ({
+      url: absoluteUrl(`/personalizacao/${page.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.74,
+    })),
+  ];
+
   const staticEntries: MetadataRoute.Sitemap = [
     {
       url: absoluteUrl("/"),
@@ -98,6 +126,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     ...applicationEntries,
     ...industryEntries,
+    ...guideEntries,
+    ...personalizationEntries,
+    {
+      url: absoluteUrl("/sustentabilidade"),
+      changeFrequency: "monthly",
+      priority: 0.78,
+    },
     {
       url: absoluteUrl("/blog"),
       changeFrequency: "weekly",
