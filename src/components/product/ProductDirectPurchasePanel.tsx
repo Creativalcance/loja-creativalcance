@@ -5,6 +5,7 @@ import {
   useActionState,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -22,6 +23,7 @@ import {
   type StartCustomizationDraftState,
 } from "@/lib/customization/actions";
 import { calculateCartItemPricing } from "@/lib/pricing/calculate-cart-item";
+import { trackGa4Event } from "@/lib/analytics/ga4-client";
 
 export type ProductPurchaseColor = {
   id: string;
@@ -710,6 +712,8 @@ export default function ProductDirectPurchasePanel({
     initialCartState,
   );
 
+  const pendingCartAnalyticsRef = useRef<Record<string, unknown> | null>(null);
+
   const [
     customizationState,
     startCustomizationAction,
@@ -842,6 +846,55 @@ export default function ProductDirectPurchasePanel({
       customizationExtrasTotal
     ).toFixed(2),
   );
+
+  useEffect(() => {
+    if (
+      !isAddingToCart ||
+      !selectedVariant ||
+      selectedQuantity <= 0
+    ) {
+      return;
+    }
+
+    pendingCartAnalyticsRef.current = {
+      currency: activeCustomizationDraft?.currency ?? pricing.currency,
+      value: displayedTotal,
+      items: [
+        {
+          item_id: selectedVariant.sku || productSku,
+          item_name: productName,
+          item_brand: brand ?? undefined,
+          item_variant: getVariantLabel(selectedVariant),
+          price: pricing.unitPrice,
+          quantity: selectedQuantity,
+        },
+      ],
+    };
+  }, [
+    activeCustomizationDraft?.currency,
+    brand,
+    displayedTotal,
+    isAddingToCart,
+    pricing.currency,
+    pricing.unitPrice,
+    productName,
+    productSku,
+    selectedQuantity,
+    selectedVariant,
+  ]);
+
+  useEffect(() => {
+    if (
+      isAddingToCart ||
+      !cartState.success ||
+      !pendingCartAnalyticsRef.current
+    ) {
+      return;
+    }
+
+    trackGa4Event("add_to_cart", pendingCartAnalyticsRef.current);
+    pendingCartAnalyticsRef.current = null;
+  }, [cartState.success, isAddingToCart]);
 
   const displayImageUrl =
     selectedColorGroup?.image_url ??

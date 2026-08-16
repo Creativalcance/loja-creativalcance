@@ -26,6 +26,11 @@ export type WeeklyMarketingMetricsRecord = {
   paid_new_customers: number | null;
   email_revenue: number | null;
   notes: string | null;
+  ga4_synced_at: string | null;
+  search_console_synced_at: string | null;
+  google_ads_synced_at: string | null;
+  last_integration_sync_at: string | null;
+  sync_errors: Record<string, string> | null;
   updated_at: string | null;
 };
 
@@ -402,7 +407,7 @@ async function fetchExternalMetrics(trendStartDate: string, endDate: string): Pr
   const { data, error } = await supabase
     .from("marketing_weekly_metrics")
     .select(
-      "week_start,sessions,users,new_users,add_to_cart_sessions,begin_checkout_sessions,purchase_sessions,organic_sessions,seo_clicks,seo_impressions,google_ads_spend,google_ads_clicks,google_ads_impressions,google_ads_revenue,meta_ads_spend,meta_ads_clicks,meta_ads_impressions,meta_ads_revenue,paid_new_customers,email_revenue,notes,updated_at",
+      "week_start,sessions,users,new_users,add_to_cart_sessions,begin_checkout_sessions,purchase_sessions,organic_sessions,seo_clicks,seo_impressions,google_ads_spend,google_ads_clicks,google_ads_impressions,google_ads_revenue,meta_ads_spend,meta_ads_clicks,meta_ads_impressions,meta_ads_revenue,paid_new_customers,email_revenue,notes,ga4_synced_at,search_console_synced_at,google_ads_synced_at,last_integration_sync_at,sync_errors,updated_at",
     )
     .gte("week_start", trendStartDate)
     .lt("week_start", endDate)
@@ -413,6 +418,38 @@ async function fetchExternalMetrics(trendStartDate: string, endDate: string): Pr
       return {
         records: [],
         ready: false,
+        error: null,
+      };
+    }
+
+    if (error.code === "42703") {
+      const legacyResult = await supabase
+        .from("marketing_weekly_metrics")
+        .select(
+          "week_start,sessions,users,new_users,add_to_cart_sessions,begin_checkout_sessions,purchase_sessions,organic_sessions,seo_clicks,seo_impressions,google_ads_spend,google_ads_clicks,google_ads_impressions,google_ads_revenue,meta_ads_spend,meta_ads_clicks,meta_ads_impressions,meta_ads_revenue,paid_new_customers,email_revenue,notes,updated_at",
+        )
+        .gte("week_start", trendStartDate)
+        .lt("week_start", endDate)
+        .order("week_start", { ascending: true });
+
+      if (legacyResult.error) {
+        return {
+          records: [],
+          ready: false,
+          error: legacyResult.error.message,
+        };
+      }
+
+      return {
+        records: (legacyResult.data ?? []).map((record) => ({
+          ...record,
+          ga4_synced_at: null,
+          search_console_synced_at: null,
+          google_ads_synced_at: null,
+          last_integration_sync_at: null,
+          sync_errors: null,
+        })) as WeeklyMarketingMetricsRecord[],
+        ready: true,
         error: null,
       };
     }

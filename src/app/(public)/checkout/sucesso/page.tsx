@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CheckCircle2, Clock3 } from "lucide-react";
+import Ga4PurchaseTracker from "@/components/analytics/Ga4PurchaseTracker";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -23,6 +24,13 @@ type CheckoutRecord = {
   } | null;
 };
 
+type PurchaseOrderItem = {
+  product_sku: string;
+  product_name: string;
+  quantity: number;
+  total: number;
+};
+
 function formatPrice(value: number, currency: string): string {
   return new Intl.NumberFormat("pt-PT", {
     style: "currency",
@@ -44,6 +52,7 @@ export default async function CheckoutSuccessPage({
   } = await supabase.auth.getUser();
 
   let checkout: CheckoutRecord | null = null;
+  let purchaseOrderItems: PurchaseOrderItem[] = [];
 
   if (sessionId && user) {
     const supabaseAdmin = createSupabaseAdminClient();
@@ -68,14 +77,49 @@ export default async function CheckoutSuccessPage({
       .maybeSingle();
 
     checkout = data as unknown as CheckoutRecord | null;
+
+    if (checkout?.order_id) {
+      const { data: orderItemsData } = await supabaseAdmin
+        .from("order_items")
+        .select("product_sku,product_name,quantity,total")
+        .eq("order_id", checkout.order_id);
+
+      purchaseOrderItems = (orderItemsData ?? []) as PurchaseOrderItem[];
+    }
   }
 
   const isPaid =
     checkout?.status === "completed" ||
     checkout?.orders?.payment_status === "paid";
 
+  const purchaseItems = purchaseOrderItems.map((item) => {
+    const quantity = Math.max(1, Number(item.quantity ?? 1));
+    const total = Number(item.total ?? 0);
+
+    return {
+      item_id: item.product_sku,
+      item_name: item.product_name,
+      price: Number((total / quantity).toFixed(2)),
+      quantity,
+    };
+  });
+
+  const purchaseValue = Number(
+    purchaseOrderItems
+      .reduce((sum, item) => sum + Number(item.total ?? 0), 0)
+      .toFixed(2),
+  );
+
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
+      {isPaid && checkout?.orders?.order_number && purchaseItems.length > 0 ? (
+        <Ga4PurchaseTracker
+          transactionId={checkout.orders.order_number}
+          currency={checkout.currency || "EUR"}
+          value={purchaseValue}
+          items={purchaseItems}
+        />
+      ) : null}
       <section className="mx-auto max-w-3xl rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
         {isPaid ? (
           <CheckCircle2 className="mx-auto h-14 w-14 text-emerald-600" />

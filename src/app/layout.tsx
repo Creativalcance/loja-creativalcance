@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import GoogleAnalyticsTag from "@/components/analytics/GoogleAnalyticsTag";
 import { absoluteUrl, getSiteUrl } from "@/lib/seo/site";
 import "./globals.css";
 
@@ -103,6 +104,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="pt-PT">
       <body>
+        <GoogleAnalyticsTag />
         {children}
         <script
           type="application/ld+json"

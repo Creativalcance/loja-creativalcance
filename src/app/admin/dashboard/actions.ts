@@ -1,10 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeWeekStart } from "@/lib/admin/dashboard/weekly-dashboard";
+import { syncWeeklyMarketingMetrics } from "@/lib/marketing-integrations/sync-weekly";
 
 function nullableNumber(formData: FormData, field: string): number | null {
   const raw = String(formData.get(field) ?? "").trim().replace(",", ".");
@@ -76,4 +78,35 @@ export async function saveWeeklyMarketingMetrics(formData: FormData) {
 
   revalidatePath("/admin/dashboard");
   redirect(`/admin/dashboard?week=${weekStart}&guardado=1`);
+}
+
+export async function syncWeeklyMarketingMetricsAction(formData: FormData) {
+  const { userId } = await assertAdminAccess("/admin/dashboard");
+  const weekStart = normalizeWeekStart(String(formData.get("weekStart") ?? ""));
+  let destination = `/admin/dashboard?week=${weekStart}&syncerro=1`;
+
+  try {
+    const requestHeaders = await headers();
+    const result = await syncWeeklyMarketingMetrics({
+      weekStart,
+      updatedBy: userId,
+      vercelOidcToken: requestHeaders.get("x-vercel-oidc-token"),
+    });
+    const errors = result.sources.filter((source) => source.status === "error").length;
+    const successes = result.sources.filter((source) => source.status === "success").length;
+
+    revalidatePath("/admin/dashboard");
+
+    if (successes === 0 && errors === 0) {
+      destination = `/admin/dashboard?week=${weekStart}&sincronizado=sem-fontes`;
+    } else if (errors > 0) {
+      destination = `/admin/dashboard?week=${weekStart}&sincronizado=parcial`;
+    } else {
+      destination = `/admin/dashboard?week=${weekStart}&sincronizado=1`;
+    }
+  } catch (error) {
+    console.error("Falha ao sincronizar métricas externas:", error);
+  }
+
+  redirect(destination);
 }

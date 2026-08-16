@@ -15,6 +15,7 @@ import {
   MousePointerClick,
   PackageCheck,
   Percent,
+  RefreshCw,
   Search,
   ShoppingCart,
   Target,
@@ -32,7 +33,8 @@ import {
   type WeeklyDashboardSnapshot,
   type WeeklyMarketingMetricsRecord,
 } from "@/lib/admin/dashboard/weekly-dashboard";
-import { saveWeeklyMarketingMetrics } from "./actions";
+import { getMarketingIntegrationStates } from "@/lib/marketing-integrations/sync-weekly";
+import { saveWeeklyMarketingMetrics, syncWeeklyMarketingMetricsAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,8 @@ type DashboardPageProps = {
     week?: string;
     guardado?: string;
     erro?: string;
+    sincronizado?: string;
+    syncerro?: string;
   }>;
 };
 
@@ -190,6 +194,24 @@ function SectionHeading({
 function numberInputValue(value: number | null | undefined): string | number {
   return value ?? "";
 }
+
+function formatSyncDate(value: string | null | undefined): string {
+  if (!value) {
+    return "Ainda sem sincronização";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Data indisponível";
+  }
+
+  return new Intl.DateTimeFormat("pt-PT", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "Europe/Lisbon",
+  }).format(date);
+}
+
 
 function ExternalMetricsForm({
   weekStart,
@@ -377,6 +399,7 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
   const weekStart = normalizeWeekStart(params.week);
   const currentWeekStart = getCurrentLisbonWeekStart();
   const data = await getWeeklyDashboardData(weekStart);
+  const integrationStates = getMarketingIntegrationStates();
   const { current, previous } = data;
   const previousWeek = addDaysToDateOnly(weekStart, -7);
   const nextWeek = addDaysToDateOnly(weekStart, 7);
@@ -445,6 +468,30 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
         {params.guardado === "1" ? (
           <div className="mt-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-sm text-emerald-200">
             Métricas externas da semana guardadas com sucesso.
+          </div>
+        ) : null}
+
+        {params.sincronizado === "1" ? (
+          <div className="mt-8 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-5 py-4 text-sm text-emerald-200">
+            Sincronização automática concluída para a semana selecionada.
+          </div>
+        ) : null}
+
+        {params.sincronizado === "parcial" ? (
+          <div className="mt-8 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-5 py-4 text-sm text-amber-100">
+            A sincronização foi parcial. Consulta o estado das fontes abaixo para identificar a integração que falhou.
+          </div>
+        ) : null}
+
+        {params.sincronizado === "sem-fontes" ? (
+          <div className="mt-8 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-5 py-4 text-sm text-amber-100">
+            Ainda não existem credenciais externas suficientes para executar a sincronização.
+          </div>
+        ) : null}
+
+        {params.syncerro === "1" ? (
+          <div className="mt-8 rounded-2xl border border-red-400/20 bg-red-400/10 px-5 py-4 text-sm text-red-200">
+            Não foi possível concluir a sincronização. Confirma a migration e as variáveis de ambiente das integrações.
           </div>
         ) : null}
 
@@ -602,8 +649,47 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
             icon={Database}
             eyebrow="Data sources"
             title="Métricas externas da semana"
-            description="Área discreta de carregamento dos dados de Google Analytics 4 (GA4), Search Console, Ads e Brevo. Pode ser substituída por sincronização automática mais tarde sem alterar os cálculos do dashboard."
+            description="Google Analytics 4, Search Console e Google Ads são sincronizados automaticamente quando as credenciais Google estão configuradas. Meta Ads fica, para já, fora da sincronização automática e pode continuar a ser preenchido manualmente."
           />
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {integrationStates.map((integration) => {
+              const syncedAt = integration.key === "ga4"
+                ? current.external?.ga4_synced_at
+                : integration.key === "searchConsole"
+                  ? current.external?.search_console_synced_at
+                  : current.external?.google_ads_synced_at;
+              const syncError = current.external?.sync_errors?.[integration.key] ?? null;
+
+              return (
+                <article key={integration.key} className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">{integration.label}</p>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${integration.configured ? "bg-emerald-400/10 text-emerald-200" : "bg-white/5 text-white/35"}`}>
+                      {integration.configured ? "Configurado" : "Por configurar"}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-white/40">
+                    {syncError ? `Erro: ${syncError}` : formatSyncDate(syncedAt)}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+
+          <form action={syncWeeklyMarketingMetricsAction} className="mt-5">
+            <input type="hidden" name="weekStart" value={weekStart} />
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-neutral-950 transition hover:bg-white/90"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Sincronizar agora
+            </button>
+            <p className="mt-2 text-xs leading-5 text-white/35">
+              A sincronização diária automática atualiza as quatro semanas mais recentes. Este botão atualiza apenas a semana selecionada.
+            </p>
+          </form>
 
           {data.externalMetricsReady ? (
             <details className="mt-6 rounded-3xl border border-white/10 bg-black/15 p-5">

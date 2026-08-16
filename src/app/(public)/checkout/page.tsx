@@ -12,6 +12,7 @@ import {
 import CheckoutForm, {
   type CheckoutSavedAddress,
 } from "@/components/checkout/CheckoutForm";
+import Ga4BeginCheckoutTracker from "@/components/analytics/Ga4BeginCheckoutTracker";
 import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -211,6 +212,12 @@ export default async function CheckoutPage() {
     ),
   );
 
+  const ga4Items = items.map((item) => ({
+    item_name: item.product_name,
+    price: Number(item.unit_price ?? 0),
+    quantity: Number(item.quantity ?? 0),
+  }));
+
   const profile = profileData ?? null;
 
   const customerName =
@@ -245,6 +252,12 @@ export default async function CheckoutPage() {
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
+      <Ga4BeginCheckoutTracker
+        cartId={cart.id}
+        currency={currency}
+        value={currentTotal}
+        items={ga4Items}
+      />
       <section className="mx-auto max-w-7xl">
         <Link
           href="/carrinho"
