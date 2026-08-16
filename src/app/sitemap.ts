@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { getApplicationPages, getIndustryPages } from "@/lib/seo/landing-pages";
 import { absoluteUrl } from "@/lib/seo/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -9,6 +10,7 @@ type SitemapProductRow = {
   id: string;
   slug: string;
   type_name: string | null;
+  subtype_name: string | null;
   updated_at: string | null;
 };
 
@@ -33,7 +35,7 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, slug, type_name, updated_at")
+      .select("id, slug, type_name, subtype_name, updated_at")
       .eq("status", "active")
       .eq("is_active", true)
       .not("slug", "is", null)
@@ -57,6 +59,32 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const applicationEntries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl("/aplicacoes"),
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
+    ...getApplicationPages().map((page) => ({
+      url: absoluteUrl(`/aplicacoes/${page.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.82,
+    })),
+  ];
+
+  const industryEntries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl("/industrias"),
+      changeFrequency: "monthly",
+      priority: 0.85,
+    },
+    ...getIndustryPages().map((page) => ({
+      url: absoluteUrl(`/industrias/${page.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.82,
+    })),
+  ];
+
   const staticEntries: MetadataRoute.Sitemap = [
     {
       url: absoluteUrl("/"),
@@ -68,6 +96,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.9,
     },
+    ...applicationEntries,
+    ...industryEntries,
     {
       url: absoluteUrl("/blog"),
       changeFrequency: "weekly",
@@ -88,10 +118,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     const products = await getActiveProducts();
     const categories = new Map<string, Date | undefined>();
+    const subcategories = new Map<string, { category: string; subcategory: string; lastModified?: Date }>();
 
     const productEntries: MetadataRoute.Sitemap = products.map((product) => {
       const updatedAt = parseDate(product.updated_at);
       const categoryName = product.type_name?.trim();
+      const subcategoryName = product.subtype_name?.trim();
 
       if (categoryName) {
         const currentCategoryDate = categories.get(categoryName);
@@ -101,6 +133,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           (updatedAt && updatedAt.getTime() > currentCategoryDate.getTime())
         ) {
           categories.set(categoryName, updatedAt);
+        }
+
+        if (subcategoryName) {
+          const key = `${categoryName}\u0000${subcategoryName}`;
+          const currentSubcategory = subcategories.get(key);
+
+          if (
+            !currentSubcategory?.lastModified ||
+            (updatedAt && updatedAt.getTime() > currentSubcategory.lastModified.getTime())
+          ) {
+            subcategories.set(key, {
+              category: categoryName,
+              subcategory: subcategoryName,
+              lastModified: updatedAt,
+            });
+          }
         }
       }
 
@@ -125,7 +173,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.8,
       }));
 
-    return [...staticEntries, ...categoryEntries, ...productEntries];
+    const subcategoryEntries: MetadataRoute.Sitemap = Array.from(
+      subcategories.values(),
+    )
+      .sort((a, b) => {
+        const categoryCompare = a.category.localeCompare(b.category, "pt-PT");
+        return categoryCompare !== 0
+          ? categoryCompare
+          : a.subcategory.localeCompare(b.subcategory, "pt-PT");
+      })
+      .map(({ category, subcategory, lastModified }) => ({
+        url: absoluteUrl(
+          `/categorias/${encodeURIComponent(category)}/${encodeURIComponent(subcategory)}`,
+        ),
+        lastModified,
+        changeFrequency: "weekly",
+        priority: 0.75,
+      }));
+
+    return [
+      ...staticEntries,
+      ...categoryEntries,
+      ...subcategoryEntries,
+      ...productEntries,
+    ];
   } catch (error) {
     console.error("SEO sitemap generation failed:", error);
     return staticEntries;

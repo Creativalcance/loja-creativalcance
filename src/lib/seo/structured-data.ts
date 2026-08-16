@@ -83,10 +83,21 @@ export function buildProductStructuredData(
   ];
 
   if (categoryName) {
+    const categoryPath = `/categorias/${encodeURIComponent(categoryName)}`;
+
     breadcrumbs.push({
       name: categoryName,
-      url: absoluteUrl(`/categorias/${encodeURIComponent(categoryName)}`),
+      url: absoluteUrl(categoryPath),
     });
+
+    if (subcategoryName) {
+      breadcrumbs.push({
+        name: subcategoryName,
+        url: absoluteUrl(
+          `${categoryPath}/${encodeURIComponent(subcategoryName)}`,
+        ),
+      });
+    }
   }
 
   breadcrumbs.push({ name: input.name, url: productUrl });
@@ -136,4 +147,52 @@ export function buildProductStructuredData(
 
 export function serializeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
+type CollectionStructuredDataInput = {
+  name: string;
+  description: string;
+  path: string;
+  breadcrumbLabel: string;
+  breadcrumbParentPath?: string;
+  breadcrumbParentLabel?: string;
+};
+
+export function buildCollectionStructuredData(
+  input: CollectionStructuredDataInput,
+): Record<string, unknown> {
+  const pageUrl = absoluteUrl(input.path);
+  const breadcrumbs: BreadcrumbItem[] = [
+    { name: SITE_NAME, url: absoluteUrl("/") },
+  ];
+
+  if (input.breadcrumbParentPath && input.breadcrumbParentLabel) {
+    breadcrumbs.push({
+      name: input.breadcrumbParentLabel,
+      url: absoluteUrl(input.breadcrumbParentPath),
+    });
+  }
+
+  breadcrumbs.push({
+    name: input.breadcrumbLabel,
+    url: pageUrl,
+  });
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${pageUrl}#collectionpage`,
+        url: pageUrl,
+        name: input.name,
+        description: input.description,
+        inLanguage: "pt-PT",
+        isPartOf: {
+          "@id": `${absoluteUrl("/")}#website`,
+        },
+      },
+      buildBreadcrumbList(breadcrumbs),
+    ],
+  };
 }
