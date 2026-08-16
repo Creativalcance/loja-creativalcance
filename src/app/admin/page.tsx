@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   BadgeEuro,
+  BarChart3,
   Building2,
   FileText,
   Bell,
@@ -23,6 +24,13 @@ type AdminModule = {
 };
 
 const adminModules: AdminModule[] = [
+  {
+    title: "Dashboard semanal",
+    description:
+      "Acompanhar vendas, aquisição, funil, SEO, media paga, CRM, clientes e leads B2B numa visão semanal.",
+    href: "/admin/dashboard",
+    icon: BarChart3,
+  },
   {
     title: "Sincronização",
     description:

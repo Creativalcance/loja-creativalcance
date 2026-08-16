@@ -179,11 +179,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.78,
     },
     {
-      url: absoluteUrl("/insights"),
-      changeFrequency: "weekly",
-      priority: 0.72,
-    },
-    {
       url: absoluteUrl("/blog"),
       changeFrequency: "weekly",
       priority: 0.7,
