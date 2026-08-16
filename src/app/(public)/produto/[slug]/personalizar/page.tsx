@@ -383,6 +383,12 @@ function getVariantLabel(variant: ProductVariant | null): string | null {
   return variant.color_name ?? variant.size ?? null;
 }
 
+function isSupplierServiceCode(value: string | null): value is string {
+  return Boolean(
+    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
+  );
+}
+
 function buildEditorLocations(params: {
   locations: ProductCustomizationLocation[];
   componentsById: Map<string, ProductCustomizationComponent>;
@@ -557,10 +563,20 @@ function buildEditorLocations(params: {
             );
             return codeMatches;
           })
-          .map((price) => ({
+          .map((price) => {
+            const supplierOption = techniqueOptions.find(
+              (option) =>
+                isSupplierServiceCode(option.service_code) &&
+                (option.table_code_option === price.table_code_option ||
+                  (!price.table_code_option &&
+                    option.table_code === price.table_code)),
+            );
+
+            return {
             id: price.id,
             table_code: price.table_code,
             table_code_option: price.table_code_option,
+            service_code: supplierOption?.service_code ?? null,
             quantity_min: price.quantity_min,
             quantity_max: price.quantity_max,
             supplier_price: price.supplier_price,
@@ -574,7 +590,8 @@ function buildEditorLocations(params: {
             allow_full_color: price.allow_full_color,
             max_colors: price.max_colors,
             area_cm2: price.area_cm2,
-          })),
+            };
+          }),
       });
     }
   }

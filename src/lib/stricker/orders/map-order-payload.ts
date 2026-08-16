@@ -189,22 +189,24 @@ function getCustomizationGroup(
 function getLogoArea(
   item: StrickerOrderDatabaseItem,
 ): number {
+  /*
+   * ServiceOrderV1 trabalha com o tamanho do logótipo em centímetros.
+   * O exemplo oficial da Stricker envia Width=1.5, Height=1.5 e
+   * LogoArea=2.25. Na nossa base, width/height são guardados em mm e
+   * logo_area é guardada em mm². Fazemos a conversão apenas no payload
+   * enviado ao fornecedor, sem alterar os valores persistidos na loja.
+   */
   if (
     item.logo_area !== null &&
     Number.isFinite(Number(item.logo_area))
   ) {
-    return Number(item.logo_area);
+    return Number((Number(item.logo_area) / 100).toFixed(4));
   }
 
   if (
     item.logo_width_mm !== null &&
     item.logo_height_mm !== null
   ) {
-    /*
-     * A documentação Stricker identifica a área do logótipo,
-     * mas não é totalmente explícita sobre a unidade.
-     * Guardamos e enviamos a área em cm².
-     */
     return Number(
       (
         (Number(item.logo_width_mm) *
@@ -220,13 +222,13 @@ function getLogoArea(
 function getLogoWidth(
   item: StrickerOrderDatabaseItem,
 ): number {
-  return Number(item.logo_width_mm ?? 0);
+  return Number((Number(item.logo_width_mm ?? 0) / 10).toFixed(4));
 }
 
 function getLogoHeight(
   item: StrickerOrderDatabaseItem,
 ): number {
-  return Number(item.logo_height_mm ?? 0);
+  return Number((Number(item.logo_height_mm ?? 0) / 10).toFixed(4));
 }
 
 function buildServiceOrderLine(

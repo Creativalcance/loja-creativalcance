@@ -141,6 +141,34 @@ function toStripeAmount(value: number): number {
   return Math.round(roundMoney(value) * 100);
 }
 
+function isSupplierServiceCode(value: string | null): value is string {
+  return Boolean(
+    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
+  );
+}
+
+function locationNamesMatch(left: string | null, right: string | null): boolean {
+  const normalizedLeft = normalizeText(left);
+  const normalizedRight = normalizeText(right);
+
+  if (normalizedLeft === normalizedRight) {
+    return true;
+  }
+
+  const aliases: Record<string, string[]> = {
+    costas: ["back"],
+    back: ["costas"],
+    peito: ["chest"],
+    chest: ["peito"],
+    frente: ["front"],
+    front: ["frente"],
+    manga: ["sleeve"],
+    sleeve: ["manga"],
+  };
+
+  return (aliases[normalizedLeft] ?? []).includes(normalizedRight);
+}
+
 function normalizeText(value: string | null): string {
   return (
     value
@@ -498,7 +526,7 @@ export async function createPaymentCheckoutSessionAction(
     }
 
     const cart = cartData as unknown as Cart;
-    const cartItems = cart.cart_items ?? [];
+    let cartItems = cart.cart_items ?? [];
     const shippingAddress = cart.customer_addresses;
 
     if (cartItems.length === 0) {
@@ -555,6 +583,109 @@ export async function createPaymentCheckoutSessionAction(
         success: false,
         message: `${unavailableItem.product_name} deixou de estar disponível. Remove este artigo do carrinho antes de continuar.`,
       };
+    }
+
+    const personalizedItemsNeedingServiceCode = cartItems.filter(
+      (item) =>
+        item.personalization_required &&
+        !isSupplierServiceCode(item.service_code),
+    );
+
+    if (personalizedItemsNeedingServiceCode.length > 0) {
+      const variantIds = Array.from(
+        new Set(
+          personalizedItemsNeedingServiceCode
+            .map((item) => item.variant_id)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+      const tableCodeOptions = Array.from(
+        new Set(
+          personalizedItemsNeedingServiceCode
+            .map((item) => item.table_code_option)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      );
+
+      if (variantIds.length === 0 || tableCodeOptions.length === 0) {
+        const invalidItem = personalizedItemsNeedingServiceCode[0];
+        return {
+          success: false,
+          message: `A personalização de ${invalidItem.product_name} ainda não está pronta para submissão automática ao fornecedor. Seleciona novamente a personalização antes de efetuar o pagamento.`,
+        };
+      }
+
+      const { data: supplierOptions, error: supplierOptionsError } =
+        await supabaseAdmin
+          .from("product_customization_options")
+          .select(
+            "variant_id,service_code,table_code_option,location_name,is_active",
+          )
+          .in("variant_id", variantIds)
+          .in("table_code_option", tableCodeOptions)
+          .eq("is_active", true);
+
+      if (supplierOptionsError) {
+        return {
+          success: false,
+          message:
+            "Não foi possível validar a personalização junto dos dados do fornecedor. Tenta novamente dentro de alguns instantes.",
+        };
+      }
+
+      const resolvedServiceCodes = new Map<string, string>();
+
+      for (const item of personalizedItemsNeedingServiceCode) {
+        const candidates = (supplierOptions ?? []).filter(
+          (option) =>
+            option.variant_id === item.variant_id &&
+            option.table_code_option === item.table_code_option &&
+            isSupplierServiceCode(option.service_code),
+        );
+        const locationCandidates = candidates.filter((option) =>
+          locationNamesMatch(
+            option.location_name,
+            item.customization_location_name,
+          ),
+        );
+        const selected =
+          locationCandidates.length === 1
+            ? locationCandidates[0]
+            : candidates.length === 1
+              ? candidates[0]
+              : null;
+
+        if (!selected?.service_code) {
+          return {
+            success: false,
+            message: `A personalização de ${item.product_name} ainda não possui um código de serviço válido do fornecedor. O pagamento foi bloqueado para evitar uma encomenda paga que não possa ser submetida automaticamente.`,
+          };
+        }
+
+        resolvedServiceCodes.set(item.id, selected.service_code);
+      }
+
+      for (const [cartItemId, serviceCode] of resolvedServiceCodes) {
+        const { error: updateServiceCodeError } = await supabaseAdmin
+          .from("cart_items")
+          .update({ service_code: serviceCode })
+          .eq("id", cartItemId)
+          .eq("cart_id", cart.id);
+
+        if (updateServiceCodeError) {
+          return {
+            success: false,
+            message:
+              "Não foi possível validar a personalização antes do pagamento. Tenta novamente.",
+          };
+        }
+      }
+
+      cartItems = cartItems.map((item) => ({
+        ...item,
+        service_code:
+          resolvedServiceCodes.get(item.id) ?? item.service_code,
+      }));
     }
 
     if (!shippingAddress || !cart.shipping_address_id) {

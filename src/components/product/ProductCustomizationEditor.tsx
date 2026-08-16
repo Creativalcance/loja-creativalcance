@@ -65,6 +65,7 @@ export type ProductEditorCustomizationPrice = {
   id: string;
   table_code: string;
   table_code_option: string | null;
+  service_code: string | null;
   quantity_min: number;
   quantity_max: number | null;
   supplier_price: number;
@@ -1154,7 +1155,10 @@ export default function ProductCustomizationEditor({
         "tableCodeOption",
         personalizationPriceTier?.table_code_option ?? "",
       );
-      formData.set("serviceCode", "");
+      formData.set(
+        "serviceCode",
+        personalizationPriceTier?.service_code ?? "",
+      );
 
       formData.set("quantity", String(quantity));
 
