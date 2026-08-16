@@ -611,6 +611,7 @@ function formatProductText(value: string | null): string | null {
 export default function ProductDirectPurchasePanel({
   productId,
   productSlug,
+  productSku,
   productName,
   shortDescription,
   productDescription,
