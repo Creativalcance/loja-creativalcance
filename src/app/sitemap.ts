@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { getCommercialPages } from "@/lib/seo/commercial-pages";
 import { getGuides } from "@/lib/seo/guide-pages";
 import { getInstitutionalPages } from "@/lib/seo/institutional-pages";
 import { getApplicationPages, getIndustryPages } from "@/lib/seo/landing-pages";
@@ -62,6 +63,19 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const commercialEntries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl("/solucoes"),
+      changeFrequency: "monthly",
+      priority: 0.88,
+    },
+    ...getCommercialPages().map((page) => ({
+      url: absoluteUrl(`/solucoes/${page.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: page.group === "commercial" ? 0.86 : 0.82,
+    })),
+  ];
+
   const applicationEntries: MetadataRoute.Sitemap = [
     {
       url: absoluteUrl("/aplicacoes"),
@@ -138,6 +152,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily",
       priority: 0.9,
     },
+    ...commercialEntries,
     ...applicationEntries,
     ...industryEntries,
     ...guideEntries,

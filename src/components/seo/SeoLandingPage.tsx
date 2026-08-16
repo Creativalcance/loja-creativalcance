@@ -58,13 +58,21 @@ export default function SeoLandingPage({
                 Use o Smart Merch para cruzar tipo de produto, quantidade,
                 orçamento e prazo, ou explore as sugestões desta página.
               </p>
-              <Link
-                href="/smart-merch"
-                className="mt-5 inline-flex items-center rounded-full bg-[#162334] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#24364d]"
-              >
-                Experimentar Smart Merch
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  href="/smart-merch"
+                  className="inline-flex items-center rounded-full bg-[#162334] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#24364d]"
+                >
+                  Experimentar Smart Merch
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+                <Link
+                  href="/solucoes"
+                  className="inline-flex items-center rounded-full border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-500"
+                >
+                  Por orçamento e quantidade
+                </Link>
+              </div>
             </aside>
           </div>
         </div>

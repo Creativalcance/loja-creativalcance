@@ -8,6 +8,7 @@ const footerGroups = [
     links: [
       { label: "360 Smart Merch", href: "/smart-merch" },
       { label: "Categorias", href: "/categorias" },
+      { label: "Soluções", href: "/solucoes" },
       { label: "Aplicações", href: "/aplicacoes" },
       { label: "Indústrias", href: "/industrias" },
       { label: "Guias", href: "/guias" },

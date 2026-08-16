@@ -218,15 +218,21 @@ export default async function CategoryProductsPage({
               Não procure apenas por categoria
             </h2>
             <p className="mt-4 text-sm leading-6 text-white/65">
-              Consulte soluções para welcome kits, eventos, congressos,
-              colaboradores e setores específicos.
+              Consulte soluções por orçamento e quantidade, aplicações como
+              welcome kits e eventos, ou páginas dedicadas a setores específicos.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
-                href="/aplicacoes"
+                href="/solucoes"
                 className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#162334]"
               >
-                Aplicações <ArrowRight className="ml-2 h-4 w-4" />
+                Soluções <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+              <Link
+                href="/aplicacoes"
+                className="inline-flex items-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Aplicações
               </Link>
               <Link
                 href="/industrias"

@@ -122,13 +122,22 @@ export default function GuidePage({
                 personalização disponíveis.
               </p>
             </div>
-            <Link
-              href={`/pesquisa?q=${encodeURIComponent(config.productQueries[0] ?? "")}`}
-              className="inline-flex items-center justify-center rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-500"
-            >
-              <Search className="mr-2 h-4 w-4" />
-              Pesquisar catálogo
-            </Link>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/solucoes"
+                className="inline-flex items-center justify-center rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              >
+                Explorar por orçamento e quantidade
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+              <Link
+                href={`/pesquisa?q=${encodeURIComponent(config.productQueries[0] ?? "")}`}
+                className="inline-flex items-center justify-center rounded-full border border-neutral-300 px-5 py-2.5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-500"
+              >
+                <Search className="mr-2 h-4 w-4" />
+                Pesquisar catálogo
+              </Link>
+            </div>
           </div>
 
           {products.length > 0 ? (
