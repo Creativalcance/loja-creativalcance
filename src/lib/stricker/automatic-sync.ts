@@ -243,7 +243,10 @@ export async function runStrickerAutomaticSync(
   | { skipped: false; result: JsonResult }
 > {
   const ownerToken = randomUUID();
-  const lockKey = "stricker:automatic-sync";
+  const lockKey =
+    job === "orders-status"
+      ? "stricker:automatic-sync:orders-status"
+      : "stricker:automatic-sync";
   const acquired = await acquireLock({ lockKey, ownerToken });
 
   if (!acquired) {
