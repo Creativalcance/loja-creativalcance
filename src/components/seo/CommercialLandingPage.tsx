@@ -3,6 +3,7 @@ import {
   ArrowRight,
   BadgeEuro,
   CheckCircle2,
+  HelpCircle,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -10,7 +11,10 @@ import ProductCard, {
   type ProductCardProduct,
 } from "@/components/catalog/ProductCard";
 import type { CommercialLandingConfig } from "@/lib/seo/commercial-pages";
-import { getRelatedCommercialPages } from "@/lib/seo/commercial-pages";
+import {
+  getCommercialPageFaq,
+  getRelatedCommercialPages,
+} from "@/lib/seo/commercial-pages";
 
 const GROUP_LABELS: Record<CommercialLandingConfig["group"], string> = {
   commercial: "Soluções comerciais",
@@ -27,6 +31,7 @@ export default function CommercialLandingPage({
   products: ProductCardProduct[];
 }) {
   const relatedPages = getRelatedCommercialPages(config);
+  const faq = getCommercialPageFaq(config);
   const searchTerm = config.productQueries[0] ?? "";
 
   return (
@@ -226,6 +231,27 @@ export default function CommercialLandingPage({
               </Link>
             </div>
           </aside>
+        </div>
+      </section>
+
+      <section className="border-t border-neutral-200 bg-white">
+        <div className="mx-auto max-w-4xl px-6 py-12 md:py-16">
+          <div className="flex items-center gap-3">
+            <HelpCircle className="h-6 w-6 text-neutral-500" />
+            <h2 className="text-3xl font-semibold tracking-tight text-neutral-950">
+              Perguntas frequentes
+            </h2>
+          </div>
+          <div className="mt-7 divide-y divide-neutral-200 rounded-3xl border border-neutral-200 bg-neutral-50 px-6">
+            {faq.map((item) => (
+              <article key={item.question} className="py-6">
+                <h3 className="text-lg font-semibold text-neutral-950">
+                  {item.question}
+                </h3>
+                <p className="mt-3 leading-7 text-neutral-600">{item.answer}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -773,3 +773,90 @@ export function getCommercialPagesByGroup(
 ): CommercialLandingConfig[] {
   return COMMERCIAL_PAGES.filter((page) => page.group === group);
 }
+
+export type CommercialFaq = {
+  question: string;
+  answer: string;
+};
+
+export function getCommercialPageFaq(
+  config: CommercialLandingConfig,
+): CommercialFaq[] {
+  if (config.group === "budget") {
+    return [
+      {
+        question: "O valor indicado inclui a personalização?",
+        answer:
+          "Não necessariamente. Estas páginas usam preços base registados no catálogo para criar um primeiro filtro. O valor final depende da quantidade, variante e configuração de personalização escolhidas.",
+      },
+      {
+        question: "Um produto apresentado nesta página fica sempre abaixo do orçamento?",
+        answer:
+          "Não. Significa apenas que existe pelo menos um escalão de preço base compatível com o teto usado no filtro. A configuração final pode alterar o valor.",
+      },
+      {
+        question: "O preço unitário pode mudar com a quantidade?",
+        answer:
+          "Sim. Os produtos podem ter diferentes escalões de preço e a quantidade escolhida deve ser confirmada na ficha do produto.",
+      },
+    ];
+  }
+
+  if (config.group === "quantity") {
+    return [
+      {
+        question: "Esta página garante que existe stock para a quantidade indicada?",
+        answer:
+          "Não. O filtro verifica se o mínimo de encomenda registado é compatível com a quantidade, mas o stock disponível deve ser confirmado no produto.",
+      },
+      {
+        question: "O que significa mínimo de encomenda compatível?",
+        answer:
+          "Significa que o mínimo registado para a referência é igual ou inferior à quantidade usada no filtro desta página.",
+      },
+      {
+        question: "Todos os produtos podem ser personalizados na quantidade escolhida?",
+        answer:
+          "A possibilidade e configuração da personalização dependem da referência, da técnica e das regras aplicáveis ao produto.",
+      },
+    ];
+  }
+
+  if (config.group === "occasion") {
+    return [
+      {
+        question: "Os produtos apresentados são obrigatórios para esta ocasião?",
+        answer:
+          "Não. São sugestões obtidas a partir de categorias relacionadas com o contexto. A seleção final deve ser adaptada ao público, objetivo, orçamento, quantidade e prazo.",
+      },
+      {
+        question: "Como devo confirmar o prazo?",
+        answer:
+          "Valide stock, configuração, personalização e expedição para a referência escolhida, sobretudo quando existe uma data fixa para a ação.",
+      },
+      {
+        question: "Posso combinar vários produtos num kit?",
+        answer:
+          "Sim, desde que a combinação tenha uma função clara e seja planeada considerando orçamento, disponibilidade e logística.",
+      },
+    ];
+  }
+
+  return [
+    {
+      question: "Como são escolhidos os produtos apresentados?",
+      answer:
+        "A página pesquisa o catálogo ativo através de termos relacionados com esta necessidade e aplica os filtros comerciais definidos para a seleção.",
+    },
+    {
+      question: "A seleção substitui a ficha individual do produto?",
+      answer:
+        "Não. A ficha individual continua a ser a referência para confirmar stock, quantidade mínima, preço, materiais, variante e personalização.",
+    },
+    {
+      question: "Posso cruzar esta necessidade com orçamento e quantidade?",
+      answer:
+        "Sim. Pode usar o Smart Merch ou as páginas de soluções por orçamento e quantidade para reduzir ainda mais as opções.",
+    },
+  ];
+}

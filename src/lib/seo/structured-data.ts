@@ -292,3 +292,58 @@ export function buildAuthorStructuredData(): Record<string, unknown> {
     ],
   };
 }
+
+type SelectionStructuredDataInput = {
+  name: string;
+  description: string;
+  path: string;
+  breadcrumbLabel: string;
+  items: Array<{
+    name: string;
+    slug: string;
+  }>;
+};
+
+export function buildSelectionStructuredData(
+  input: SelectionStructuredDataInput,
+): Record<string, unknown> {
+  const pageUrl = absoluteUrl(input.path);
+  const itemList = {
+    "@type": "ItemList",
+    "@id": `${pageUrl}#itemlist`,
+    name: `${input.name} — produtos relacionados`,
+    numberOfItems: input.items.length,
+    itemListElement: input.items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      url: absoluteUrl(`/produto/${encodeURIComponent(item.slug)}`),
+    })),
+  };
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "CollectionPage",
+        "@id": `${pageUrl}#collectionpage`,
+        url: pageUrl,
+        name: input.name,
+        description: input.description,
+        inLanguage: "pt-PT",
+        isPartOf: {
+          "@id": `${absoluteUrl("/")}#website`,
+        },
+        mainEntity: {
+          "@id": `${pageUrl}#itemlist`,
+        },
+      },
+      itemList,
+      buildBreadcrumbList([
+        { name: SITE_NAME, url: absoluteUrl("/") },
+        { name: "Seleções 360", url: absoluteUrl("/selecoes") },
+        { name: input.breadcrumbLabel, url: pageUrl },
+      ]),
+    ],
+  };
+}

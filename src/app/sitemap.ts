@@ -4,6 +4,7 @@ import { getGuides } from "@/lib/seo/guide-pages";
 import { getInstitutionalPages } from "@/lib/seo/institutional-pages";
 import { getApplicationPages, getIndustryPages } from "@/lib/seo/landing-pages";
 import { getPersonalizationPages } from "@/lib/seo/personalization-pages";
+import { getSelectionPages } from "@/lib/seo/selection-pages";
 import { absoluteUrl } from "@/lib/seo/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -128,6 +129,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
+  const selectionEntries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl("/selecoes"),
+      changeFrequency: "monthly",
+      priority: 0.8,
+    },
+    ...getSelectionPages().map((page) => ({
+      url: absoluteUrl(`/selecoes/${page.slug}`),
+      changeFrequency: "monthly" as const,
+      priority: 0.76,
+    })),
+  ];
+
   const institutionalEntries: MetadataRoute.Sitemap = [
     ...getInstitutionalPages().map((page) => ({
       url: absoluteUrl(`/${page.slug}`),
@@ -157,11 +171,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...industryEntries,
     ...guideEntries,
     ...personalizationEntries,
+    ...selectionEntries,
     ...institutionalEntries,
     {
       url: absoluteUrl("/sustentabilidade"),
       changeFrequency: "monthly",
       priority: 0.78,
+    },
+    {
+      url: absoluteUrl("/insights"),
+      changeFrequency: "weekly",
+      priority: 0.72,
     },
     {
       url: absoluteUrl("/blog"),

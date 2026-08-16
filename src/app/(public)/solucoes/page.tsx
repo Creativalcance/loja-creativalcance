@@ -169,7 +169,7 @@ export default function CommercialSolutionsPage() {
           })}
         </div>
 
-        <div className="mt-14 grid gap-5 md:grid-cols-3">
+        <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/aplicacoes"
             className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition hover:bg-white/[0.07]"
@@ -197,6 +197,16 @@ export default function CommercialSolutionsPage() {
             <p className="mt-2 text-sm leading-6 text-white/55">
               Conteúdo para comparar orçamento, quantidade, personalização e
               sustentabilidade.
+            </p>
+          </Link>
+          <Link
+            href="/selecoes"
+            className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 transition hover:bg-white/[0.07]"
+          >
+            <h2 className="text-lg font-semibold">Seleções 360</h2>
+            <p className="mt-2 text-sm leading-6 text-white/55">
+              Páginas “melhores para” com critérios explícitos, contexto e
+              opções do catálogo ativo.
             </p>
           </Link>
         </div>

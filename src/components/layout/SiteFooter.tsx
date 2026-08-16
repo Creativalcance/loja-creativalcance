@@ -12,6 +12,8 @@ const footerGroups = [
       { label: "Aplicações", href: "/aplicacoes" },
       { label: "Indústrias", href: "/industrias" },
       { label: "Guias", href: "/guias" },
+      { label: "Seleções 360", href: "/selecoes" },
+      { label: "360 Insights", href: "/insights" },
       { label: "Personalização", href: "/personalizacao" },
       { label: "Sustentabilidade", href: "/sustentabilidade" },
       { label: "Blog", href: "/blog" },
