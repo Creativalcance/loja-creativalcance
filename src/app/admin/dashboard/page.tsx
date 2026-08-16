@@ -53,6 +53,7 @@ type MetricCardProps = {
   format: MetricFormat;
   source: string;
   note?: string;
+  meaning?: string;
   invertDelta?: boolean;
 };
 
@@ -116,6 +117,7 @@ function MetricCard({
   format,
   source,
   note,
+  meaning,
   invertDelta = false,
 }: MetricCardProps) {
   const delta = relativeDelta(value, previous);
@@ -125,8 +127,13 @@ function MetricCard({
   return (
     <article className="rounded-3xl border border-white/10 bg-white/[0.035] p-5">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-sm font-medium text-white/65">{label}</p>
-        <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white/65">{label}</p>
+          {meaning ? (
+            <p className="mt-1 text-[11px] leading-4 text-white/35">{meaning}</p>
+          ) : null}
+        </div>
+        <span className="shrink-0 rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">
           {source}
         </span>
       </div>
@@ -201,6 +208,7 @@ function ExternalMetricsForm({
 
       <div>
         <h3 className="text-sm font-semibold text-white">GA4</h3>
+        <p className="mt-1 text-xs text-white/35">Google Analytics 4</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className={labelClass}>
             Sessions
@@ -238,10 +246,12 @@ function ExternalMetricsForm({
         <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className={labelClass}>
             SEO Clicks
+            <span className="mt-1 block normal-case tracking-normal text-white/30">Search Engine Optimization</span>
             <input name="seoClicks" type="number" min="0" step="1" defaultValue={numberInputValue(record?.seo_clicks)} className={inputClass} />
           </label>
           <label className={labelClass}>
             SEO Impressions
+            <span className="mt-1 block normal-case tracking-normal text-white/30">Search Engine Optimization</span>
             <input name="seoImpressions" type="number" min="0" step="1" defaultValue={numberInputValue(record?.seo_impressions)} className={inputClass} />
           </label>
         </div>
@@ -311,7 +321,7 @@ function ExternalMetricsForm({
 
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-5">
         <p className="max-w-2xl text-xs leading-5 text-white/40">
-          Estes campos são uma ponte segura para GA4, Search Console, Google Ads, Meta Ads e Brevo. O dashboard usa os dados internos da loja como fonte de verdade para vendas e encomendas.
+          Estes campos são uma ponte segura para Google Analytics 4 (GA4), Search Console, Google Ads, Meta Ads e Brevo. O dashboard usa os dados internos da loja como fonte de verdade para vendas e encomendas.
         </p>
         <button
           type="submit"
@@ -333,12 +343,12 @@ function TrendTable({ trend }: { trend: WeeklyDashboardSnapshot[] }) {
             <th className="px-5 py-4 font-medium">Semana</th>
             <th className="px-5 py-4 font-medium">Revenue</th>
             <th className="px-5 py-4 font-medium">Orders</th>
-            <th className="px-5 py-4 font-medium">AOV</th>
+            <th className="px-5 py-4 font-medium">AOV<span className="mt-1 block text-[10px] normal-case tracking-normal text-white/30">Average Order Value · Valor médio por encomenda</span></th>
             <th className="px-5 py-4 font-medium">Sessions</th>
-            <th className="px-5 py-4 font-medium">Conv.</th>
+            <th className="px-5 py-4 font-medium">Conversion<span className="mt-1 block text-[10px] normal-case tracking-normal text-white/30">Taxa de conversão</span></th>
             <th className="px-5 py-4 font-medium">Ad Spend</th>
-            <th className="px-5 py-4 font-medium">MER</th>
-            <th className="px-5 py-4 font-medium">B2B Leads</th>
+            <th className="px-5 py-4 font-medium">MER<span className="mt-1 block text-[10px] normal-case tracking-normal text-white/30">Marketing Efficiency Ratio</span></th>
+            <th className="px-5 py-4 font-medium">B2B Leads<span className="mt-1 block text-[10px] normal-case tracking-normal text-white/30">Business-to-Business · Leads empresariais</span></th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/10">
@@ -391,7 +401,7 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
               Performance semanal
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-white/55">
-              Visão única de vendas, aquisição, media, funil, SEO, CRM e B2B. Os indicadores comerciais são calculados diretamente a partir da loja; os canais externos ficam separados para não misturar fontes nem inventar atribuição.
+              Visão única de vendas, aquisição, media, funil, SEO (Search Engine Optimization), CRM (Customer Relationship Management) e B2B (Business-to-Business). Os indicadores comerciais são calculados diretamente a partir da loja; os canais externos ficam separados para não misturar fontes nem inventar atribuição.
             </p>
           </div>
 
@@ -445,7 +455,7 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
               <div>
                 <p className="font-semibold text-amber-100">Métricas externas ainda não ativadas</p>
                 <p className="mt-2 max-w-4xl text-sm leading-6 text-amber-100/65">
-                  O dashboard interno já funciona. Para Sessions, Users, SEO, Ads e Email Revenue, aplica a migration <code className="rounded bg-black/20 px-1.5 py-0.5">20260816_marketing_weekly_dashboard.sql</code>. A tabela criada é isolada e não altera encomendas, carrinho, checkout, Stricker ou pricing.
+                  O dashboard interno já funciona. Para Sessions, Users, SEO (Search Engine Optimization), Ads e Email Revenue, aplica a migration <code className="rounded bg-black/20 px-1.5 py-0.5">20260816_marketing_weekly_dashboard.sql</code>. A tabela criada é isolada e não altera encomendas, carrinho, checkout, Stricker ou pricing.
                 </p>
               </div>
             </div>
@@ -463,15 +473,15 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
             icon={Gauge}
             eyebrow="Executive snapshot"
             title="Indicadores principais"
-            description="Os seis números que devem abrir a reunião semanal: negócio, eficiência de aquisição e geração de procura B2B."
+            description="Os seis números que devem abrir a reunião semanal: negócio, eficiência de aquisição e geração de procura empresarial (B2B — Business-to-Business)."
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <MetricCard label="Revenue" value={current.business.revenue} previous={previous.business.revenue} format="currency" source="Loja" />
             <MetricCard label="Orders" value={current.business.orders} previous={previous.business.orders} format="number" source="Loja" />
-            <MetricCard label="AOV" value={current.business.aov} previous={previous.business.aov} format="currency" source="Loja" />
-            <MetricCard label="Conversion Rate" value={current.acquisition.conversionRate} previous={previous.acquisition.conversionRate} format="percent" source="GA4 + Loja" note="Orders pagos ÷ Sessions." />
-            <MetricCard label="MER" value={current.acquisition.mer} previous={previous.acquisition.mer} format="ratio" source="Ads + Loja" note="Revenue total ÷ investimento em media paga." />
-            <MetricCard label="B2B Leads" value={current.business.b2bLeads} previous={previous.business.b2bLeads} format="number" source="Loja" />
+            <MetricCard label="AOV" meaning="Average Order Value · Valor médio por encomenda" value={current.business.aov} previous={previous.business.aov} format="currency" source="Loja" />
+            <MetricCard label="Conversion Rate" value={current.acquisition.conversionRate} previous={previous.acquisition.conversionRate} format="percent" source="Analytics + Loja" note="Orders pagos ÷ Sessions." />
+            <MetricCard label="MER" meaning="Marketing Efficiency Ratio · Eficiência global do investimento em marketing" value={current.acquisition.mer} previous={previous.acquisition.mer} format="ratio" source="Ads + Loja" note="Revenue total ÷ investimento em media paga." />
+            <MetricCard label="B2B Leads" meaning="Business-to-Business · Leads empresariais" value={current.business.b2bLeads} previous={previous.business.b2bLeads} format="number" source="Loja" />
           </div>
         </section>
 
@@ -480,14 +490,14 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
             icon={Users}
             eyebrow="Audience"
             title="Tráfego e utilizadores"
-            description="Dimensão da audiência e peso do tráfego orgânico. Estes indicadores devem vir do GA4 para manter uma única definição de sessão e utilizador."
+            description="Dimensão da audiência e peso do tráfego orgânico. Estes indicadores devem vir do Google Analytics 4 (GA4) para manter uma única definição de sessão e utilizador."
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Sessions" value={current.acquisition.sessions} previous={previous.acquisition.sessions} format="number" source="GA4" />
-            <MetricCard label="Users" value={current.acquisition.users} previous={previous.acquisition.users} format="number" source="GA4" />
-            <MetricCard label="New Users" value={current.acquisition.newUsers} previous={previous.acquisition.newUsers} format="number" source="GA4" />
-            <MetricCard label="Organic Traffic" value={current.acquisition.organicTraffic} previous={previous.acquisition.organicTraffic} format="number" source="GA4" />
-            <MetricCard label="Organic Share" value={current.acquisition.organicTrafficShare} previous={previous.acquisition.organicTrafficShare} format="percent" source="GA4" note="Organic Sessions ÷ Sessions." />
+            <MetricCard label="Sessions" value={current.acquisition.sessions} previous={previous.acquisition.sessions} format="number" source="Google Analytics" />
+            <MetricCard label="Users" value={current.acquisition.users} previous={previous.acquisition.users} format="number" source="Google Analytics" />
+            <MetricCard label="New Users" value={current.acquisition.newUsers} previous={previous.acquisition.newUsers} format="number" source="Google Analytics" />
+            <MetricCard label="Organic Traffic" value={current.acquisition.organicTraffic} previous={previous.acquisition.organicTraffic} format="number" source="Google Analytics" />
+            <MetricCard label="Organic Share" value={current.acquisition.organicTrafficShare} previous={previous.acquisition.organicTrafficShare} format="percent" source="Google Analytics" note="Organic Sessions ÷ Sessions." />
             <MetricCard label="New Customers" value={current.business.newCustomers} previous={previous.business.newCustomers} format="number" source="Loja" note="Cliente cuja primeira encomenda paga ocorreu nesta semana." />
             <MetricCard label="Returning Customers" value={current.business.returningCustomers} previous={previous.business.returningCustomers} format="number" source="Loja" />
             <MetricCard label="Returning Customer Rate" value={current.business.returningCustomerRate} previous={previous.business.returningCustomerRate} format="percent" source="Loja" />
@@ -503,12 +513,12 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
             <MetricCard label="Ad Spend" value={current.acquisition.adSpend} previous={previous.acquisition.adSpend} format="currency" source="Ads" invertDelta />
-            <MetricCard label="CAC" value={current.acquisition.cac} previous={previous.acquisition.cac} format="currency" source="Ads" invertDelta note="Ad Spend ÷ novos clientes atribuídos a paid media." />
-            <MetricCard label="ROAS" value={current.acquisition.roas} previous={previous.acquisition.roas} format="ratio" source="Ads" note="Revenue atribuído pelas plataformas ÷ Ad Spend." />
-            <MetricCard label="MER" value={current.acquisition.mer} previous={previous.acquisition.mer} format="ratio" source="Ads + Loja" />
-            <MetricCard label="CTR" value={current.acquisition.ctr} previous={previous.acquisition.ctr} format="percent" source="Ads" />
-            <MetricCard label="CPC" value={current.acquisition.cpc} previous={previous.acquisition.cpc} format="currency" source="Ads" invertDelta />
-            <MetricCard label="CPM" value={current.acquisition.cpm} previous={previous.acquisition.cpm} format="currency" source="Ads" invertDelta />
+            <MetricCard label="CAC" meaning="Customer Acquisition Cost · Custo de aquisição de cliente" value={current.acquisition.cac} previous={previous.acquisition.cac} format="currency" source="Ads" invertDelta note="Ad Spend ÷ novos clientes atribuídos a paid media." />
+            <MetricCard label="ROAS" meaning="Return on Ad Spend · Retorno sobre investimento publicitário" value={current.acquisition.roas} previous={previous.acquisition.roas} format="ratio" source="Ads" note="Revenue atribuído pelas plataformas ÷ Ad Spend." />
+            <MetricCard label="MER" meaning="Marketing Efficiency Ratio · Eficiência global do investimento em marketing" value={current.acquisition.mer} previous={previous.acquisition.mer} format="ratio" source="Ads + Loja" />
+            <MetricCard label="CTR" meaning="Click-Through Rate · Taxa de cliques" value={current.acquisition.ctr} previous={previous.acquisition.ctr} format="percent" source="Ads" />
+            <MetricCard label="CPC" meaning="Cost per Click · Custo por clique" value={current.acquisition.cpc} previous={previous.acquisition.cpc} format="currency" source="Ads" invertDelta />
+            <MetricCard label="CPM" meaning="Cost per Mille · Custo por mil impressões" value={current.acquisition.cpm} previous={previous.acquisition.cpm} format="currency" source="Ads" invertDelta />
             <MetricCard label="Paid Revenue" value={current.acquisition.paidRevenue} previous={previous.acquisition.paidRevenue} format="currency" source="Ads" note="Valor atribuído por Google Ads + Meta Ads; não substitui Revenue contabilístico." />
           </div>
         </section>
@@ -518,12 +528,12 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
             icon={ShoppingCart}
             eyebrow="Funnel"
             title="Carrinho e checkout"
-            description="A leitura do funil combina GA4 com sinais internos. Quando os eventos GA4 ainda não estão preenchidos, o abandono usa apenas uma estimativa conservadora baseada em carrinhos reais da loja."
+            description="A leitura do funil combina Google Analytics 4 (GA4) com sinais internos. Quando os eventos do Google Analytics 4 ainda não estão preenchidos, o abandono usa apenas uma estimativa conservadora baseada em carrinhos reais da loja."
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Add-to-cart Rate" value={current.acquisition.addToCartRate} previous={previous.acquisition.addToCartRate} format="percent" source="GA4" note="Sessions com add_to_cart ÷ Sessions." />
-            <MetricCard label="Checkout Rate" value={current.acquisition.checkoutRate} previous={previous.acquisition.checkoutRate} format="percent" source="GA4" note="Sessions com begin_checkout ÷ Sessions com add_to_cart." />
-            <MetricCard label="Cart Abandonment" value={current.acquisition.cartAbandonmentRate} previous={previous.acquisition.cartAbandonmentRate} format="percent" source={current.external?.add_to_cart_sessions !== null && current.external?.add_to_cart_sessions !== undefined ? "GA4 + Loja" : "Loja (est.)"} invertDelta />
+            <MetricCard label="Add-to-cart Rate" value={current.acquisition.addToCartRate} previous={previous.acquisition.addToCartRate} format="percent" source="Google Analytics" note="Sessions com add_to_cart ÷ Sessions." />
+            <MetricCard label="Checkout Rate" value={current.acquisition.checkoutRate} previous={previous.acquisition.checkoutRate} format="percent" source="Google Analytics" note="Sessions com begin_checkout ÷ Sessions com add_to_cart." />
+            <MetricCard label="Cart Abandonment" value={current.acquisition.cartAbandonmentRate} previous={previous.acquisition.cartAbandonmentRate} format="percent" source={current.external?.add_to_cart_sessions !== null && current.external?.add_to_cart_sessions !== undefined ? "Analytics + Loja" : "Loja (est.)"} invertDelta />
             <MetricCard label="Checkout Completion" value={current.business.checkoutCompletionRate} previous={previous.business.checkoutCompletionRate} format="percent" source="Loja" note="Checkout Stripe concluído ÷ sessões de checkout criadas." />
           </div>
         </section>
@@ -531,14 +541,14 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
         <section className="mt-14">
           <SectionHeading
             icon={Search}
-            eyebrow="Organic & CRM"
+            eyebrow="Organic & Retention"
             title="SEO e retenção"
-            description="Search Console mede visibilidade orgânica; GA4 mede tráfego; Email Revenue deve refletir apenas receita atribuída ao canal de email."
+            description="SEO significa Search Engine Optimization (otimização para motores de pesquisa). Search Console mede visibilidade orgânica; Google Analytics 4 mede tráfego; Email Revenue deve refletir apenas receita atribuída ao canal de email."
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="SEO Clicks" value={current.acquisition.seoClicks} previous={previous.acquisition.seoClicks} format="number" source="GSC" />
-            <MetricCard label="SEO Impressions" value={current.acquisition.seoImpressions} previous={previous.acquisition.seoImpressions} format="number" source="GSC" />
-            <MetricCard label="SEO CTR" value={current.acquisition.seoCtr} previous={previous.acquisition.seoCtr} format="percent" source="GSC" />
+            <MetricCard label="SEO Clicks" meaning="Search Engine Optimization · Cliques orgânicos" value={current.acquisition.seoClicks} previous={previous.acquisition.seoClicks} format="number" source="Search Console" />
+            <MetricCard label="SEO Impressions" meaning="Search Engine Optimization · Impressões orgânicas" value={current.acquisition.seoImpressions} previous={previous.acquisition.seoImpressions} format="number" source="Search Console" />
+            <MetricCard label="SEO CTR" meaning="Search Engine Optimization · Click-Through Rate · Taxa de cliques orgânicos" value={current.acquisition.seoCtr} previous={previous.acquisition.seoCtr} format="percent" source="Search Console" />
             <MetricCard label="Email Revenue" value={current.acquisition.emailRevenue} previous={previous.acquisition.emailRevenue} format="currency" source="Brevo" />
             <MetricCard label="Email Revenue Share" value={current.acquisition.emailRevenueShare} previous={previous.acquisition.emailRevenueShare} format="percent" source="Brevo + Loja" />
             <MetricCard label="New Customer Revenue Share" value={current.business.newCustomerRevenueShare} previous={previous.business.newCustomerRevenueShare} format="percent" source="Loja" />
@@ -565,15 +575,15 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
         <section className="mt-14">
           <SectionHeading
             icon={Building2}
-            eyebrow="B2B"
+            eyebrow="Business-to-Business (B2B)"
             title="Pipeline comercial"
             description="Os leads são pedidos de orçamento registados na plataforma. O pipeline usa apenas orçamento declarado e não é tratado como receita fechada."
           />
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="B2B Leads" value={current.business.b2bLeads} previous={previous.business.b2bLeads} format="number" source="Loja" />
-            <MetricCard label="B2B Won" value={current.business.b2bWon} previous={previous.business.b2bWon} format="number" source="Loja" />
-            <MetricCard label="B2B Win Rate" value={current.business.b2bWinRate} previous={previous.business.b2bWinRate} format="percent" source="Loja" />
-            <MetricCard label="B2B Pipeline" value={current.business.b2bPipeline} previous={previous.business.b2bPipeline} format="currency" source="Loja" note="Soma do orçamento máximo declarado em leads abertos da semana." />
+            <MetricCard label="B2B Leads" meaning="Business-to-Business · Leads empresariais" value={current.business.b2bLeads} previous={previous.business.b2bLeads} format="number" source="Loja" />
+            <MetricCard label="B2B Won" meaning="Business-to-Business · Leads empresariais ganhos" value={current.business.b2bWon} previous={previous.business.b2bWon} format="number" source="Loja" />
+            <MetricCard label="B2B Win Rate" meaning="Business-to-Business · Taxa de conversão dos leads empresariais" value={current.business.b2bWinRate} previous={previous.business.b2bWinRate} format="percent" source="Loja" />
+            <MetricCard label="B2B Pipeline" meaning="Business-to-Business · Valor potencial dos leads empresariais em aberto" value={current.business.b2bPipeline} previous={previous.business.b2bPipeline} format="currency" source="Loja" note="Soma do orçamento máximo declarado em leads abertos da semana." />
           </div>
         </section>
 
@@ -592,7 +602,7 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
             icon={Database}
             eyebrow="Data sources"
             title="Métricas externas da semana"
-            description="Área discreta de carregamento dos dados de GA4, Search Console, Ads e Brevo. Pode ser substituída por sincronização automática mais tarde sem alterar os cálculos do dashboard."
+            description="Área discreta de carregamento dos dados de Google Analytics 4 (GA4), Search Console, Ads e Brevo. Pode ser substituída por sincronização automática mais tarde sem alterar os cálculos do dashboard."
           />
 
           {data.externalMetricsReady ? (
@@ -614,12 +624,12 @@ export default async function AdminDashboardPage({ searchParams }: DashboardPage
           {[
             { icon: Euro, title: "Revenue", text: "Encomendas pagas com paid_at na semana." },
             { icon: UserPlus, title: "New Customer", text: "Primeira encomenda paga do cliente na plataforma." },
-            { icon: MousePointerClick, title: "Conversion", text: "Orders pagos ÷ Sessions GA4." },
-            { icon: WalletCards, title: "MER", text: "Revenue total da loja ÷ investimento total em paid media." },
-            { icon: Percent, title: "ROAS", text: "Revenue atribuído pelas plataformas de Ads ÷ Ad Spend." },
+            { icon: MousePointerClick, title: "Conversion", text: "Orders pagos ÷ Sessions do Google Analytics 4." },
+            { icon: WalletCards, title: "MER", text: "Marketing Efficiency Ratio — Revenue total da loja ÷ investimento total em paid media." },
+            { icon: Percent, title: "ROAS", text: "Return on Ad Spend — Revenue atribuído pelas plataformas de Ads ÷ Ad Spend." },
             { icon: PackageCheck, title: "Gross Margin", text: "Calculada apenas onde existe custo do fornecedor." },
             { icon: Mail, title: "Email Revenue", text: "Receita atribuída ao canal de email, reportada separadamente." },
-            { icon: BarChart3, title: "B2B Pipeline", text: "Orçamento potencial declarado em leads abertos; não é receita." },
+            { icon: BarChart3, title: "B2B Pipeline", text: "Business-to-Business — Orçamento potencial declarado em leads empresariais abertos; não é receita." },
           ].map(({ icon: Icon, title, text }) => (
             <article key={title} className="rounded-3xl border border-white/10 bg-white/[0.025] p-5">
               <Icon className="h-5 w-5 text-white/65" />
