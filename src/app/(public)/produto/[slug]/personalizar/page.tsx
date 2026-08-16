@@ -112,6 +112,7 @@ type ProductCustomizationOption = {
   printing_lines_image_url: string | null;
   printing_lines_storage_url: string | null;
   is_active: boolean;
+  raw_payload: JsonRecord | null;
 };
 
 type ProductDetail = {
@@ -176,6 +177,64 @@ function getNullableString(value: unknown): string | null {
 
   if (typeof value === "number" && Number.isFinite(value)) {
     return String(value);
+  }
+
+  return null;
+}
+
+function getNullableNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function getPayloadValue(record: JsonRecord, key: string): unknown {
+  if (key in record) {
+    return record[key];
+  }
+
+  const matchingKey = Object.keys(record).find(
+    (candidate) => candidate.toLowerCase() === key.toLowerCase(),
+  );
+
+  return matchingKey ? record[matchingKey] : undefined;
+}
+
+function getPrintAreaGeometry(
+  payloads: JsonRecord[],
+): ProductEditorLocation["print_area_geometry"] {
+  for (const payload of payloads) {
+    for (let index = 1; index <= 2; index += 1) {
+      const prefix = `HotSpot${index}`;
+      const left = getNullableNumber(getPayloadValue(payload, `${prefix}Left`));
+      const top = getNullableNumber(getPayloadValue(payload, `${prefix}Top`));
+      const width = getNullableNumber(getPayloadValue(payload, `${prefix}Width`));
+      const height = getNullableNumber(getPayloadValue(payload, `${prefix}Height`));
+
+      if (left === null || top === null || !width || !height) {
+        continue;
+      }
+
+      return {
+        left,
+        top,
+        width,
+        height,
+        origin_x: getNullableString(
+          getPayloadValue(payload, `${prefix}OriginX`),
+        ),
+        origin_y: getNullableString(
+          getPayloadValue(payload, `${prefix}OriginY`),
+        ),
+      };
+    }
   }
 
   return null;
@@ -477,6 +536,10 @@ function buildEditorLocations(params: {
               option.customization_type_name ?? "",
             ) === normalizeComparable(technique),
       );
+      const printAreaGeometry = getPrintAreaGeometry([
+        ...techniqueOptions.map((option) => getPayloadRecord(option.raw_payload)),
+        payload,
+      ]);
 
       const rawTechniqueTableCodes = [
         ...techniqueSlotCodes,
@@ -545,6 +608,7 @@ function buildEditorLocations(params: {
         location_image_url: null,
         area_image_url: null,
         printing_lines_image_url: techniqueImageUrl,
+        print_area_geometry: printAreaGeometry,
         max_printing_area_mm: location.max_printing_area_mm,
         max_area_cm2: location.max_area_cm2,
         table_codes:
@@ -745,7 +809,7 @@ export default async function ProductPersonalizePage({
     ? await supabase
         .from("product_customization_options")
         .select(
-          "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active",
+          "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active,raw_payload",
         )
         .eq("product_id", product.id)
         .eq("is_active", true)

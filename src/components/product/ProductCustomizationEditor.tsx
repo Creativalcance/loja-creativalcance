@@ -54,11 +54,21 @@ export type ProductEditorLocation = {
   location_image_url: string | null;
   area_image_url: string | null;
   printing_lines_image_url: string | null;
+  print_area_geometry: ProductEditorPrintAreaGeometry | null;
   max_printing_area_mm: string | null;
   max_area_cm2: number | null;
   table_codes: string[];
   is_recommended: boolean;
   price_tiers: ProductEditorCustomizationPrice[];
+};
+
+export type ProductEditorPrintAreaGeometry = {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  origin_x: string | null;
+  origin_y: string | null;
 };
 
 export type ProductEditorCustomizationPrice = {
@@ -318,9 +328,10 @@ function getSafeLogoPosition(params: {
   logoAspectRatio: number;
   maximumWidthPercent?: number;
 }): LogoPosition {
-  const rotationRadians = (Math.abs(params.position.rotation) * Math.PI) / 180;
-  const cosine = Math.cos(rotationRadians);
-  const sine = Math.sin(rotationRadians);
+  const rotation = normalizeRotation(params.position.rotation);
+  const rotationRadians = (rotation * Math.PI) / 180;
+  const cosine = Math.abs(Math.cos(rotationRadians));
+  const sine = Math.abs(Math.sin(rotationRadians));
   const heightRatio = params.printAreaAspectRatio / params.logoAspectRatio;
   const widthLimit = 100 / Math.max(cosine + heightRatio * sine, 0.0001);
   const heightLimit = 100 / Math.max(sine + heightRatio * cosine, 0.0001);
@@ -355,8 +366,27 @@ function getSafeLogoPosition(params: {
       Math.max(verticalRotationOffset, 100 - logoHeight - verticalRotationOffset),
     ),
     width: safeWidth,
-    rotation: clamp(params.position.rotation, -15, 15),
+    rotation,
   };
+}
+
+function normalizeRotation(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+  return Math.round(normalized * 10) / 10;
+}
+
+function getSuggestedRotation(params: {
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+}): number {
+  const printAreaIsVertical = params.printAreaAspectRatio < 0.8;
+  const logoIsHorizontal = params.logoAspectRatio > 1.25;
+
+  return printAreaIsVertical && logoIsHorizontal ? 90 : 0;
 }
 
 function getMaximumLogoWidthPercent(params: {
@@ -369,6 +399,30 @@ function getMaximumLogoWidthPercent(params: {
     printAreaAspectRatio: params.printAreaAspectRatio,
     logoAspectRatio: params.logoAspectRatio,
   }).width;
+}
+
+function getCenteredFittedLogoPosition(params: {
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+  rotation: number;
+}): LogoPosition {
+  const maximumWidth = getMaximumLogoWidthPercent(params);
+  const logoHeight = getLogoHeightPercent({
+    logoWidthPercent: maximumWidth,
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
+
+  return getSafeLogoPosition({
+    position: {
+      x: (100 - maximumWidth) / 2,
+      y: (100 - logoHeight) / 2,
+      width: maximumWidth,
+      rotation: params.rotation,
+    },
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+  });
 }
 
 function getPrintColorMode(tier: ProductEditorCustomizationPrice): PrintColorMode | null {
@@ -900,7 +954,18 @@ export default function ProductCustomizationEditor({
   }, [selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
-    setPosition(initialPosition);
+    const rotation = getSuggestedRotation({
+      printAreaAspectRatio,
+      logoAspectRatio,
+    });
+
+    setPosition(
+      getCenteredFittedLogoPosition({
+        printAreaAspectRatio,
+        logoAspectRatio,
+        rotation,
+      }),
+    );
   }, [selectedLocation?.id]);
 
   useEffect(() => {
@@ -947,7 +1012,20 @@ export default function ProductCustomizationEditor({
 
     image.onload = () => {
       if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-        setLogoAspectRatio(image.naturalWidth / image.naturalHeight);
+        const nextLogoAspectRatio = image.naturalWidth / image.naturalHeight;
+        const rotation = getSuggestedRotation({
+          printAreaAspectRatio,
+          logoAspectRatio: nextLogoAspectRatio,
+        });
+
+        setLogoAspectRatio(nextLogoAspectRatio);
+        setPosition(
+          getCenteredFittedLogoPosition({
+            printAreaAspectRatio,
+            logoAspectRatio: nextLogoAspectRatio,
+            rotation,
+          }),
+        );
       }
     };
 
@@ -987,31 +1065,26 @@ export default function ProductCustomizationEditor({
   }
 
   function resetPosition() {
-    setPosition(initialPosition);
-  }
-
-  function fitLogoToArea() {
-    const maximumWidth = getMaximumLogoWidthPercent({
-      printAreaAspectRatio,
-      logoAspectRatio,
-      rotation: 0,
-    });
-    const maximumHeight = getLogoHeightPercent({
-      logoWidthPercent: maximumWidth,
+    const rotation = getSuggestedRotation({
       printAreaAspectRatio,
       logoAspectRatio,
     });
 
     setPosition(
-      getSafeLogoPosition({
-        position: {
-          x: (100 - maximumWidth) / 2,
-          y: (100 - maximumHeight) / 2,
-          width: maximumWidth,
-          rotation: 0,
-        },
+      getCenteredFittedLogoPosition({
         printAreaAspectRatio,
         logoAspectRatio,
+        rotation,
+      }),
+    );
+  }
+
+  function fitLogoToArea() {
+    setPosition(
+      getCenteredFittedLogoPosition({
+        printAreaAspectRatio,
+        logoAspectRatio,
+        rotation: safePosition.rotation,
       }),
     );
   }
@@ -1353,6 +1426,7 @@ export default function ProductCustomizationEditor({
                   className="max-h-[700px] w-full object-contain p-8"
                   artworkUrl={logoPreviewUrl}
                   artworkPosition={safePosition}
+                  printAreaGeometry={selectedLocation?.print_area_geometry}
                   printAreaAspectRatio={printAreaAspectRatio}
                   artworkAspectRatio={logoAspectRatio}
                 />
@@ -1661,6 +1735,38 @@ export default function ProductCustomizationEditor({
                         className="mt-3 w-full"
                       />
                     </label>
+
+                    <div>
+                      <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
+                        Rotação
+                        <span>{Math.round(safePosition.rotation)}º</span>
+                      </span>
+
+                      <input
+                        type="range"
+                        min="-180"
+                        max="180"
+                        step="1"
+                        value={safePosition.rotation}
+                        onChange={(event) =>
+                          updatePosition("rotation", Number(event.target.value))
+                        }
+                        className="mt-3 w-full"
+                      />
+
+                      <div className="mt-3 grid grid-cols-4 gap-2">
+                        {[0, 90, 180, -90].map((rotation) => (
+                          <button
+                            key={rotation}
+                            type="button"
+                            onClick={() => updatePosition("rotation", rotation)}
+                            className="rounded-xl border border-neutral-200 bg-white px-2 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
+                          >
+                            {rotation === -90 ? "270º" : `${rotation}º`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 ) : null}
               </div>

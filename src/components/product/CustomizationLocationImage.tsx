@@ -14,6 +14,14 @@ type CustomizationLocationImageProps = {
     width: number;
     rotation: number;
   };
+  printAreaGeometry?: {
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+    origin_x: string | null;
+    origin_y: string | null;
+  } | null;
   printAreaAspectRatio?: number;
   artworkAspectRatio?: number;
 };
@@ -218,6 +226,67 @@ function detectWhiteDashedArea(image: HTMLImageElement): DetectedPrintArea | nul
   }
 }
 
+function resolveSupplierPrintArea(
+  image: HTMLImageElement,
+  geometry: NonNullable<CustomizationLocationImageProps["printAreaGeometry"]>,
+): DetectedPrintArea | null {
+  if (!image.naturalWidth || !image.naturalHeight) {
+    return null;
+  }
+
+  const values = [geometry.left, geometry.top, geometry.width, geometry.height];
+
+  if (values.some((value) => !Number.isFinite(value)) || geometry.width <= 0 || geometry.height <= 0) {
+    return null;
+  }
+
+  const originX = geometry.origin_x?.trim().toLowerCase() ?? "left";
+  const originY = geometry.origin_y?.trim().toLowerCase() ?? "top";
+  const absoluteLeft = originX === "right"
+    ? image.naturalWidth - geometry.left - geometry.width
+    : geometry.left;
+  const absoluteTop = originY === "bottom"
+    ? image.naturalHeight - geometry.top - geometry.height
+    : geometry.top;
+  const left = (absoluteLeft / image.naturalWidth) * 100;
+  const top = (absoluteTop / image.naturalHeight) * 100;
+  const width = (geometry.width / image.naturalWidth) * 100;
+  const height = (geometry.height / image.naturalHeight) * 100;
+
+  if (left < -0.5 || top < -0.5 || left + width > 100.5 || top + height > 100.5) {
+    return null;
+  }
+
+  return {
+    left: clamp(left, 0, 100),
+    top: clamp(top, 0, 100),
+    width: clamp(width, 0, 100),
+    height: clamp(height, 0, 100),
+  };
+}
+
+function getFallbackPrintArea(
+  image: HTMLImageElement,
+  printAreaAspectRatio: number,
+): DetectedPrintArea {
+  const imageAspectRatio = image.naturalWidth / Math.max(image.naturalHeight, 1);
+  const safePrintAreaAspectRatio = Math.max(printAreaAspectRatio, 0.01);
+  let width = 34;
+  let height = (width * imageAspectRatio) / safePrintAreaAspectRatio;
+
+  if (height > 42) {
+    height = 42;
+    width = (height * safePrintAreaAspectRatio) / imageAspectRatio;
+  }
+
+  return {
+    left: (100 - width) / 2,
+    top: (100 - height) / 2,
+    width,
+    height,
+  };
+}
+
 function getValidUrls(urls: Array<string | null | undefined>): string[] {
   const uniqueUrls = new Set<string>();
 
@@ -240,6 +309,7 @@ export default function CustomizationLocationImage({
   className = "h-full w-full object-contain p-6",
   artworkUrl = null,
   artworkPosition,
+  printAreaGeometry = null,
   printAreaAspectRatio = 1,
   artworkAspectRatio = 1,
 }: CustomizationLocationImageProps) {
@@ -254,6 +324,7 @@ export default function CustomizationLocationImage({
       className={className}
       artworkUrl={artworkUrl}
       artworkPosition={artworkPosition}
+      printAreaGeometry={printAreaGeometry}
       printAreaAspectRatio={printAreaAspectRatio}
       artworkAspectRatio={artworkAspectRatio}
     />
@@ -280,6 +351,7 @@ function CustomizationLocationImageContent({
   className,
   artworkUrl,
   artworkPosition,
+  printAreaGeometry,
   printAreaAspectRatio,
   artworkAspectRatio,
 }: {
@@ -288,6 +360,7 @@ function CustomizationLocationImageContent({
   className: string;
   artworkUrl: string | null;
   artworkPosition?: CustomizationLocationImageProps["artworkPosition"];
+  printAreaGeometry: CustomizationLocationImageProps["printAreaGeometry"];
   printAreaAspectRatio: number;
   artworkAspectRatio: number;
 }) {
@@ -315,7 +388,13 @@ function CustomizationLocationImageContent({
     Math.max(artworkAspectRatio, 0.01);
 
   function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
-    setPrintArea(detectWhiteDashedArea(event.currentTarget));
+    setPrintArea(
+      (printAreaGeometry
+        ? resolveSupplierPrintArea(event.currentTarget, printAreaGeometry)
+        : null) ??
+        detectWhiteDashedArea(event.currentTarget) ??
+        getFallbackPrintArea(event.currentTarget, printAreaAspectRatio),
+    );
   }
 
   return (
