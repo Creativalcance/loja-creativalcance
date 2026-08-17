@@ -916,6 +916,7 @@ export default function ProductCustomizationEditor({
   const [selectedPantoneColors, setSelectedPantoneColors] = useState<
     Array<PantoneColor | null>
   >([]);
+  const [activePrintColorIndex, setActivePrintColorIndex] = useState(0);
   const [recoloredLogoPreviewUrl, setRecoloredLogoPreviewUrl] = useState<
     string | null
   >(null);
@@ -1157,6 +1158,7 @@ export default function ProductCustomizationEditor({
         ? Array.from({ length: requiredPrintColorCount }, () => null)
         : [],
     );
+    setActivePrintColorIndex(0);
     setRecoloredLogoPreviewUrl(null);
   }, [effectivePrintColorMode, requiredPrintColorCount]);
 
@@ -2023,6 +2025,174 @@ export default function ProductCustomizationEditor({
                       </div>
                     </div>
                 </div>
+
+                {printColorOptions.length > 0 ? (
+                  <div className="mt-6 border-t border-neutral-200 pt-5">
+                    <p className="text-sm font-semibold text-neutral-950">
+                      Cores da personalização
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-neutral-500">
+                      Escolhe o número de cores permitido pela técnica e define
+                      as referências que serão aplicadas à simulação.
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {printColorOptions.map((option) => (
+                        <button
+                          key={option.mode}
+                          type="button"
+                          onClick={() => setSelectedPrintColorMode(option.mode)}
+                          aria-pressed={effectivePrintColorMode === option.mode}
+                          className={`rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                            effectivePrintColorMode === option.mode
+                              ? "border-neutral-950 bg-neutral-950 text-white"
+                              : "border-neutral-200 bg-white text-neutral-700 hover:border-neutral-400"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {requiredPrintColorCount > 0 ? (
+                      <div className="mt-5 space-y-5 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                        {logoPreviewUrl && detectedLogoColors.length > 0 ? (
+                          <div>
+                            <p className="text-xs font-semibold text-neutral-700">
+                              Cores detetadas no logótipo
+                            </p>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {detectedLogoColors.map((color, index) => (
+                                <span
+                                  key={`${color}-${index}`}
+                                  className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700"
+                                >
+                                  <span
+                                    className="h-3 w-3 rounded-full border border-neutral-300"
+                                    style={{ backgroundColor: color }}
+                                  />
+                                  {color.toUpperCase()}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div>
+                          <p className="text-xs font-semibold text-neutral-700">
+                            Cores de impressão
+                          </p>
+
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {selectedPantoneColors.map((selectedColor, index) => (
+                              <button
+                                key={index}
+                                type="button"
+                                onClick={() => setActivePrintColorIndex(index)}
+                                aria-pressed={activePrintColorIndex === index}
+                                className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition ${
+                                  activePrintColorIndex === index
+                                    ? "border-neutral-950 bg-white ring-2 ring-neutral-950/10"
+                                    : "border-neutral-200 bg-white hover:border-neutral-400"
+                                }`}
+                              >
+                                <span
+                                  className="h-4 w-4 shrink-0 rounded-full border border-neutral-300"
+                                  style={{
+                                    backgroundColor:
+                                      selectedColor?.hex ?? "transparent",
+                                  }}
+                                />
+                                <span>
+                                  Cor {index + 1}
+                                  {selectedColor
+                                    ? ` · Pantone ${selectedColor.code}`
+                                    : " · Por selecionar"}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-semibold text-neutral-700">
+                            Selecionar referência para a cor {activePrintColorIndex + 1}
+                          </p>
+
+                          <div className="mt-2 grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                            {PANTONE_COLORS.map((color) => {
+                              const isSelected =
+                                selectedPantoneColors[activePrintColorIndex]?.code ===
+                                color.code;
+
+                              return (
+                                <button
+                                  key={color.code}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedPantoneColors((current) =>
+                                      current.map((currentColor, colorIndex) =>
+                                        colorIndex === activePrintColorIndex
+                                          ? color
+                                          : currentColor,
+                                      ),
+                                    );
+                                    setActivePrintColorIndex((current) =>
+                                      Math.min(
+                                        current + 1,
+                                        requiredPrintColorCount - 1,
+                                      ),
+                                    );
+                                  }}
+                                  className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                                    isSelected
+                                      ? "border-emerald-500 bg-emerald-50 ring-1 ring-emerald-500/20"
+                                      : "border-neutral-200 bg-white hover:border-neutral-400"
+                                  }`}
+                                >
+                                  <span
+                                    className="h-5 w-5 shrink-0 rounded-full border border-neutral-300 shadow-sm"
+                                    style={{ backgroundColor: color.hex }}
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block truncate text-xs font-semibold text-neutral-950">
+                                      Pantone {color.code}
+                                    </span>
+                                    <span className="block text-[11px] uppercase text-neutral-500">
+                                      {color.hex}
+                                    </span>
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <p
+                          className={`text-xs leading-5 ${
+                            printColorsAreValid
+                              ? "text-emerald-700"
+                              : "text-amber-700"
+                          }`}
+                        >
+                          {printColorsAreValid
+                            ? "As cores escolhidas já estão aplicadas à simulação."
+                            : `Seleciona ${requiredPrintColorCount} ${
+                                requiredPrintColorCount === 1 ? "cor" : "cores"
+                              } para continuar.`}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    <p className="mt-3 text-xs leading-5 text-neutral-500">
+                      As referências Pantone e a simulação apresentada no ecrã
+                      são indicativas. A cor final será confirmada antes da
+                      produção.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -2222,105 +2392,6 @@ export default function ProductCustomizationEditor({
                   />
                 </label>
               </div>
-
-              {printColorOptions.length > 0 ? (
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-300">
-                    Cores da personalização
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {printColorOptions.map((option) => (
-                      <button
-                        key={option.mode}
-                        type="button"
-                        onClick={() => setSelectedPrintColorMode(option.mode)}
-                        aria-pressed={effectivePrintColorMode === option.mode}
-                        className={`rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                          effectivePrintColorMode === option.mode
-                            ? "bg-white text-neutral-950"
-                            : "bg-white/10 text-white hover:bg-white/15"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {requiredPrintColorCount > 0 && logoPreviewUrl ? (
-                    <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-neutral-950/30 p-4">
-                      <div>
-                        <p className="text-xs font-semibold text-white">
-                          Cores detetadas no logótipo
-                        </p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {detectedLogoColors.map((color, index) => (
-                            <span
-                              key={`${color}-${index}`}
-                              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-neutral-200"
-                            >
-                              <span
-                                className="h-3 w-3 rounded-full border border-white/30"
-                                style={{ backgroundColor: color }}
-                              />
-                              {color}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {selectedPantoneColors.map((selectedColor, index) => (
-                        <label
-                          key={index}
-                          className="grid gap-2 sm:grid-cols-[110px_minmax(0,1fr)] sm:items-center"
-                        >
-                          <span className="text-xs font-medium text-neutral-300">
-                            Cor {index + 1}
-                          </span>
-                          <select
-                            value={selectedColor?.code ?? ""}
-                            onChange={(event) => {
-                              const nextColor =
-                                PANTONE_COLORS.find(
-                                  (color) => color.code === event.target.value,
-                                ) ?? null;
-                              setSelectedPantoneColors((current) =>
-                                current.map((color, colorIndex) =>
-                                  colorIndex === index ? nextColor : color,
-                                ),
-                              );
-                            }}
-                            className="w-full rounded-xl border border-white/15 bg-white px-3 py-2.5 text-sm font-semibold text-neutral-950 outline-none focus:ring-2 focus:ring-emerald-300"
-                          >
-                            <option value="">Selecionar Pantone</option>
-                            {PANTONE_COLORS.map((color) => (
-                              <option key={color.code} value={color.code}>
-                                Pantone {color.code}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                      ))}
-
-                      <p
-                        className={`text-xs leading-5 ${
-                          printColorsAreValid
-                            ? "text-emerald-300"
-                            : "text-amber-300"
-                        }`}
-                      >
-                        {printColorsAreValid
-                          ? "As cores escolhidas já estão aplicadas à simulação."
-                          : `Seleciona ${requiredPrintColorCount} ${
-                              requiredPrintColorCount === 1 ? "cor" : "cores"
-                            } para continuar.`}
-                      </p>
-                    </div>
-                  ) : null}
-                  <p className="mt-3 text-xs leading-5 text-neutral-400">
-                    Opções disponibilizadas pela tabela de personalização do fornecedor selecionada. As referências Pantone e a simulação no ecrã são indicativas.
-                  </p>
-                </div>
-              ) : null}
 
               <dl className="mt-4 space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
