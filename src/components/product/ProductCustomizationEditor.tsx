@@ -697,7 +697,6 @@ export default function ProductCustomizationEditor({
 }: ProductCustomizationEditorProps) {
   const router = useRouter();
 
-  const editorFrameRef = useRef<HTMLDivElement | null>(null);
   const printAreaRef = useRef<HTMLDivElement | null>(null);
 
   const dragStateRef = useRef<{
@@ -776,12 +775,7 @@ export default function ProductCustomizationEditor({
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
-  const [editorFrameSize, setEditorFrameSize] = useState({
-    width: 0,
-    height: 0,
-  });
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
-  const [showAdvancedControls, setShowAdvancedControls] = useState(false);
   const [showPriceTable, setShowPriceTable] = useState(false);
   const [showProductionTimes, setShowProductionTimes] = useState(false);
   const [needsDesignHelp, setNeedsDesignHelp] = useState(false);
@@ -827,28 +821,18 @@ export default function ProductCustomizationEditor({
 
   const printAreaAspectRatio =
     printAreaDimensions.widthMm / printAreaDimensions.heightMm;
-
-  const editorPrintAreaSize = useMemo(() => {
-    if (editorFrameSize.width <= 0 || editorFrameSize.height <= 0) {
-      return null;
-    }
-
-    const availableWidth = Math.max(1, editorFrameSize.width - 40);
-    const availableHeight = Math.max(1, editorFrameSize.height - 40);
-    const availableAspectRatio = availableWidth / availableHeight;
-
-    if (printAreaAspectRatio >= availableAspectRatio) {
-      return {
-        width: availableWidth,
-        height: availableWidth / printAreaAspectRatio,
-      };
-    }
-
-    return {
-      width: availableHeight * printAreaAspectRatio,
-      height: availableHeight,
-    };
-  }, [editorFrameSize.height, editorFrameSize.width, printAreaAspectRatio]);
+  const editorAreaAspectRatio =
+    printAreaAspectRatio < 0.8
+      ? 0.58
+      : printAreaAspectRatio > 1.25
+        ? 1.55
+        : 1;
+  const editorPrintAreaStyle =
+    printAreaAspectRatio < 0.8
+      ? { width: "48%", height: "88%" }
+      : printAreaAspectRatio > 1.25
+        ? { width: "92%", height: "64%" }
+        : { width: "78%", height: "82%" };
 
   const applicableAreaTiers = (selectedLocation?.price_tiers ?? []).filter(
     (tier) =>
@@ -873,14 +857,14 @@ export default function ProductCustomizationEditor({
 
   const safePosition = getSafeLogoPosition({
     position,
-    printAreaAspectRatio,
+    printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
     maximumWidthPercent: maximumPricedWidthPercent,
   });
 
   const logoHeightPercent = getLogoHeightPercent({
     logoWidthPercent: safePosition.width,
-    printAreaAspectRatio,
+    printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
   });
 
@@ -889,7 +873,7 @@ export default function ProductCustomizationEditor({
   );
 
   const logoHeightMm = roundMoney(
-    (logoHeightPercent / 100) * printAreaDimensions.heightMm,
+    logoWidthMm / Math.max(logoAspectRatio, 0.01),
   );
 
   const previewBaseImage = getPreferredPreviewImage({
@@ -985,26 +969,6 @@ export default function ProductCustomizationEditor({
   );
 
   useEffect(() => {
-    const frame = editorFrameRef.current;
-
-    if (!frame) {
-      return;
-    }
-
-    const updateFrameSize = () => {
-      const rect = frame.getBoundingClientRect();
-      setEditorFrameSize({ width: rect.width, height: rect.height });
-    };
-
-    updateFrameSize();
-
-    const observer = new ResizeObserver(updateFrameSize);
-    observer.observe(frame);
-
-    return () => observer.disconnect();
-  }, [logoPreviewUrl]);
-
-  useEffect(() => {
     if (
       selectedGroupId &&
       locationGroups.some((group) => group.id === selectedGroupId)
@@ -1027,7 +991,7 @@ export default function ProductCustomizationEditor({
 
     setPosition(
       getCenteredFittedLogoPosition({
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation,
       }),
@@ -1038,11 +1002,11 @@ export default function ProductCustomizationEditor({
     setPosition((current) =>
       getSafeLogoPosition({
         position: current,
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
       }),
     );
-  }, [printAreaAspectRatio, logoAspectRatio]);
+  }, [editorAreaAspectRatio, logoAspectRatio]);
 
   useEffect(() => {
     return () => {
@@ -1087,7 +1051,7 @@ export default function ProductCustomizationEditor({
         setLogoAspectRatio(nextLogoAspectRatio);
         setPosition(
           getCenteredFittedLogoPosition({
-            printAreaAspectRatio,
+            printAreaAspectRatio: editorAreaAspectRatio,
             logoAspectRatio: nextLogoAspectRatio,
             rotation,
           }),
@@ -1106,7 +1070,7 @@ export default function ProductCustomizationEditor({
           ...current,
           [key]: value,
         },
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
       }),
     );
@@ -1138,7 +1102,7 @@ export default function ProductCustomizationEditor({
 
     setPosition(
       getCenteredFittedLogoPosition({
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation,
       }),
@@ -1148,7 +1112,7 @@ export default function ProductCustomizationEditor({
   function fitLogoToArea() {
     setPosition(
       getCenteredFittedLogoPosition({
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation: safePosition.rotation,
       }),
@@ -1160,7 +1124,7 @@ export default function ProductCustomizationEditor({
 
     const centeredHeight = getLogoHeightPercent({
       logoWidthPercent: centeredWidth,
-      printAreaAspectRatio,
+      printAreaAspectRatio: editorAreaAspectRatio,
       logoAspectRatio,
     });
 
@@ -1171,7 +1135,7 @@ export default function ProductCustomizationEditor({
           x: (100 - centeredWidth) / 2,
           y: (100 - centeredHeight) / 2,
         },
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
       }),
     );
@@ -1229,7 +1193,7 @@ export default function ProductCustomizationEditor({
           x: nextX,
           y: nextY,
         },
-        printAreaAspectRatio,
+        printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
       }),
     );
@@ -1666,22 +1630,13 @@ export default function ProductCustomizationEditor({
                 </div>
 
                 <div
-                  ref={editorFrameRef}
-                  className="relative mt-5 flex h-72 w-full items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 p-5 sm:h-80"
+                  className="relative mt-5 flex h-[420px] w-full items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 p-4 sm:h-[480px] sm:p-6"
                 >
                   <div
                     ref={printAreaRef}
                     aria-label={`Área de impressão ${printAreaDimensions.widthMm} por ${printAreaDimensions.heightMm} milímetros`}
                     className="relative shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
-                    style={editorPrintAreaSize
-                      ? {
-                          width: `${editorPrintAreaSize.width}px`,
-                          height: `${editorPrintAreaSize.height}px`,
-                        }
-                      : {
-                          width: "80%",
-                          aspectRatio: `${printAreaDimensions.widthMm} / ${printAreaDimensions.heightMm}`,
-                        }}
+                    style={editorPrintAreaStyle}
                   >
                     <div
                       role="button"
@@ -1748,18 +1703,7 @@ export default function ProductCustomizationEditor({
                   Ajustar à área máxima
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedControls((current) => !current)}
-                  className="mt-4 text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
-                >
-                  {showAdvancedControls
-                    ? "Ocultar ajustes avançados"
-                    : "Mostrar ajustes avançados"}
-                </button>
-
-                {showAdvancedControls ? (
-                  <div className="mt-5 space-y-5">
+                <div className="mt-5 space-y-5">
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                         Horizontal
@@ -1845,8 +1789,7 @@ export default function ProductCustomizationEditor({
                         ))}
                       </div>
                     </div>
-                  </div>
-                ) : null}
+                </div>
               </div>
             ) : null}
 

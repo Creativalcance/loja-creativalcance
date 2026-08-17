@@ -389,10 +389,10 @@ function CustomizationLocationImageContent({
 
   function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
     setPrintArea(
-      (printAreaGeometry
+      detectWhiteDashedArea(event.currentTarget) ??
+        (printAreaGeometry
         ? resolveSupplierPrintArea(event.currentTarget, printAreaGeometry)
         : null) ??
-        detectWhiteDashedArea(event.currentTarget) ??
         getFallbackPrintArea(event.currentTarget, printAreaAspectRatio),
     );
   }
