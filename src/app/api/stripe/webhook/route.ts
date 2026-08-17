@@ -468,6 +468,9 @@ async function markCheckoutPaid(
     .update({
       status: wasAlreadyPaid ? order.status : "paid",
       payment_status: "paid",
+      deleted_at: null,
+      deleted_by: null,
+      cancelled_at: null,
       stripe_checkout_session_id: session.id,
       stripe_payment_intent_id: paymentIntentId,
       paid_at: completedAt,
@@ -617,6 +620,9 @@ async function markPaymentIntentPaid(
     .update({
       status: wasAlreadyPaid ? order.status : "paid",
       payment_status: "paid",
+      deleted_at: null,
+      deleted_by: null,
+      cancelled_at: null,
       stripe_payment_intent_id: paymentIntent.id,
       paid_at: completedAt,
       supplier_submission_status:
