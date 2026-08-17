@@ -3,6 +3,8 @@ import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import {
   buildStrickerPrintingLinesImageUrl,
 } from "@/lib/stricker/images";
+import { fetchStrickerCustomizationOptions } from "@/lib/stricker/rest/client";
+import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
@@ -19,6 +21,20 @@ type ProductVariantRow = {
   supplier_id: string;
   external_variant_id: string;
   sku: string;
+};
+
+type ProductReferenceRow = {
+  id: string;
+  external_id: string;
+};
+
+type StrickerCustomizationOptionRecord = JsonRecord & {
+  ProdReference?: string | number | null;
+  ServiceCode?: string | number | null;
+  Component?: string | number | null;
+  Location?: string | number | null;
+  TableCode?: string | number | null;
+  TableCodeOption?: string | number | null;
 };
 
 type ProductCustomizationComponentRow = {
@@ -379,29 +395,69 @@ function getCustomizationTypeCode(
   );
 }
 
-function buildServiceCode(params: {
-  variant: ProductVariantRow;
-  component: ProductCustomizationComponentRow | null;
-  location: ProductCustomizationLocationRow;
-  tableCode: string | null;
+function normalizeComparable(value: unknown): string {
+  return (getNullableString(value) ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function isSupplierServiceCode(value: string | null): value is string {
+  return Boolean(
+    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
+  );
+}
+
+function buildSupplierOptionMap(
+  records: StrickerCustomizationOptionRecord[],
+): Map<string, StrickerCustomizationOptionRecord[]> {
+  const map = new Map<string, StrickerCustomizationOptionRecord[]>();
+
+  for (const record of records) {
+    const productReference = getNullableString(record.ProdReference);
+    const tableCodeOption = getNullableString(record.TableCodeOption);
+    const serviceCode = getNullableString(record.ServiceCode);
+
+    if (!productReference || !tableCodeOption || !isSupplierServiceCode(serviceCode)) {
+      continue;
+    }
+
+    const key = `${productReference}:${tableCodeOption}`;
+    map.set(key, [...(map.get(key) ?? []), record]);
+  }
+
+  return map;
+}
+
+function findSupplierOption(params: {
+  productReference: string | null;
   tableCodeOption: string | null;
-  customizationTypeCode: string | null;
-}): string {
-  const componentCode =
-    params.component?.component_code ??
-    `C${getLocationIndex(params.location)}`;
+  componentName: string | null;
+  locationName: string | null;
+  supplierOptionsByProductAndTable: Map<string, StrickerCustomizationOptionRecord[]>;
+}): StrickerCustomizationOptionRecord | null {
+  if (!params.productReference || !params.tableCodeOption) return null;
 
-  const locationCode =
-    params.location.location_code ??
-    `L${getLocationIndex(params.location)}`;
+  const candidates =
+    params.supplierOptionsByProductAndTable.get(
+      `${params.productReference}:${params.tableCodeOption}`,
+    ) ?? [];
 
-  const tableReference =
-    params.tableCodeOption ??
-    params.tableCode ??
-    params.customizationTypeCode ??
-    "T";
+  if (candidates.length === 1) return candidates[0] ?? null;
 
-  return `${params.variant.external_variant_id}:${componentCode}:${locationCode}:${tableReference}`;
+  const componentName = normalizeComparable(params.componentName);
+  const locationName = normalizeComparable(params.locationName);
+  const exactMatches = candidates.filter((candidate) =>
+    (!componentName || normalizeComparable(candidate.Component) === componentName) &&
+    (!locationName || normalizeComparable(candidate.Location) === locationName),
+  );
+  const uniqueServiceCodes = new Set(
+    exactMatches.map((candidate) => getNullableString(candidate.ServiceCode)),
+  );
+
+  return uniqueServiceCodes.size === 1 ? exactMatches[0] ?? null : null;
 }
 
 async function createDatasetImport(params: {
@@ -620,6 +676,31 @@ async function fetchVariantsByIds(params: {
     for (const row of data ?? []) {
       rows.set(row.id, row);
     }
+  }
+
+  return Array.from(rows.values());
+}
+
+async function fetchProductsByIds(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  productIds: string[];
+}): Promise<ProductReferenceRow[]> {
+  const rows = new Map<string, ProductReferenceRow>();
+
+  for (const productIdChunk of chunkArray(
+    Array.from(new Set(params.productIds)),
+    QUERY_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("products")
+      .select("id,external_id")
+      .eq("supplier_id", params.supplierId)
+      .in("id", productIdChunk)
+      .returns<ProductReferenceRow[]>();
+
+    if (error) throw new Error(error.message);
+    for (const row of data ?? []) rows.set(row.id, row);
   }
 
   return Array.from(rows.values());
@@ -868,6 +949,8 @@ function buildCustomizationOptionRows(params: {
   variantsById: Map<string, ProductVariantRow>;
   componentMaps: ReturnType<typeof buildComponentMaps>;
   priceTableMaps: ReturnType<typeof buildPriceTableMaps>;
+  productReferencesById: Map<string, string>;
+  supplierOptionsByProductAndTable: Map<string, StrickerCustomizationOptionRecord[]>;
 }): ProductCustomizationOptionUpsertRow[] {
   const rows: ProductCustomizationOptionUpsertRow[] = [];
 
@@ -904,14 +987,23 @@ function buildCustomizationOptionRows(params: {
       const customizationTypeCode =
         pair.tableCode ?? getCustomizationTypeCode(location, null);
 
-      const serviceCode = buildServiceCode({
-        variant,
-        component,
-        location,
-        tableCode: pair.tableCode,
+      const componentName =
+        component?.component_name ??
+        getSlotString(payload, "Component", locationIndex);
+      const locationName =
+        location.location_name ??
+        getSlotString(payload, "Location", locationIndex) ??
+        getSlotString(payload, "ComposedLocation", locationIndex);
+      const supplierOption = findSupplierOption({
+        productReference: params.productReferencesById.get(variant.product_id) ?? null,
         tableCodeOption: pair.tableCodeOption,
-        customizationTypeCode,
+        componentName,
+        locationName,
+        supplierOptionsByProductAndTable: params.supplierOptionsByProductAndTable,
       });
+      const serviceCode = getNullableString(supplierOption?.ServiceCode);
+
+      if (!isSupplierServiceCode(serviceCode)) continue;
 
       const slotHandlingCost = getSlotNumber(
         payload,
@@ -939,14 +1031,9 @@ function buildCustomizationOptionRows(params: {
         table_code_option: pair.tableCodeOption,
 
         component_code: component?.component_code ?? `C${locationIndex}`,
-        component_name:
-          component?.component_name ??
-          getSlotString(payload, "Component", locationIndex),
+        component_name: componentName,
         location_code: location.location_code ?? `L${locationIndex}`,
-        location_name:
-          location.location_name ??
-          getSlotString(payload, "Location", locationIndex) ??
-          getSlotString(payload, "ComposedLocation", locationIndex),
+        location_name: locationName,
 
         logo_area: null,
         logo_width: null,
@@ -979,8 +1066,9 @@ function buildCustomizationOptionRows(params: {
 
         raw_payload: {
           ...payload,
+          supplier_customization_option: supplierOption,
           language: params.lang,
-          source: "derived-from-product_customization_locations",
+          source: "supplier-customizationOptions",
           variant_id: variant.id,
           component_id: component?.id ?? location.component_id ?? null,
           location_id: location.id,
@@ -1154,6 +1242,24 @@ export async function syncRestCustomizationOptions(params: {
 
     const variantsById = buildVariantMap(variants);
 
+    const products = await fetchProductsByIds({
+      supabaseAdmin,
+      supplierId,
+      productIds: variants.map((variant) => variant.product_id),
+    });
+    const productReferencesById = new Map(
+      products.map((product) => [product.id, product.external_id]),
+    );
+
+    const token = await getValidStrickerSessionToken();
+    const supplierPayload = await fetchStrickerCustomizationOptions(token, params.lang);
+    const supplierOptionRecords = Array.isArray(supplierPayload.CustomizationOptions)
+      ? (supplierPayload.CustomizationOptions as StrickerCustomizationOptionRecord[])
+      : [];
+    const supplierOptionsByProductAndTable = buildSupplierOptionMap(
+      supplierOptionRecords,
+    );
+
     let components: ProductCustomizationComponentRow[];
 
     try {
@@ -1192,6 +1298,8 @@ export async function syncRestCustomizationOptions(params: {
       variantsById,
       componentMaps,
       priceTableMaps,
+      productReferencesById,
+      supplierOptionsByProductAndTable,
     });
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
@@ -1233,7 +1341,7 @@ export async function syncRestCustomizationOptions(params: {
       rawPayload: {
         Language: params.lang,
         RequestedLanguage: params.lang,
-        Source: "derived-from-optionals",
+        Source: "supplier-customizationOptions",
         offset: params.offset,
         limit: params.limit,
         nextOffset: normalizedNextOffset,
@@ -1245,6 +1353,7 @@ export async function syncRestCustomizationOptions(params: {
         componentsMatched: components.length,
         priceTablesMatched: priceTables.length,
         rowsBuilt: rows.length,
+        supplierOptionsReceived: supplierOptionRecords.length,
         failedOptionRecords,
         sampleLocationIds: locations.slice(0, 10).map((location) => location.id),
       },
@@ -1290,7 +1399,7 @@ export async function syncRestCustomizationOptions(params: {
         recordsImported: 0,
         recordsFailed: 1,
         rawPayload: {
-          Source: "derived-from-optionals",
+          Source: "supplier-customizationOptions",
           RequestedLanguage: params.lang,
           offset: params.offset,
           limit: params.limit,
