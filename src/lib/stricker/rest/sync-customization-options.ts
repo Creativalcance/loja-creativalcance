@@ -3,8 +3,6 @@ import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import {
   buildStrickerPrintingLinesImageUrl,
 } from "@/lib/stricker/images";
-import { fetchStrickerCustomizationOptions } from "@/lib/stricker/rest/client";
-import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
@@ -35,6 +33,10 @@ type StrickerCustomizationOptionRecord = JsonRecord & {
   Location?: string | number | null;
   TableCode?: string | number | null;
   TableCodeOption?: string | number | null;
+};
+
+type SupplierCustomizationOptionCacheRow = {
+  raw_payload: JsonRecord;
 };
 
 type ProductCustomizationComponentRow = {
@@ -429,6 +431,45 @@ function buildSupplierOptionMap(
   }
 
   return map;
+}
+
+async function fetchCachedSupplierOptions(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  lang: StrickerLanguage;
+  productReferences: string[];
+}): Promise<StrickerCustomizationOptionRecord[]> {
+  const records: StrickerCustomizationOptionRecord[] = [];
+  const uniqueReferences = Array.from(new Set(params.productReferences));
+  const pageSize = 1_000;
+
+  for (const referenceChunk of chunkArray(uniqueReferences, 10)) {
+    let page = 0;
+
+    while (true) {
+      const { data, error } = await params.supabaseAdmin
+        .from("supplier_customization_options_cache")
+        .select("raw_payload")
+        .eq("supplier_id", params.supplierId)
+        .eq("language", params.lang)
+        .in("product_reference", referenceChunk)
+        .range(page * pageSize, (page + 1) * pageSize - 1)
+        .returns<SupplierCustomizationOptionCacheRow[]>();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      for (const row of data ?? []) {
+        records.push(row.raw_payload as StrickerCustomizationOptionRecord);
+      }
+
+      if (!data || data.length < pageSize) break;
+      page += 1;
+    }
+  }
+
+  return records;
 }
 
 function findSupplierOption(params: {
@@ -1251,11 +1292,18 @@ export async function syncRestCustomizationOptions(params: {
       products.map((product) => [product.id, product.external_id]),
     );
 
-    const token = await getValidStrickerSessionToken();
-    const supplierPayload = await fetchStrickerCustomizationOptions(token, params.lang);
-    const supplierOptionRecords = Array.isArray(supplierPayload.CustomizationOptions)
-      ? (supplierPayload.CustomizationOptions as StrickerCustomizationOptionRecord[])
-      : [];
+    const supplierOptionRecords = await fetchCachedSupplierOptions({
+      supabaseAdmin,
+      supplierId,
+      lang: params.lang,
+      productReferences: Array.from(productReferencesById.values()),
+    });
+
+    if (supplierOptionRecords.length === 0 && locations.length > 0) {
+      throw new Error(
+        "A captura local de customizationOptions ainda não está disponível para este lote. Execute primeiro a captura semanal do fornecedor.",
+      );
+    }
     const supplierOptionsByProductAndTable = buildSupplierOptionMap(
       supplierOptionRecords,
     );

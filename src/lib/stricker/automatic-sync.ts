@@ -8,6 +8,7 @@ import {
   syncCommercialDataset,
 } from "@/lib/stricker/rest/sync-commercial-status";
 import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
+import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
 import { syncRestCustomizationTables } from "@/lib/stricker/rest/sync-customization-tables";
 import { syncRestOptionals } from "@/lib/stricker/rest/sync-optionals";
 import { syncRestProducts } from "@/lib/stricker/rest/sync-products";
@@ -26,6 +27,7 @@ export const STRICKER_AUTOMATIC_SYNC_JOBS = [
   "products",
   "optionals",
   "customization-tables",
+  "customization-options-source",
   "customization-options",
   "printing-slas",
   "canceled-products",
@@ -39,7 +41,7 @@ export type StrickerAutomaticSyncJob =
 type JsonResult = Record<string, unknown>;
 
 const LOCK_TTL_SECONDS = 330;
-const CUSTOMIZATION_BATCH_SIZE = 100;
+const CUSTOMIZATION_BATCH_SIZE = 250;
 
 type CustomizationCursorPayload = {
   hasMore?: unknown;
@@ -144,6 +146,30 @@ function isSameUtcWeek(left: string, right: Date): boolean {
 async function syncNextCustomizationOptionsBatch(): Promise<JsonResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
+  const { data: cachedSource, error: cachedSourceError } = await supabaseAdmin
+    .from("supplier_customization_options_cache")
+    .select("last_seen_at")
+    .eq("supplier_id", supplierId)
+    .eq("language", "PT")
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (cachedSourceError) {
+    throw new Error(
+      `Não foi possível validar a captura local das personalizações: ${cachedSourceError.message}`,
+    );
+  }
+
+  if (!cachedSource) {
+    return {
+      dataset: "customizationOptions",
+      cycleComplete: false,
+      message:
+        "O processamento foi adiado porque ainda não existe uma captura local do fornecedor.",
+    };
+  }
+
   const { data, error } = await supabaseAdmin
     .from("supplier_dataset_imports")
     .select("status, raw_payload, finished_at")
@@ -223,6 +249,8 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       return syncRestOptionals({ lang: "PT" });
     case "customization-tables":
       return syncRestCustomizationTables({ lang: "PT" });
+    case "customization-options-source":
+      return syncRestCustomizationOptionsSource({ lang: "PT" });
     case "customization-options":
       return syncNextCustomizationOptionsBatch();
     case "printing-slas":

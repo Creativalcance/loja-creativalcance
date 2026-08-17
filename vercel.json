@@ -11,7 +11,8 @@
     { "path": "/api/cron/stricker/optionals", "schedule": "0 2 * * 0" },
     { "path": "/api/cron/stricker/canceled-products", "schedule": "15 3 * * 0" },
     { "path": "/api/cron/stricker/restricted-products", "schedule": "25 3 * * 0" },
-    { "path": "/api/cron/stricker/customization-options", "schedule": "10,20,30,40,50 4-23 * * 0" },
+    { "path": "/api/cron/stricker/customization-options-source", "schedule": "10 4 * * 0" },
+    { "path": "/api/cron/stricker/customization-options", "schedule": "0,15,30,45 5-23 * * 0" },
     { "path": "/api/cron/stricker/orders-status", "schedule": "*/15 * * * *" }
   ]
 }
