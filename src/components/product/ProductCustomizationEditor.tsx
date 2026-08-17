@@ -775,6 +775,8 @@ export default function ProductCustomizationEditor({
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
+  const [detectedPrintAreaAspectRatio, setDetectedPrintAreaAspectRatio] =
+    useState<number | null>(null);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
   const [showPriceTable, setShowPriceTable] = useState(false);
   const [showProductionTimes, setShowProductionTimes] = useState(false);
@@ -806,11 +808,14 @@ export default function ProductCustomizationEditor({
     : null;
   const declaredPrintAreaIsHorizontal =
     declaredPrintAreaDimensions.widthMm >= declaredPrintAreaDimensions.heightMm;
-  const supplierAreaIsHorizontal = supplierGeometryAspectRatio !== null
-    ? supplierGeometryAspectRatio >= 1
-    : declaredPrintAreaIsHorizontal;
+  const supplierAreaIsHorizontal = detectedPrintAreaAspectRatio !== null
+    ? detectedPrintAreaAspectRatio >= 1
+    : supplierGeometryAspectRatio !== null
+      ? supplierGeometryAspectRatio >= 1
+      : declaredPrintAreaIsHorizontal;
   const shouldSwapPrintAreaDimensions =
-    supplierGeometryAspectRatio !== null &&
+    (detectedPrintAreaAspectRatio !== null ||
+      supplierGeometryAspectRatio !== null) &&
     declaredPrintAreaIsHorizontal !== supplierAreaIsHorizontal;
   const printAreaDimensions = shouldSwapPrintAreaDimensions
     ? {
@@ -1341,8 +1346,8 @@ export default function ProductCustomizationEditor({
   return (
     <>
       <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="grid gap-8 xl:grid-cols-[520px_minmax(0,1fr)_380px]">
-          <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
+        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_440px]">
+          <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4 xl:col-span-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-neutral-950">
@@ -1457,8 +1462,11 @@ export default function ProductCustomizationEditor({
                   artworkUrl={logoPreviewUrl}
                   artworkPosition={safePosition}
                   printAreaGeometry={selectedLocation?.print_area_geometry}
-                  printAreaAspectRatio={printAreaAspectRatio}
+                  printAreaAspectRatio={editorAreaAspectRatio}
                   artworkAspectRatio={logoAspectRatio}
+                  onPrintAreaAspectRatioDetected={
+                    setDetectedPrintAreaAspectRatio
+                  }
                 />
               </div>
 
@@ -1647,11 +1655,11 @@ export default function ProductCustomizationEditor({
                       onPointerCancel={handleLogoPointerUp}
                       className="absolute cursor-grab touch-none active:cursor-grabbing"
                       style={{
-                        left: `${safePosition.x}%`,
-                        top: `${safePosition.y}%`,
+                        left: `${safePosition.x + safePosition.width / 2}%`,
+                        top: `${safePosition.y + logoHeightPercent / 2}%`,
                         width: `${safePosition.width}%`,
                         height: `${logoHeightPercent}%`,
-                        transform: `rotate(${safePosition.rotation}deg)`,
+                        transform: `translate(-50%, -50%) rotate(${safePosition.rotation}deg)`,
                         transformOrigin: "center center",
                       }}
                     >

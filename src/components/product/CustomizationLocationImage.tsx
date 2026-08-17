@@ -24,6 +24,7 @@ type CustomizationLocationImageProps = {
   } | null;
   printAreaAspectRatio?: number;
   artworkAspectRatio?: number;
+  onPrintAreaAspectRatioDetected?: (aspectRatio: number) => void;
 };
 
 type DetectedPrintArea = {
@@ -312,6 +313,7 @@ export default function CustomizationLocationImage({
   printAreaGeometry = null,
   printAreaAspectRatio = 1,
   artworkAspectRatio = 1,
+  onPrintAreaAspectRatioDetected,
 }: CustomizationLocationImageProps) {
   const imageUrls = useMemo(() => getValidUrls(urls), [urls]);
   const imageUrlsKey = imageUrls.join("|");
@@ -327,6 +329,7 @@ export default function CustomizationLocationImage({
       printAreaGeometry={printAreaGeometry}
       printAreaAspectRatio={printAreaAspectRatio}
       artworkAspectRatio={artworkAspectRatio}
+      onPrintAreaAspectRatioDetected={onPrintAreaAspectRatioDetected}
     />
   );
 }
@@ -354,6 +357,7 @@ function CustomizationLocationImageContent({
   printAreaGeometry,
   printAreaAspectRatio,
   artworkAspectRatio,
+  onPrintAreaAspectRatioDetected,
 }: {
   imageUrls: string[];
   alt: string;
@@ -363,6 +367,7 @@ function CustomizationLocationImageContent({
   printAreaGeometry: CustomizationLocationImageProps["printAreaGeometry"];
   printAreaAspectRatio: number;
   artworkAspectRatio: number;
+  onPrintAreaAspectRatioDetected?: (aspectRatio: number) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [printArea, setPrintArea] = useState<DetectedPrintArea | null>(null);
@@ -388,13 +393,23 @@ function CustomizationLocationImageContent({
     Math.max(artworkAspectRatio, 0.01);
 
   function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
-    setPrintArea(
+    const detectedArea =
       detectWhiteDashedArea(event.currentTarget) ??
         (printAreaGeometry
         ? resolveSupplierPrintArea(event.currentTarget, printAreaGeometry)
         : null) ??
-        getFallbackPrintArea(event.currentTarget, printAreaAspectRatio),
-    );
+        getFallbackPrintArea(event.currentTarget, printAreaAspectRatio);
+
+    setPrintArea(detectedArea);
+
+    const detectedWidth =
+      (detectedArea.width / 100) * event.currentTarget.naturalWidth;
+    const detectedHeight =
+      (detectedArea.height / 100) * event.currentTarget.naturalHeight;
+
+    if (detectedWidth > 0 && detectedHeight > 0) {
+      onPrintAreaAspectRatioDetected?.(detectedWidth / detectedHeight);
+    }
   }
 
   return (
@@ -427,11 +442,11 @@ function CustomizationLocationImageContent({
             <div
               className="absolute"
               style={{
-                left: `${safeArtworkPosition.x}%`,
-                top: `${safeArtworkPosition.y}%`,
+                left: `${safeArtworkPosition.x + safeArtworkPosition.width / 2}%`,
+                top: `${safeArtworkPosition.y + artworkHeight / 2}%`,
                 width: `${safeArtworkPosition.width}%`,
                 height: `${artworkHeight}%`,
-                transform: `rotate(${safeArtworkPosition.rotation}deg)`,
+                transform: `translate(-50%, -50%) rotate(${safeArtworkPosition.rotation}deg)`,
                 transformOrigin: "center center",
               }}
             >
