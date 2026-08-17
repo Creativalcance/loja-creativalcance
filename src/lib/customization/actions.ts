@@ -590,6 +590,48 @@ export async function saveCustomizationDraftAction(
 
     const notes = getOptionalString(formData, "notes");
 
+    const printColorMode = getOptionalString(
+      formData,
+      "printColorMode",
+    );
+    const printColorsRaw = getOptionalString(formData, "printColors");
+    let printColors: Array<{ code: string; hex: string }> = [];
+
+    if (printColorsRaw) {
+      try {
+        const parsedColors: unknown = JSON.parse(printColorsRaw);
+
+        if (!Array.isArray(parsedColors)) {
+          throw new Error("Formato de cores inválido.");
+        }
+
+        printColors = parsedColors
+          .filter(
+            (color): color is { code: string; hex: string } =>
+              typeof color === "object" &&
+              color !== null &&
+              typeof (color as { code?: unknown }).code === "string" &&
+              typeof (color as { hex?: unknown }).hex === "string" &&
+              /^#[0-9a-f]{6}$/i.test(
+                (color as { hex: string }).hex,
+              ),
+          )
+          .map((color) => ({
+            code: color.code.trim().slice(0, 80),
+            hex: color.hex.toUpperCase(),
+          }))
+          .filter((color) => color.code.length > 0)
+          .slice(0, 10);
+      } catch {
+        return {
+          success: false,
+          message: "A seleção de cores da personalização não é válida.",
+          draftId: null,
+          redirectUrl: null,
+        };
+      }
+    }
+
     const technicalPreviewUrl = getOptionalString(
       formData,
       "technicalPreviewUrl",
@@ -992,6 +1034,8 @@ export async function saveCustomizationDraftAction(
         nominative,
         internalReference,
         notes,
+        printColorMode,
+        printColors,
         pricing: {
           priceTableId: confirmedCustomizationPrice.priceTableId,
           supplierPersonalizationUnitPrice:

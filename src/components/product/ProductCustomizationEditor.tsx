@@ -98,6 +98,30 @@ type PrintColorOption = {
   label: string;
 };
 
+type PantoneColor = {
+  code: string;
+  hex: string;
+};
+
+const PANTONE_COLORS: PantoneColor[] = [
+  { code: "Black C", hex: "#2D2926" },
+  { code: "White", hex: "#FFFFFF" },
+  { code: "Cool Gray 5 C", hex: "#B1B3B3" },
+  { code: "186 C", hex: "#C8102E" },
+  { code: "1585 C", hex: "#FF6A13" },
+  { code: "123 C", hex: "#FFC72C" },
+  { code: "354 C", hex: "#00B140" },
+  { code: "348 C", hex: "#00843D" },
+  { code: "3125 C", hex: "#00AEC7" },
+  { code: "300 C", hex: "#005EB8" },
+  { code: "280 C", hex: "#012169" },
+  { code: "2685 C", hex: "#330072" },
+  { code: "219 C", hex: "#DA1884" },
+  { code: "476 C", hex: "#4E3629" },
+  { code: "871 C", hex: "#84754E" },
+  { code: "877 C", hex: "#8A8D8F" },
+];
+
 type LogoPosition = {
   x: number;
   y: number;
@@ -309,6 +333,121 @@ function formatPrice(value: number, currency = "EUR"): string {
     style: "currency",
     currency,
   }).format(value);
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const normalized = hex.replace("#", "");
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ];
+}
+
+function rgbToHex(red: number, green: number, blue: number): string {
+  return `#${[red, green, blue]
+    .map((value) => Math.round(value).toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+}
+
+function colorDistance(
+  left: [number, number, number],
+  right: [number, number, number],
+): number {
+  return (
+    (left[0] - right[0]) ** 2 +
+    (left[1] - right[1]) ** 2 +
+    (left[2] - right[2]) ** 2
+  );
+}
+
+function detectLogoColors(image: HTMLImageElement): string[] {
+  const maximumDimension = 240;
+  const scale = Math.min(
+    1,
+    maximumDimension / Math.max(image.naturalWidth, image.naturalHeight),
+  );
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) return [];
+
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(image, 0, 0, width, height);
+
+  const pixels = context.getImageData(0, 0, width, height).data;
+  const histogram = new Map<string, number>();
+
+  for (let index = 0; index < pixels.length; index += 16) {
+    if (pixels[index + 3] < 80) continue;
+
+    const red = Math.round(pixels[index] / 32) * 32;
+    const green = Math.round(pixels[index + 1] / 32) * 32;
+    const blue = Math.round(pixels[index + 2] / 32) * 32;
+    const key = `${Math.min(red, 255)},${Math.min(green, 255)},${Math.min(blue, 255)}`;
+    histogram.set(key, (histogram.get(key) ?? 0) + 1);
+  }
+
+  return [...histogram.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 10)
+    .map(([key]) => {
+      const [red, green, blue] = key.split(",").map(Number);
+      return rgbToHex(red, green, blue);
+    });
+}
+
+function recolorLogo(params: {
+  image: HTMLImageElement;
+  detectedColors: string[];
+  selectedColors: PantoneColor[];
+}): string | null {
+  if (params.detectedColors.length === 0 || params.selectedColors.length === 0) {
+    return null;
+  }
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+
+  canvas.width = params.image.naturalWidth;
+  canvas.height = params.image.naturalHeight;
+  context.drawImage(params.image, 0, 0);
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const sourceColors = params.detectedColors.map(hexToRgb);
+  const targetColors = params.selectedColors.map((color) => hexToRgb(color.hex));
+
+  for (let index = 0; index < imageData.data.length; index += 4) {
+    if (imageData.data[index + 3] < 20) continue;
+
+    const pixel: [number, number, number] = [
+      imageData.data[index],
+      imageData.data[index + 1],
+      imageData.data[index + 2],
+    ];
+    let nearestIndex = 0;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    sourceColors.forEach((sourceColor, sourceIndex) => {
+      const distance = colorDistance(pixel, sourceColor);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = sourceIndex;
+      }
+    });
+
+    const targetColor = targetColors[nearestIndex % targetColors.length];
+    imageData.data[index] = targetColor[0];
+    imageData.data[index + 1] = targetColor[1];
+    imageData.data[index + 2] = targetColor[2];
+  }
+
+  context.putImageData(imageData, 0, 0);
+  return canvas.toDataURL("image/png");
 }
 
 function getLogoHeightPercent(params: {
@@ -773,6 +912,13 @@ export default function ProductCustomizationEditor({
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
+  const [detectedLogoColors, setDetectedLogoColors] = useState<string[]>([]);
+  const [selectedPantoneColors, setSelectedPantoneColors] = useState<
+    Array<PantoneColor | null>
+  >([]);
+  const [recoloredLogoPreviewUrl, setRecoloredLogoPreviewUrl] = useState<
+    string | null
+  >(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
   const [detectedPrintAreaAspectRatio, setDetectedPrintAreaAspectRatio] =
@@ -797,6 +943,23 @@ export default function ProductCustomizationEditor({
     printColorOptions.some((option) => option.mode === selectedPrintColorMode)
       ? selectedPrintColorMode
       : (printColorOptions[0]?.mode ?? null);
+  const requiredPrintColorCount =
+    effectivePrintColorMode?.startsWith("colors:")
+      ? Number(effectivePrintColorMode.split(":")[1])
+      : 0;
+  const selectedPantoneValues = useMemo(
+    () =>
+      selectedPantoneColors.filter(
+        (color): color is PantoneColor => color !== null,
+      ),
+    [selectedPantoneColors],
+  );
+  const printColorsAreValid =
+    effectivePrintColorMode === "full" ||
+    requiredPrintColorCount === 0 ||
+    selectedPantoneValues.length === requiredPrintColorCount;
+  const displayedLogoPreviewUrl =
+    recoloredLogoPreviewUrl ?? logoPreviewUrl;
 
   const declaredPrintAreaDimensions = parsePrintAreaDimensions(
     selectedLocation?.max_printing_area_mm ?? null,
@@ -989,6 +1152,44 @@ export default function ProductCustomizationEditor({
   }, [selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
+    setSelectedPantoneColors(
+      requiredPrintColorCount > 0
+        ? Array.from({ length: requiredPrintColorCount }, () => null)
+        : [],
+    );
+    setRecoloredLogoPreviewUrl(null);
+  }, [effectivePrintColorMode, requiredPrintColorCount]);
+
+  useEffect(() => {
+    if (
+      !logoPreviewUrl ||
+      effectivePrintColorMode === "full" ||
+      !printColorsAreValid
+    ) {
+      setRecoloredLogoPreviewUrl(null);
+      return;
+    }
+
+    const image = new Image();
+    image.onload = () => {
+      setRecoloredLogoPreviewUrl(
+        recolorLogo({
+          image,
+          detectedColors: detectedLogoColors,
+          selectedColors: selectedPantoneValues,
+        }),
+      );
+    };
+    image.src = logoPreviewUrl;
+  }, [
+    detectedLogoColors,
+    effectivePrintColorMode,
+    logoPreviewUrl,
+    printColorsAreValid,
+    selectedPantoneValues,
+  ]);
+
+  useEffect(() => {
     const rotation = getSuggestedRotation({
       printAreaAspectRatio,
       logoAspectRatio,
@@ -1054,6 +1255,13 @@ export default function ProductCustomizationEditor({
         });
 
         setLogoAspectRatio(nextLogoAspectRatio);
+        setDetectedLogoColors(detectLogoColors(image));
+        setSelectedPantoneColors(
+          requiredPrintColorCount > 0
+            ? Array.from({ length: requiredPrintColorCount }, () => null)
+            : [],
+        );
+        setRecoloredLogoPreviewUrl(null);
         setPosition(
           getCenteredFittedLogoPosition({
             printAreaAspectRatio: editorAreaAspectRatio,
@@ -1228,6 +1436,13 @@ export default function ProductCustomizationEditor({
       return;
     }
 
+    if (!printColorsAreValid) {
+      setSaveMessage(
+        `Seleciona ${requiredPrintColorCount} ${requiredPrintColorCount === 1 ? "cor de impressão" : "cores de impressão"} para continuar.`,
+      );
+      return;
+    }
+
     setSaveMessage(null);
 
     startSavingDraft(async () => {
@@ -1269,6 +1484,16 @@ export default function ProductCustomizationEditor({
       );
 
       formData.set("quantity", String(quantity));
+      formData.set("printColorMode", effectivePrintColorMode ?? "");
+      formData.set(
+        "printColors",
+        JSON.stringify(
+          selectedPantoneValues.map((color) => ({
+            code: color.code,
+            hex: color.hex,
+          })),
+        ),
+      );
 
       formData.set(
         "personalizationUnitPrice",
@@ -1459,7 +1684,7 @@ export default function ProductCustomizationEditor({
                   }
                   alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
                   className="max-h-[700px] w-full object-contain p-8"
-                  artworkUrl={logoPreviewUrl}
+                  artworkUrl={displayedLogoPreviewUrl}
                   artworkPosition={safePosition}
                   printAreaGeometry={selectedLocation?.print_area_geometry}
                   printAreaAspectRatio={editorAreaAspectRatio}
@@ -1664,7 +1889,7 @@ export default function ProductCustomizationEditor({
                       }}
                     >
                       <img
-                        src={logoPreviewUrl}
+                        src={displayedLogoPreviewUrl ?? logoPreviewUrl}
                         alt="Logótipo carregado"
                         draggable={false}
                         className="h-full w-full select-none object-contain"
@@ -2020,8 +2245,79 @@ export default function ProductCustomizationEditor({
                       </button>
                     ))}
                   </div>
+
+                  {requiredPrintColorCount > 0 && logoPreviewUrl ? (
+                    <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-neutral-950/30 p-4">
+                      <div>
+                        <p className="text-xs font-semibold text-white">
+                          Cores detetadas no logótipo
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {detectedLogoColors.map((color, index) => (
+                            <span
+                              key={`${color}-${index}`}
+                              className="inline-flex items-center gap-2 rounded-full bg-white/10 px-2.5 py-1 text-[11px] text-neutral-200"
+                            >
+                              <span
+                                className="h-3 w-3 rounded-full border border-white/30"
+                                style={{ backgroundColor: color }}
+                              />
+                              {color}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {selectedPantoneColors.map((selectedColor, index) => (
+                        <label
+                          key={index}
+                          className="grid gap-2 sm:grid-cols-[110px_minmax(0,1fr)] sm:items-center"
+                        >
+                          <span className="text-xs font-medium text-neutral-300">
+                            Cor {index + 1}
+                          </span>
+                          <select
+                            value={selectedColor?.code ?? ""}
+                            onChange={(event) => {
+                              const nextColor =
+                                PANTONE_COLORS.find(
+                                  (color) => color.code === event.target.value,
+                                ) ?? null;
+                              setSelectedPantoneColors((current) =>
+                                current.map((color, colorIndex) =>
+                                  colorIndex === index ? nextColor : color,
+                                ),
+                              );
+                            }}
+                            className="w-full rounded-xl border border-white/15 bg-white px-3 py-2.5 text-sm font-semibold text-neutral-950 outline-none focus:ring-2 focus:ring-emerald-300"
+                          >
+                            <option value="">Selecionar Pantone</option>
+                            {PANTONE_COLORS.map((color) => (
+                              <option key={color.code} value={color.code}>
+                                Pantone {color.code}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+
+                      <p
+                        className={`text-xs leading-5 ${
+                          printColorsAreValid
+                            ? "text-emerald-300"
+                            : "text-amber-300"
+                        }`}
+                      >
+                        {printColorsAreValid
+                          ? "As cores escolhidas já estão aplicadas à simulação."
+                          : `Seleciona ${requiredPrintColorCount} ${
+                              requiredPrintColorCount === 1 ? "cor" : "cores"
+                            } para continuar.`}
+                      </p>
+                    </div>
+                  ) : null}
                   <p className="mt-3 text-xs leading-5 text-neutral-400">
-                    Opções disponibilizadas pela tabela de personalização do fornecedor selecionada.
+                    Opções disponibilizadas pela tabela de personalização do fornecedor selecionada. As referências Pantone e a simulação no ecrã são indicativas.
                   </p>
                 </div>
               ) : null}
@@ -2161,7 +2457,7 @@ export default function ProductCustomizationEditor({
               <button
                 type="button"
                 onClick={handleConfirmCustomization}
-                disabled={isSavingDraft}
+                disabled={isSavingDraft || !printColorsAreValid}
                 className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-neutral-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span className="text-neutral-950">
