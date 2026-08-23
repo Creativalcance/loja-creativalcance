@@ -25,6 +25,7 @@ import {
   type StrickerServiceArtworkFile,
   type SubmitOrderToStrickerResult,
 } from "@/lib/stricker/orders/types";
+import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 
 type SupabaseAdminClient = ReturnType<
   typeof createSupabaseAdminClient
@@ -93,12 +94,6 @@ function getLocationAliases(value: string | null): Set<string> {
   }
 
   return aliases;
-}
-
-function isSupplierServiceCode(value: string | null): value is string {
-  return Boolean(
-    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
-  );
 }
 
 async function resolveSupplierServiceCodes(params: {

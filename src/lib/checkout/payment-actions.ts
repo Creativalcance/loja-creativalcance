@@ -6,6 +6,7 @@ import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStrickerConfig } from "@/lib/stricker/config";
+import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 
 export type CheckoutPaymentActionState = {
   success: boolean;
@@ -139,12 +140,6 @@ function roundMoney(value: number): number {
 
 function toStripeAmount(value: number): number {
   return Math.round(roundMoney(value) * 100);
-}
-
-function isSupplierServiceCode(value: string | null): value is string {
-  return Boolean(
-    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
-  );
 }
 
 function locationNamesMatch(left: string | null, right: string | null): boolean {

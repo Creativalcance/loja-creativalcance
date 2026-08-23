@@ -12,6 +12,7 @@ import {
   buildStrickerPrintingLinesImageUrl,
 } from "@/lib/stricker/images";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 
 export const dynamic = "force-dynamic";
 
@@ -440,12 +441,6 @@ function getVariantLabel(variant: ProductVariant | null): string | null {
   }
 
   return variant.color_name ?? variant.size ?? null;
-}
-
-function isSupplierServiceCode(value: string | null): value is string {
-  return Boolean(
-    value && /^\d+\.\d+\.\d+\.[A-Za-z0-9-]+$/.test(value.trim()),
-  );
 }
 
 function buildEditorLocations(params: {
