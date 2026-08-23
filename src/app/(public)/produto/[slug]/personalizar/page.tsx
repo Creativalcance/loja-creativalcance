@@ -106,6 +106,7 @@ type ProductCustomizationOption = {
   id: string;
   variant_id: string | null;
   location_id: string | null;
+  printing_price_table_id: string | null;
   customization_type_name: string | null;
   table_code: string | null;
   table_code_option: string | null;
@@ -626,9 +627,19 @@ function buildEditorLocations(params: {
             const supplierOption = techniqueOptions.find(
               (option) =>
                 isSupplierServiceCode(option.service_code) &&
-                (option.table_code_option === price.table_code_option ||
-                  (!price.table_code_option &&
-                    option.table_code === price.table_code)),
+                option.printing_price_table_id === price.id,
+            ) ?? techniqueOptions.find(
+              (option) =>
+                isSupplierServiceCode(option.service_code) &&
+                Boolean(price.table_code_option) &&
+                normalizeComparable(option.table_code_option ?? "") ===
+                  normalizeComparable(price.table_code_option ?? ""),
+            ) ?? techniqueOptions.find(
+              (option) =>
+                isSupplierServiceCode(option.service_code) &&
+                !price.table_code_option &&
+                normalizeComparable(option.table_code ?? "") ===
+                  normalizeComparable(price.table_code),
             );
 
             return {
@@ -804,7 +815,7 @@ export default async function ProductPersonalizePage({
     ? await supabase
         .from("product_customization_options")
         .select(
-          "id,variant_id,location_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active,raw_payload",
+          "id,variant_id,location_id,printing_price_table_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active,raw_payload",
         )
         .eq("product_id", product.id)
         .eq("is_active", true)

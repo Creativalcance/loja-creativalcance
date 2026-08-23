@@ -26,7 +26,10 @@ import {
   type SubmitOrderToStrickerResult,
 } from "@/lib/stricker/orders/types";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
-import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
+import {
+  getCustomizationServiceCodeHints,
+  resolveCustomizationServiceCode,
+} from "@/lib/stricker/resolve-customization-service-code";
 
 type SupabaseAdminClient = ReturnType<
   typeof createSupabaseAdminClient
@@ -85,6 +88,9 @@ async function resolveSupplierServiceCodes(params: {
         return item;
       }
 
+      const resolutionHints = getCustomizationServiceCodeHints(
+        item.personalization_data,
+      );
       const resolvedServiceCode = await resolveCustomizationServiceCode({
         supabaseAdmin: params.supabaseAdmin,
         productId: item.product_id,
@@ -94,6 +100,8 @@ async function resolveSupplierServiceCodes(params: {
         techniqueName: item.customization_technique_name,
         tableCode: item.table_code,
         tableCodeOption: item.table_code_option,
+        priceTableId: resolutionHints.priceTableId,
+        selectedColorCount: resolutionHints.selectedColorCount,
         currentServiceCode: item.service_code,
       });
 

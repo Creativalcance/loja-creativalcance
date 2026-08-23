@@ -8,10 +8,12 @@ type SupplierCustomizationOption = {
   product_id: string;
   variant_id: string | null;
   location_id: string | null;
+  printing_price_table_id: string | null;
   location_name: string | null;
   customization_type_name: string | null;
   table_code: string | null;
   table_code_option: string | null;
+  max_colors: number | null;
   is_default: boolean;
 };
 
@@ -24,8 +26,42 @@ export type ResolveCustomizationServiceCodeParams = {
   techniqueName: string | null;
   tableCode: string | null;
   tableCodeOption: string | null;
+  priceTableId?: string | null;
+  selectedColorCount?: number | null;
   currentServiceCode?: string | null;
 };
+
+export function getCustomizationServiceCodeHints(value: unknown): {
+  priceTableId: string | null;
+  selectedColorCount: number | null;
+} {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { priceTableId: null, selectedColorCount: null };
+  }
+
+  const data = value as Record<string, unknown>;
+  const pricing =
+    data.pricing && typeof data.pricing === "object" && !Array.isArray(data.pricing)
+      ? (data.pricing as Record<string, unknown>)
+      : {};
+  const priceTableId =
+    typeof pricing.priceTableId === "string" && pricing.priceTableId.trim()
+      ? pricing.priceTableId.trim()
+      : null;
+  const printColorMode =
+    typeof data.printColorMode === "string" ? data.printColorMode : "";
+  const parsedColorCount = printColorMode.startsWith("colors:")
+    ? Number(printColorMode.split(":")[1])
+    : null;
+
+  return {
+    priceTableId,
+    selectedColorCount:
+      parsedColorCount && Number.isInteger(parsedColorCount) && parsedColorCount > 0
+        ? parsedColorCount
+        : null,
+  };
+}
 
 function normalize(value: string | null): string {
   return (value ?? "")
@@ -84,68 +120,11 @@ function locationNamesMatch(
   return (aliases[normalizedLeft] ?? []).includes(normalizedRight);
 }
 
-function getOptionScore(
-  option: SupplierCustomizationOption,
-  params: ResolveCustomizationServiceCodeParams,
-): number {
-  let score = 0;
-
-  if (
-    isSupplierServiceCode(params.currentServiceCode) &&
-    option.service_code === params.currentServiceCode
-  ) {
-    score += 10_000;
-  }
-
-  if (params.variantId && option.variant_id === params.variantId) {
-    score += 1_000;
-  } else if (option.variant_id) {
-    return -1;
-  }
-
-  if (params.locationId && option.location_id === params.locationId) {
-    score += 500;
-  }
-
-  if (
-    params.tableCodeOption &&
-    normalize(option.table_code_option) === normalize(params.tableCodeOption)
-  ) {
-    score += 400;
-  }
-
-  if (
-    params.tableCode &&
-    normalize(option.table_code) === normalize(params.tableCode)
-  ) {
-    score += 300;
-  }
-
-  if (
-    codesBelongToSameFamily(option.table_code_option, params.tableCodeOption) ||
-    codesBelongToSameFamily(option.table_code, params.tableCode) ||
-    codesBelongToSameFamily(option.table_code_option, params.tableCode) ||
-    codesBelongToSameFamily(option.table_code, params.tableCodeOption)
-  ) {
-    score += 150;
-  }
-
-  if (
-    params.techniqueName &&
-    normalize(option.customization_type_name) === normalize(params.techniqueName)
-  ) {
-    score += 100;
-  }
-
-  if (locationNamesMatch(option.location_name, params.locationName)) {
-    score += 80;
-  }
-
-  if (option.is_default) {
-    score += 10;
-  }
-
-  return score;
+function getUniqueServiceCode(
+  options: SupplierCustomizationOption[],
+): string | null {
+  const codes = new Set(options.map((option) => option.service_code));
+  return codes.size === 1 ? options[0]?.service_code ?? null : null;
 }
 
 export async function resolveCustomizationServiceCode(
@@ -154,7 +133,7 @@ export async function resolveCustomizationServiceCode(
   const { data, error } = await params.supabaseAdmin
     .from("product_customization_options")
     .select(
-      "service_code,product_id,variant_id,location_id,location_name,customization_type_name,table_code,table_code_option,is_default",
+      "service_code,product_id,variant_id,location_id,printing_price_table_id,location_name,customization_type_name,table_code,table_code_option,max_colors,is_default",
     )
     .eq("product_id", params.productId)
     .eq("is_active", true);
@@ -165,27 +144,92 @@ export async function resolveCustomizationServiceCode(
     );
   }
 
-  const ranked = ((data ?? []) as SupplierCustomizationOption[])
-    .filter((option) => isSupplierServiceCode(option.service_code))
-    .map((option) => ({
-      option,
-      score: getOptionScore(option, params),
-    }))
-    .filter((entry) => entry.score >= 0)
-    .sort((left, right) => right.score - left.score);
+  let candidates = ((data ?? []) as SupplierCustomizationOption[]).filter(
+    (option) => isSupplierServiceCode(option.service_code),
+  );
 
-  if (ranked.length === 0 || ranked[0].score === 0) {
+  const exactVariant = candidates.filter(
+    (option) => params.variantId && option.variant_id === params.variantId,
+  );
+  if (exactVariant.length > 0) {
+    candidates = exactVariant;
+  } else {
+    candidates = candidates.filter((option) => !option.variant_id);
+  }
+
+  const exactLocation = candidates.filter(
+    (option) => params.locationId && option.location_id === params.locationId,
+  );
+  if (exactLocation.length > 0) {
+    candidates = exactLocation;
+  } else if (params.locationName) {
+    const matchingLocationName = candidates.filter((option) =>
+      locationNamesMatch(option.location_name, params.locationName),
+    );
+    if (matchingLocationName.length > 0) candidates = matchingLocationName;
+  }
+
+  const exactPriceTable = candidates.filter(
+    (option) =>
+      params.priceTableId &&
+      option.printing_price_table_id === params.priceTableId,
+  );
+  if (exactPriceTable.length > 0) {
+    return getUniqueServiceCode(exactPriceTable);
+  }
+
+  const exactTableCodeOption = candidates.filter(
+    (option) =>
+      params.tableCodeOption &&
+      normalize(option.table_code_option) === normalize(params.tableCodeOption),
+  );
+  if (exactTableCodeOption.length > 0) {
+    return getUniqueServiceCode(exactTableCodeOption);
+  }
+
+  const exactCurrentServiceCode = candidates.filter(
+    (option) =>
+      isSupplierServiceCode(params.currentServiceCode) &&
+      option.service_code === params.currentServiceCode,
+  );
+  if (exactCurrentServiceCode.length > 0) {
+    return getUniqueServiceCode(exactCurrentServiceCode);
+  }
+
+  const exactTableCode = candidates.filter(
+    (option) =>
+      params.tableCode &&
+      normalize(option.table_code) === normalize(params.tableCode),
+  );
+  if (exactTableCode.length > 0) candidates = exactTableCode;
+
+  if (params.selectedColorCount && params.selectedColorCount > 0) {
+    const exactColors = candidates.filter(
+      (option) => option.max_colors === params.selectedColorCount,
+    );
+    if (exactColors.length > 0) candidates = exactColors;
+  }
+
+  if (params.techniqueName) {
+    const exactTechnique = candidates.filter(
+      (option) =>
+        normalize(option.customization_type_name) === normalize(params.techniqueName),
+    );
+    if (exactTechnique.length > 0) candidates = exactTechnique;
+  }
+
+  const uniqueCode = getUniqueServiceCode(candidates);
+  if (uniqueCode) return uniqueCode;
+
+  const sameFamily = candidates.filter(
+    (option) =>
+      codesBelongToSameFamily(option.table_code, params.tableCode) ||
+      codesBelongToSameFamily(option.table_code_option, params.tableCodeOption),
+  );
+
+  if (sameFamily.length === 0) {
     return null;
   }
 
-  const bestScore = ranked[0].score;
-  const bestServiceCodes = new Set(
-    ranked
-      .filter((entry) => entry.score === bestScore)
-      .map((entry) => entry.option.service_code),
-  );
-
-  return bestServiceCodes.size === 1
-    ? ranked[0].option.service_code
-    : null;
+  return getUniqueServiceCode(sameFamily);
 }

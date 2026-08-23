@@ -7,7 +7,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStrickerConfig } from "@/lib/stricker/config";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
-import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
+import {
+  getCustomizationServiceCodeHints,
+  resolveCustomizationServiceCode,
+} from "@/lib/stricker/resolve-customization-service-code";
 
 export type CheckoutPaymentActionState = {
   success: boolean;
@@ -598,6 +601,9 @@ export async function createPaymentCheckoutSessionAction(
           };
         }
 
+        const resolutionHints = getCustomizationServiceCodeHints(
+          item.personalization_data,
+        );
         const resolvedServiceCode = await resolveCustomizationServiceCode({
           supabaseAdmin,
           productId: item.product_id,
@@ -607,6 +613,8 @@ export async function createPaymentCheckoutSessionAction(
           techniqueName: item.customization_technique_name,
           tableCode: item.table_code,
           tableCodeOption: item.table_code_option,
+          priceTableId: resolutionHints.priceTableId,
+          selectedColorCount: resolutionHints.selectedColorCount,
           currentServiceCode: item.service_code,
         });
 

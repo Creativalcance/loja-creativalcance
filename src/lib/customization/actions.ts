@@ -753,6 +753,10 @@ export async function saveCustomizationDraftAction(
       tableCodeOption,
       techniqueName,
       quantity,
+      colors:
+        printColorMode?.startsWith("colors:")
+          ? Number(printColorMode.split(":")[1])
+          : null,
       areaCm2:
         printingWidthMm && printingHeightMm
           ? (printingWidthMm * printingHeightMm) / 100
@@ -837,6 +841,11 @@ export async function saveCustomizationDraftAction(
       tableCode: confirmedCustomizationPrice.tableCode ?? tableCode,
       tableCodeOption:
         confirmedCustomizationPrice.tableCodeOption ?? tableCodeOption,
+      priceTableId: confirmedCustomizationPrice.priceTableId,
+      selectedColorCount:
+        printColorMode?.startsWith("colors:")
+          ? Number(printColorMode.split(":")[1])
+          : null,
       currentServiceCode: serviceCode,
     });
 
