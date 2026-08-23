@@ -197,6 +197,7 @@ async function loadCandidates(query: SmartQuery): Promise<CandidateProduct[]> {
       .eq("is_active", true)
       .eq("is_purchasable", true)
       .not("slug", "is", null)
+      .order("is_purchasable", { ascending: false })
       .order("is_featured", { ascending: false })
       .limit(700);
 

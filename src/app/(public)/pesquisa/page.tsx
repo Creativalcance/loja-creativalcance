@@ -154,6 +154,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       )
       .eq("status", "active")
       .eq("is_active", true)
+      .order("is_purchasable", { ascending: false })
       .limit(48);
 
     if (query) {

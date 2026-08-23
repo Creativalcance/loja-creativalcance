@@ -86,6 +86,7 @@ export default async function CategoryProductsPage({
       .eq("status", "active")
       .eq("is_active", true)
       .eq("type_name", categoryName)
+      .order("is_purchasable", { ascending: false })
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(48),

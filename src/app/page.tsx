@@ -514,6 +514,7 @@ export default async function HomePage() {
     )
     .eq("status", "active")
     .eq("is_active", true)
+    .order("is_purchasable", { ascending: false })
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(500);
@@ -528,11 +529,11 @@ export default async function HomePage() {
   const productsWithImages = allProducts.filter((product) => getImageUrl(product));
   const products = productsWithImages.length >= 4 ? productsWithImages : allProducts;
 
-  const categoryCards = buildCategoryCards(products);
+  const productsOrderedByStock = sortProductsByStockAvailability(products);
+  const categoryCards = buildCategoryCards(productsOrderedByStock);
   const featuredProducts = sortProductsByStockAvailability(
     products.filter((product) => product.is_featured),
   );
-  const productsOrderedByStock = sortProductsByStockAvailability(products);
   const productHighlights =
     featuredProducts.length >= 4
       ? featuredProducts.slice(0, 8)

@@ -184,6 +184,7 @@ export default async function CategoriesPage() {
     .eq("status", "active")
     .eq("is_active", true)
     .not("type_name", "is", null)
+    .order("is_purchasable", { ascending: false })
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(10000);

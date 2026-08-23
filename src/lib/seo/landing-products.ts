@@ -77,6 +77,7 @@ export async function getLandingProducts(
     .eq("status", "active")
     .eq("is_active", true)
     .or(filter)
+    .order("is_purchasable", { ascending: false })
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(Math.max(1, Math.min(limit, 24)));
@@ -198,6 +199,7 @@ export async function getCommercialLandingProducts(
     .eq("status", "active")
     .eq("is_active", true)
     .or(filter)
+    .order("is_purchasable", { ascending: false })
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(fetchLimit);

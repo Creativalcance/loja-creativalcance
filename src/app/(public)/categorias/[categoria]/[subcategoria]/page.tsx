@@ -71,6 +71,7 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
     .eq("is_active", true)
     .eq("type_name", categoryName)
     .eq("subtype_name", subcategoryName)
+    .order("is_purchasable", { ascending: false })
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(48);
