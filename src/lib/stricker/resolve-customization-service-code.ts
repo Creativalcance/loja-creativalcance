@@ -127,6 +127,18 @@ function getUniqueServiceCode(
   return codes.size === 1 ? options[0]?.service_code ?? null : null;
 }
 
+function getOptionColorCount(option: SupplierCustomizationOption): number | null {
+  const match = option.table_code_option?.trim().match(/-(\d+)$/);
+  if (match) {
+    const count = Number(match[1]);
+    if (Number.isInteger(count) && count > 0) return count;
+  }
+
+  return option.max_colors && option.max_colors > 0
+    ? option.max_colors
+    : null;
+}
+
 export async function resolveCustomizationServiceCode(
   params: ResolveCustomizationServiceCodeParams,
 ): Promise<string | null> {
@@ -144,9 +156,22 @@ export async function resolveCustomizationServiceCode(
     );
   }
 
-  let candidates = ((data ?? []) as SupplierCustomizationOption[]).filter(
+  const productOptions = ((data ?? []) as SupplierCustomizationOption[]).filter(
     (option) => isSupplierServiceCode(option.service_code),
   );
+
+  // ServiceCode é a identidade final fornecida pelo catálogo. Se o editor já
+  // enviou um código que existe nas opções ativas deste produto, não deve ser
+  // substituído por inferências baseadas em nomes, cores ou MaxColors.
+  if (isSupplierServiceCode(params.currentServiceCode)) {
+    const exactCurrentServiceCode = productOptions.find(
+      (option) => option.service_code === params.currentServiceCode,
+    );
+
+    if (exactCurrentServiceCode) return exactCurrentServiceCode.service_code;
+  }
+
+  let candidates = productOptions;
 
   const exactVariant = candidates.filter(
     (option) => params.variantId && option.variant_id === params.variantId,
@@ -175,7 +200,9 @@ export async function resolveCustomizationServiceCode(
       option.printing_price_table_id === params.priceTableId,
   );
   if (exactPriceTable.length > 0) {
-    return getUniqueServiceCode(exactPriceTable);
+    const uniquePriceTableCode = getUniqueServiceCode(exactPriceTable);
+    if (uniquePriceTableCode) return uniquePriceTableCode;
+    candidates = exactPriceTable;
   }
 
   const exactTableCodeOption = candidates.filter(
@@ -184,16 +211,9 @@ export async function resolveCustomizationServiceCode(
       normalize(option.table_code_option) === normalize(params.tableCodeOption),
   );
   if (exactTableCodeOption.length > 0) {
-    return getUniqueServiceCode(exactTableCodeOption);
-  }
-
-  const exactCurrentServiceCode = candidates.filter(
-    (option) =>
-      isSupplierServiceCode(params.currentServiceCode) &&
-      option.service_code === params.currentServiceCode,
-  );
-  if (exactCurrentServiceCode.length > 0) {
-    return getUniqueServiceCode(exactCurrentServiceCode);
+    const uniqueTableOptionCode = getUniqueServiceCode(exactTableCodeOption);
+    if (uniqueTableOptionCode) return uniqueTableOptionCode;
+    candidates = exactTableCodeOption;
   }
 
   const exactTableCode = candidates.filter(
@@ -205,7 +225,7 @@ export async function resolveCustomizationServiceCode(
 
   if (params.selectedColorCount && params.selectedColorCount > 0) {
     const exactColors = candidates.filter(
-      (option) => option.max_colors === params.selectedColorCount,
+      (option) => getOptionColorCount(option) === params.selectedColorCount,
     );
     if (exactColors.length > 0) candidates = exactColors;
   }

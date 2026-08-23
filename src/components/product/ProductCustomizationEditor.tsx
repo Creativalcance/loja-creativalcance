@@ -564,13 +564,38 @@ function getCenteredFittedLogoPosition(params: {
   });
 }
 
+function getTableCodeOptionColorCount(
+  tableCodeOption: string | null,
+): number | null {
+  if (!tableCodeOption) return null;
+
+  const match = tableCodeOption.trim().match(/-(\d+)$/);
+  if (!match) return null;
+
+  const count = Number(match[1]);
+  return Number.isInteger(count) && count > 0 ? count : null;
+}
+
 function getPrintColorMode(tier: ProductEditorCustomizationPrice): PrintColorMode | null {
   if (tier.allow_full_color || /-F$/i.test(tier.table_code_option ?? "")) {
     return "full";
   }
 
-  if (tier.price_by_color && tier.max_colors && tier.max_colors > 0) {
-    return `colors:${tier.max_colors}`;
+  if (tier.price_by_color) {
+    // O fornecedor codifica a quantidade desta opção no último segmento do
+    // TableCodeOption (por exemplo, PDP1-01-02 = opção de duas cores).
+    // MaxColors é apenas o limite da técnica e não identifica a opção.
+    const optionColorCount = getTableCodeOptionColorCount(
+      tier.table_code_option,
+    );
+
+    if (optionColorCount) {
+      return `colors:${optionColorCount}`;
+    }
+
+    if (tier.max_colors && tier.max_colors > 0) {
+      return `colors:${tier.max_colors}`;
+    }
   }
 
   return null;
@@ -640,8 +665,7 @@ function findCustomizationPriceTier(
       .filter((price) => price.price_by_area && price.area_cm2 !== null)
       .map((price) => price.area_cm2 as number);
     const seriesArea = areas.length > 0 ? Math.max(...areas) : null;
-    const colorMatch = key.match(/-(\d+)$/);
-    const colors = colorMatch ? Number(colorMatch[1]) : null;
+    const colors = getTableCodeOptionColorCount(key);
 
     return {
       key,

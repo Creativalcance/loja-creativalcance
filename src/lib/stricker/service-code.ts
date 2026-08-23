@@ -1,4 +1,4 @@
-const SERVICE_CODE_SEGMENT_PATTERN = /^[A-Za-z0-9_-]*$/;
+const SERVICE_CODE_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 /**
  * Valida a estrutura segura de um ServiceCode recebido do fornecedor.
@@ -24,14 +24,9 @@ export function isSupplierServiceCode(
     return false;
   }
 
-  const segments = normalized.split(".");
-
-  return (
-    segments.length >= 4 &&
-    segments[0].length > 0 &&
-    segments[segments.length - 1].length > 0 &&
-    segments.every((segment) =>
-      SERVICE_CODE_SEGMENT_PATTERN.test(segment),
-    )
-  );
+  // O manual define ServiceCode pela sua função (produto + localização +
+  // técnica), mas não fixa uma quantidade mínima de segmentos separados por
+  // pontos. Validamos apenas o conjunto seguro de caracteres efetivamente
+  // usado pelo fornecedor, sem rejeitar códigos válidos pela sua forma.
+  return SERVICE_CODE_PATTERN.test(normalized);
 }
