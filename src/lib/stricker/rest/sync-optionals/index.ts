@@ -1588,6 +1588,7 @@ export async function syncRestOptionals(params: {
 }): Promise<SyncRestOptionalsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
+  let recordsReceived = 0;
 
   const datasetImportId = await createDatasetImport({
     supabaseAdmin,
@@ -1596,97 +1597,45 @@ export async function syncRestOptionals(params: {
   });
 
   try {
-    let downloadFormat: "json" | "csv" = "json";
-    let downloadSource = "direct-download";
-    let downloadResult: StrickerDatasetDownloadResult;
-
-    try {
-      downloadResult = await downloadStrickerDataset(
+    const downloadFormat = "json" as const;
+    const downloadSource = "direct-download-split";
+    const [textileResult, nonTextileResult] = await Promise.all([
+      downloadStrickerDataset(
         {
-          datasetName: "optionals",
+          datasetName: "optionalscomplete_textil_products",
           lang: params.lang,
           extension: "json",
         },
+        { timeoutMs: 120_000 },
+      ),
+      downloadStrickerDataset(
         {
-          timeoutMs: 60_000,
+          datasetName: "optionalscomplete_without_textil",
+          lang: params.lang,
+          extension: "json",
         },
-      );
-    } catch (error) {
-      if (
-        !(
-          (error instanceof StrickerDownloadHttpError &&
-            [502, 503, 504].includes(error.status)) ||
-          (error instanceof Error && error.message.includes("excedeu"))
-        )
-      ) {
-        throw error;
-      }
-
-      try {
-        downloadFormat = "csv";
-        downloadResult = await downloadStrickerDataset(
-          {
-            datasetName: "optionals",
-            lang: params.lang,
-            extension: "csv",
-          },
-          {
-            timeoutMs: 60_000,
-          },
-        );
-      } catch (csvError) {
-        if (
-          !(
-            (csvError instanceof StrickerDownloadHttpError &&
-              [502, 503, 504].includes(csvError.status)) ||
-            (csvError instanceof Error && csvError.message.includes("excedeu"))
-          )
-        ) {
-          throw csvError;
-        }
-
-        downloadFormat = "json";
-        downloadSource = "direct-download-split";
-        const [textileResult, nonTextileResult] = await Promise.all([
-          downloadStrickerDataset(
-            {
-              datasetName: "optionalscomplete_textil_products",
-              lang: params.lang,
-              extension: "json",
-            },
-            { timeoutMs: 90_000 },
-          ),
-          downloadStrickerDataset(
-            {
-              datasetName: "optionalscomplete_without_textil",
-              lang: params.lang,
-              extension: "json",
-            },
-            { timeoutMs: 90_000 },
-          ),
-        ]);
-        const splitKeys = [
-          "OptionalsComplete",
-          "optionalsComplete",
-          "Optionals",
-          "optionals",
-          "Data",
-          "data",
-          "Items",
-          "items",
-        ];
-        const splitRecords = [
-          ...extractDatasetRecords(textileResult.payload, splitKeys),
-          ...extractDatasetRecords(nonTextileResult.payload, splitKeys),
-        ];
-
-        downloadResult = {
-          url: "split-feed",
-          payload: splitRecords,
-          payloadHash: `${textileResult.payloadHash}:${nonTextileResult.payloadHash}`,
-        };
-      }
-    }
+        { timeoutMs: 120_000 },
+      ),
+    ]);
+    const splitKeys = [
+      "OptionalsComplete",
+      "optionalsComplete",
+      "Optionals",
+      "optionals",
+      "Data",
+      "data",
+      "Items",
+      "items",
+    ];
+    const splitRecords = [
+      ...extractDatasetRecords(textileResult.payload, splitKeys),
+      ...extractDatasetRecords(nonTextileResult.payload, splitKeys),
+    ];
+    const downloadResult: StrickerDatasetDownloadResult = {
+      url: "split-feed",
+      payload: splitRecords,
+      payloadHash: `${textileResult.payloadHash}:${nonTextileResult.payloadHash}`,
+    };
 
     const payloadMetadata = toJsonRecord(downloadResult.payload);
     const records = extractDatasetRecords(downloadResult.payload, [
@@ -1697,6 +1646,7 @@ export async function syncRestOptionals(params: {
       "Items",
       "items",
     ]) as StrickerOptionalRecord[];
+    recordsReceived = records.length;
 
     if (records.length === 0) {
       throw new Error(
@@ -1901,7 +1851,7 @@ export async function syncRestOptionals(params: {
       supabaseAdmin,
       datasetImportId,
       status: "failed",
-      recordsReceived: 0,
+      recordsReceived,
       recordsImported: 0,
       recordsFailed: 1,
       rawPayload: {},
