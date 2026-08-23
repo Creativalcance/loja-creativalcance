@@ -259,6 +259,9 @@ type ProductPriceInsertRow = {
 type ExistingProductPriceRow = {
   variant_id: string;
   quantity_min: number;
+  quantity_max: number | null;
+  supplier_price: number;
+  your_price: number | null;
   pricing_mode: PricingMode | null;
   margin_percentage: number | null;
   markup_percentage: number | null;
@@ -339,6 +342,17 @@ export type SyncRestOptionalsResult = {
   imagesImported: number;
   componentsImported: number;
   locationsImported: number;
+  datasetImportId: string;
+};
+
+export type SyncRestOptionalsPricesResult = {
+  dataset: "optionalsPrice";
+  lang: StrickerLanguage;
+  recordsReceived: number;
+  variantsMatched: number;
+  variantsUpdated: number;
+  pricesUpdated: number;
+  pricesUnchanged: number;
   datasetImportId: string;
 };
 
@@ -473,6 +487,7 @@ async function createDatasetImport(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
   lang: StrickerLanguage;
+  datasetName?: "optionals" | "optionalsPrice";
 }): Promise<string> {
   await expireStaleSupplierSyncs({ supabaseAdmin: params.supabaseAdmin });
 
@@ -480,7 +495,7 @@ async function createDatasetImport(params: {
     .from("supplier_dataset_imports")
     .insert({
       supplier_id: params.supplierId,
-      dataset_name: "optionals",
+      dataset_name: params.datasetName ?? "optionals",
       language: params.lang,
       country: null,
       extension: "json",
@@ -1065,7 +1080,7 @@ async function fetchExistingProductPrices(params: {
     const { data, error } = await params.supabaseAdmin
       .from("product_prices")
       .select(
-        "variant_id,quantity_min,pricing_mode,margin_percentage,markup_percentage,fixed_markup,manual_price,is_manual_override,override_reason,override_updated_at,override_updated_by",
+        "variant_id,quantity_min,quantity_max,supplier_price,your_price,pricing_mode,margin_percentage,markup_percentage,fixed_markup,manual_price,is_manual_override,override_reason,override_updated_at,override_updated_by",
       )
       .in("variant_id", variantIdChunk)
       .returns<ExistingProductPriceRow[]>();
@@ -1080,6 +1095,104 @@ async function fetchExistingProductPrices(params: {
   }
 
   return pricesByTier;
+}
+
+async function fetchVariantsBySkus(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  skus: string[];
+}): Promise<ImportedVariantRow[]> {
+  const variants: ImportedVariantRow[] = [];
+
+  for (const skuChunk of chunkArray(
+    Array.from(new Set(params.skus)),
+    QUERY_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_variants")
+      .select("id,product_id,supplier_id,external_variant_id,sku")
+      .eq("supplier_id", params.supplierId)
+      .in("external_variant_id", skuChunk)
+      .returns<ImportedVariantRow[]>();
+
+    if (error) throw new Error(error.message);
+    variants.push(...(data ?? []));
+  }
+
+  return variants;
+}
+
+function getChangedPriceVariantIds(params: {
+  rows: ProductPriceInsertRow[];
+  existingPricesByTier: Map<string, ExistingProductPriceRow>;
+}): Set<string> {
+  const proposedByVariant = new Map<string, ProductPriceInsertRow[]>();
+  const existingByVariant = new Map<string, ExistingProductPriceRow[]>();
+
+  for (const row of params.rows) {
+    const rows = proposedByVariant.get(row.variant_id) ?? [];
+    rows.push(row);
+    proposedByVariant.set(row.variant_id, rows);
+  }
+
+  for (const row of params.existingPricesByTier.values()) {
+    const rows = existingByVariant.get(row.variant_id) ?? [];
+    rows.push(row);
+    existingByVariant.set(row.variant_id, rows);
+  }
+
+  const changed = new Set<string>();
+  const sameMoney = (left: number | null, right: number | null) =>
+    left === null || right === null
+      ? left === right
+      : Math.abs(left - right) < 0.00005;
+
+  for (const [variantId, proposedRows] of proposedByVariant) {
+    const existingRows = existingByVariant.get(variantId) ?? [];
+
+    if (proposedRows.length !== existingRows.length) {
+      changed.add(variantId);
+      continue;
+    }
+
+    for (const proposed of proposedRows) {
+      const existing = params.existingPricesByTier.get(
+        `${variantId}:${proposed.quantity_min}`,
+      );
+
+      if (
+        !existing ||
+        existing.quantity_max !== proposed.quantity_max ||
+        !sameMoney(existing.supplier_price, proposed.supplier_price) ||
+        !sameMoney(existing.your_price, proposed.your_price)
+      ) {
+        changed.add(variantId);
+        break;
+      }
+    }
+  }
+
+  return changed;
+}
+
+async function updateExistingVariantPrices(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  rows: ProductPriceInsertRow[];
+}): Promise<number> {
+  let updated = 0;
+
+  for (const row of params.rows) {
+    const { error } = await params.supabaseAdmin
+      .from("product_prices")
+      .update(row)
+      .eq("variant_id", row.variant_id)
+      .eq("quantity_min", row.quantity_min);
+
+    if (error) throw new Error(error.message);
+    updated += 1;
+  }
+
+  return updated;
 }
 
 function buildImageRows(params: {
@@ -1762,6 +1875,171 @@ export async function syncRestOptionals(params: {
       ],
     });
 
+    throw error;
+  }
+}
+
+export async function syncRestOptionalsPrices(params: {
+  lang: StrickerLanguage;
+}): Promise<SyncRestOptionalsPricesResult> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const supplierId = await getStrickerSupplierId();
+  const datasetImportId = await createDatasetImport({
+    supabaseAdmin,
+    supplierId,
+    lang: params.lang,
+    datasetName: "optionalsPrice",
+  });
+
+  try {
+    let downloadFormat: "json" | "csv" = "json";
+    let downloadResult: StrickerDatasetDownloadResult;
+
+    try {
+      downloadResult = await downloadStrickerDataset(
+        {
+          datasetName: "optionalsPrice",
+          lang: params.lang,
+          extension: "json",
+        },
+        { timeoutMs: 90_000 },
+      );
+    } catch (error) {
+      if (
+        !(
+          (error instanceof StrickerDownloadHttpError &&
+            [502, 503, 504].includes(error.status)) ||
+          (error instanceof Error && error.message.includes("excedeu"))
+        )
+      ) {
+        throw error;
+      }
+
+      downloadFormat = "csv";
+      downloadResult = await downloadStrickerDataset(
+        {
+          datasetName: "optionalsPrice",
+          lang: params.lang,
+          extension: "csv",
+        },
+        { timeoutMs: 90_000 },
+      );
+    }
+
+    const payloadMetadata = toJsonRecord(downloadResult.payload);
+    const records = extractDatasetRecords(downloadResult.payload, [
+      "OptionalsPrice",
+      "optionalsPrice",
+      "Optionals",
+      "optionals",
+      "Data",
+      "data",
+      "Items",
+      "items",
+    ]) as StrickerOptionalRecord[];
+
+    if (records.length === 0) {
+      throw new Error(
+        "O dataset de preços foi descarregado sem registos. Os preços existentes foram preservados.",
+      );
+    }
+
+    const skus = records
+      .map((record) => getOptionalSku(record))
+      .filter((value): value is string => Boolean(value));
+    const variants = await fetchVariantsBySkus({
+      supabaseAdmin,
+      supplierId,
+      skus,
+    });
+    const variantsBySku = buildVariantMap(variants);
+    const productIds = Array.from(
+      new Set(variants.map((variant) => variant.product_id)),
+    );
+    const products: ProductRow[] = [];
+
+    for (const productIdChunk of chunkArray(productIds, QUERY_CHUNK_SIZE)) {
+      const { data, error } = await supabaseAdmin
+        .from("products")
+        .select("id,supplier_id,external_id,material,type_name")
+        .in("id", productIdChunk)
+        .returns<ProductRow[]>();
+      if (error) throw new Error(error.message);
+      products.push(...(data ?? []));
+    }
+
+    const pricingRules = await fetchPricingRules({ supabaseAdmin });
+    const existingPricesByTier = await fetchExistingProductPrices({
+      supabaseAdmin,
+      variantIds: variants.map((variant) => variant.id),
+    });
+    const priceRows = buildPriceRows({
+      records,
+      variantsBySku,
+      productsById: buildProductIdMap(products),
+      pricingRules,
+      existingPricesByTier,
+    });
+    const changedVariantIds = getChangedPriceVariantIds({
+      rows: priceRows,
+      existingPricesByTier,
+    });
+    const changedRows = priceRows.filter(
+      (row) =>
+        changedVariantIds.has(row.variant_id) &&
+        existingPricesByTier.has(`${row.variant_id}:${row.quantity_min}`),
+    );
+
+    await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+    const pricesUpdated = await updateExistingVariantPrices({
+      supabaseAdmin,
+      rows: changedRows,
+    });
+    await finishDatasetImport({
+      supabaseAdmin,
+      datasetImportId,
+      status: "success",
+      recordsReceived: records.length,
+      recordsImported: pricesUpdated,
+      recordsFailed: 0,
+      rawPayload: {
+        Count: payloadMetadata.Count ?? records.length,
+        Currency: payloadMetadata.Currency ?? "EUR",
+        Language: payloadMetadata.Language ?? params.lang,
+        format: downloadFormat,
+        payloadHash: downloadResult.payloadHash,
+        variantsMatched: variants.length,
+        variantsUpdated: changedVariantIds.size,
+        pricesUnchanged: Math.max(priceRows.length - changedRows.length, 0),
+      },
+      errors: [],
+    });
+
+    return {
+      dataset: "optionalsPrice",
+      lang: params.lang,
+      recordsReceived: records.length,
+      variantsMatched: variants.length,
+      variantsUpdated: changedVariantIds.size,
+      pricesUpdated,
+      pricesUnchanged: Math.max(priceRows.length - changedRows.length, 0),
+      datasetImportId,
+    };
+  } catch (error) {
+    await finishDatasetImport({
+      supabaseAdmin,
+      datasetImportId,
+      status: "failed",
+      recordsReceived: 0,
+      recordsImported: 0,
+      recordsFailed: 1,
+      rawPayload: {},
+      errors: [
+        error instanceof Error
+          ? error.message
+          : "Erro inesperado na sincronização REST de preços.",
+      ],
+    });
     throw error;
   }
 }

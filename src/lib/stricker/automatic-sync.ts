@@ -10,7 +10,10 @@ import {
 import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
 import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
 import { syncRestCustomizationTables } from "@/lib/stricker/rest/sync-customization-tables";
-import { syncRestOptionals } from "@/lib/stricker/rest/sync-optionals";
+import {
+  syncRestOptionals,
+  syncRestOptionalsPrices,
+} from "@/lib/stricker/rest/sync-optionals";
 import { syncRestProducts } from "@/lib/stricker/rest/sync-products";
 import { syncRestStocksByCountry } from "@/lib/stricker/rest/sync-stocks-by-country";
 import { syncRestPrintingSlas } from "@/lib/stricker/rest/sync-printing-slas";
@@ -26,6 +29,7 @@ export const STRICKER_AUTOMATIC_SYNC_JOBS = [
   "products-tree",
   "products",
   "optionals",
+  "prices",
   "customization-tables",
   "customization-options-source",
   "customization-options",
@@ -41,7 +45,7 @@ export type StrickerAutomaticSyncJob =
 type JsonResult = Record<string, unknown>;
 
 const LOCK_TTL_SECONDS = 330;
-const CUSTOMIZATION_BATCH_SIZE = 250;
+const CUSTOMIZATION_BATCH_SIZE = 500;
 
 type CustomizationCursorPayload = {
   hasMore?: unknown;
@@ -247,6 +251,8 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       return syncRestProducts({ lang: "PT" });
     case "optionals":
       return syncRestOptionals({ lang: "PT" });
+    case "prices":
+      return syncRestOptionalsPrices({ lang: "PT" });
     case "customization-tables":
       return syncRestCustomizationTables({ lang: "PT" });
     case "customization-options-source":
@@ -271,10 +277,13 @@ export async function runStrickerAutomaticSync(
   | { skipped: false; result: JsonResult }
 > {
   const ownerToken = randomUUID();
-  const lockKey =
-    job === "orders-status"
-      ? "stricker:automatic-sync:orders-status"
-      : "stricker:automatic-sync";
+  const lockKey = job === "orders-status"
+    ? "stricker:automatic-sync:orders-status"
+    : job === "stocks" || job === "stocks-pt" || job === "stocks-cz"
+      ? "stricker:automatic-sync:stocks"
+      : job === "prices"
+        ? "stricker:automatic-sync:prices"
+        : "stricker:automatic-sync";
   const acquired = await acquireLock({ lockKey, ownerToken });
 
   if (!acquired) {
