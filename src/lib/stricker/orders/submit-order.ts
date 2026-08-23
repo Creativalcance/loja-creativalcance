@@ -26,6 +26,7 @@ import {
   type SubmitOrderToStrickerResult,
 } from "@/lib/stricker/orders/types";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
+import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
 
 type SupabaseAdminClient = ReturnType<
   typeof createSupabaseAdminClient
@@ -38,13 +39,6 @@ type SupplierEventRecord = {
 type OrderItemLineAssignment = {
   orderItemId: string;
   lineStamp: string;
-};
-
-type SupplierCustomizationOption = {
-  variant_id: string;
-  service_code: string;
-  table_code_option: string | null;
-  location_name: string | null;
 };
 
 type SupplierPrintingAreaLimit = {
@@ -68,34 +62,6 @@ function toJsonRecord(value: unknown): JsonRecord {
   return value as JsonRecord;
 }
 
-function normalizeComparable(value: string | null): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
-}
-
-function getLocationAliases(value: string | null): Set<string> {
-  const normalized = normalizeComparable(value);
-  const aliases = new Set([normalized]);
-  const translations: Record<string, string[]> = {
-    costas: ["back"],
-    peito: ["chest"],
-    frente: ["front"],
-    manga: ["sleeve"],
-    "manga esquerda": ["left sleeve"],
-    "manga direita": ["right sleeve"],
-    lateral: ["side"],
-  };
-
-  for (const alias of translations[normalized] ?? []) {
-    aliases.add(alias);
-  }
-
-  return aliases;
-}
-
 async function resolveSupplierServiceCodes(params: {
   supabaseAdmin: SupabaseAdminClient;
   items: StrickerOrderDatabaseItem[];
@@ -103,8 +69,6 @@ async function resolveSupplierServiceCodes(params: {
   const unresolvedItems = params.items.filter(
     (item) =>
       item.personalization_required &&
-      item.variant_id &&
-      item.table_code_option &&
       !isSupplierServiceCode(item.service_code),
   );
 
@@ -112,68 +76,34 @@ async function resolveSupplierServiceCodes(params: {
     return params.items;
   }
 
-  const variantIds = Array.from(
-    new Set(unresolvedItems.flatMap((item) => item.variant_id ?? [])),
-  );
-  const tableCodeOptions = Array.from(
-    new Set(
-      unresolvedItems.flatMap((item) => item.table_code_option ?? []),
-    ),
-  );
-
-  const { data, error } = await params.supabaseAdmin
-    .from("product_customization_options")
-    .select(
-      "variant_id,service_code,table_code_option,location_name",
-    )
-    .in("variant_id", variantIds)
-    .in("table_code_option", tableCodeOptions)
-    .eq("is_active", true);
-
-  if (error) {
-    throw new Error(
-      `Não foi possível validar o código de serviço do fornecedor: ${error.message}`,
-    );
-  }
-
-  const options = (data ?? []) as SupplierCustomizationOption[];
-
   return Promise.all(
     params.items.map(async (item) => {
       if (
         !unresolvedItems.some((candidate) => candidate.id === item.id) ||
-        !item.variant_id ||
-        !item.table_code_option
+        !item.product_id
       ) {
         return item;
       }
 
-      const candidates = options.filter(
-        (option) =>
-          option.variant_id === item.variant_id &&
-          option.table_code_option === item.table_code_option &&
-          isSupplierServiceCode(option.service_code),
-      );
-      const locationAliases = getLocationAliases(
-        item.customization_location_name,
-      );
-      const locationMatches = candidates.filter((option) =>
-        locationAliases.has(normalizeComparable(option.location_name)),
-      );
-      const selected =
-        locationMatches.length === 1
-          ? locationMatches[0]
-          : candidates.length === 1
-            ? candidates[0]
-            : null;
+      const resolvedServiceCode = await resolveCustomizationServiceCode({
+        supabaseAdmin: params.supabaseAdmin,
+        productId: item.product_id,
+        variantId: item.variant_id,
+        locationId: item.customization_location_id,
+        locationName: item.customization_location_name,
+        techniqueName: item.customization_technique_name,
+        tableCode: item.table_code,
+        tableCodeOption: item.table_code_option,
+        currentServiceCode: item.service_code,
+      });
 
-      if (!selected) {
+      if (!resolvedServiceCode) {
         return { ...item, service_code: null };
       }
 
       const { error: updateError } = await params.supabaseAdmin
         .from("order_items")
-        .update({ service_code: selected.service_code })
+        .update({ service_code: resolvedServiceCode })
         .eq("id", item.id);
 
       if (updateError) {
@@ -182,7 +112,7 @@ async function resolveSupplierServiceCodes(params: {
         );
       }
 
-      return { ...item, service_code: selected.service_code };
+      return { ...item, service_code: resolvedServiceCode };
     }),
   );
 }

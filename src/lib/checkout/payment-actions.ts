@@ -7,6 +7,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStrickerConfig } from "@/lib/stricker/config";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
+import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
 
 export type CheckoutPaymentActionState = {
   success: boolean;
@@ -587,77 +588,36 @@ export async function createPaymentCheckoutSessionAction(
     );
 
     if (personalizedItemsNeedingServiceCode.length > 0) {
-      const variantIds = Array.from(
-        new Set(
-          personalizedItemsNeedingServiceCode
-            .map((item) => item.variant_id)
-            .filter((value): value is string => Boolean(value)),
-        ),
-      );
-      const tableCodeOptions = Array.from(
-        new Set(
-          personalizedItemsNeedingServiceCode
-            .map((item) => item.table_code_option)
-            .filter((value): value is string => Boolean(value)),
-        ),
-      );
-
-      if (variantIds.length === 0 || tableCodeOptions.length === 0) {
-        const invalidItem = personalizedItemsNeedingServiceCode[0];
-        return {
-          success: false,
-          message: `A personalização de ${invalidItem.product_name} ainda não está pronta para submissão automática ao fornecedor. Seleciona novamente a personalização antes de efetuar o pagamento.`,
-        };
-      }
-
-      const { data: supplierOptions, error: supplierOptionsError } =
-        await supabaseAdmin
-          .from("product_customization_options")
-          .select(
-            "variant_id,service_code,table_code_option,location_name,is_active",
-          )
-          .in("variant_id", variantIds)
-          .in("table_code_option", tableCodeOptions)
-          .eq("is_active", true);
-
-      if (supplierOptionsError) {
-        return {
-          success: false,
-          message:
-            "Não foi possível validar a personalização junto dos dados do fornecedor. Tenta novamente dentro de alguns instantes.",
-        };
-      }
-
       const resolvedServiceCodes = new Map<string, string>();
 
       for (const item of personalizedItemsNeedingServiceCode) {
-        const candidates = (supplierOptions ?? []).filter(
-          (option) =>
-            option.variant_id === item.variant_id &&
-            option.table_code_option === item.table_code_option &&
-            isSupplierServiceCode(option.service_code),
-        );
-        const locationCandidates = candidates.filter((option) =>
-          locationNamesMatch(
-            option.location_name,
-            item.customization_location_name,
-          ),
-        );
-        const selected =
-          locationCandidates.length === 1
-            ? locationCandidates[0]
-            : candidates.length === 1
-              ? candidates[0]
-              : null;
-
-        if (!selected?.service_code) {
+        if (!item.product_id) {
           return {
             success: false,
-            message: `A personalização de ${item.product_name} ainda não possui um código de serviço válido do fornecedor. O pagamento foi bloqueado para evitar uma encomenda paga que não possa ser submetida automaticamente.`,
+            message: `A personalização de ${item.product_name} não está associada a um produto válido.`,
           };
         }
 
-        resolvedServiceCodes.set(item.id, selected.service_code);
+        const resolvedServiceCode = await resolveCustomizationServiceCode({
+          supabaseAdmin,
+          productId: item.product_id,
+          variantId: item.variant_id,
+          locationId: item.customization_location_id,
+          locationName: item.customization_location_name,
+          techniqueName: item.customization_technique_name,
+          tableCode: item.table_code,
+          tableCodeOption: item.table_code_option,
+          currentServiceCode: item.service_code,
+        });
+
+        if (!resolvedServiceCode) {
+          return {
+            success: false,
+            message: `A personalização de ${item.product_name} ainda não possui uma correspondência inequívoca com uma opção ativa do fornecedor. Seleciona novamente a área e a técnica antes de efetuar o pagamento.`,
+          };
+        }
+
+        resolvedServiceCodes.set(item.id, resolvedServiceCode);
       }
 
       for (const [cartItemId, serviceCode] of resolvedServiceCodes) {

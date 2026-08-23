@@ -13,6 +13,7 @@ import {
   type CustomizationPriceTier,
 } from "@/lib/pricing/resolve-customization-price";
 import type { PricingRule } from "@/lib/pricing/types";
+import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
 
 export type StartCustomizationDraftState = {
   success: boolean;
@@ -825,6 +826,30 @@ export async function saveCustomizationDraftAction(
 
     const printingTechnique = techniqueData ?? null;
 
+    const resolvedServiceCode = await resolveCustomizationServiceCode({
+      supabaseAdmin,
+      productId: product.id,
+      variantId: variant.id,
+      locationId: location.id,
+      locationName:
+        locationName ?? location.location_name ?? location.location_code,
+      techniqueName,
+      tableCode: confirmedCustomizationPrice.tableCode ?? tableCode,
+      tableCodeOption:
+        confirmedCustomizationPrice.tableCodeOption ?? tableCodeOption,
+      currentServiceCode: serviceCode,
+    });
+
+    if (!resolvedServiceCode) {
+      return {
+        success: false,
+        message:
+          "Não foi possível identificar de forma inequívoca a opção de personalização do fornecedor. Seleciona novamente a área e a técnica.",
+        draftId: null,
+        redirectUrl: null,
+      };
+    }
+
     let existingDraft: ExistingDraftRecord | null = null;
 
     if (draftId) {
@@ -984,7 +1009,7 @@ export async function saveCustomizationDraftAction(
       technique_name: techniqueName,
       supplier_product_reference: product.sku,
       supplier_sku: variant.sku,
-      service_code: serviceCode,
+      service_code: resolvedServiceCode,
       table_code: confirmedCustomizationPrice.tableCode,
       table_code_option: confirmedCustomizationPrice.tableCodeOption,
       handling_cost_code: confirmedCustomizationPrice.handlingCostCode,
@@ -1026,7 +1051,7 @@ export async function saveCustomizationDraftAction(
         techniqueName,
         componentName,
         locationName,
-        serviceCode,
+        serviceCode: resolvedServiceCode,
         tableCode,
         tableCodeOption,
         needsDesignHelp,
