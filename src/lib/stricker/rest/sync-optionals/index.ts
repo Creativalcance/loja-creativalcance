@@ -356,10 +356,9 @@ export type SyncRestOptionalsPricesResult = {
   datasetImportId: string;
 };
 
-const UPSERT_CHUNK_SIZE = 500;
+const UPSERT_CHUNK_SIZE = 100;
 const CUSTOMIZATION_UPSERT_CHUNK_SIZE = 100;
-const QUERY_CHUNK_SIZE = 400;
-const SYNC_STATE_PAGE_SIZE = 500;
+const QUERY_CHUNK_SIZE = 200;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
 
@@ -636,67 +635,105 @@ async function filterChangedOptionalRecords(params: {
   }
 
   const changedSkus = new Set(recordsBySku.keys());
-  const existingVariants = new Map<
-    string,
-    {
-      id: string;
-      external_variant_id: string;
-      supplier_payload: JsonRecord | null;
-      prices: Array<{ source_price_field: string | null }>;
-      locations: Array<{
-        external_location_id: string;
-        is_active: boolean;
-        supplier_id: string;
-      }>;
-    }
-  >();
+  type ExistingVariantState = {
+    id: string;
+    external_variant_id: string;
+    supplier_payload: JsonRecord | null;
+    prices: Array<{ source_price_field: string | null }>;
+    locations: Array<{
+      external_location_id: string;
+      is_active: boolean;
+      supplier_id: string;
+    }>;
+  };
 
-  for (let offset = 0; ; offset += SYNC_STATE_PAGE_SIZE) {
+  const existingVariants = new Map<string, ExistingVariantState>();
+  const existingVariantsById = new Map<string, ExistingVariantState>();
+
+  for (const skuChunk of chunkArray(
+    Array.from(recordsBySku.keys()),
+    QUERY_CHUNK_SIZE,
+  )) {
     const { data, error } = await params.supabaseAdmin
       .from("product_variants")
-      .select(
-        `
-          id,
-          external_variant_id,
-          supplier_payload,
-          prices:product_prices!product_prices_variant_id_fkey(source_price_field),
-          locations:product_customization_locations!product_customization_locations_variant_id_fkey(
-            external_location_id,
-            is_active,
-            supplier_id
-          )
-        `,
-      )
+      .select("id,external_variant_id,supplier_payload")
       .eq("supplier_id", params.supplierId)
-      .order("id", { ascending: true })
-      .range(offset, offset + SYNC_STATE_PAGE_SIZE - 1)
+      .in("external_variant_id", skuChunk)
       .returns<
         Array<{
           id: string;
           external_variant_id: string;
           supplier_payload: JsonRecord | null;
-          prices: Array<{ source_price_field: string | null }> | null;
-          locations: Array<{
-            external_location_id: string;
-            is_active: boolean;
-            supplier_id: string;
-          }> | null;
         }>
       >();
 
     if (error) throw new Error(error.message);
 
     for (const existing of data ?? []) {
-      if (!recordsBySku.has(existing.external_variant_id)) continue;
-
-      existingVariants.set(existing.external_variant_id, {
+      const state: ExistingVariantState = {
         ...existing,
-        prices: existing.prices ?? [],
-        locations: existing.locations ?? [],
+        prices: [],
+        locations: [],
+      };
+
+      existingVariants.set(existing.external_variant_id, state);
+      existingVariantsById.set(existing.id, state);
+    }
+  }
+
+  const existingVariantIds = Array.from(existingVariantsById.keys());
+
+  for (const variantIdChunk of chunkArray(
+    existingVariantIds,
+    QUERY_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_prices")
+      .select("variant_id,source_price_field")
+      .in("variant_id", variantIdChunk)
+      .returns<
+        Array<{
+          variant_id: string;
+          source_price_field: string | null;
+        }>
+      >();
+
+    if (error) throw new Error(error.message);
+
+    for (const price of data ?? []) {
+      existingVariantsById.get(price.variant_id)?.prices.push({
+        source_price_field: price.source_price_field,
       });
     }
+  }
 
-    if ((data?.length ?? 0) < SYNC_STATE_PAGE_SIZE) break;
+  for (const variantIdChunk of chunkArray(
+    existingVariantIds,
+    QUERY_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_customization_locations")
+      .select("variant_id,external_location_id,is_active,supplier_id")
+      .eq("supplier_id", params.supplierId)
+      .in("variant_id", variantIdChunk)
+      .returns<
+        Array<{
+          variant_id: string;
+          external_location_id: string;
+          is_active: boolean;
+          supplier_id: string;
+        }>
+      >();
+
+    if (error) throw new Error(error.message);
+
+    for (const location of data ?? []) {
+      existingVariantsById.get(location.variant_id)?.locations.push({
+        external_location_id: location.external_location_id,
+        is_active: location.is_active,
+        supplier_id: location.supplier_id,
+      });
+    }
   }
 
   for (const existing of existingVariants.values()) {
