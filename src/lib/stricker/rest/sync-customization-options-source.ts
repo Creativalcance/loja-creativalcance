@@ -6,7 +6,7 @@ import {
   extractDatasetRecords,
 } from "@/lib/stricker/download-client";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
-import { type JsonRecord } from "@/lib/stricker/types";
+import { type JsonRecord, type StrickerDatasetName } from "@/lib/stricker/types";
 
 type StrickerCustomizationOptionRecord = JsonRecord & {
   ProdReference?: string | number | null;
@@ -31,13 +31,28 @@ type CacheRow = {
   last_seen_at: string;
 };
 
-const UPSERT_CHUNK_SIZE = 500;
-const UPSERT_CONCURRENCY = 4;
+type FeedResult = {
+  datasetName: StrickerDatasetName;
+  records: StrickerCustomizationOptionRecord[];
+};
+
+const UPSERT_CHUNK_SIZE = 2_000;
+const UPSERT_CONCURRENCY = 8;
 const DOWNLOAD_TIMEOUT_MS = 240_000;
 
 const CUSTOMIZATION_RECORD_KEYS = [
   "CustomizationOptions",
   "customizationOptions",
+  "Data",
+  "data",
+  "Items",
+  "items",
+];
+
+const DOCUMENTED_CUSTOMIZATION_DATASETS: StrickerDatasetName[] = [
+  "customizationOptions",
+  "customizationoptions_textil_products",
+  "customizationoptions_without_textil",
 ];
 
 function getString(value: unknown): string | null {
@@ -67,12 +82,13 @@ function hashPayload(payload: JsonRecord): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
-async function fetchDocumentedCustomizationOptions(params: {
+async function fetchCustomizationFeed(params: {
+  datasetName: StrickerDatasetName;
   lang: StrickerLanguage;
-}): Promise<StrickerCustomizationOptionRecord[]> {
+}): Promise<FeedResult> {
   const result = await downloadStrickerDataset(
     {
-      datasetName: "customizationOptions",
+      datasetName: params.datasetName,
       lang: params.lang,
       extension: "json",
     },
@@ -86,11 +102,52 @@ async function fetchDocumentedCustomizationOptions(params: {
 
   if (records.length === 0) {
     throw new Error(
-      "O feed oficial customizationOptions foi recebido sem registos. A captura anterior foi preservada.",
+      `O feed oficial '${params.datasetName}' foi recebido sem registos. A captura anterior foi preservada.`,
     );
   }
 
-  return records;
+  return {
+    datasetName: params.datasetName,
+    records,
+  };
+}
+
+async function fetchCompleteDocumentedCustomizationOptions(params: {
+  lang: StrickerLanguage;
+}): Promise<{
+  records: StrickerCustomizationOptionRecord[];
+  feedCounts: Record<string, number>;
+}> {
+  const feeds = await Promise.all(
+    DOCUMENTED_CUSTOMIZATION_DATASETS.map((datasetName) =>
+      fetchCustomizationFeed({ datasetName, lang: params.lang }),
+    ),
+  );
+
+  const recordsByServiceCode = new Map<string, StrickerCustomizationOptionRecord>();
+  const feedCounts: Record<string, number> = {};
+
+  for (const feed of feeds) {
+    feedCounts[feed.datasetName] = feed.records.length;
+
+    for (const record of feed.records) {
+      const serviceCode = getString(record.ServiceCode);
+      const productReference = getString(record.ProdReference);
+
+      if (!serviceCode || !productReference) continue;
+      recordsByServiceCode.set(serviceCode, record);
+    }
+  }
+
+  const records = Array.from(recordsByServiceCode.values());
+
+  if (records.length === 0) {
+    throw new Error(
+      "Os feeds oficiais de customizationOptions não contêm ServiceCodes válidos. A captura anterior foi preservada.",
+    );
+  }
+
+  return { records, feedCounts };
 }
 
 async function upsertChunks(params: {
@@ -127,7 +184,8 @@ export async function syncRestCustomizationOptionsSource(params: {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
   const capturedAt = new Date().toISOString();
-  const records = await fetchDocumentedCustomizationOptions({ lang: params.lang });
+  const { records, feedCounts } =
+    await fetchCompleteDocumentedCustomizationOptions({ lang: params.lang });
 
   const rows: CacheRow[] = records.flatMap((record) => {
     const serviceCode = getString(record.ServiceCode);
@@ -154,7 +212,7 @@ export async function syncRestCustomizationOptionsSource(params: {
 
   if (rows.length === 0) {
     throw new Error(
-      "O feed oficial customizationOptions não contém referências e ServiceCodes válidos. A captura anterior foi preservada.",
+      "Os feeds oficiais de customizationOptions não contêm referências e ServiceCodes válidos. A captura anterior foi preservada.",
     );
   }
 
@@ -168,6 +226,8 @@ export async function syncRestCustomizationOptionsSource(params: {
         }),
   });
 
+  // Só removemos dados antigos depois de TODOS os feeds oficiais terem sido
+  // descarregados e TODOS os novos ServiceCodes terem sido gravados.
   const { error: cleanupError, count: removedCount } = await supabaseAdmin
     .from("supplier_customization_options_cache")
     .delete({ count: "exact" })
@@ -184,8 +244,10 @@ export async function syncRestCustomizationOptionsSource(params: {
   return {
     dataset: "customizationOptionsSource",
     lang: params.lang,
-    source: "direct-download-customizationOptions",
-    recordsReceived: records.length,
+    source: "direct-download-documented-union",
+    feedCounts,
+    recordsReceived: Object.values(feedCounts).reduce((sum, count) => sum + count, 0),
+    uniqueServiceCodes: rows.length,
     recordsCached: rows.length,
     recordsRemoved: removedCount ?? 0,
     capturedAt,
