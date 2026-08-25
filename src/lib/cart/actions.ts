@@ -11,6 +11,7 @@ import {
   type CustomizationPriceTier,
 } from "@/lib/pricing/resolve-customization-price";
 import type { PricingRule } from "@/lib/pricing/types";
+import { getCustomizationServiceCodeHints } from "@/lib/stricker/resolve-customization-service-code";
 
 export type AddToCartActionState = {
   success: boolean;
@@ -830,6 +831,16 @@ export async function addToCartAction(
         };
       }
 
+      const safeTableCodeOption =
+        customizationDraft.table_code_option?.replace(/[(),]/g, "") ?? null;
+      const tierFilters = [
+        `table_code.eq.${safeTableCode}`,
+        `table_code_option.eq.${safeTableCode}`,
+        ...(safeTableCodeOption
+          ? [`table_code_option.eq.${safeTableCodeOption}`]
+          : []),
+      ];
+
       const { data: tiers } = await supabaseAdmin
         .from("printing_price_tables")
         .select(
@@ -837,7 +848,7 @@ export async function addToCartAction(
         )
         .eq("supplier_id", customizationDraft.supplier_id)
         .eq("is_active", true)
-        .or(`table_code.eq.${safeTableCode},table_code_option.eq.${safeTableCode}`)
+        .or(tierFilters.join(","))
         .returns<CustomizationPriceTier[]>();
 
       const { data: rules } = await supabaseAdmin
@@ -846,6 +857,10 @@ export async function addToCartAction(
         .eq("is_active", true)
         .in("price_type", ["personalization", "setup"])
         .returns<PricingRule[]>();
+
+      const serviceCodeHints = getCustomizationServiceCodeHints(
+        customizationDraft.personalization_data,
+      );
 
       confirmedCustomizationPrice = resolveCustomizationPrice({
         tiers: tiers ?? [],
@@ -857,6 +872,7 @@ export async function addToCartAction(
         tableCodeOption: customizationDraft.table_code_option,
         techniqueName: customizationDraft.technique_name,
         quantity,
+        colors: serviceCodeHints.selectedColorCount,
         areaCm2: customizationDraft.printing_area_mm2
           ? customizationDraft.printing_area_mm2 / 100
           : null,

@@ -139,6 +139,15 @@ function getOptionColorCount(option: SupplierCustomizationOption): number | null
     : null;
 }
 
+function narrowRequired(
+  candidates: SupplierCustomizationOption[],
+  requested: boolean,
+  predicate: (option: SupplierCustomizationOption) => boolean,
+): SupplierCustomizationOption[] {
+  if (!requested) return candidates;
+  return candidates.filter(predicate);
+}
+
 export async function resolveCustomizationServiceCode(
   params: ResolveCustomizationServiceCodeParams,
 ): Promise<string | null> {
@@ -160,15 +169,17 @@ export async function resolveCustomizationServiceCode(
     (option) => isSupplierServiceCode(option.service_code),
   );
 
-  // ServiceCode é a identidade final fornecida pelo catálogo. Se o editor já
-  // enviou um código que existe nas opções ativas deste produto, não deve ser
-  // substituído por inferências baseadas em nomes, cores ou MaxColors.
+  // O ServiceCode recebido do editor é apenas uma pista. Tem de continuar a
+  // corresponder à variante, localização, técnica, tabela e número de cores
+  // selecionados; um código antigo não pode sobrepor-se a essas escolhas.
   if (isSupplierServiceCode(params.currentServiceCode)) {
-    const exactCurrentServiceCode = productOptions.find(
+    const exactCurrentServiceCode = productOptions.filter(
       (option) => option.service_code === params.currentServiceCode,
     );
 
-    if (exactCurrentServiceCode) return exactCurrentServiceCode.service_code;
+    if (exactCurrentServiceCode.length > 0) {
+      productOptions.splice(0, productOptions.length, ...exactCurrentServiceCode);
+    }
   }
 
   let candidates = productOptions;
@@ -194,54 +205,47 @@ export async function resolveCustomizationServiceCode(
     if (matchingLocationName.length > 0) candidates = matchingLocationName;
   }
 
-  const exactPriceTable = candidates.filter(
-    (option) =>
-      params.priceTableId &&
-      option.printing_price_table_id === params.priceTableId,
+  candidates = narrowRequired(
+    candidates,
+    Boolean(params.priceTableId),
+    (option) => option.printing_price_table_id === params.priceTableId,
   );
-  if (exactPriceTable.length > 0) {
-    const uniquePriceTableCode = getUniqueServiceCode(exactPriceTable);
-    if (uniquePriceTableCode) return uniquePriceTableCode;
-    candidates = exactPriceTable;
-  }
 
-  const exactTableCodeOption = candidates.filter(
+  candidates = narrowRequired(
+    candidates,
+    Boolean(params.tableCodeOption),
     (option) =>
-      params.tableCodeOption &&
       normalize(option.table_code_option) === normalize(params.tableCodeOption),
   );
-  if (exactTableCodeOption.length > 0) {
-    const uniqueTableOptionCode = getUniqueServiceCode(exactTableCodeOption);
-    if (uniqueTableOptionCode) return uniqueTableOptionCode;
-    candidates = exactTableCodeOption;
-  }
 
-  const exactTableCode = candidates.filter(
+  candidates = narrowRequired(
+    candidates,
+    Boolean(params.tableCode),
     (option) =>
-      params.tableCode &&
       normalize(option.table_code) === normalize(params.tableCode),
   );
-  if (exactTableCode.length > 0) candidates = exactTableCode;
 
   if (params.selectedColorCount && params.selectedColorCount > 0) {
-    const exactColors = candidates.filter(
+    candidates = candidates.filter(
       (option) => getOptionColorCount(option) === params.selectedColorCount,
     );
-    if (exactColors.length > 0) candidates = exactColors;
   }
 
   if (params.techniqueName) {
-    const exactTechnique = candidates.filter(
+    candidates = candidates.filter(
       (option) =>
         normalize(option.customization_type_name) === normalize(params.techniqueName),
     );
-    if (exactTechnique.length > 0) candidates = exactTechnique;
   }
 
   const uniqueCode = getUniqueServiceCode(candidates);
   if (uniqueCode) return uniqueCode;
 
-  const sameFamily = candidates.filter(
+  if (params.tableCodeOption || candidates.length === 0) {
+    return null;
+  }
+
+  const sameFamily = productOptions.filter(
     (option) =>
       codesBelongToSameFamily(option.table_code, params.tableCode) ||
       codesBelongToSameFamily(option.table_code_option, params.tableCodeOption),

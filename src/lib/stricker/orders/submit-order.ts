@@ -25,7 +25,6 @@ import {
   type StrickerServiceArtworkFile,
   type SubmitOrderToStrickerResult,
 } from "@/lib/stricker/orders/types";
-import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 import {
   getCustomizationServiceCodeHints,
   resolveCustomizationServiceCode,
@@ -69,20 +68,18 @@ async function resolveSupplierServiceCodes(params: {
   supabaseAdmin: SupabaseAdminClient;
   items: StrickerOrderDatabaseItem[];
 }): Promise<StrickerOrderDatabaseItem[]> {
-  const unresolvedItems = params.items.filter(
-    (item) =>
-      item.personalization_required &&
-      !isSupplierServiceCode(item.service_code),
+  const personalizedItems = params.items.filter(
+    (item) => item.personalization_required,
   );
 
-  if (unresolvedItems.length === 0) {
+  if (personalizedItems.length === 0) {
     return params.items;
   }
 
   return Promise.all(
     params.items.map(async (item) => {
       if (
-        !unresolvedItems.some((candidate) => candidate.id === item.id) ||
+        !personalizedItems.some((candidate) => candidate.id === item.id) ||
         !item.product_id
       ) {
         return item;

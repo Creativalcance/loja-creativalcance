@@ -661,12 +661,15 @@ function buildEditorLocations(params: {
             max_colors: price.max_colors,
             area_cm2: price.area_cm2,
             };
-          }),
+          })
+          .filter((price) => isSupplierServiceCode(price.service_code)),
       });
     }
   }
 
-  return rows;
+  // Uma técnica só pode ser apresentada quando existe uma opção oficial que
+  // liga técnica + área + número de cores ao ServiceCode do fornecedor.
+  return rows.filter((row) => row.price_tiers.length > 0);
 }
 
 export default async function ProductPersonalizePage({

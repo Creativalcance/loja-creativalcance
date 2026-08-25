@@ -145,6 +145,18 @@ function roundMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 
+function getSelectedColorCount(printColorMode: string | null): number | null {
+  if (!printColorMode?.startsWith("colors:")) return null;
+  const count = Number(printColorMode.split(":")[1]);
+  return Number.isInteger(count) && count > 0 ? count : null;
+}
+
+function getTableOptionColorCount(tableCodeOption: string | null): number | null {
+  const match = tableCodeOption?.match(/-(\d+)$/);
+  const count = match?.[1] ? Number(match[1]) : null;
+  return count && Number.isInteger(count) && count > 0 ? count : null;
+}
+
 function sanitizeFileName(fileName: string): string {
   const extensionIndex = fileName.lastIndexOf(".");
 
@@ -633,6 +645,31 @@ export async function saveCustomizationDraftAction(
       }
     }
 
+    const selectedColorCount = getSelectedColorCount(printColorMode);
+    const tableOptionColorCount = getTableOptionColorCount(tableCodeOption);
+
+    if (selectedColorCount !== null && printColors.length !== selectedColorCount) {
+      return {
+        success: false,
+        message: `Seleciona exatamente ${selectedColorCount} ${selectedColorCount === 1 ? "cor de impressão" : "cores de impressão"}.`,
+        draftId: null,
+        redirectUrl: null,
+      };
+    }
+
+    if (
+      selectedColorCount !== null &&
+      tableOptionColorCount !== null &&
+      selectedColorCount !== tableOptionColorCount
+    ) {
+      return {
+        success: false,
+        message: "O número de cores não corresponde à opção de personalização selecionada.",
+        draftId: null,
+        redirectUrl: null,
+      };
+    }
+
     const technicalPreviewUrl = getOptionalString(
       formData,
       "technicalPreviewUrl",
@@ -726,6 +763,14 @@ export async function saveCustomizationDraftAction(
     }
 
     const safeTableCode = tableCode.replace(/[(),]/g, "");
+    const safeTableCodeOption = tableCodeOption?.replace(/[(),]/g, "") ?? null;
+    const priceFilters = [
+      `table_code.eq.${safeTableCode}`,
+      `table_code_option.eq.${safeTableCode}`,
+      ...(safeTableCodeOption
+        ? [`table_code_option.eq.${safeTableCodeOption}`]
+        : []),
+    ];
     const { data: priceTiers, error: priceTierError } = await supabaseAdmin
       .from("printing_price_tables")
       .select(
@@ -733,7 +778,7 @@ export async function saveCustomizationDraftAction(
       )
       .eq("supplier_id", product.supplier_id)
       .eq("is_active", true)
-      .or(`table_code.eq.${safeTableCode},table_code_option.eq.${safeTableCode}`)
+      .or(priceFilters.join(","))
       .returns<CustomizationPriceTier[]>();
 
     const { data: pricingRules } = await supabaseAdmin
@@ -753,10 +798,7 @@ export async function saveCustomizationDraftAction(
       tableCodeOption,
       techniqueName,
       quantity,
-      colors:
-        printColorMode?.startsWith("colors:")
-          ? Number(printColorMode.split(":")[1])
-          : null,
+      colors: selectedColorCount,
       areaCm2:
         printingWidthMm && printingHeightMm
           ? (printingWidthMm * printingHeightMm) / 100
@@ -842,10 +884,7 @@ export async function saveCustomizationDraftAction(
       tableCodeOption:
         confirmedCustomizationPrice.tableCodeOption ?? tableCodeOption,
       priceTableId: confirmedCustomizationPrice.priceTableId,
-      selectedColorCount:
-        printColorMode?.startsWith("colors:")
-          ? Number(printColorMode.split(":")[1])
-          : null,
+      selectedColorCount,
       currentServiceCode: serviceCode,
     });
 
@@ -1061,8 +1100,8 @@ export async function saveCustomizationDraftAction(
         componentName,
         locationName,
         serviceCode: resolvedServiceCode,
-        tableCode,
-        tableCodeOption,
+        tableCode: confirmedCustomizationPrice.tableCode,
+        tableCodeOption: confirmedCustomizationPrice.tableCodeOption,
         needsDesignHelp,
         extraProof,
         nominative,

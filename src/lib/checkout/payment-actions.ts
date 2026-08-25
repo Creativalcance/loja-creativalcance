@@ -6,7 +6,6 @@ import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getStrickerConfig } from "@/lib/stricker/config";
-import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 import {
   getCustomizationServiceCodeHints,
   resolveCustomizationServiceCode,
@@ -144,28 +143,6 @@ function roundMoney(value: number): number {
 
 function toStripeAmount(value: number): number {
   return Math.round(roundMoney(value) * 100);
-}
-
-function locationNamesMatch(left: string | null, right: string | null): boolean {
-  const normalizedLeft = normalizeText(left);
-  const normalizedRight = normalizeText(right);
-
-  if (normalizedLeft === normalizedRight) {
-    return true;
-  }
-
-  const aliases: Record<string, string[]> = {
-    costas: ["back"],
-    back: ["costas"],
-    peito: ["chest"],
-    chest: ["peito"],
-    frente: ["front"],
-    front: ["frente"],
-    manga: ["sleeve"],
-    sleeve: ["manga"],
-  };
-
-  return (aliases[normalizedLeft] ?? []).includes(normalizedRight);
 }
 
 function normalizeText(value: string | null): string {
@@ -584,16 +561,14 @@ export async function createPaymentCheckoutSessionAction(
       };
     }
 
-    const personalizedItemsNeedingServiceCode = cartItems.filter(
-      (item) =>
-        item.personalization_required &&
-        !isSupplierServiceCode(item.service_code),
+    const personalizedItems = cartItems.filter(
+      (item) => item.personalization_required,
     );
 
-    if (personalizedItemsNeedingServiceCode.length > 0) {
+    if (personalizedItems.length > 0) {
       const resolvedServiceCodes = new Map<string, string>();
 
-      for (const item of personalizedItemsNeedingServiceCode) {
+      for (const item of personalizedItems) {
         if (!item.product_id) {
           return {
             success: false,

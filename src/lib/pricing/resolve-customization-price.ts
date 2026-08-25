@@ -49,6 +49,13 @@ function roundMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 
+function getTableCodeOptionColorCount(value: string | null): number | null {
+  const match = value?.trim().match(/-(\d+)$/);
+  const count = match?.[1] ? Number(match[1]) : null;
+
+  return count && Number.isInteger(count) && count > 0 ? count : null;
+}
+
 export function resolveCustomizationPrice(params: {
   tiers: CustomizationPriceTier[];
   rules?: PricingRule[];
@@ -71,12 +78,22 @@ export function resolveCustomizationPrice(params: {
     const optionMatch = !tableCodeOption || normalize(tier.table_code_option) === tableCodeOption;
     const techniqueMatch = !techniqueName || normalize(tier.technique_name) === techniqueName || normalize(tier.technique_code) === techniqueName;
     const quantityMatch = params.quantity >= tier.quantity_min && (tier.quantity_max === null || params.quantity <= tier.quantity_max);
-    const colorMatch = !tier.price_by_color || !params.colors || !tier.max_colors || params.colors <= tier.max_colors;
+    const optionColorCount = getTableCodeOptionColorCount(tier.table_code_option);
+    const colorMatch =
+      !params.colors ||
+      (optionColorCount !== null
+        ? optionColorCount === params.colors
+        : !tier.price_by_color || !tier.max_colors || tier.max_colors === params.colors);
     const areaMatch = !tier.price_by_area || !params.areaCm2 || !tier.area_cm2 || params.areaCm2 <= tier.area_cm2;
     return codeMatch && optionMatch && techniqueMatch && quantityMatch && colorMatch && areaMatch;
   });
 
-  if (candidates.length === 0) {
+  if (
+    candidates.length === 0 &&
+    !tableCodeOption &&
+    !techniqueName &&
+    !params.colors
+  ) {
     candidates = params.tiers.filter((tier) => {
       const codeMatch = !tableCode || normalize(tier.table_code) === tableCode || normalize(tier.table_code_option) === tableCode;
       return codeMatch && params.quantity >= tier.quantity_min;

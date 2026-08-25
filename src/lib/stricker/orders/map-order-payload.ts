@@ -156,6 +156,35 @@ function getCustomizationColors(
   string,
 ] {
   const data = item.personalization_data;
+  const printColorMode = getRecordString(data, "printColorMode");
+  const rawPrintColors = data.printColors;
+
+  if (printColorMode === "full") {
+    return ["", "", "", "", ""];
+  }
+
+  if (Array.isArray(rawPrintColors)) {
+    const selectedColors = rawPrintColors
+      .map((value) => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          return null;
+        }
+
+        return getRecordString(value as JsonRecord, "code");
+      })
+      .filter((value): value is string => Boolean(value))
+      .slice(0, 5);
+
+    if (selectedColors.length > 0) {
+      return [
+        selectedColors[0] ?? "",
+        selectedColors[1] ?? "",
+        selectedColors[2] ?? "",
+        selectedColors[3] ?? "",
+        selectedColors[4] ?? "",
+      ];
+    }
+  }
 
   return [
     getRecordString(data, "color1") ?? "",
@@ -164,6 +193,24 @@ function getCustomizationColors(
     getRecordString(data, "color4") ?? "",
     getRecordString(data, "color5") ?? "",
   ];
+}
+
+function getRequiredCustomizationColorCount(
+  item: StrickerOrderDatabaseItem,
+): number | null {
+  const mode = getRecordString(item.personalization_data, "printColorMode");
+  if (!mode?.startsWith("colors:")) return null;
+
+  const count = Number(mode.split(":")[1]);
+  return Number.isInteger(count) && count > 0 ? count : null;
+}
+
+function getTableOptionColorCount(
+  item: StrickerOrderDatabaseItem,
+): number | null {
+  const match = item.table_code_option?.trim().match(/-(\d+)$/);
+  const count = match?.[1] ? Number(match[1]) : null;
+  return count && Number.isInteger(count) && count > 0 ? count : null;
 }
 
 function getCustomizationGroup(
@@ -418,6 +465,9 @@ export function validateOrderForStricker(
 
     if (item.personalization_required) {
       const serviceCode = getServiceCode(item);
+      const requiredColorCount = getRequiredCustomizationColorCount(item);
+      const selectedColors = getCustomizationColors(item).filter(Boolean);
+      const tableOptionColorCount = getTableOptionColorCount(item);
 
       if (!serviceCode) {
         issues.push({
@@ -425,6 +475,31 @@ export function validateOrderForStricker(
           orderItemId: item.id,
           message:
             `A personalização de "${item.product_name}" não possui código de serviço do fornecedor.`,
+        });
+      }
+
+      if (
+        requiredColorCount !== null &&
+        selectedColors.length !== requiredColorCount
+      ) {
+        issues.push({
+          field: "personalization_data.printColors",
+          orderItemId: item.id,
+          message:
+            `A personalização de "${item.product_name}" requer exatamente ${requiredColorCount} ${requiredColorCount === 1 ? "cor" : "cores"} de impressão.`,
+        });
+      }
+
+      if (
+        requiredColorCount !== null &&
+        tableOptionColorCount !== null &&
+        requiredColorCount !== tableOptionColorCount
+      ) {
+        issues.push({
+          field: "table_code_option",
+          orderItemId: item.id,
+          message:
+            `A opção de personalização de "${item.product_name}" não corresponde ao número de cores selecionado.`,
         });
       }
 

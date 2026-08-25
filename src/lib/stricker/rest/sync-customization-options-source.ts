@@ -30,6 +30,7 @@ type CacheRow = {
 };
 
 const UPSERT_CHUNK_SIZE = 500;
+const UPSERT_CONCURRENCY = 12;
 
 function getString(value: unknown): string | null {
   if (typeof value === "string") {
@@ -56,6 +57,34 @@ function chunkArray<T>(values: T[], size: number): T[][] {
 
 function hashPayload(payload: JsonRecord): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+async function upsertChunks(params: {
+  chunks: CacheRow[][];
+  upsert: (rows: CacheRow[]) => PromiseLike<{ error: { message: string } | null }>;
+}): Promise<void> {
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < params.chunks.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const { error } = await params.upsert(params.chunks[index]);
+
+      if (error) {
+        throw new Error(
+          `Não foi possível guardar a captura de personalizações: ${error.message}`,
+        );
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from(
+      { length: Math.min(UPSERT_CONCURRENCY, params.chunks.length) },
+      () => worker(),
+    ),
+  );
 }
 
 export async function syncRestCustomizationOptionsSource(params: {
@@ -105,19 +134,15 @@ export async function syncRestCustomizationOptionsSource(params: {
     );
   }
 
-  for (const rowChunk of chunkArray(rows, UPSERT_CHUNK_SIZE)) {
-    const { error } = await supabaseAdmin
-      .from("supplier_customization_options_cache")
-      .upsert(rowChunk, {
-        onConflict: "supplier_id,language,service_code",
-      });
-
-    if (error) {
-      throw new Error(
-        `Não foi possível guardar a captura de personalizações: ${error.message}`,
-      );
-    }
-  }
+  await upsertChunks({
+    chunks: chunkArray(rows, UPSERT_CHUNK_SIZE),
+    upsert: (rowChunk) =>
+      supabaseAdmin
+        .from("supplier_customization_options_cache")
+        .upsert(rowChunk, {
+          onConflict: "supplier_id,language,service_code",
+        }),
+  });
 
   const { error: cleanupError, count: removedCount } = await supabaseAdmin
     .from("supplier_customization_options_cache")
