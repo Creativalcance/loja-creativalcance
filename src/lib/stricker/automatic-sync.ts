@@ -45,9 +45,10 @@ export type StrickerAutomaticSyncJob =
 type JsonResult = Record<string, unknown>;
 
 const LOCK_TTL_SECONDS = 330;
+const OPTIONALS_BATCH_SIZE = 500;
 const CUSTOMIZATION_BATCH_SIZE = 500;
 
-type CustomizationCursorPayload = {
+type CursorPayload = {
   hasMore?: unknown;
   nextOffset?: unknown;
   nextCursor?: unknown;
@@ -147,6 +148,53 @@ function isSameUtcWeek(left: string, right: Date): boolean {
   );
 }
 
+async function syncNextOptionalsBatch(): Promise<JsonResult> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const supplierId = await getStrickerSupplierId();
+
+  const { data, error } = await supabaseAdmin
+    .from("supplier_dataset_imports")
+    .select("status, raw_payload, finished_at")
+    .eq("dataset_name", "optionals")
+    .eq("supplier_id", supplierId)
+    .in("status", ["success", "partial_success"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      `Não foi possível recuperar o progresso das variantes: ${error.message}`,
+    );
+  }
+
+  const rawPayload = (data?.raw_payload ?? {}) as CursorPayload;
+  const previousCycleCompleted = rawPayload.hasMore === false;
+
+  if (
+    previousCycleCompleted &&
+    data?.finished_at &&
+    isSameUtcWeek(data.finished_at, new Date())
+  ) {
+    return {
+      dataset: "optionals",
+      cycleComplete: true,
+      message: "O ciclo semanal de variantes já foi concluído.",
+    };
+  }
+
+  const continuingCycle = rawPayload.hasMore === true;
+  const offset = continuingCycle
+    ? (getPositiveInteger(rawPayload.nextOffset) ?? 0)
+    : 0;
+
+  return syncRestOptionals({
+    lang: "PT",
+    offset,
+    limit: OPTIONALS_BATCH_SIZE,
+  });
+}
+
 async function syncNextCustomizationOptionsBatch(): Promise<JsonResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -190,7 +238,7 @@ async function syncNextCustomizationOptionsBatch(): Promise<JsonResult> {
     );
   }
 
-  const rawPayload = (data?.raw_payload ?? {}) as CustomizationCursorPayload;
+  const rawPayload = (data?.raw_payload ?? {}) as CursorPayload;
   const previousCycleCompleted = rawPayload.hasMore === false;
 
   if (
@@ -250,7 +298,7 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
     case "products":
       return syncRestProducts({ lang: "PT" });
     case "optionals":
-      return syncRestOptionals({ lang: "PT" });
+      return syncNextOptionalsBatch();
     case "prices":
       return syncRestOptionalsPrices({ lang: "PT" });
     case "customization-tables":
