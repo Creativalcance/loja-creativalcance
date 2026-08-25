@@ -39,6 +39,7 @@ type SyncResponse = {
   productsImported?: number;
   productTranslationsImported?: number;
   variantsImported?: number;
+  variantsUnchanged?: number;
   variantTranslationsImported?: number;
   pricesImported?: number;
   imagesImported?: number;
@@ -395,6 +396,76 @@ async function requestAllCustomizationOptions(
   );
 }
 
+async function requestAllOptionals(
+  language: StrickerLanguage,
+  onProgress: (processed: number, total: number) => void,
+): Promise<SyncResponse> {
+  const limit = 2_000;
+  let offset = 0;
+  let recordsTotal = 0;
+  let recordsProcessed = 0;
+  let variantsImported = 0;
+  let variantsUnchanged = 0;
+  let variantTranslationsImported = 0;
+  let pricesImported = 0;
+  let imagesImported = 0;
+  let componentsImported = 0;
+  let locationsImported = 0;
+  let lastPayload: SyncResponse | null = null;
+
+  for (let batch = 0; batch < 100; batch += 1) {
+    const payload = await requestSync({
+      action: "optionals",
+      body: { lang: language, offset, limit },
+    });
+
+    lastPayload = payload;
+    recordsTotal = payload.recordsTotal ?? recordsTotal;
+    recordsProcessed += payload.recordsProcessed ?? payload.recordsReceived ?? 0;
+    variantsImported += payload.variantsImported ?? 0;
+    variantsUnchanged += payload.variantsUnchanged ?? 0;
+    variantTranslationsImported += payload.variantTranslationsImported ?? 0;
+    pricesImported += payload.pricesImported ?? 0;
+    imagesImported += payload.imagesImported ?? 0;
+    componentsImported += payload.componentsImported ?? 0;
+    locationsImported += payload.locationsImported ?? 0;
+    onProgress(recordsProcessed, recordsTotal || recordsProcessed);
+
+    if (!payload.hasMore || payload.nextOffset === null) {
+      return {
+        ...payload,
+        recordsReceived: recordsProcessed,
+        recordsProcessed,
+        recordsTotal,
+        variantsImported,
+        variantsUnchanged,
+        variantTranslationsImported,
+        pricesImported,
+        imagesImported,
+        componentsImported,
+        locationsImported,
+        hasMore: false,
+        nextOffset: null,
+      };
+    }
+
+    if (
+      typeof payload.nextOffset !== "number" ||
+      payload.nextOffset <= offset
+    ) {
+      throw new Error("A sincronização de variantes devolveu uma paginação inválida.");
+    }
+
+    offset = payload.nextOffset;
+  }
+
+  throw new Error(
+    `A sincronização de variantes excedeu o limite de segurança. Último lote: ${
+      lastPayload?.offset ?? offset
+    }.`,
+  );
+}
+
 function getImportedCount(payload: SyncResponse): number {
   return (
     payload.productsPurchasable ??
@@ -502,7 +573,18 @@ export default function StrickerRestCatalogSyncActions() {
       });
 
       const payload =
-        action === "customizationOptions"
+        action === "optionals"
+          ? await requestAllOptionals(
+              selectedLanguage,
+              (processed, total) => {
+                setState({
+                  loadingAction: action,
+                  message: `A sincronizar variantes: ${processed} de ${total} registos processados.`,
+                  error: null,
+                });
+              },
+            )
+          : action === "customizationOptions"
           ? await requestAllCustomizationOptions(
               selectedLanguage,
               (processed, total) => {

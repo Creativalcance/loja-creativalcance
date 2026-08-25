@@ -342,6 +342,12 @@ export type SyncRestOptionalsResult = {
   imagesImported: number;
   componentsImported: number;
   locationsImported: number;
+  recordsTotal: number;
+  recordsProcessed: number;
+  offset: number;
+  limit: number;
+  nextOffset: number | null;
+  hasMore: boolean;
   datasetImportId: string;
 };
 
@@ -1585,6 +1591,8 @@ async function upsertLocations(params: {
 
 export async function syncRestOptionals(params: {
   lang: StrickerLanguage;
+  offset?: number;
+  limit?: number;
 }): Promise<SyncRestOptionalsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -1638,7 +1646,7 @@ export async function syncRestOptionals(params: {
     };
 
     const payloadMetadata = toJsonRecord(downloadResult.payload);
-    const records = extractDatasetRecords(downloadResult.payload, [
+    const allRecords = extractDatasetRecords(downloadResult.payload, [
       "Optionals",
       "optionals",
       "Data",
@@ -1646,9 +1654,16 @@ export async function syncRestOptionals(params: {
       "Items",
       "items",
     ]) as StrickerOptionalRecord[];
+    const offset = Math.max(0, Math.trunc(params.offset ?? 0));
+    const requestedLimit = Math.trunc(params.limit ?? allRecords.length);
+    const limit = Math.min(Math.max(requestedLimit, 1), 2_000);
+    const records = allRecords.slice(offset, offset + limit);
+    const recordsTotal = allRecords.length;
+    const nextOffset = offset + records.length;
+    const hasMore = nextOffset < recordsTotal;
     recordsReceived = records.length;
 
-    if (records.length === 0) {
+    if (recordsTotal === 0) {
       throw new Error(
         "O dataset de variantes foi descarregado sem registos. A sincronização foi interrompida sem alterar os dados existentes.",
       );
@@ -1664,6 +1679,9 @@ export async function syncRestOptionals(params: {
           format: downloadFormat,
           payloadHash: downloadResult.payloadHash,
           recordsReceived: records.length,
+          recordsTotal,
+          offset,
+          limit,
         },
       })
       .eq("id", datasetImportId)
@@ -1818,7 +1836,7 @@ export async function syncRestOptionals(params: {
       recordsImported: importedVariants.length,
       recordsFailed: Math.max(changedRecords.length - importedVariants.length, 0),
       rawPayload: {
-        Count: payloadMetadata.Count ?? records.length,
+        Count: payloadMetadata.Count ?? recordsTotal,
         Currency: payloadMetadata.Currency ?? null,
         Language: payloadMetadata.Language ?? params.lang,
         source: downloadSource,
@@ -1828,6 +1846,12 @@ export async function syncRestOptionals(params: {
         pricesImported: priceRows.length,
         pricingRulesLoaded: pricingRules.length,
         recordsUnchanged: records.length - changedRecords.length,
+        recordsTotal,
+        recordsProcessed: records.length,
+        offset,
+        limit,
+        nextOffset: hasMore ? nextOffset : null,
+        hasMore,
         sample: records.slice(0, 5),
       },
       errors,
@@ -1844,6 +1868,12 @@ export async function syncRestOptionals(params: {
       imagesImported: imageRows.length,
       componentsImported: importedComponents.length,
       locationsImported: locationRows.length,
+      recordsTotal,
+      recordsProcessed: records.length,
+      offset,
+      limit,
+      nextOffset: hasMore ? nextOffset : null,
+      hasMore,
       datasetImportId,
     };
   } catch (error) {

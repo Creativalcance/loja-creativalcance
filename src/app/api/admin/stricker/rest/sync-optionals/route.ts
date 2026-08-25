@@ -46,6 +46,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const body = (await request.json().catch(() => ({}))) as {
       lang?: unknown;
+      offset?: unknown;
+      limit?: unknown;
     };
 
     const langRaw =
@@ -65,6 +67,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const result = await syncRestOptionals({
       lang: langRaw,
+      offset:
+        typeof body.offset === "number" && Number.isFinite(body.offset)
+          ? body.offset
+          : 0,
+      limit:
+        typeof body.limit === "number" && Number.isFinite(body.limit)
+          ? body.limit
+          : 2_000,
     });
 
     return NextResponse.json({
