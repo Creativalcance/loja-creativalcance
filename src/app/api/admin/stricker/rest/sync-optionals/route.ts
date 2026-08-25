@@ -1,6 +1,3 @@
-
-
-
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
@@ -36,6 +33,8 @@ const ALLOWED_LANGUAGES: StrickerLanguage[] = [
   "UA",
 ];
 
+const MAX_VARIANT_SYNC_BATCH_SIZE = 500;
+
 function isAllowedLanguage(value: string): value is StrickerLanguage {
   return ALLOWED_LANGUAGES.includes(value as StrickerLanguage);
 }
@@ -65,16 +64,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    const requestedLimit =
+      typeof body.limit === "number" && Number.isFinite(body.limit)
+        ? Math.trunc(body.limit)
+        : MAX_VARIANT_SYNC_BATCH_SIZE;
+
+    const safeLimit = Math.min(
+      Math.max(requestedLimit, 1),
+      MAX_VARIANT_SYNC_BATCH_SIZE,
+    );
+
     const result = await syncRestOptionals({
       lang: langRaw,
       offset:
         typeof body.offset === "number" && Number.isFinite(body.offset)
           ? body.offset
           : 0,
-      limit:
-        typeof body.limit === "number" && Number.isFinite(body.limit)
-          ? body.limit
-          : 2_000,
+      limit: safeLimit,
     });
 
     return NextResponse.json({
