@@ -364,6 +364,7 @@ export type SyncRestOptionalsPricesResult = {
 
 const UPSERT_CHUNK_SIZE = 100;
 const CUSTOMIZATION_UPSERT_CHUNK_SIZE = 100;
+const LOCATION_UPSERT_CHUNK_SIZE = 25;
 const QUERY_CHUNK_SIZE = 200;
 const MAX_CUSTOMIZATION_SLOTS = 8;
 const DEFAULT_MARGIN_RATE = 0.35;
@@ -1576,16 +1577,34 @@ async function upsertLocations(params: {
   supabaseAdmin: SupabaseAdminClient;
   rows: ProductCustomizationLocationUpsertRow[];
 }): Promise<void> {
-  for (const rowChunk of chunkArray(params.rows, CUSTOMIZATION_UPSERT_CHUNK_SIZE)) {
+  async function upsertChunk(
+    rowChunk: ProductCustomizationLocationUpsertRow[],
+  ): Promise<void> {
     const { error } = await params.supabaseAdmin
       .from("product_customization_locations")
       .upsert(rowChunk, {
         onConflict: "product_id,variant_id,supplier_id,external_location_id",
       });
 
-    if (error) {
+    if (!error) {
+      return;
+    }
+
+    const isStatementTimeout =
+      error.code === "57014" ||
+      error.message.toLowerCase().includes("statement timeout");
+
+    if (!isStatementTimeout || rowChunk.length === 1) {
       throw new Error(error.message);
     }
+
+    const middle = Math.ceil(rowChunk.length / 2);
+    await upsertChunk(rowChunk.slice(0, middle));
+    await upsertChunk(rowChunk.slice(middle));
+  }
+
+  for (const rowChunk of chunkArray(params.rows, LOCATION_UPSERT_CHUNK_SIZE)) {
+    await upsertChunk(rowChunk);
   }
 }
 
