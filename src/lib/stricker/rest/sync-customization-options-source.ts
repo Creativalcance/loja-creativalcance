@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { fetchStrickerCustomizationOptions } from "@/lib/stricker/rest/client";
+import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 
@@ -11,13 +13,6 @@ type StrickerCustomizationOptionRecord = JsonRecord & {
   Location?: string | number | null;
   TableCode?: string | number | null;
   TableCodeOption?: string | number | null;
-};
-
-type DirectDownloadPayload = JsonRecord & {
-  CustomizationOptions?: unknown;
-  customizationOptions?: unknown;
-  Count?: unknown;
-  count?: unknown;
 };
 
 type CacheRow = {
@@ -34,11 +29,8 @@ type CacheRow = {
   last_seen_at: string;
 };
 
-const DIRECT_DOWNLOAD_URL =
-  "https://ws.stricker-europe.com/downloads/v1ssl/file";
-const DOWNLOAD_TIMEOUT_MS = 240_000;
 const UPSERT_CHUNK_SIZE = 500;
-const UPSERT_CONCURRENCY = 4;
+const UPSERT_CONCURRENCY = 12;
 
 function getString(value: unknown): string | null {
   if (typeof value === "string") {
@@ -53,29 +45,6 @@ function getString(value: unknown): string | null {
   return null;
 }
 
-function getInteger(value: unknown): number | null {
-  if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
-  }
-
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    return Number.isInteger(parsed) ? parsed : null;
-  }
-
-  return null;
-}
-
-function getAccessKey(): string {
-  const accessKey = process.env.STRICKER_ACCESS_KEY?.trim();
-
-  if (!accessKey) {
-    throw new Error("Variável STRICKER_ACCESS_KEY em falta.");
-  }
-
-  return accessKey;
-}
-
 function chunkArray<T>(values: T[], size: number): T[][] {
   const chunks: T[][] = [];
 
@@ -88,111 +57,6 @@ function chunkArray<T>(values: T[], size: number): T[][] {
 
 function hashPayload(payload: JsonRecord): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
-}
-
-function getCustomizationRecords(payload: unknown): {
-  records: StrickerCustomizationOptionRecord[];
-  advertisedCount: number | null;
-} {
-  if (Array.isArray(payload)) {
-    return {
-      records: payload.filter(
-        (record): record is StrickerCustomizationOptionRecord =>
-          Boolean(record) && typeof record === "object" && !Array.isArray(record),
-      ),
-      advertisedCount: null,
-    };
-  }
-
-  if (!payload || typeof payload !== "object") {
-    return { records: [], advertisedCount: null };
-  }
-
-  const record = payload as DirectDownloadPayload;
-  const rawRecords = Array.isArray(record.CustomizationOptions)
-    ? record.CustomizationOptions
-    : Array.isArray(record.customizationOptions)
-      ? record.customizationOptions
-      : [];
-
-  return {
-    records: rawRecords.filter(
-      (item): item is StrickerCustomizationOptionRecord =>
-        Boolean(item) && typeof item === "object" && !Array.isArray(item),
-    ),
-    advertisedCount: getInteger(record.Count ?? record.count),
-  };
-}
-
-async function fetchCompleteCustomizationOptions(params: {
-  lang: StrickerLanguage;
-}): Promise<{
-  records: StrickerCustomizationOptionRecord[];
-  advertisedCount: number | null;
-}> {
-  const url = new URL(DIRECT_DOWNLOAD_URL);
-  url.searchParams.set("AccessKey", getAccessKey());
-  url.searchParams.set("data", "customizationOptions");
-  url.searchParams.set("lang", params.lang);
-  url.searchParams.set("extension", "json");
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-      },
-    });
-
-    const text = await response.text();
-
-    if (!response.ok) {
-      throw new Error(
-        `Erro HTTP Stricker ${response.status} ao descarregar customizationOptions: ${text.slice(0, 500)}`,
-      );
-    }
-
-    if (!text.trim()) {
-      throw new Error(
-        "O download direto customizationOptions foi recebido vazio.",
-      );
-    }
-
-    const parsed = JSON.parse(text) as unknown;
-    const result = getCustomizationRecords(parsed);
-
-    if (result.records.length === 0) {
-      throw new Error(
-        "O download direto customizationOptions não contém registos válidos.",
-      );
-    }
-
-    if (
-      result.advertisedCount !== null &&
-      result.advertisedCount > result.records.length
-    ) {
-      throw new Error(
-        `O fornecedor anunciou ${result.advertisedCount} personalizações, mas o download contém apenas ${result.records.length}. A captura anterior foi preservada.`,
-      );
-    }
-
-    return result;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(
-        `Timeout ao descarregar customizationOptions após ${DOWNLOAD_TIMEOUT_MS}ms.`,
-      );
-    }
-
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
 }
 
 async function upsertChunks(params: {
@@ -228,9 +92,18 @@ export async function syncRestCustomizationOptionsSource(params: {
 }): Promise<Record<string, unknown>> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
+  const token = await getValidStrickerSessionToken();
   const capturedAt = new Date().toISOString();
-  const { records, advertisedCount } =
-    await fetchCompleteCustomizationOptions({ lang: params.lang });
+  const payload = await fetchStrickerCustomizationOptions(token, params.lang);
+  const records = Array.isArray(payload.CustomizationOptions)
+    ? (payload.CustomizationOptions as StrickerCustomizationOptionRecord[])
+    : [];
+
+  if (records.length === 0) {
+    throw new Error(
+      "O feed customizationOptions foi recebido sem registos. A captura anterior foi preservada.",
+    );
+  }
 
   const rows: CacheRow[] = records.flatMap((record) => {
     const serviceCode = getString(record.ServiceCode);
@@ -287,9 +160,7 @@ export async function syncRestCustomizationOptionsSource(params: {
   return {
     dataset: "customizationOptionsSource",
     lang: params.lang,
-    source: "direct-download",
     recordsReceived: records.length,
-    recordsAdvertised: advertisedCount,
     recordsCached: rows.length,
     recordsRemoved: removedCount ?? 0,
     capturedAt,
