@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
 import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
+import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 
 export const runtime = "nodejs";
@@ -128,6 +129,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       max: 10_000_000,
     });
 
+    // A primeira página de uma sincronização manual atualiza sempre a captura
+    // completa do fornecedor. Isto evita processar um cache REST truncado
+    // (por exemplo, apenas os primeiros 4000 ServiceCodes).
+    const sourceResult =
+      offset === 0 && cursor === null
+        ? await syncRestCustomizationOptionsSource({ lang: langRaw })
+        : null;
+
     const result = await syncRestCustomizationOptions({
       lang: langRaw,
       offset,
@@ -143,6 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: hasPendingRecords
         ? `Sincronização concluída com ${result.optionsFailed} opção pendente neste lote.`
         : "Opções de personalização do fornecedor sincronizadas com sucesso.",
+      source: sourceResult,
       ...result,
     });
   } catch (error) {
