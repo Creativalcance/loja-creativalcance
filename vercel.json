@@ -12,8 +12,8 @@
     { "path": "/api/cron/stricker/printing-slas", "schedule": "55 0 * * 0" },
     { "path": "/api/cron/stricker/products", "schedule": "15 1 * * 0" },
     { "path": "/api/cron/stricker/optionals", "schedule": "*/10 2-5 * * 0" },
-    { "path": "/api/cron/stricker/customization-options-source", "schedule": "40 2 * * 0" },
-    { "path": "/api/cron/stricker/customization-options", "schedule": "*/2 3-6 * * 0" },
+    { "path": "/api/cron/stricker/customization-options-source", "schedule": "* * * * *" },
+    { "path": "/api/cron/stricker/customization-options", "schedule": "* * * * *" },
     { "path": "/api/cron/stricker/orders-status", "schedule": "*/15 * * * *" }
   ]
 }
