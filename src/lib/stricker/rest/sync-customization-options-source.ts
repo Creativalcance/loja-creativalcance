@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
-import { fetchStrickerCustomizationOptions } from "@/lib/stricker/rest/client";
-import { getValidStrickerSessionToken } from "@/lib/stricker/rest/session";
+import {
+  downloadStrickerDataset,
+  extractDatasetRecords,
+} from "@/lib/stricker/download-client";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 
@@ -30,7 +32,17 @@ type CacheRow = {
 };
 
 const UPSERT_CHUNK_SIZE = 500;
-const UPSERT_CONCURRENCY = 12;
+const UPSERT_CONCURRENCY = 4;
+const DOWNLOAD_TIMEOUT_MS = 180_000;
+
+const CUSTOMIZATION_RECORD_KEYS = [
+  "CustomizationOptions",
+  "customizationOptions",
+  "Data",
+  "data",
+  "Items",
+  "items",
+];
 
 function getString(value: unknown): string | null {
   if (typeof value === "string") {
@@ -57,6 +69,49 @@ function chunkArray<T>(values: T[], size: number): T[][] {
 
 function hashPayload(payload: JsonRecord): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+async function fetchCompleteCustomizationOptions(params: {
+  lang: StrickerLanguage;
+}): Promise<StrickerCustomizationOptionRecord[]> {
+  const [textileResult, nonTextileResult] = await Promise.all([
+    downloadStrickerDataset(
+      {
+        datasetName: "customizationoptions_textil_products",
+        lang: params.lang,
+        extension: "json",
+      },
+      { timeoutMs: DOWNLOAD_TIMEOUT_MS },
+    ),
+    downloadStrickerDataset(
+      {
+        datasetName: "customizationoptions_without_textil",
+        lang: params.lang,
+        extension: "json",
+      },
+      { timeoutMs: DOWNLOAD_TIMEOUT_MS },
+    ),
+  ]);
+
+  const textileRecords = extractDatasetRecords(
+    textileResult.payload,
+    CUSTOMIZATION_RECORD_KEYS,
+  ) as StrickerCustomizationOptionRecord[];
+
+  const nonTextileRecords = extractDatasetRecords(
+    nonTextileResult.payload,
+    CUSTOMIZATION_RECORD_KEYS,
+  ) as StrickerCustomizationOptionRecord[];
+
+  const records = [...textileRecords, ...nonTextileRecords];
+
+  if (records.length === 0) {
+    throw new Error(
+      "Os feeds completos de customizationOptions foram recebidos sem registos. A captura anterior foi preservada.",
+    );
+  }
+
+  return records;
 }
 
 async function upsertChunks(params: {
@@ -92,18 +147,8 @@ export async function syncRestCustomizationOptionsSource(params: {
 }): Promise<Record<string, unknown>> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
-  const token = await getValidStrickerSessionToken();
   const capturedAt = new Date().toISOString();
-  const payload = await fetchStrickerCustomizationOptions(token, params.lang);
-  const records = Array.isArray(payload.CustomizationOptions)
-    ? (payload.CustomizationOptions as StrickerCustomizationOptionRecord[])
-    : [];
-
-  if (records.length === 0) {
-    throw new Error(
-      "O feed customizationOptions foi recebido sem registos. A captura anterior foi preservada.",
-    );
-  }
+  const records = await fetchCompleteCustomizationOptions({ lang: params.lang });
 
   const rows: CacheRow[] = records.flatMap((record) => {
     const serviceCode = getString(record.ServiceCode);
@@ -130,7 +175,7 @@ export async function syncRestCustomizationOptionsSource(params: {
 
   if (rows.length === 0) {
     throw new Error(
-      "O feed customizationOptions não contém referências e códigos de serviço válidos. A captura anterior foi preservada.",
+      "Os feeds customizationOptions não contêm referências e códigos de serviço válidos. A captura anterior foi preservada.",
     );
   }
 
@@ -160,6 +205,7 @@ export async function syncRestCustomizationOptionsSource(params: {
   return {
     dataset: "customizationOptionsSource",
     lang: params.lang,
+    source: "direct-download-split",
     recordsReceived: records.length,
     recordsCached: rows.length,
     recordsRemoved: removedCount ?? 0,
