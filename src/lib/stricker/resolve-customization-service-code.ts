@@ -169,19 +169,6 @@ export async function resolveCustomizationServiceCode(
     (option) => isSupplierServiceCode(option.service_code),
   );
 
-  // O ServiceCode recebido do editor é apenas uma pista. Tem de continuar a
-  // corresponder à variante, localização, técnica, tabela e número de cores
-  // selecionados; um código antigo não pode sobrepor-se a essas escolhas.
-  if (isSupplierServiceCode(params.currentServiceCode)) {
-    const exactCurrentServiceCode = productOptions.filter(
-      (option) => option.service_code === params.currentServiceCode,
-    );
-
-    if (exactCurrentServiceCode.length > 0) {
-      productOptions.splice(0, productOptions.length, ...exactCurrentServiceCode);
-    }
-  }
-
   let candidates = productOptions;
 
   const exactVariant = candidates.filter(
@@ -236,6 +223,13 @@ export async function resolveCustomizationServiceCode(
       (option) =>
         normalize(option.customization_type_name) === normalize(params.techniqueName),
     );
+  }
+
+  if (isSupplierServiceCode(params.currentServiceCode)) {
+    const currentCandidate = candidates.find(
+      (option) => option.service_code === params.currentServiceCode,
+    );
+    if (currentCandidate) return currentCandidate.service_code;
   }
 
   const uniqueCode = getUniqueServiceCode(candidates);
