@@ -185,11 +185,14 @@ async function upsertRowsWithSplit(params: {
   }
 
   const midpoint = Math.ceil(params.rows.length / 2);
-  const left = params.rows.slice(0, midpoint);
-  const right = params.rows.slice(midpoint);
-
-  await upsertRowsWithSplit({ rows: left, upsert: params.upsert });
-  await upsertRowsWithSplit({ rows: right, upsert: params.upsert });
+  await upsertRowsWithSplit({
+    rows: params.rows.slice(0, midpoint),
+    upsert: params.upsert,
+  });
+  await upsertRowsWithSplit({
+    rows: params.rows.slice(midpoint),
+    upsert: params.upsert,
+  });
 }
 
 async function upsertChunks(params: {
@@ -265,7 +268,11 @@ export async function syncRestCustomizationOptionsSource(params: {
         }),
   });
 
-  const { error: cleanupError, count: removedCount } = await supabaseAdmin
+  let removedCount = 0;
+  let cleanupPending = false;
+  let cleanupWarning: string | null = null;
+
+  const { error: cleanupError, count } = await supabaseAdmin
     .from("supplier_customization_options_cache")
     .delete({ count: "exact" })
     .eq("supplier_id", supplierId)
@@ -273,9 +280,17 @@ export async function syncRestCustomizationOptionsSource(params: {
     .lt("last_seen_at", capturedAt);
 
   if (cleanupError) {
-    throw new Error(
-      `A captura foi atualizada, mas não foi possível retirar opções obsoletas: ${cleanupError.message}`,
+    // A limpeza de registos obsoletos é manutenção, não faz parte da ingestão
+    // dos ServiceCodes atuais. Se o PostgreSQL atingir statement_timeout aqui,
+    // preservamos os dados novos e deixamos a limpeza para uma execução futura.
+    cleanupPending = true;
+    cleanupWarning = cleanupError.message;
+    console.warn(
+      "Captura de personalizações atualizada; limpeza de cache obsoleto pendente:",
+      cleanupError.message,
     );
+  } else {
+    removedCount = count ?? 0;
   }
 
   return {
@@ -283,10 +298,12 @@ export async function syncRestCustomizationOptionsSource(params: {
     lang: params.lang,
     source: "direct-download-documented-union",
     feedCounts,
-    recordsReceived: Object.values(feedCounts).reduce((sum, count) => sum + count, 0),
+    recordsReceived: Object.values(feedCounts).reduce((sum, feedCount) => sum + feedCount, 0),
     uniqueServiceCodes: rows.length,
     recordsCached: rows.length,
-    recordsRemoved: removedCount ?? 0,
+    recordsRemoved: removedCount,
+    cleanupPending,
+    cleanupWarning,
     capturedAt,
   };
 }
