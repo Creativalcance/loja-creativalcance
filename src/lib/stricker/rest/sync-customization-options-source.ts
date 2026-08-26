@@ -36,8 +36,9 @@ type FeedResult = {
   records: StrickerCustomizationOptionRecord[];
 };
 
-const UPSERT_CHUNK_SIZE = 2_000;
-const UPSERT_CONCURRENCY = 8;
+const UPSERT_CHUNK_SIZE = 500;
+const UPSERT_CONCURRENCY = 2;
+const MIN_UPSERT_CHUNK_SIZE = 25;
 const DOWNLOAD_TIMEOUT_MS = 240_000;
 
 const CUSTOMIZATION_RECORD_KEYS = [
@@ -80,6 +81,25 @@ function chunkArray<T>(values: T[], size: number): T[][] {
 
 function hashPayload(payload: JsonRecord): string {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isRetryableDatabaseError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("statement timeout") ||
+    message.includes("canceling statement due to statement timeout") ||
+    message.includes("57014") ||
+    message.includes("fetch failed") ||
+    message.includes("network") ||
+    message.includes("econnreset") ||
+    message.includes("socket") ||
+    message.includes("terminated")
+  );
 }
 
 async function fetchCustomizationFeed(params: {
@@ -150,6 +170,28 @@ async function fetchCompleteDocumentedCustomizationOptions(params: {
   return { records, feedCounts };
 }
 
+async function upsertRowsWithSplit(params: {
+  rows: CacheRow[];
+  upsert: (rows: CacheRow[]) => PromiseLike<{ error: { message: string } | null }>;
+}): Promise<void> {
+  const { error } = await params.upsert(params.rows);
+
+  if (!error) return;
+
+  if (!isRetryableDatabaseError(error) || params.rows.length <= MIN_UPSERT_CHUNK_SIZE) {
+    throw new Error(
+      `Não foi possível guardar a captura de personalizações: ${error.message}`,
+    );
+  }
+
+  const midpoint = Math.ceil(params.rows.length / 2);
+  const left = params.rows.slice(0, midpoint);
+  const right = params.rows.slice(midpoint);
+
+  await upsertRowsWithSplit({ rows: left, upsert: params.upsert });
+  await upsertRowsWithSplit({ rows: right, upsert: params.upsert });
+}
+
 async function upsertChunks(params: {
   chunks: CacheRow[][];
   upsert: (rows: CacheRow[]) => PromiseLike<{ error: { message: string } | null }>;
@@ -160,13 +202,10 @@ async function upsertChunks(params: {
     while (nextIndex < params.chunks.length) {
       const index = nextIndex;
       nextIndex += 1;
-      const { error } = await params.upsert(params.chunks[index]);
-
-      if (error) {
-        throw new Error(
-          `Não foi possível guardar a captura de personalizações: ${error.message}`,
-        );
-      }
+      await upsertRowsWithSplit({
+        rows: params.chunks[index],
+        upsert: params.upsert,
+      });
     }
   }
 
@@ -226,8 +265,6 @@ export async function syncRestCustomizationOptionsSource(params: {
         }),
   });
 
-  // Só removemos dados antigos depois de TODOS os feeds oficiais terem sido
-  // descarregados e TODOS os novos ServiceCodes terem sido gravados.
   const { error: cleanupError, count: removedCount } = await supabaseAdmin
     .from("supplier_customization_options_cache")
     .delete({ count: "exact" })
