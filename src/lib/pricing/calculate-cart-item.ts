@@ -1,3 +1,5 @@
+import { GLOBAL_MINIMUM_ORDER_QUANTITY } from "@/lib/commerce/minimum-order-quantity";
+
 export type PriceTier = {
   quantity_min: number;
   quantity_max: number | null;
@@ -60,6 +62,18 @@ export function calculateCartItemPricing({
   prices,
   selectedPrintingTechnique,
 }: CartItemPricingInput): CartItemPricingResult {
+  if (quantity > 0 && quantity < GLOBAL_MINIMUM_ORDER_QUANTITY) {
+    return {
+      currency: prices[0]?.currency ?? "EUR",
+      unitPrice: 0,
+      personalizationUnitPrice: 0,
+      setupCost: 0,
+      subtotal: 0,
+      personalizationTotal: 0,
+      total: 0,
+    };
+  }
+
   const priceTier = findPriceTier(quantity, prices);
 
   const currency = priceTier?.currency ?? "EUR";
