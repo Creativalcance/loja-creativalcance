@@ -38,6 +38,25 @@ function getNullableString(value: unknown): string | null {
   return null;
 }
 
+function getNullableBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    if (value === 1) return true;
+    if (value === 0) return false;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes"].includes(normalized)) return true;
+    if (["false", "0", "no"].includes(normalized)) return false;
+  }
+
+  return null;
+}
+
 function getResponseErrorCode(
   response: StrickerOrderApiResponse,
 ): string | null {
@@ -113,10 +132,6 @@ function extractOrderDetailsValue(
     return value as StrickerOrderDetails;
   }
 
-  /*
-   * Algumas versões do serviço devolvem diretamente os campos
-   * da encomenda na raiz da resposta.
-   */
   const rootStamp =
     getNullableString(response.OrderStamp) ??
     getNullableString(response.orderStamp);
@@ -126,6 +141,54 @@ function extractOrderDetailsValue(
   }
 
   return null;
+}
+
+function orderStillWaitsForArtwork(
+  orderDetails: StrickerOrderDetails,
+): boolean {
+  const orderRecord = orderDetails as JsonRecord;
+  const orderWaitArtwork =
+    getNullableBoolean(orderRecord.WaitArtWork) ??
+    getNullableBoolean(orderRecord.WaitArtwork) ??
+    getNullableBoolean(orderRecord.waitArtWork) ??
+    getNullableBoolean(orderRecord.waitArtwork);
+
+  if (orderWaitArtwork === true) {
+    return true;
+  }
+
+  const status = (
+    getNullableString(orderDetails.Status) ??
+    getNullableString(orderDetails.status) ??
+    ""
+  ).toUpperCase();
+
+  if (status === "WAITING_ART_WORK" || status === "WAITING_ARTWORK") {
+    return true;
+  }
+
+  const lines =
+    orderDetails.OrderLines ??
+    orderDetails.orderLines ??
+    [];
+
+  if (!Array.isArray(lines)) {
+    return false;
+  }
+
+  return lines.some((line) => {
+    if (!isJsonRecord(line)) {
+      return false;
+    }
+
+    return (
+      getNullableBoolean(line.WaitArtWork) ??
+      getNullableBoolean(line.WaitArtwork) ??
+      getNullableBoolean(line.waitArtWork) ??
+      getNullableBoolean(line.waitArtwork) ??
+      false
+    );
+  });
 }
 
 function getApiBaseUrl(): string {
@@ -298,10 +361,23 @@ export async function submitStrickerServiceOrder(
 
   assertSuccessfulResponse(response, "ServiceOrderV1");
 
+  const orderStamp = payload.orderStamp?.trim();
+  let orderDetails = extractOrderDetailsValue(response);
+
+  if (orderStamp) {
+    const verified = await getStrickerOrderDetails(orderStamp, options);
+    orderDetails = verified.orderDetails;
+
+    if (orderStillWaitsForArtwork(orderDetails)) {
+      throw new Error(
+        "A Stricker recebeu o ServiceOrderV1, mas a encomenda continua a aguardar artwork. A personalização não será marcada como submetida até o fornecedor confirmar a associação do ficheiro.",
+      );
+    }
+  }
+
   return {
     response,
-    orderDetails:
-      extractOrderDetailsValue(response),
+    orderDetails,
   };
 }
 
