@@ -38,25 +38,6 @@ function getNullableString(value: unknown): string | null {
   return null;
 }
 
-function getNullableBoolean(value: unknown): boolean | null {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (typeof value === "number") {
-    if (value === 1) return true;
-    if (value === 0) return false;
-  }
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (["true", "1", "yes"].includes(normalized)) return true;
-    if (["false", "0", "no"].includes(normalized)) return false;
-  }
-
-  return null;
-}
-
 function getResponseErrorCode(
   response: StrickerOrderApiResponse,
 ): string | null {
@@ -141,54 +122,6 @@ function extractOrderDetailsValue(
   }
 
   return null;
-}
-
-function orderStillWaitsForArtwork(
-  orderDetails: StrickerOrderDetails,
-): boolean {
-  const orderRecord = orderDetails as JsonRecord;
-  const orderWaitArtwork =
-    getNullableBoolean(orderRecord.WaitArtWork) ??
-    getNullableBoolean(orderRecord.WaitArtwork) ??
-    getNullableBoolean(orderRecord.waitArtWork) ??
-    getNullableBoolean(orderRecord.waitArtwork);
-
-  if (orderWaitArtwork === true) {
-    return true;
-  }
-
-  const status = (
-    getNullableString(orderDetails.Status) ??
-    getNullableString(orderDetails.status) ??
-    ""
-  ).toUpperCase();
-
-  if (status === "WAITING_ART_WORK" || status === "WAITING_ARTWORK") {
-    return true;
-  }
-
-  const lines =
-    orderDetails.OrderLines ??
-    orderDetails.orderLines ??
-    [];
-
-  if (!Array.isArray(lines)) {
-    return false;
-  }
-
-  return lines.some((line) => {
-    if (!isJsonRecord(line)) {
-      return false;
-    }
-
-    return (
-      getNullableBoolean(line.WaitArtWork) ??
-      getNullableBoolean(line.WaitArtwork) ??
-      getNullableBoolean(line.waitArtWork) ??
-      getNullableBoolean(line.waitArtwork) ??
-      false
-    );
-  });
 }
 
 function getApiBaseUrl(): string {
@@ -361,18 +294,30 @@ export async function submitStrickerServiceOrder(
 
   assertSuccessfulResponse(response, "ServiceOrderV1");
 
-  const orderStamp = payload.orderStamp?.trim();
-  let orderDetails = extractOrderDetailsValue(response);
+  const orderDetails = extractOrderDetailsValue(response);
+  const serviceStatus = orderDetails
+    ? extractStrickerOrderStatus(orderDetails)?.toUpperCase() ?? null
+    : null;
 
-  if (orderStamp) {
-    const verified = await getStrickerOrderDetails(orderStamp, options);
-    orderDetails = verified.orderDetails;
-
-    if (orderStillWaitsForArtwork(orderDetails)) {
-      throw new Error(
-        "A Stricker recebeu o ServiceOrderV1, mas a encomenda continua a aguardar artwork. A personalização não será marcada como submetida até o fornecedor confirmar a associação do ficheiro.",
-      );
-    }
+  /*
+   * A resposta do próprio ServiceOrderV1 é a confirmação autoritativa da
+   * receção da personalização. A Stricker mantém WaitArtWork=true na linha
+   * mesmo depois de aceitar o serviço e mudar o estado para PROCESSING; esse
+   * campo representa a forma como a linha PRINT foi criada no OrderV1 e não
+   * deve ser tratado como um estado atual de receção do ficheiro.
+   *
+   * Também não consultamos OrderDetailsV1 imediatamente após ServiceOrderV1:
+   * em testes reais esse endpoint pode ainda devolver o estado anterior por
+   * alguns segundos (eventual consistency), criando um falso erro apesar de
+   * ServiceOrderV1 já ter respondido PROCESSING sem ErrorCode/ErrorMessage.
+   */
+  if (
+    serviceStatus === "WAITING_ART_WORK" ||
+    serviceStatus === "WAITING_ARTWORK"
+  ) {
+    throw new Error(
+      "A Stricker respondeu ao ServiceOrderV1 sem erro, mas manteve a encomenda no estado WAITING_ART_WORK.",
+    );
   }
 
   return {
