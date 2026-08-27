@@ -42,7 +42,11 @@ export type ResolvedCustomizationPrice = {
 };
 
 function normalize(value: string | null | undefined): string {
-  return (value ?? "").trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  return (value ?? "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
 }
 
 function roundMoney(value: number): number {
@@ -72,20 +76,57 @@ export function resolveCustomizationPrice(params: {
   const tableCode = normalize(params.tableCode);
   const tableCodeOption = normalize(params.tableCodeOption);
   const techniqueName = normalize(params.techniqueName);
+  const hasSelectedSupplierTable = Boolean(tableCode || tableCodeOption);
 
   let candidates = params.tiers.filter((tier) => {
-    const codeMatch = !tableCode || normalize(tier.table_code) === tableCode || normalize(tier.table_code_option) === tableCode;
-    const optionMatch = !tableCodeOption || normalize(tier.table_code_option) === tableCodeOption;
-    const techniqueMatch = !techniqueName || normalize(tier.technique_name) === techniqueName || normalize(tier.technique_code) === techniqueName;
-    const quantityMatch = params.quantity >= tier.quantity_min && (tier.quantity_max === null || params.quantity <= tier.quantity_max);
-    const optionColorCount = getTableCodeOptionColorCount(tier.table_code_option);
+    const codeMatch =
+      !tableCode ||
+      normalize(tier.table_code) === tableCode ||
+      normalize(tier.table_code_option) === tableCode;
+    const optionMatch =
+      !tableCodeOption || normalize(tier.table_code_option) === tableCodeOption;
+    const techniqueMatch =
+      !techniqueName ||
+      normalize(tier.technique_name) === techniqueName ||
+      normalize(tier.technique_code) === techniqueName;
+    const quantityMatch =
+      params.quantity >= tier.quantity_min &&
+      (tier.quantity_max === null || params.quantity <= tier.quantity_max);
+    const optionColorCount = getTableCodeOptionColorCount(
+      tier.table_code_option,
+    );
     const colorMatch =
       !params.colors ||
       (optionColorCount !== null
         ? optionColorCount === params.colors
-        : !tier.price_by_color || !tier.max_colors || tier.max_colors === params.colors);
-    const areaMatch = !tier.price_by_area || !params.areaCm2 || !tier.area_cm2 || params.areaCm2 <= tier.area_cm2;
-    return codeMatch && optionMatch && techniqueMatch && quantityMatch && colorMatch && areaMatch;
+        : !tier.price_by_color ||
+          !tier.max_colors ||
+          tier.max_colors === params.colors);
+
+    /*
+     * Segundo a estrutura Stricker, TableCode já identifica técnica + área e
+     * TableCodeOption especializa essa combinação (incluindo cor quando
+     * aplicável). Quando o editor envia uma tabela oficial já selecionada,
+     * essa identidade deve ser preservada. A área geométrica recebida do
+     * editor não pode voltar a invalidar a própria tabela do fornecedor — em
+     * particular porque printingWidth/Height representam a área disponível,
+     * enquanto a tabela selecionada corresponde à área tarifada do artwork.
+     */
+    const areaMatch =
+      hasSelectedSupplierTable ||
+      !tier.price_by_area ||
+      !params.areaCm2 ||
+      !tier.area_cm2 ||
+      params.areaCm2 <= tier.area_cm2;
+
+    return (
+      codeMatch &&
+      optionMatch &&
+      techniqueMatch &&
+      quantityMatch &&
+      colorMatch &&
+      areaMatch
+    );
   });
 
   if (
@@ -95,12 +136,20 @@ export function resolveCustomizationPrice(params: {
     !params.colors
   ) {
     candidates = params.tiers.filter((tier) => {
-      const codeMatch = !tableCode || normalize(tier.table_code) === tableCode || normalize(tier.table_code_option) === tableCode;
+      const codeMatch =
+        !tableCode ||
+        normalize(tier.table_code) === tableCode ||
+        normalize(tier.table_code_option) === tableCode;
       return codeMatch && params.quantity >= tier.quantity_min;
     });
   }
 
-  const tier = [...candidates].sort((a, b) => b.quantity_min - a.quantity_min || (a.area_cm2 ?? Number.MAX_SAFE_INTEGER) - (b.area_cm2 ?? Number.MAX_SAFE_INTEGER))[0];
+  const tier = [...candidates].sort(
+    (a, b) =>
+      b.quantity_min - a.quantity_min ||
+      (a.area_cm2 ?? Number.MAX_SAFE_INTEGER) -
+        (b.area_cm2 ?? Number.MAX_SAFE_INTEGER),
+  )[0];
   if (!tier || tier.final_price <= 0) return null;
 
   const rules = params.rules ?? [];
@@ -112,7 +161,9 @@ export function resolveCustomizationPrice(params: {
     quantity: params.quantity,
   });
   const setupPrice = calculateProductSellingPrice({
-    supplierPrice: Number(tier.supplier_handling_cost ?? tier.handling_cost ?? 0),
+    supplierPrice: Number(
+      tier.supplier_handling_cost ?? tier.handling_cost ?? 0,
+    ),
     marginRate: setupRule?.margin_rate ?? 0.3,
     markupRate: setupRule?.markup_rate ?? null,
     fixedFee: setupRule?.fixed_fee ?? 0,
@@ -127,7 +178,9 @@ export function resolveCustomizationPrice(params: {
       ? roundMoney(Number(tier.handling_cost ?? 0))
       : roundMoney(setupPrice.finalPrice),
     supplierPersonalizationUnitPrice: Number(tier.supplier_price),
-    supplierSetupCost: Number(tier.supplier_handling_cost ?? tier.handling_cost ?? 0),
+    supplierSetupCost: Number(
+      tier.supplier_handling_cost ?? tier.handling_cost ?? 0,
+    ),
     currency: tier.currency || "EUR",
     quantityMin: tier.quantity_min,
     quantityMax: tier.quantity_max,
