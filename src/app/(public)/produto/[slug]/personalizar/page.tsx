@@ -7,6 +7,7 @@ import ProductCustomizationEditor, {
   type ProductEditorPrice,
   type ProductEditorVariant,
 } from "@/components/product/ProductCustomizationEditor";
+import { getEffectiveMinimumOrderQuantity } from "@/lib/commerce/minimum-order-quantity";
 import {
   buildStrickerLocationImageUrl,
   buildStrickerPrintingLinesImageUrl,
@@ -125,6 +126,7 @@ type ProductDetail = {
   slug: string;
   short_description: string | null;
   is_customizable: boolean;
+  min_order_quantity: number;
   product_images: ProductImage[] | null;
   product_variants: ProductVariant[] | null;
   product_prices: ProductPrice[] | null;
@@ -396,9 +398,7 @@ function getComponentForLocation(params: {
     return null;
   }
 
-  return (
-    params.componentsById.get(params.location.component_id) ?? null
-  );
+  return params.componentsById.get(params.location.component_id) ?? null;
 }
 
 function getUniqueCustomizationLocations(
@@ -449,6 +449,7 @@ function buildEditorLocations(params: {
   componentsById: Map<string, ProductCustomizationComponent>;
   printingPrices: PrintingPriceTable[];
   customizationOptions: ProductCustomizationOption[];
+  minimumQuantity: number;
 }): ProductEditorLocation[] {
   const rows: ProductEditorLocation[] = [];
 
@@ -594,12 +595,9 @@ function buildEditorLocations(params: {
         variant_id: location.variant_id,
         technique,
         component_name:
-          component?.component_name ??
-          component?.component_code ??
-          null,
+          component?.component_name ?? component?.component_code ?? null,
         location_name: locationName,
-        preview_image_url:
-          techniqueImageUrl,
+        preview_image_url: techniqueImageUrl,
         preview_image_urls: exactTechniqueImageUrls,
         location_image_url: null,
         area_image_url: null,
@@ -621,45 +619,54 @@ function buildEditorLocations(params: {
                 codeBelongsToSlot(price.table_code, code) ||
                 codeBelongsToSlot(price.table_code_option, code),
             );
-            return codeMatches;
+            const reachesMinimum =
+              price.quantity_max === null ||
+              price.quantity_max >= params.minimumQuantity;
+            return codeMatches && reachesMinimum;
           })
           .map((price) => {
-            const supplierOption = techniqueOptions.find(
-              (option) =>
-                isSupplierServiceCode(option.service_code) &&
-                option.printing_price_table_id === price.id,
-            ) ?? techniqueOptions.find(
-              (option) =>
-                isSupplierServiceCode(option.service_code) &&
-                Boolean(price.table_code_option) &&
-                normalizeComparable(option.table_code_option ?? "") ===
-                  normalizeComparable(price.table_code_option ?? ""),
-            ) ?? techniqueOptions.find(
-              (option) =>
-                isSupplierServiceCode(option.service_code) &&
-                !price.table_code_option &&
-                normalizeComparable(option.table_code ?? "") ===
-                  normalizeComparable(price.table_code),
-            );
+            const supplierOption =
+              techniqueOptions.find(
+                (option) =>
+                  isSupplierServiceCode(option.service_code) &&
+                  option.printing_price_table_id === price.id,
+              ) ??
+              techniqueOptions.find(
+                (option) =>
+                  isSupplierServiceCode(option.service_code) &&
+                  Boolean(price.table_code_option) &&
+                  normalizeComparable(option.table_code_option ?? "") ===
+                    normalizeComparable(price.table_code_option ?? ""),
+              ) ??
+              techniqueOptions.find(
+                (option) =>
+                  isSupplierServiceCode(option.service_code) &&
+                  !price.table_code_option &&
+                  normalizeComparable(option.table_code ?? "") ===
+                    normalizeComparable(price.table_code),
+              );
 
             return {
-            id: price.id,
-            table_code: price.table_code,
-            table_code_option: price.table_code_option,
-            service_code: supplierOption?.service_code ?? null,
-            quantity_min: price.quantity_min,
-            quantity_max: price.quantity_max,
-            supplier_price: price.supplier_price,
-            final_price: price.final_price,
-            supplier_handling_cost: price.supplier_handling_cost,
-            handling_cost: price.handling_cost,
-            handling_cost_code: price.handling_cost_code,
-            currency: price.currency,
-            price_by_color: price.price_by_color,
-            price_by_area: price.price_by_area,
-            allow_full_color: price.allow_full_color,
-            max_colors: price.max_colors,
-            area_cm2: price.area_cm2,
+              id: price.id,
+              table_code: price.table_code,
+              table_code_option: price.table_code_option,
+              service_code: supplierOption?.service_code ?? null,
+              quantity_min: Math.max(
+                price.quantity_min,
+                params.minimumQuantity,
+              ),
+              quantity_max: price.quantity_max,
+              supplier_price: price.supplier_price,
+              final_price: price.final_price,
+              supplier_handling_cost: price.supplier_handling_cost,
+              handling_cost: price.handling_cost,
+              handling_cost_code: price.handling_cost_code,
+              currency: price.currency,
+              price_by_color: price.price_by_color,
+              price_by_area: price.price_by_area,
+              allow_full_color: price.allow_full_color,
+              max_colors: price.max_colors,
+              area_cm2: price.area_cm2,
             };
           })
           .filter((price) => isSupplierServiceCode(price.service_code)),
@@ -667,8 +674,6 @@ function buildEditorLocations(params: {
     }
   }
 
-  // Uma técnica só pode ser apresentada quando existe uma opção oficial que
-  // liga técnica + área + número de cores ao ServiceCode do fornecedor.
   return rows.filter((row) => row.price_tiers.length > 0);
 }
 
@@ -679,18 +684,10 @@ export default async function ProductPersonalizePage({
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
 
-  const selectedDraftId =
-    resolvedSearchParams?.draft?.trim() ?? null;
-
-  const selectedColorId =
-    resolvedSearchParams?.cor?.trim() ?? null;
-
-  const selectedQuantity = Number(
-    resolvedSearchParams?.quantidade ?? 0,
-  );
-
-  const selectedLocationId =
-    resolvedSearchParams?.local?.trim() ?? null;
+  const selectedDraftId = resolvedSearchParams?.draft?.trim() ?? null;
+  const selectedColorId = resolvedSearchParams?.cor?.trim() ?? null;
+  const requestedQuantity = Number(resolvedSearchParams?.quantidade ?? 0);
+  const selectedLocationId = resolvedSearchParams?.local?.trim() ?? null;
 
   const supabase = await createSupabaseServerClient();
 
@@ -705,6 +702,7 @@ export default async function ProductPersonalizePage({
         slug,
         short_description,
         is_customizable,
+        min_order_quantity,
         product_images (
           external_url,
           storage_url,
@@ -768,23 +766,24 @@ export default async function ProductPersonalizePage({
   }
 
   const product = data as unknown as ProductDetail;
+  const minimumQuantity = getEffectiveMinimumOrderQuantity(
+    product.min_order_quantity,
+  );
+  const selectedQuantity = Math.max(
+    minimumQuantity,
+    Number.isFinite(requestedQuantity) && requestedQuantity > 0
+      ? Math.floor(requestedQuantity)
+      : minimumQuantity,
+  );
 
   const primaryImage = getPrimaryImage(product);
-
   const productImageUrl =
-    primaryImage?.storage_url ??
-    primaryImage?.external_url ??
-    null;
-
+    primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
   const variants = product.product_variants ?? [];
 
   const requestedVariant =
-    variants.find((variant) => variant.id === selectedColorId) ??
-    null;
-
-  const components =
-    product.product_customization_components ?? [];
-
+    variants.find((variant) => variant.id === selectedColorId) ?? null;
+  const components = product.product_customization_components ?? [];
   const componentsById = buildComponentMap(components);
 
   const customizationLocations = getUniqueCustomizationLocations(
@@ -824,7 +823,8 @@ export default async function ProductPersonalizePage({
         .eq("is_active", true)
     : { data: [] };
 
-  const customizationOptions = (customizationOptionData ?? []) as ProductCustomizationOption[];
+  const customizationOptions =
+    (customizationOptionData ?? []) as ProductCustomizationOption[];
 
   const rawLocationTableCodes = customizationLocations.flatMap((location) => {
     const payload = getPayloadRecord(location.raw_payload);
@@ -846,10 +846,10 @@ export default async function ProductPersonalizePage({
           option.table_code,
           option.table_code_option,
         ]),
-      ]
-        .filter((code): code is string => Boolean(code)),
+      ].filter((code): code is string => Boolean(code)),
     ),
   );
+
   const { data: printingPriceData } = tableCodes.length
     ? await supabase
         .from("printing_price_tables")
@@ -864,35 +864,36 @@ export default async function ProductPersonalizePage({
         .order("quantity_min", { ascending: true })
     : { data: [] };
 
-  const editorVariants: ProductEditorVariant[] = variants.map(
-    (variant) => ({
-      id: variant.id,
-      sku: variant.sku,
-      color_name: variant.color_name,
-      color_hex: variant.color_hex,
-      size: variant.size,
-      image_url:
-        variant.optional_image_1_url ??
-        variant.optional_image_2_url,
-    }),
-  );
+  const editorVariants: ProductEditorVariant[] = variants.map((variant) => ({
+    id: variant.id,
+    sku: variant.sku,
+    color_name: variant.color_name,
+    color_hex: variant.color_hex,
+    size: variant.size,
+    image_url:
+      variant.optional_image_1_url ?? variant.optional_image_2_url,
+  }));
 
   const editorLocations = buildEditorLocations({
     locations: customizationLocations,
     componentsById,
     printingPrices: (printingPriceData ?? []) as PrintingPriceTable[],
     customizationOptions,
+    minimumQuantity,
   });
 
-  const editorPrices: ProductEditorPrice[] = (
-    product.product_prices ?? []
-  ).map((price) => ({
-    variant_id: price.variant_id,
-    final_price: price.final_price,
-    quantity_min: price.quantity_min,
-    quantity_max: price.quantity_max,
-    currency: price.currency,
-  }));
+  const editorPrices: ProductEditorPrice[] = (product.product_prices ?? [])
+    .filter(
+      (price) =>
+        price.quantity_max === null || price.quantity_max >= minimumQuantity,
+    )
+    .map((price) => ({
+      variant_id: price.variant_id,
+      final_price: price.final_price,
+      quantity_min: Math.max(price.quantity_min, minimumQuantity),
+      quantity_max: price.quantity_max,
+      currency: price.currency,
+    }));
 
   return (
     <main className="min-h-screen max-w-full overflow-x-hidden bg-neutral-50 px-4 py-8 sm:px-6 sm:py-12">
@@ -917,35 +918,33 @@ export default async function ProductPersonalizePage({
               </h1>
 
               <p className="mt-4 max-w-3xl text-neutral-600">
-                Escolhe a localização e a técnica, carrega o
-                logótipo e confirma a maquete para avançar
-                diretamente para o checkout.
+                Escolhe a localização e a técnica, carrega o logótipo e confirma
+                a maquete para avançar diretamente para o checkout.
               </p>
             </div>
 
             <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
-              {selectedQuantity > 0 ? (
-                <p>
-                  Quantidade:{" "}
-                  <span className="font-semibold text-neutral-950">
-                    {selectedQuantity.toLocaleString("pt-PT")} un.
-                  </span>
-                </p>
-              ) : null}
+              <p>
+                Quantidade:{" "}
+                <span className="font-semibold text-neutral-950">
+                  {selectedQuantity.toLocaleString("pt-PT")} un.
+                </span>
+              </p>
 
               {selectedVariant ? (
                 <p className="mt-1">
                   Cor / tamanho:{" "}
                   <span className="font-semibold text-neutral-950">
-                    {getVariantLabel(selectedVariant) ??
-                      "Selecionado"}
+                    {getVariantLabel(selectedVariant) ?? "Selecionado"}
                   </span>
                 </p>
               ) : null}
 
               {selectedVariantWasReplaced ? (
                 <p className="mt-3 border-t border-neutral-200 pt-3 text-xs leading-5 text-neutral-500">
-                  A variante {getVariantLabel(requestedVariant) ?? "selecionada"} não tem áreas de personalização comunicadas pelo fornecedor. Apresentamos a primeira variante compatível.
+                  A variante {getVariantLabel(requestedVariant) ?? "selecionada"}{" "}
+                  não tem áreas de personalização comunicadas pelo fornecedor.
+                  Apresentamos a primeira variante compatível.
                 </p>
               ) : null}
             </div>
@@ -965,20 +964,16 @@ export default async function ProductPersonalizePage({
             initialDraftId={selectedDraftId}
             initialVariantId={selectedVariant?.id ?? null}
             initialLocationId={selectedLocationId}
-            initialQuantity={
-              selectedQuantity > 0 ? selectedQuantity : 1
-            }
+            initialQuantity={selectedQuantity}
           />
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Este produto ainda não tem áreas de personalização
-              disponíveis
+              Este produto ainda não tem áreas de personalização disponíveis
             </h2>
 
             <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
-              Pode voltar ao produto e adicionar ao carrinho sem
-              personalização.
+              Pode voltar ao produto e adicionar ao carrinho sem personalização.
             </p>
 
             <Link
