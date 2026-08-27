@@ -139,13 +139,71 @@ function getOptionColorCount(option: SupplierCustomizationOption): number | null
     : null;
 }
 
-function narrowRequired(
+function narrowIfMatches(
   candidates: SupplierCustomizationOption[],
   requested: boolean,
   predicate: (option: SupplierCustomizationOption) => boolean,
 ): SupplierCustomizationOption[] {
   if (!requested) return candidates;
-  return candidates.filter(predicate);
+
+  const matches = candidates.filter(predicate);
+  return matches.length > 0 ? matches : candidates;
+}
+
+function optionMatchesVariant(
+  option: SupplierCustomizationOption,
+  variantId: string | null,
+): boolean {
+  if (!variantId) return option.variant_id === null;
+  return option.variant_id === variantId || option.variant_id === null;
+}
+
+function optionMatchesLocation(
+  option: SupplierCustomizationOption,
+  locationId: string | null,
+  locationName: string | null,
+): boolean {
+  if (locationId && option.location_id === locationId) {
+    return true;
+  }
+
+  if (locationName && locationNamesMatch(option.location_name, locationName)) {
+    return true;
+  }
+
+  return !locationId && !locationName;
+}
+
+function optionMatchesTechnique(
+  option: SupplierCustomizationOption,
+  techniqueName: string | null,
+): boolean {
+  if (!techniqueName) return true;
+  return normalize(option.customization_type_name) === normalize(techniqueName);
+}
+
+function optionMatchesTableFamily(
+  option: SupplierCustomizationOption,
+  tableCode: string | null,
+  tableCodeOption: string | null,
+): boolean {
+  if (tableCodeOption) {
+    if (
+      normalize(option.table_code_option) === normalize(tableCodeOption) ||
+      codesBelongToSameFamily(option.table_code_option, tableCodeOption)
+    ) {
+      return true;
+    }
+  }
+
+  if (tableCode) {
+    return (
+      codesBelongToSameFamily(option.table_code, tableCode) ||
+      codesBelongToSameFamily(option.table_code_option, tableCode)
+    );
+  }
+
+  return !tableCodeOption;
 }
 
 export async function resolveCustomizationServiceCode(
@@ -168,6 +226,46 @@ export async function resolveCustomizationServiceCode(
   const productOptions = ((data ?? []) as SupplierCustomizationOption[]).filter(
     (option) => isSupplierServiceCode(option.service_code),
   );
+
+  /*
+   * O ServiceCode vem de CustomizationOptions e identifica a combinação
+   * produto + localização + técnica do fornecedor. A escolha Pantone é
+   * enviada separadamente nos campos Color1...Color5 do ServiceOrderV1.
+   * Por isso, quando o editor já transporta um ServiceCode oficial, apenas
+   * confirmamos que pertence ao produto/variante/local/técnica/tabela.
+   * Não o voltamos a inferir a partir do número ou da referência das cores.
+   */
+  if (isSupplierServiceCode(params.currentServiceCode)) {
+    let currentCandidates = productOptions.filter(
+      (option) => option.service_code === params.currentServiceCode,
+    );
+
+    currentCandidates = currentCandidates.filter((option) =>
+      optionMatchesVariant(option, params.variantId),
+    );
+
+    if (params.locationId || params.locationName) {
+      currentCandidates = currentCandidates.filter((option) =>
+        optionMatchesLocation(option, params.locationId, params.locationName),
+      );
+    }
+
+    if (params.techniqueName) {
+      currentCandidates = currentCandidates.filter((option) =>
+        optionMatchesTechnique(option, params.techniqueName),
+      );
+    }
+
+    if (params.tableCode || params.tableCodeOption) {
+      currentCandidates = currentCandidates.filter((option) =>
+        optionMatchesTableFamily(option, params.tableCode, params.tableCodeOption),
+      );
+    }
+
+    if (currentCandidates.length > 0) {
+      return params.currentServiceCode;
+    }
+  }
 
   let candidates = productOptions;
 
@@ -192,62 +290,71 @@ export async function resolveCustomizationServiceCode(
     if (matchingLocationName.length > 0) candidates = matchingLocationName;
   }
 
-  candidates = narrowRequired(
+  if (params.techniqueName) {
+    const techniqueMatches = candidates.filter(
+      (option) =>
+        normalize(option.customization_type_name) === normalize(params.techniqueName),
+    );
+    if (techniqueMatches.length > 0) {
+      candidates = techniqueMatches;
+    }
+  }
+
+  /*
+   * printing_price_tables guarda TableCode já especializado por área
+   * (ex.: SCR1-01), enquanto CustomizationOptions pode guardar a família
+   * base (ex.: SCR1). São a mesma família Stricker, não códigos distintos.
+   */
+  if (params.tableCode) {
+    const tableMatches = candidates.filter(
+      (option) =>
+        codesBelongToSameFamily(option.table_code, params.tableCode) ||
+        codesBelongToSameFamily(option.table_code_option, params.tableCode),
+    );
+    if (tableMatches.length > 0) {
+      candidates = tableMatches;
+    }
+  }
+
+  if (params.tableCodeOption) {
+    const optionMatches = candidates.filter(
+      (option) =>
+        normalize(option.table_code_option) === normalize(params.tableCodeOption),
+    );
+    if (optionMatches.length > 0) {
+      candidates = optionMatches;
+    }
+  }
+
+  // O ID interno da tabela ajuda a desempatar, mas nunca pode invalidar um
+  // ServiceCode oficial se a sincronização associou a mesma opção a outro
+  // registo de preço equivalente.
+  candidates = narrowIfMatches(
     candidates,
     Boolean(params.priceTableId),
     (option) => option.printing_price_table_id === params.priceTableId,
   );
 
-  candidates = narrowRequired(
+  // O número de cores seleciona TableCodeOption/preço. É apenas um critério
+  // de desempate quando ainda não existe um ServiceCode transportado pelo editor.
+  candidates = narrowIfMatches(
     candidates,
-    Boolean(params.tableCodeOption),
-    (option) =>
-      normalize(option.table_code_option) === normalize(params.tableCodeOption),
+    Boolean(params.selectedColorCount && params.selectedColorCount > 0),
+    (option) => getOptionColorCount(option) === params.selectedColorCount,
   );
-
-  candidates = narrowRequired(
-    candidates,
-    Boolean(params.tableCode),
-    (option) =>
-      normalize(option.table_code) === normalize(params.tableCode),
-  );
-
-  if (params.selectedColorCount && params.selectedColorCount > 0) {
-    candidates = candidates.filter(
-      (option) => getOptionColorCount(option) === params.selectedColorCount,
-    );
-  }
-
-  if (params.techniqueName) {
-    candidates = candidates.filter(
-      (option) =>
-        normalize(option.customization_type_name) === normalize(params.techniqueName),
-    );
-  }
-
-  if (isSupplierServiceCode(params.currentServiceCode)) {
-    const currentCandidate = candidates.find(
-      (option) => option.service_code === params.currentServiceCode,
-    );
-    if (currentCandidate) return currentCandidate.service_code;
-  }
 
   const uniqueCode = getUniqueServiceCode(candidates);
   if (uniqueCode) return uniqueCode;
 
-  if (params.tableCodeOption || candidates.length === 0) {
-    return null;
-  }
-
   const sameFamily = productOptions.filter(
     (option) =>
-      codesBelongToSameFamily(option.table_code, params.tableCode) ||
-      codesBelongToSameFamily(option.table_code_option, params.tableCodeOption),
+      optionMatchesVariant(option, params.variantId) &&
+      optionMatchesTechnique(option, params.techniqueName) &&
+      optionMatchesTableFamily(option, params.tableCode, params.tableCodeOption) &&
+      (!params.locationId && !params.locationName
+        ? true
+        : optionMatchesLocation(option, params.locationId, params.locationName)),
   );
-
-  if (sameFamily.length === 0) {
-    return null;
-  }
 
   return getUniqueServiceCode(sameFamily);
 }
