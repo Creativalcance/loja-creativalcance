@@ -585,13 +585,14 @@ export function mapOrderToStricker(
           : "SIMPLE",
 
         /*
-         * Criamos primeiro a linha PRINT e enviamos a arte
-         * imediatamente depois por ServiceOrderV1.
+         * Na implementação REST efetivamente aceite pela Stricker, a linha
+         * PRINT tem de ser criada em WAITING_ART_WORK para que OrderV1
+         * devolva OrderStamp/OrderLineStamp. A arte é enviada logo de seguida
+         * por ServiceOrderV1, portanto não existe atraso funcional no nosso
+         * checkout. Este é também o fluxo já comprovado nas encomendas
+         * personalizadas submetidas com sucesso pelo projeto.
          */
-        // A arte é enviada imediatamente a seguir por ServiceOrderV1.
-        // O manual do fornecedor reserva WaitArtWork=true para o fluxo
-        // "artwork later", em que o ficheiro chega por outro canal.
-        WaitArtWork: false,
+        WaitArtWork: item.personalization_required,
 
         Sample: false,
       };
