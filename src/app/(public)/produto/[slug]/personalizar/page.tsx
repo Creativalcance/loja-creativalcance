@@ -651,10 +651,7 @@ function buildEditorLocations(params: {
               table_code: price.table_code,
               table_code_option: price.table_code_option,
               service_code: supplierOption?.service_code ?? null,
-              quantity_min: Math.max(
-                price.quantity_min,
-                params.minimumQuantity,
-              ),
+              quantity_min: price.quantity_min,
               quantity_max: price.quantity_max,
               supplier_price: price.supplier_price,
               final_price: price.final_price,
@@ -890,7 +887,7 @@ export default async function ProductPersonalizePage({
     .map((price) => ({
       variant_id: price.variant_id,
       final_price: price.final_price,
-      quantity_min: Math.max(price.quantity_min, minimumQuantity),
+      quantity_min: price.quantity_min,
       quantity_max: price.quantity_max,
       currency: price.currency,
     }));
