@@ -1,11 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import {
-  CalendarDays,
-  Check,
-  Truck,
-} from "lucide-react";
+import { useActionState, useMemo, useRef, useState } from "react";
+import { CalendarDays, Check, Truck } from "lucide-react";
 import {
   saveCheckoutShippingAction,
   type CheckoutShippingActionState,
@@ -40,18 +36,9 @@ function getEstimatedShippingPrice(params: {
   method: CheckoutShippingMethod;
   merchandiseTotal: number;
 }): number {
-  if (params.method !== "store_transport") {
-    return 0;
-  }
-
-  if (params.merchandiseTotal >= 500) {
-    return 0;
-  }
-
-  if (params.merchandiseTotal >= 250) {
-    return 5.9;
-  }
-
+  if (params.method !== "store_transport") return 0;
+  if (params.merchandiseTotal >= 500) return 0;
+  if (params.merchandiseTotal >= 250) return 5.9;
   return 8.9;
 }
 
@@ -63,30 +50,40 @@ function getMinimumDeliveryDate(): string {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const year = Number(
-    todayParts.find((part) => part.type === "year")?.value,
-  );
-  const month = Number(
-    todayParts.find((part) => part.type === "month")?.value,
-  );
-  const day = Number(
-    todayParts.find((part) => part.type === "day")?.value,
-  );
-
+  const year = Number(todayParts.find((part) => part.type === "year")?.value);
+  const month = Number(todayParts.find((part) => part.type === "month")?.value);
+  const day = Number(todayParts.find((part) => part.type === "day")?.value);
   const date = new Date(Date.UTC(year, month - 1, day, 12));
   let businessDaysAdded = 0;
 
   while (businessDaysAdded < 2) {
     date.setUTCDate(date.getUTCDate() + 1);
-
     const weekDay = date.getUTCDay();
-
-    if (weekDay !== 0 && weekDay !== 6) {
-      businessDaysAdded += 1;
-    }
+    if (weekDay !== 0 && weekDay !== 6) businessDaysAdded += 1;
   }
 
   return date.toISOString().slice(0, 10);
+}
+
+function addBusinessDays(value: string, amount: number): string {
+  const date = new Date(`${value}T12:00:00Z`);
+  let added = 0;
+
+  while (added < amount) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const weekDay = date.getUTCDay();
+    if (weekDay !== 0 && weekDay !== 6) added += 1;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatDateLabel(value: string): string {
+  return new Intl.DateTimeFormat("pt-PT", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(new Date(`${value}T12:00:00Z`));
 }
 
 export default function CheckoutShippingForm({
@@ -99,20 +96,27 @@ export default function CheckoutShippingForm({
   initialInternalReference,
   initialShippingNotes,
 }: CheckoutShippingFormProps) {
-  const [shippingMethod, setShippingMethod] =
-    useState<CheckoutShippingMethod>(
-      initialShippingMethod === "store_transport"
-        ? initialShippingMethod
-        : "store_transport",
-    );
+  const minimumDeliveryDate = getMinimumDeliveryDate();
+  const initialDate =
+    initialRequestedDeliveryDate >= minimumDeliveryDate
+      ? initialRequestedDeliveryDate
+      : "";
 
-  const [acceptsDeliveryAfterDate, setAcceptsDeliveryAfterDate] =
-    useState(initialAcceptsDeliveryAfterDate);
-
+  const [shippingMethod, setShippingMethod] = useState<CheckoutShippingMethod>(
+    initialShippingMethod === "store_transport"
+      ? initialShippingMethod
+      : "store_transport",
+  );
+  const [requestedDeliveryDate, setRequestedDeliveryDate] = useState(initialDate);
+  const [acceptsDeliveryAfterDate, setAcceptsDeliveryAfterDate] = useState(
+    initialAcceptsDeliveryAfterDate,
+  );
   const [state, formAction, isPending] = useActionState(
     saveCheckoutShippingAction,
     initialState,
   );
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const dateSectionRef = useRef<HTMLElement>(null);
 
   const estimatedShippingPrice = useMemo(
     () =>
@@ -128,18 +132,50 @@ export default function CheckoutShippingForm({
     [estimatedShippingPrice, merchandiseTotal],
   );
 
-  const minimumDeliveryDate = getMinimumDeliveryDate();
+  const recommendedDates = useMemo(
+    () => [
+      minimumDeliveryDate,
+      addBusinessDays(minimumDeliveryDate, 1),
+      addBusinessDays(minimumDeliveryDate, 2),
+    ],
+    [minimumDeliveryDate],
+  );
+
+  function openDatePicker() {
+    const input = dateInputRef.current;
+    if (!input) return;
+
+    input.focus({ preventScroll: true });
+    const pickerInput = input as HTMLInputElement & { showPicker?: () => void };
+
+    try {
+      pickerInput.showPicker?.();
+    } catch {
+      input.focus();
+    }
+  }
+
+  function handleInvalid(event: React.InvalidEvent<HTMLFormElement>) {
+    const target = event.target as HTMLInputElement;
+    if (target.id !== "requestedDeliveryDate") return;
+
+    window.requestAnimationFrame(() => {
+      dateSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      window.setTimeout(() => target.focus({ preventScroll: true }), 350);
+    });
+  }
 
   return (
-    <form action={formAction} className="mt-8 space-y-8">
+    <form
+      action={formAction}
+      className="mt-8 space-y-8"
+      onInvalid={handleInvalid}
+    >
       <input type="hidden" name="cartId" value={cartId} />
-
-      <input
-        type="hidden"
-        name="shippingMethod"
-        value={shippingMethod}
-      />
-
+      <input type="hidden" name="shippingMethod" value={shippingMethod} />
       <input
         type="hidden"
         name="acceptsDeliveryAfterDate"
@@ -150,7 +186,6 @@ export default function CheckoutShippingForm({
         <h2 className="text-xl font-semibold text-neutral-950">
           Método de expedição
         </h2>
-
         <p className="mt-2 text-sm leading-6 text-neutral-600">
           Escolhe como pretendes receber ou recolher a encomenda.
         </p>
@@ -184,10 +219,7 @@ export default function CheckoutShippingForm({
                 </div>
 
                 <div>
-                  <p className="font-semibold">
-                    Transporte disponibilizado pela loja
-                  </p>
-
+                  <p className="font-semibold">Transporte disponibilizado pela loja</p>
                   <p
                     className={`mt-2 text-sm leading-6 ${
                       shippingMethod === "store_transport"
@@ -195,10 +227,8 @@ export default function CheckoutShippingForm({
                         : "text-neutral-500"
                     }`}
                   >
-                    A encomenda é expedida para a morada
-                    definida no passo anterior.
+                    A encomenda é expedida para a morada definida no passo anterior.
                   </p>
-
                   <div
                     className={`mt-4 flex flex-wrap gap-2 text-xs ${
                       shippingMethod === "store_transport"
@@ -215,7 +245,6 @@ export default function CheckoutShippingForm({
                     >
                       Estimativa: 1 a 3 dias úteis
                     </span>
-
                     <span
                       className={`rounded-full px-3 py-1 ${
                         shippingMethod === "store_transport"
@@ -248,37 +277,30 @@ export default function CheckoutShippingForm({
               }`}
             >
               <span className="text-sm">Custo estimado</span>
-
               <span className="font-semibold">
                 {estimatedShippingPrice === 0
                   ? "Grátis"
-                  : formatPrice(
-                      estimatedShippingPrice,
-                      currency,
-                    )}
+                  : formatPrice(estimatedShippingPrice, currency)}
               </span>
             </div>
           </button>
-
         </div>
       </section>
 
       {shippingMethod === "store_transport" ? (
-        <section className="border-t border-neutral-200 pt-8">
+        <section
+          ref={dateSectionRef}
+          className="scroll-mt-24 border-t border-neutral-200 pt-8"
+        >
           <div className="flex items-start gap-3">
             <div className="rounded-2xl bg-neutral-100 p-3">
               <CalendarDays className="h-5 w-5 text-neutral-600" />
             </div>
-
             <div>
-              <h2 className="text-xl font-semibold text-neutral-950">
-                Data pretendida
-              </h2>
-
+              <h2 className="text-xl font-semibold text-neutral-950">Data pretendida</h2>
               <p className="mt-1 text-sm leading-6 text-neutral-500">
-                A data será considerada no planeamento, mas só
-                fica confirmada depois da validação da produção e
-                do transporte.
+                A data será considerada no planeamento, mas só fica confirmada
+                depois da validação da produção e do transporte.
               </p>
             </div>
           </div>
@@ -291,19 +313,50 @@ export default function CheckoutShippingForm({
               Data pretendida de entrega *
             </label>
 
-            <input
-              id="requestedDeliveryDate"
-              name="requestedDeliveryDate"
-              type="date"
-              required
-              min={minimumDeliveryDate}
-              defaultValue={
-                initialRequestedDeliveryDate >= minimumDeliveryDate
-                  ? initialRequestedDeliveryDate
-                  : ""
-              }
-              className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-            />
+            <div className="mt-2 flex max-w-sm items-stretch gap-2">
+              <input
+                ref={dateInputRef}
+                id="requestedDeliveryDate"
+                name="requestedDeliveryDate"
+                type="date"
+                required
+                min={minimumDeliveryDate}
+                value={requestedDeliveryDate}
+                onChange={(event) => setRequestedDeliveryDate(event.target.value)}
+                className="h-12 min-w-0 flex-1 rounded-2xl border border-neutral-300 bg-white px-3 py-2 text-base text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 sm:px-4"
+              />
+              <button
+                type="button"
+                onClick={openDatePicker}
+                aria-label="Abrir calendário"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-neutral-300 bg-white text-neutral-700 shadow-none transition hover:border-neutral-950"
+              >
+                <CalendarDays className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-3 sm:hidden">
+              <p className="text-xs font-medium text-neutral-600">Datas recomendadas</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {recommendedDates.map((date, index) => (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => setRequestedDeliveryDate(date)}
+                    className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition ${
+                      requestedDeliveryDate === date
+                        ? "border-neutral-950 bg-neutral-950 text-white"
+                        : "border-neutral-200 bg-white text-neutral-700"
+                    }`}
+                  >
+                    <span className="block">{index === 0 ? "Mais cedo" : `+${index} dia${index > 1 ? "s" : ""}`}</span>
+                    <span className="mt-1 block font-medium opacity-80">
+                      {formatDateLabel(date)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <p className="mt-2 text-xs leading-5 text-neutral-500">
               A primeira data disponível corresponde ao segundo dia útil após hoje.
@@ -314,21 +367,16 @@ export default function CheckoutShippingForm({
             <input
               type="checkbox"
               checked={acceptsDeliveryAfterDate}
-              onChange={(event) =>
-                setAcceptsDeliveryAfterDate(event.target.checked)
-              }
+              onChange={(event) => setAcceptsDeliveryAfterDate(event.target.checked)}
               className="mt-1"
             />
-
             <span>
               <span className="block text-sm font-semibold text-neutral-950">
                 Aceito entrega após esta data
               </span>
-
               <span className="mt-1 block text-xs leading-5 text-neutral-500">
-                Autoriza o envio assim que a encomenda estiver
-                pronta, mesmo que a data indicada já tenha sido
-                ultrapassada.
+                Autoriza o envio assim que a encomenda estiver pronta, mesmo que
+                a data indicada já tenha sido ultrapassada.
               </span>
             </span>
           </label>
@@ -347,7 +395,6 @@ export default function CheckoutShippingForm({
           >
             Referência interna
           </label>
-
           <input
             id="internalReference"
             name="internalReference"
@@ -366,7 +413,6 @@ export default function CheckoutShippingForm({
           >
             Indicações para a expedição
           </label>
-
           <textarea
             id="shippingNotes"
             name="shippingNotes"
@@ -380,38 +426,23 @@ export default function CheckoutShippingForm({
       </section>
 
       <section className="rounded-3xl bg-neutral-50 p-5">
-        <p className="text-sm font-semibold text-neutral-950">
-          Total antes de IVA
-        </p>
-
+        <p className="text-sm font-semibold text-neutral-950">Total antes de IVA</p>
         <div className="mt-4 space-y-3 text-sm text-neutral-600">
           <div className="flex justify-between gap-4">
             <span>Produtos e personalização</span>
-
             <span className="font-semibold text-neutral-950">
               {formatPrice(merchandiseTotal, currency)}
             </span>
           </div>
-
           <div className="flex justify-between gap-4">
             <span>Expedição</span>
-
             <span className="font-semibold text-neutral-950">
-              {estimatedShippingPrice === 0
-                ? formatPrice(0, currency)
-                : formatPrice(
-                    estimatedShippingPrice,
-                    currency,
-                  )}
+              {formatPrice(estimatedShippingPrice, currency)}
             </span>
           </div>
-
           <div className="border-t border-neutral-200 pt-3">
             <div className="flex justify-between gap-4 text-base">
-              <span className="font-semibold text-neutral-950">
-                Total atual
-              </span>
-
+              <span className="font-semibold text-neutral-950">Total atual</span>
               <span className="font-semibold text-neutral-950">
                 {formatPrice(estimatedTotal, currency)}
               </span>
@@ -437,9 +468,7 @@ export default function CheckoutShippingForm({
         disabled={isPending}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending
-          ? "A guardar expedição..."
-          : "Continuar para pagamento"}
+        {isPending ? "A guardar expedição..." : "Continuar para pagamento"}
       </button>
     </form>
   );
