@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const CLEANUP_TOKEN = "ao9IvBRMnwY9z_TEF2iuH0wVzomUHPTZyPKSAzFZi8w";
-const SELECT_BATCH_SIZE = 2_000;
+const SELECT_BATCH_SIZE = 1_000;
 const UPDATE_CHUNK_SIZE = 150;
 const MAX_ROWS_PER_RUN = 40_000;
 const MAX_RUNTIME_MS = 240_000;
@@ -74,11 +74,6 @@ export async function GET(request: NextRequest) {
     }
 
     cleaned += ids.length;
-
-    if (ids.length < SELECT_BATCH_SIZE) {
-      done = true;
-      break;
-    }
   }
 
   return NextResponse.json({
