@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .from("product_customization_options")
       .select("id")
       .not("printing_price_table_id", "is", null)
-      .neq("raw_payload", {})
+      .not("raw_payload", "eq", "{}")
       .limit(SELECT_BATCH_SIZE)
       .returns<Array<{ id: string }>>();
 
