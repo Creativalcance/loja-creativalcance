@@ -9,6 +9,7 @@ import ProductDirectPurchasePanel, {
   type ProductPurchasePrice,
   type ProductPurchaseStock,
 } from "@/components/product/ProductDirectPurchasePanel";
+import { getEffectiveMinimumOrderQuantity } from "@/lib/commerce/minimum-order-quantity";
 import { type ProductCustomizationOption } from "@/components/product/ProductCustomizationOptions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -791,7 +792,7 @@ export default async function ProductDetailPage({
   material={product.material}
   dimensions={product.dimensions}
   weight={product.weight}
-  minimumQuantity={product.min_order_quantity}
+  minimumQuantity={getEffectiveMinimumOrderQuantity(product.min_order_quantity)}
   totalStock={getTotalStock(product)}
   isCustomizable={customizationOptions.length > 0}
   prices={purchasePrices}
