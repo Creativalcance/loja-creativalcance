@@ -978,14 +978,11 @@ export async function saveCustomizationDraftAction(
         };
       }
 
-      if (
-        draftData.variant_id !== variant.id ||
-        draftData.quantity !== quantity
-      ) {
+      if (draftData.variant_id !== variant.id) {
         return {
           success: false,
           message:
-            "A variante ou quantidade não corresponde à configuração iniciada.",
+            "A variante não corresponde à configuração iniciada.",
           draftId: null,
           redirectUrl: null,
         };
