@@ -14,6 +14,7 @@ import {
 } from "@/lib/pricing/resolve-customization-price";
 import type { PricingRule } from "@/lib/pricing/types";
 import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
+import { getEffectiveMinimumOrderQuantity } from "@/lib/commerce/minimum-order-quantity";
 
 export type StartCustomizationDraftState = {
   success: boolean;
@@ -357,10 +358,14 @@ export async function startCustomizationDraftAction(
       };
     }
 
-    if (quantity < product.min_order_quantity) {
+    const minimumQuantity = getEffectiveMinimumOrderQuantity(
+      product.min_order_quantity,
+    );
+
+    if (quantity < minimumQuantity) {
       return {
         success: false,
-        message: `A quantidade mínima deste produto é ${product.min_order_quantity.toLocaleString(
+        message: `A quantidade mínima deste produto é ${minimumQuantity.toLocaleString(
           "pt-PT",
         )} unidades.`,
       };
@@ -721,6 +726,21 @@ export async function saveCustomizationDraftAction(
       };
     }
 
+    const minimumQuantity = getEffectiveMinimumOrderQuantity(
+      product.min_order_quantity,
+    );
+
+    if (quantity < minimumQuantity) {
+      return {
+        success: false,
+        message: `A quantidade mínima deste produto é ${minimumQuantity.toLocaleString(
+          "pt-PT",
+        )} unidades.`,
+        draftId: null,
+        redirectUrl: null,
+      };
+    }
+
     const { data: variant, error: variantError } = await supabaseAdmin
       .from("product_variants")
       .select("id, sku")
@@ -958,14 +978,11 @@ export async function saveCustomizationDraftAction(
         };
       }
 
-      if (
-        draftData.variant_id !== variant.id ||
-        draftData.quantity !== quantity
-      ) {
+      if (draftData.variant_id !== variant.id) {
         return {
           success: false,
           message:
-            "A variante ou quantidade não corresponde à configuração iniciada.",
+            "A variante não corresponde à configuração iniciada.",
           draftId: null,
           redirectUrl: null,
         };

@@ -962,6 +962,7 @@ export default async function ProductPersonalizePage({
             initialVariantId={selectedVariant?.id ?? null}
             initialLocationId={selectedLocationId}
             initialQuantity={selectedQuantity}
+            minimumQuantity={minimumQuantity}
           />
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
