@@ -12,6 +12,7 @@ import {
 } from "@/lib/pricing/resolve-customization-price";
 import type { PricingRule } from "@/lib/pricing/types";
 import { getCustomizationServiceCodeHints } from "@/lib/stricker/resolve-customization-service-code";
+import { getEffectiveMinimumOrderQuantity } from "@/lib/commerce/minimum-order-quantity";
 
 export type AddToCartActionState = {
   success: boolean;
@@ -625,10 +626,14 @@ export async function addToCartAction(
       };
     }
 
-    if (quantity < product.min_order_quantity) {
+    const minimumQuantity = getEffectiveMinimumOrderQuantity(
+      product.min_order_quantity,
+    );
+
+    if (quantity < minimumQuantity) {
       return {
         success: false,
-        message: `A quantidade mínima deste produto é ${product.min_order_quantity.toLocaleString(
+        message: `A quantidade mínima deste produto é ${minimumQuantity.toLocaleString(
           "pt-PT",
         )} unidades.`,
       };
