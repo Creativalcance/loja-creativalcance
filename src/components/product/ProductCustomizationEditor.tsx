@@ -156,6 +156,7 @@ type ProductCustomizationEditorProps = {
   initialVariantId?: string | null;
   initialLocationId?: string | null;
   initialQuantity?: number;
+  minimumQuantity: number;
 };
 
 const initialPosition: LogoPosition = {
@@ -857,6 +858,7 @@ export default function ProductCustomizationEditor({
   initialVariantId,
   initialLocationId,
   initialQuantity = 1,
+  minimumQuantity,
 }: ProductCustomizationEditorProps) {
   const router = useRouter();
 
@@ -878,7 +880,10 @@ export default function ProductCustomizationEditor({
     [initialVariantId, variants],
   );
 
-  const initialSafeQuantity = Math.max(1, Math.floor(initialQuantity));
+  const initialSafeQuantity = Math.max(
+    minimumQuantity,
+    Math.floor(initialQuantity),
+  );
   const [quantity, setQuantity] = useState(initialSafeQuantity);
   const [quantityInput, setQuantityInput] = useState(String(initialSafeQuantity));
 
@@ -1316,7 +1321,7 @@ export default function ProductCustomizationEditor({
   }
 
   function updateQuantity(value: number) {
-    const safeQuantity = Math.max(1, Math.floor(value));
+    const safeQuantity = Math.max(minimumQuantity, Math.floor(value));
     setQuantity(safeQuantity);
     setQuantityInput(String(safeQuantity));
   }
@@ -1324,7 +1329,7 @@ export default function ProductCustomizationEditor({
   function handleQuantityInput(value: string) {
     setQuantityInput(value);
     const parsed = Number(value);
-    if (Number.isFinite(parsed) && parsed >= 1) {
+    if (Number.isFinite(parsed) && parsed >= minimumQuantity) {
       setQuantity(Math.floor(parsed));
     }
   }
@@ -2399,7 +2404,7 @@ export default function ProductCustomizationEditor({
                   </span>
                   <input
                     type="number"
-                    min="1"
+                    min={minimumQuantity}
                     step="1"
                     inputMode="numeric"
                     value={quantityInput}
