@@ -1501,33 +1501,9 @@ export default function ProductDirectPurchasePanel({
             />
 
             {visibleVariants.length > 0 ? (
-              <div className="w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-neutral-200">
-                <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
-                  <thead className="bg-neutral-50">
-                    <tr>
-                      <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                        {hasSizes
-                          ? "Tamanho"
-                          : "Cor"}
-                      </th>
-
-                      <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
-                        Stock atual
-                      </th>
-
-                      <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                        Próxima entrada
-                      </th>
-
-                      <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-500">
-                        Quantidade
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {visibleVariants.map(
-                      (variant) => {
+              <div className="space-y-3">
+                {visibleVariants.map(
+                  (variant) => {
                         const stock =
                           getStockForVariant({
                             stocks,
@@ -1552,24 +1528,24 @@ export default function ProductDirectPurchasePanel({
                           selectedVariant?.id;
 
                         return (
-                          <tr
+                          <div
                             key={variant.id}
-                            className={`cursor-pointer transition ${
+                            className={`overflow-hidden rounded-2xl border transition ${
                               isSelected
-                                ? "bg-neutral-950/[0.03]"
-                                : "bg-white"
+                                ? "border-neutral-950 bg-neutral-950/[0.03]"
+                                : "border-neutral-200 bg-white"
                             }`}
-                            onClick={() =>
-                              selectVariant(
-                                variant,
-                              )
-                            }
                           >
-                            <td className="border-b border-neutral-100 px-4 py-3">
-                              <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-between gap-4 p-4">
+                              <button
+                                type="button"
+                                onClick={() => selectVariant(variant)}
+                                className="min-w-0 flex-1 text-left"
+                              >
+                                <span className="flex items-center gap-2">
                                 {variant.color_hex ? (
                                   <span
-                                    className="h-4 w-4 rounded-sm border border-neutral-300"
+                                    className="h-4 w-4 shrink-0 rounded-sm border border-neutral-300"
                                     style={{
                                       backgroundColor:
                                         variant.color_hex,
@@ -1579,7 +1555,7 @@ export default function ProductDirectPurchasePanel({
                                   <span className="h-4 w-4 rounded-sm border border-neutral-300 bg-white" />
                                 )}
 
-                                <span className="font-medium text-neutral-950">
+                                <span className="truncate text-sm font-semibold text-neutral-950">
                                   {hasSizes
                                     ? getSizeLabel(
                                         variant,
@@ -1588,18 +1564,17 @@ export default function ProductDirectPurchasePanel({
                                         variant,
                                       )}
                                 </span>
-                              </div>
-                            </td>
+                                </span>
 
-                            <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                              {stock.available.toLocaleString("pt-PT")}
-                            </td>
+                                <span className="mt-1 block text-xs text-neutral-500">
+                                  {stock.available.toLocaleString("pt-PT")} un. em stock
+                                </span>
+                              </button>
 
-                            <td className="border-b border-neutral-100 px-4 py-3 text-left text-neutral-700">
-                              {formatNextEntries(stock.nextEntries)}
-                            </td>
-
-                            <td className="border-b border-neutral-100 px-4 py-3 text-right">
+                              <label className="shrink-0 text-right">
+                                <span className="mb-1 block text-xs font-medium text-neutral-500">
+                                  Quantidade
+                                </span>
                               <input
                                 type="number"
                                 min={0}
@@ -1644,15 +1619,23 @@ export default function ProductDirectPurchasePanel({
                                     },
                                   );
                                 }}
-                                className="w-28 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-right text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400"
+                                className="w-24 rounded-xl border border-neutral-300 bg-white px-3 py-2 text-right text-base font-semibold text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10 disabled:cursor-not-allowed disabled:bg-neutral-100 disabled:text-neutral-400 sm:w-28"
                               />
-                            </td>
-                          </tr>
+                              </label>
+                            </div>
+
+                            {stock.nextEntries.length > 0 ? (
+                              <p className="border-t border-neutral-200 px-4 py-3 text-xs leading-5 text-neutral-600">
+                                <span className="font-medium text-neutral-700">
+                                  Próxima entrada:
+                                </span>{" "}
+                                {formatNextEntries(stock.nextEntries)}
+                              </p>
+                            ) : null}
+                          </div>
                         );
-                      },
-                    )}
-                  </tbody>
-                </table>
+                  },
+                )}
               </div>
             ) : (
               <div>
