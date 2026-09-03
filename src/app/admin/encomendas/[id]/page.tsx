@@ -29,6 +29,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommercialForm";
 import AdminDeleteOrderForm from "@/components/admin/orders/AdminDeleteOrderForm";
+import AdminRetrySupplierSubmissionForm from "@/components/admin/orders/AdminRetrySupplierSubmissionForm";
 import { replaceSupplierBrandName } from "@/lib/supplier/display";
 
 export const dynamic = "force-dynamic";
@@ -1177,6 +1178,11 @@ const supabaseAdmin = createSupabaseAdminClient();
   }
 
   const order = orderResult.data;
+  const canRetrySupplierSubmission =
+    order.payment_status === "paid" &&
+    ["failed", "not_submitted", "partially_submitted"].includes(
+      order.supplier_submission_status,
+    );
   const orderItems = await getOrderItemViews(
     itemsResult.data ?? [],
   );
@@ -2240,6 +2246,13 @@ const supabaseAdmin = createSupabaseAdminClient();
                   </p>
                 </div>
               )}
+
+              {canRetrySupplierSubmission ? (
+                <AdminRetrySupplierSubmissionForm
+                  orderId={order.id}
+                  orderNumber={order.order_number}
+                />
+              ) : null}
             </section>
 
             <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
