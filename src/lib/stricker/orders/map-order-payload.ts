@@ -605,9 +605,14 @@ export function mapOrderToStricker(
       order.shipping_carrier,
     ),
 
-    internalReference:
-      order.internal_reference ??
-      order.order_number,
+    /*
+     * A Stricker exige que InternalReference seja única entre encomendas.
+     * A referência interna introduzida pelo cliente é apenas uma etiqueta
+     * comercial e pode repetir-se (por exemplo, "Evento" ou "Teste").
+     * O número da encomenda é gerado pelo sistema e garante a unicidade sem
+     * alterar a referência que continua guardada no nosso backoffice.
+     */
+    internalReference: order.order_number,
 
     relatedOrderStamp: null,
 
