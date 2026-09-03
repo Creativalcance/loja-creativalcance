@@ -93,6 +93,14 @@ export default function SiteFooter() {
               <Mail className="h-3.5 w-3.5" /> Apoio comercial
             </Link>
             <a
+              href="https://www.livroreclamacoes.pt/Inicio/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 hover:text-white"
+            >
+              Livro de Reclamações <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+            <a
               href="https://www.creativalcance.com"
               target="_blank"
               rel="noopener noreferrer"
