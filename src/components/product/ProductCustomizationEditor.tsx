@@ -1695,9 +1695,9 @@ export default function ProductCustomizationEditor({
             </div>
           </aside>
 
-          <div className="space-y-5 xl:order-3">
+          <div className="space-y-5 xl:order-2">
             <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
-              <div className="flex min-h-[420px] items-center justify-center bg-white sm:min-h-[520px]">
+              <div className="flex min-h-[360px] items-center justify-center bg-white sm:min-h-[440px]">
                 <CustomizationLocationImage
                   urls={
                     selectedLocation
@@ -1727,8 +1727,8 @@ export default function ProductCustomizationEditor({
               </div>
 
               <div className="border-t border-neutral-200 bg-white p-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-neutral-50 p-4">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-2">
+                  <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Técnica
                     </p>
@@ -1738,7 +1738,7 @@ export default function ProductCustomizationEditor({
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-neutral-50 p-4">
+                  <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Localização
                     </p>
@@ -1750,7 +1750,7 @@ export default function ProductCustomizationEditor({
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-neutral-50 p-4">
+                  <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Área máxima
                     </p>
@@ -1760,7 +1760,7 @@ export default function ProductCustomizationEditor({
                     </p>
                   </div>
 
-                  <div className="rounded-2xl bg-neutral-50 p-4">
+                  <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                       Quantidade
                     </p>
@@ -1779,7 +1779,7 @@ export default function ProductCustomizationEditor({
             </div>
           </div>
 
-          <aside className="space-y-5 xl:order-4">
+          <aside className="space-y-4 xl:order-3">
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
                 Produto selecionado
@@ -1876,8 +1876,10 @@ export default function ProductCustomizationEditor({
               ) : null}
             </div>
 
+          </aside>
+
             {logoPreviewUrl ? (
-              <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+              <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 xl:order-4 xl:col-span-2">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-sm font-semibold text-neutral-950">
                     Ajustar dentro da área
@@ -1893,8 +1895,10 @@ export default function ProductCustomizationEditor({
                   </button>
                 </div>
 
+                <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]">
+                  <div>
                 <div
-                  className="relative mt-5 flex h-[420px] w-full items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 p-4 sm:h-[480px] sm:p-6"
+                  className="relative flex h-[360px] w-full items-center justify-center overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50 p-4 sm:h-[420px] sm:p-6"
                 >
                   <div
                     ref={printAreaRef}
@@ -1966,8 +1970,9 @@ export default function ProductCustomizationEditor({
                   <Maximize2 className="mr-1.5 h-4 w-4" />
                   Ajustar à área máxima
                 </button>
+                  </div>
 
-                <div className="mt-5 space-y-5">
+                <div className="space-y-4">
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                         Horizontal
@@ -2053,10 +2058,9 @@ export default function ProductCustomizationEditor({
                         ))}
                       </div>
                     </div>
-                </div>
 
                 {printColorOptions.length > 0 ? (
-                  <div className="mt-6 border-t border-neutral-200 pt-5">
+                  <div className="border-t border-neutral-200 pt-4">
                     <p className="text-sm font-semibold text-neutral-950">
                       Cores da personalização
                     </p>
@@ -2222,15 +2226,17 @@ export default function ProductCustomizationEditor({
                     </p>
                   </div>
                 ) : null}
+                </div>
+                </div>
               </div>
             ) : null}
 
-            <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+            <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm xl:order-5 xl:col-span-2">
               <p className="text-sm font-semibold text-neutral-950">
                 Extras e observações
               </p>
 
-              <div className="mt-4 space-y-3 text-sm text-neutral-700">
+              <div className="mt-4 grid gap-3 text-sm text-neutral-700 lg:grid-cols-3">
                 <label className="flex gap-3 rounded-2xl bg-neutral-50 p-3">
                   <input
                     type="checkbox"
@@ -2291,7 +2297,8 @@ export default function ProductCustomizationEditor({
                 </label>
               </div>
 
-              <label className="mt-4 block">
+              <div className="mt-4 grid gap-3 lg:grid-cols-2">
+              <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                   Referência interna
                 </span>
@@ -2305,7 +2312,7 @@ export default function ProductCustomizationEditor({
                 />
               </label>
 
-              <label className="mt-4 block">
+              <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                   Observações
                 </span>
@@ -2318,11 +2325,10 @@ export default function ProductCustomizationEditor({
                   className="mt-2 w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
                 />
               </label>
+              </div>
             </div>
 
-          </aside>
-
-          <div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-5 text-white shadow-sm sm:p-6 xl:order-2 xl:col-span-2">
+          <div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-4 text-white shadow-sm sm:p-5 xl:order-6 xl:col-span-2">
               <div className="flex items-center gap-2">
                 <Move className="h-5 w-5 text-neutral-300" />
 
