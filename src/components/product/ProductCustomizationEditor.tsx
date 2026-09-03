@@ -1601,16 +1601,16 @@ export default function ProductCustomizationEditor({
 
   return (
     <>
-      <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-        <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_440px]">
-          <aside className="rounded-3xl border border-neutral-200 bg-neutral-50 p-4 xl:col-span-2">
+      <section className="mt-6 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(380px,0.85fr)]">
+          <aside className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3 xl:order-1 xl:col-span-2">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-neutral-950">
                   Localização
                 </p>
 
-                <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto pr-1">
                   {locationGroups.map((group) => {
                     const isSelected = group.id === selectedGroup?.id;
 
@@ -1619,7 +1619,7 @@ export default function ProductCustomizationEditor({
                         key={group.id}
                         type="button"
                         onClick={() => setSelectedGroupId(group.id)}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                        className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
                           isSelected
                             ? "border-neutral-950 bg-white shadow-sm"
                             : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
@@ -1627,18 +1627,18 @@ export default function ProductCustomizationEditor({
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="break-words text-base font-semibold text-neutral-950">
+                            <p className="break-words text-sm font-semibold text-neutral-950">
                               {group.locationName}
                             </p>
 
                             {group.componentName ? (
-                              <p className="mt-2 break-words text-sm text-neutral-600">
+                              <p className="mt-1 break-words text-xs text-neutral-600">
                                 {group.componentName}
                               </p>
                             ) : null}
 
                             {group.maxPrintingAreaMm ? (
-                              <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
+                              <p className="mt-1 inline-flex items-center text-xs text-neutral-600">
                                 <Ruler className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                                 {group.maxPrintingAreaMm}
                               </p>
@@ -1662,7 +1662,7 @@ export default function ProductCustomizationEditor({
                   Tipo de personalização
                 </p>
 
-                <div className="mt-4 max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto pr-1">
                   {(selectedGroup?.options ?? []).map((option) => {
                     const isSelected = option.id === selectedLocation?.id;
 
@@ -1671,18 +1671,18 @@ export default function ProductCustomizationEditor({
                         key={option.id}
                         type="button"
                         onClick={() => setSelectedLocationId(option.id)}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                        className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
                           isSelected
                             ? "border-neutral-950 bg-white shadow-sm"
                             : "border-transparent bg-white/70 hover:border-neutral-300 hover:bg-white"
                         }`}
                       >
-                        <p className="break-words text-base font-semibold text-neutral-950">
+                        <p className="break-words text-sm font-semibold text-neutral-950">
                           {option.technique}
                         </p>
 
                         {option.max_printing_area_mm ? (
-                          <p className="mt-2 inline-flex items-center text-sm text-neutral-600">
+                          <p className="mt-1 inline-flex items-center text-xs text-neutral-600">
                             <Ruler className="mr-1.5 h-3.5 w-3.5 shrink-0" />
                             {option.max_printing_area_mm}
                           </p>
@@ -1695,9 +1695,9 @@ export default function ProductCustomizationEditor({
             </div>
           </aside>
 
-          <div className="space-y-5">
+          <div className="space-y-5 xl:order-3">
             <div className="sticky top-28 overflow-hidden rounded-3xl border border-neutral-200 bg-neutral-50">
-              <div className="flex min-h-[620px] items-center justify-center bg-white">
+              <div className="flex min-h-[420px] items-center justify-center bg-white sm:min-h-[520px]">
                 <CustomizationLocationImage
                   urls={
                     selectedLocation
@@ -1714,7 +1714,7 @@ export default function ProductCustomizationEditor({
                         ]
                   }
                   alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
-                  className="max-h-[700px] w-full object-contain p-8"
+                  className="max-h-[600px] w-full object-contain p-5 sm:p-7"
                   artworkUrl={displayedLogoPreviewUrl}
                   artworkPosition={safePosition}
                   printAreaGeometry={selectedLocation?.print_area_geometry}
@@ -1726,7 +1726,7 @@ export default function ProductCustomizationEditor({
                 />
               </div>
 
-              <div className="border-t border-neutral-200 bg-white p-5">
+              <div className="border-t border-neutral-200 bg-white p-4">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl bg-neutral-50 p-4">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
@@ -1779,7 +1779,7 @@ export default function ProductCustomizationEditor({
             </div>
           </div>
 
-          <aside className="space-y-5">
+          <aside className="space-y-5 xl:order-4">
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
                 Produto selecionado
@@ -1845,15 +1845,15 @@ export default function ProductCustomizationEditor({
 
               <label
                 htmlFor="simulator-logo"
-                className="mt-3 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-8 text-center transition hover:border-neutral-400 hover:bg-white"
+                className="mt-3 flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-4 py-4 text-center transition hover:border-neutral-400 hover:bg-white"
               >
-                <Upload className="h-6 w-6 text-neutral-500" />
+                <Upload className="h-5 w-5 text-neutral-500" />
 
-                <span className="mt-3 text-sm font-semibold text-neutral-950">
+                <span className="text-sm font-semibold text-neutral-950">
                   Carregar ficheiro
                 </span>
 
-                <span className="mt-1 text-xs text-neutral-500">
+                <span className="text-xs text-neutral-500">
                   SVG, PDF, PNG ou JPG
                 </span>
               </label>
@@ -1933,7 +1933,7 @@ export default function ProductCustomizationEditor({
                   <button
                     type="button"
                     onClick={reduceLogo}
-                    className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
+                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                   >
                     <Minus className="mr-1.5 h-4 w-4" />
                     Reduzir
@@ -1942,7 +1942,7 @@ export default function ProductCustomizationEditor({
                   <button
                     type="button"
                     onClick={centerLogo}
-                    className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
+                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                   >
                     <Move className="mr-1.5 h-4 w-4" />
                     Centrar
@@ -1951,7 +1951,7 @@ export default function ProductCustomizationEditor({
                   <button
                     type="button"
                     onClick={enlargeLogo}
-                    className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-3 py-3 text-sm font-semibold text-neutral-700 transition hover:border-neutral-400"
+                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                   >
                     <Plus className="mr-1.5 h-4 w-4" />
                     Aumentar
@@ -1961,7 +1961,7 @@ export default function ProductCustomizationEditor({
                 <button
                   type="button"
                   onClick={fitLogoToArea}
-                  className="mt-2 inline-flex w-full items-center justify-center rounded-2xl border border-neutral-950 bg-white px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50"
+                  className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-neutral-950 bg-white px-4 py-2.5 text-xs font-semibold text-neutral-950 transition hover:bg-neutral-50"
                 >
                   <Maximize2 className="mr-1.5 h-4 w-4" />
                   Ajustar à área máxima
@@ -2320,7 +2320,9 @@ export default function ProductCustomizationEditor({
               </label>
             </div>
 
-            <div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-5 text-white shadow-sm">
+          </aside>
+
+          <div className="rounded-3xl border border-neutral-200 bg-neutral-950 p-5 text-white shadow-sm sm:p-6 xl:order-2 xl:col-span-2">
               <div className="flex items-center gap-2">
                 <Move className="h-5 w-5 text-neutral-300" />
 
@@ -2329,7 +2331,8 @@ export default function ProductCustomizationEditor({
                 </p>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 p-4">
+              <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-8">
+                <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">
                   Personalização para {quantity.toLocaleString("pt-PT")} {" "}
                   {quantity === 1 ? "unidade" : "unidades"}
@@ -2420,9 +2423,9 @@ export default function ProductCustomizationEditor({
                     aria-label="Quantidade pretendida"
                   />
                 </label>
-              </div>
+                </div>
 
-              <dl className="mt-4 space-y-3 text-sm text-neutral-300">
+                <dl className="space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
                   <dt>Local</dt>
 
@@ -2522,13 +2525,14 @@ export default function ProductCustomizationEditor({
                     </p>
                   </div>
                 </div>
-              </dl>
+                </dl>
+              </div>
 
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => setShowPriceTable(true)}
-                  className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                  className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-white/15"
                 >
                   Ver preços
                 </button>
@@ -2536,7 +2540,7 @@ export default function ProductCustomizationEditor({
                 <button
                   type="button"
                   onClick={() => setShowProductionTimes(true)}
-                  className="rounded-2xl bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                  className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-white/15"
                 >
                   Tempos de produção
                 </button>
@@ -2558,7 +2562,7 @@ export default function ProductCustomizationEditor({
                 type="button"
                 onClick={handleConfirmCustomization}
                 disabled={isSavingDraft || !printColorsAreValid}
-                className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-emerald-400 px-5 py-4 text-sm font-bold text-neutral-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-emerald-400 px-5 py-3 text-sm font-bold text-neutral-950 shadow-lg shadow-emerald-950/20 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
               >
                 <span className="text-neutral-950">
                   {isSavingDraft
@@ -2568,8 +2572,7 @@ export default function ProductCustomizationEditor({
 
                 <ArrowRight className="ml-2 h-4 w-4 text-neutral-950" />
               </button>
-            </div>
-          </aside>
+          </div>
         </div>
       </section>
 
