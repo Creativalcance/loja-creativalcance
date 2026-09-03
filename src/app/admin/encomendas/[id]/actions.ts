@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { submitPaidOrderToStricker } from "@/lib/stricker/orders/submit-order";
 
 export type AdminOrderActionState = {
   success: boolean;
@@ -567,6 +568,72 @@ export async function addAdminOrderNoteAction(
         error instanceof Error
           ? error.message
           : "Não foi possível adicionar a nota.",
+    };
+  }
+}
+
+export async function retrySupplierSubmissionAction(
+  _previousState: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  try {
+    await requireAdmin();
+
+    const orderId = getRequiredString(formData, "orderId");
+    const supabaseAdmin = createSupabaseAdminClient();
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("id, payment_status, supplier_submission_status")
+      .eq("id", orderId)
+      .maybeSingle<{
+        id: string;
+        payment_status: string;
+        supplier_submission_status: string;
+      }>();
+
+    if (error || !order) {
+      return {
+        success: false,
+        message: "Encomenda não encontrada.",
+      };
+    }
+
+    if (order.payment_status !== "paid") {
+      return {
+        success: false,
+        message: "A encomenda só pode ser enviada depois do pagamento estar confirmado.",
+      };
+    }
+
+    if (
+      !["failed", "not_submitted", "partially_submitted"].includes(
+        order.supplier_submission_status,
+      )
+    ) {
+      return {
+        success: false,
+        message: "O estado atual da encomenda não permite uma nova submissão.",
+      };
+    }
+
+    const result = await submitPaidOrderToStricker(order.id);
+
+    revalidatePath("/admin/encomendas");
+    revalidatePath(`/admin/encomendas/${order.id}`);
+
+    return {
+      success: result.success,
+      message: result.success
+        ? "Encomenda enviada novamente ao fornecedor com sucesso."
+        : [result.message, ...result.errors].filter(Boolean).join(" "),
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Não foi possível reenviar a encomenda ao fornecedor.",
     };
   }
 }
