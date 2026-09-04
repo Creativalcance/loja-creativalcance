@@ -16,20 +16,32 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
 import SmartMerchSearchForm from "@/components/smart-merch/SmartMerchSearchForm";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getStrickerLanguage, localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-export const metadata: Metadata = {
-  title: {
-    absolute: "360 Merchandising | Brindes Personalizados e Merchandising",
-  },
-  description:
-    "Encontre brindes personalizados, merchandising corporativo, gifts empresariais e vestuário promocional com pesquisa inteligente, preços por quantidade e personalização.",
-  alternates: {
-    canonical: "/",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getCurrentLocale();
+  const localizedPath = localizePath("/", locale);
+  const metadataByLocale: Record<SiteLocale, { title: string; description: string }> = {
+    pt: { title: "360 Merchandising | Brindes Personalizados e Merchandising", description: "Encontre brindes personalizados, merchandising corporativo, gifts empresariais e vestuário promocional com pesquisa inteligente, preços por quantidade e personalização." },
+    en: { title: "360 Merchandising | Custom Merchandise and Corporate Gifts", description: "Find custom merchandise, promotional products, corporate gifts and branded clothing with smart search, quantity pricing and customisation." },
+    fr: { title: "360 Merchandising | Objets personnalisés et cadeaux d’entreprise", description: "Trouvez des objets personnalisés, du merchandising, des cadeaux d’entreprise et des vêtements promotionnels avec recherche intelligente et tarifs dégressifs." },
+  };
+  const content = metadataByLocale[locale];
+
+  return {
+    title: { absolute: content.title },
+    description: content.description,
+    alternates: {
+      canonical: localizedPath,
+      languages: { "pt-PT": "/", "en-GB": "/en", "fr-FR": "/fr", "x-default": "/" },
+    },
+  };
+}
 
 type ProductImage = {
   external_url: string | null;
@@ -73,6 +85,17 @@ type HomepageProduct = {
   product_variants: ProductVariant[] | null;
 };
 
+type ProductTranslation = {
+  product_id: string;
+  language: string;
+  name: string;
+  slug: string;
+  short_description: string | null;
+  type_name: string | null;
+  subtype_name: string | null;
+  material: string | null;
+};
+
 type CategoryDefinition = {
   title: string;
   description: string;
@@ -86,7 +109,25 @@ type CategoryCard = CategoryDefinition & {
   href: string;
 };
 
-const categoryDefinitions: CategoryDefinition[] = [
+const categoryKeywords = [
+  ["brinde", "promocional", "caneta", "esferografica", "garrafa", "caderno", "bloco", "saco", "lanyard", "porta chaves", "porta-chaves"],
+  ["merchandising", "corporativo", "empresa", "office", "escritorio", "mochila", "powerbank", "tecnologia", "agenda", "usb"],
+  ["vestuario", "vestuário", "textil", "t-shirt", "tshirt", "shirt", "polo", "sweat", "casaco", "colete", "roupa", "avental"],
+  ["gift", "gifts", "presente", "premium", "executivo", "caixa", "conjunto", "garrafa", "gourmet", "vinho"],
+] as const;
+
+const categoryIcons = [Gift, Building2, Shirt, Sparkles] as const;
+
+function getCategoryDefinitions(locale: SiteLocale): CategoryDefinition[] {
+  return getMessages(locale).home.categoryCards.map(([title, description], index) => ({
+    title,
+    description,
+    keywords: [...(categoryKeywords[index] ?? [])],
+    icon: categoryIcons[index] ?? Gift,
+  }));
+}
+
+/*const categoryDefinitions: CategoryDefinition[] = [
   {
     title: "Brindes Promocionais",
     description:
@@ -162,9 +203,19 @@ const categoryDefinitions: CategoryDefinition[] = [
     ],
     icon: Sparkles,
   },
-];
+];*/
 
-const buyingSteps = [
+const buyingStepIcons = [LayoutGrid, Palette, ShoppingCart, CheckCircle2] as const;
+
+function getBuyingSteps(locale: SiteLocale) {
+  return getMessages(locale).home.steps.map(([title, description], index) => ({
+    title,
+    description,
+    icon: buyingStepIcons[index] ?? LayoutGrid,
+  }));
+}
+
+/*const buyingSteps = [
   {
     title: "Escolhe a categoria",
     description:
@@ -189,16 +240,7 @@ const buyingSteps = [
       "Revê os dados no checkout e confirma a compra de forma simples e segura.",
     icon: CheckCircle2,
   },
-];
-
-const benefits = [
-  "Compra directa online",
-  "Escalões de preço por quantidade",
-  "Stock e cores por produto",
-  "Produtos com personalização disponível",
-  "Catálogo permanente evolução",
-  "Envios em 24H*",
-];
+];*/
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "")
@@ -242,14 +284,14 @@ function buildCategoryHref(product: HomepageProduct | null): string {
   return `/categorias/${encodeURIComponent(categoryName)}`;
 }
 
-function formatPrice(value: number | string | null, currency: string | null) {
+function formatPrice(value: number | string | null, currency: string | null, locale: SiteLocale) {
   const numericValue = Number(value);
 
   if (!Number.isFinite(numericValue)) {
     return "Sob consulta";
   }
 
-  return new Intl.NumberFormat("pt-PT", {
+  return new Intl.NumberFormat(locale === "en" ? "en-GB" : locale === "fr" ? "fr-FR" : "pt-PT", {
     style: "currency",
     currency: currency ?? "EUR",
   }).format(numericValue);
@@ -387,7 +429,11 @@ function findProductForCategory(params: {
   );
 }
 
-function buildCategoryCards(products: HomepageProduct[]): CategoryCard[] {
+function buildCategoryCards(
+  products: HomepageProduct[],
+  categoryDefinitions: CategoryDefinition[],
+  locale: SiteLocale,
+): CategoryCard[] {
   const usedProductIds = new Set<string>();
 
   return categoryDefinitions.map((category, index) => {
@@ -406,18 +452,19 @@ function buildCategoryCards(products: HomepageProduct[]): CategoryCard[] {
       ...category,
       product,
       imageUrl: getImageUrl(product),
-      href: buildCategoryHref(product),
+      href: localizePath(buildCategoryHref(product), locale),
     };
   });
 }
 
-function ProductMiniCard({ product }: { product: HomepageProduct }) {
+function ProductMiniCard({ product, locale }: { product: HomepageProduct; locale: SiteLocale }) {
+  const messages = getMessages(locale).home;
   const imageUrl = getImageUrl(product);
   const bestPrice = getBestPrice(product);
 
   return (
     <Link
-      href={`/produto/${product.slug}`}
+      href={localizePath(`/produto/${product.slug}`, locale)}
       className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:-translate-y-1 hover:border-white/25 hover:bg-white/[0.07]"
     >
       <div className="aspect-square bg-white">
@@ -429,7 +476,7 @@ function ProductMiniCard({ product }: { product: HomepageProduct }) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-400">
-            Produto disponível
+            {messages.available}
           </div>
         )}
       </div>
@@ -445,26 +492,26 @@ function ProductMiniCard({ product }: { product: HomepageProduct }) {
 
         <div className="mt-5 flex items-end justify-between gap-4">
           <div>
-            <p className="text-xs text-white/45">Desde</p>
+            <p className="text-xs text-white/45">{messages.from}</p>
 
             <p className="mt-1 text-base font-semibold text-white">
               {bestPrice
-                ? formatPrice(bestPrice.final_price, bestPrice.currency)
-                : "Sob consulta"}
+                ? formatPrice(bestPrice.final_price, bestPrice.currency, locale)
+                : messages.quote}
             </p>
           </div>
 
           <div className="text-right">
-            <p className="text-xs text-white/45">Stock</p>
+            <p className="text-xs text-white/45">{messages.stock}</p>
 
             <p className="mt-1 text-sm font-semibold text-white">
-              {getTotalStock(product).toLocaleString("pt-PT")}
+              {getTotalStock(product).toLocaleString(locale === "en" ? "en-GB" : locale === "fr" ? "fr-FR" : "pt-PT")}
             </p>
           </div>
         </div>
 
         <span className="mt-5 inline-flex items-center text-sm font-semibold text-white">
-          Ver produto
+          {messages.product}
           <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
         </span>
       </div>
@@ -473,6 +520,11 @@ function ProductMiniCard({ product }: { product: HomepageProduct }) {
 }
 
 export default async function HomePage() {
+  const locale = await getCurrentLocale();
+  const messages = getMessages(locale).home;
+  const categoryDefinitions = getCategoryDefinitions(locale);
+  const buyingSteps = getBuyingSteps(locale);
+  const benefits = messages.benefits;
   const supabase = createSupabaseAdminClient();
 
   const { data, error } = await supabase
@@ -519,18 +571,59 @@ export default async function HomePage() {
     .order("updated_at", { ascending: false })
     .limit(500);
 
-  const allProducts = (error ? [] : ((data ?? []) as unknown as HomepageProduct[])).filter(
+  let allProducts = (error ? [] : ((data ?? []) as unknown as HomepageProduct[])).filter(
     (product) => product.slug && !isDemoProduct(product),
   );
   if (error) {
   console.error("Homepage products query error:", error);
 }
 
+  if (locale !== "pt" && allProducts.length > 0) {
+    const requestedLanguage = getStrickerLanguage(locale);
+    const fallbackLanguages = requestedLanguage === "EN"
+      ? ["EN"]
+      : [requestedLanguage, "EN"];
+    const { data: translationData, error: translationError } = await supabase
+      .from("product_translations")
+      .select("product_id,language,name,slug,short_description,type_name,subtype_name,material")
+      .in("product_id", allProducts.map((product) => product.id))
+      .in("language", fallbackLanguages)
+      .returns<ProductTranslation[]>();
+
+    if (translationError) {
+      console.error("Homepage product translations query error:", translationError);
+    } else {
+      const translationsByProduct = new Map<string, ProductTranslation>();
+
+      for (const language of [...fallbackLanguages].reverse()) {
+        for (const translation of translationData ?? []) {
+          if (translation.language === language) {
+            translationsByProduct.set(translation.product_id, translation);
+          }
+        }
+      }
+
+      allProducts = allProducts.map((product) => {
+        const translation = translationsByProduct.get(product.id);
+        return translation
+          ? {
+              ...product,
+              name: translation.name,
+              short_description: translation.short_description,
+              type_name: translation.type_name,
+              subtype_name: translation.subtype_name,
+              material: translation.material,
+            }
+          : product;
+      });
+    }
+  }
+
   const productsWithImages = allProducts.filter((product) => getImageUrl(product));
   const products = productsWithImages.length >= 4 ? productsWithImages : allProducts;
 
   const productsOrderedByStock = sortProductsByStockAvailability(products);
-  const categoryCards = buildCategoryCards(productsOrderedByStock);
+  const categoryCards = buildCategoryCards(productsOrderedByStock, categoryDefinitions, locale);
   const featuredProducts = sortProductsByStockAvailability(
     products.filter((product) => product.is_featured),
   );
@@ -548,28 +641,27 @@ export default async function HomePage() {
           <div className="max-w-5xl">
             <p className="mb-5 inline-flex items-center rounded-full border border-white/15 px-4 py-2 text-sm text-white/70">
               <Sparkles className="mr-2 h-4 w-4" />
-              360 Smart Merch — A forma inteligente de comprar merchandising
+              360 Smart Merch — {messages.badge}
             </p>
 
             <h1 className="text-5xl font-semibold tracking-tight text-white md:text-7xl">
-              Encontre o merchandising certo em segundos.
+              {messages.title}
             </h1>
 
             <p className="mt-8 max-w-2xl text-lg leading-8 text-white/70">
-              Diga-nos o que precisa, quantas unidades pretende, quanto quer
-              gastar e quando precisa de receber.
+              {messages.intro}
             </p>
 
             <div className="mt-10 max-w-4xl">
-              <SmartMerchSearchForm />
+              <SmartMerchSearchForm locale={locale} />
             </div>
 
             <div className="mt-6 flex flex-col gap-4 sm:flex-row">
               <Link
-                href="/categorias"
+                href={localizePath("/categorias", locale)}
                 className="inline-flex items-center justify-center rounded-full border border-white/30 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/60 hover:!bg-white/10"
               >
-                Ver categorias
+                {messages.seeCategories}
                 <LayoutGrid className="ml-2 h-4 w-4" />
               </Link>
 
@@ -577,7 +669,7 @@ export default async function HomePage() {
                 href="#produtos-em-destaque"
                 className="inline-flex items-center justify-center rounded-full border border-white/20 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/40 hover:!bg-white/10"
               >
-                Produtos em destaque
+                {messages.highlights}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </div>
@@ -588,23 +680,23 @@ export default async function HomePage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
-                Categorias
+                {messages.categories}
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                Brindes & Gifts? Temos.
+                {messages.categoryTitle}
               </h2>
 
               <p className="mt-4 max-w-2xl text-sm leading-7 text-white/55">
-                Explore as nossas categorias.
+                {messages.categoryIntro}
               </p>
             </div>
 
             <Link
-              href="/categorias"
+              href={localizePath("/categorias", locale)}
               className="inline-flex items-center text-sm font-semibold text-white"
             >
-              Ver todas as categorias
+              {messages.allCategories}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
@@ -617,7 +709,7 @@ export default async function HomePage() {
                 <Link
                   key={category.title}
                   href={category.href}
-                  aria-label={`Explorar ${category.title}`}
+                  aria-label={`${messages.explore} ${category.title}`}
                   className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
                 >
                   <div className="aspect-[4/3] bg-white">
@@ -646,7 +738,7 @@ export default async function HomePage() {
                     </p>
 
                     <span className="mt-6 inline-flex items-center text-sm font-medium text-white">
-                      Ver produtos
+                      {messages.seeProducts}
                       <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
                     </span>
                   </div>
@@ -660,11 +752,11 @@ export default async function HomePage() {
           <div className="mx-auto w-full max-w-7xl px-6 py-20">
             <div className="max-w-3xl">
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
-                Como comprar
+                {messages.howToBuy}
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                Da escolha do produto à encomenda em poucos passos.
+                {messages.howTitle}
               </h2>
             </div>
 
@@ -708,19 +800,19 @@ export default async function HomePage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
-                Produtos
+                {messages.products}
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                Produtos em destaque
+                {messages.highlights}
               </h2>
             </div>
 
             <Link
-              href="/categorias"
+              href={localizePath("/categorias", locale)}
               className="inline-flex items-center text-sm font-semibold text-white"
             >
-              Explorar catálogo
+              {messages.exploreCatalog}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </div>
@@ -728,12 +820,12 @@ export default async function HomePage() {
           {productHighlights.length > 0 ? (
             <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {productHighlights.map((product) => (
-                <ProductMiniCard key={product.id} product={product} />
+                <ProductMiniCard key={product.id} product={product} locale={locale} />
               ))}
             </div>
           ) : (
             <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center text-white/60">
-              O catálogo está a ser preparado.
+              {messages.catalogPreparing}
             </div>
           )}
         </section>
@@ -742,17 +834,15 @@ export default async function HomePage() {
           <div className="grid gap-10 rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 md:p-10 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
-                Vantagens B2B
+                {messages.b2b}
               </p>
 
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                Uma experiência pensada para empresas.
+                {messages.b2bTitle}
               </h2>
 
               <p className="mt-5 text-sm leading-7 text-white/60">
-                A 360 Merchandising foi desenhada para acelerar a compra e a personalização de produtos
-                promocionais, reduzindo pedidos manuais, facilitando a escolha
-                por categoria, cor, stock, quantidade e personalização.
+                {messages.b2bIntro}
               </p>
             </div>
 
@@ -776,20 +866,19 @@ export default async function HomePage() {
             <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">
-                  Catálogo
+                  {messages.catalog}
                 </p>
 
                 <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight md:text-5xl">
-                  Encontra o produto certo para a próxima campanha da tua
-                  empresa.
+                  {messages.ctaTitle}
                 </h2>
               </div>
 
               <Link
-                href="/categorias"
+                href={localizePath("/categorias", locale)}
                 className="inline-flex shrink-0 items-center justify-center rounded-full bg-neutral-950 px-7 py-4 text-sm font-semibold !text-white transition hover:bg-neutral-800"
               >
-                <span className="!text-white">Ver categorias</span>
+                <span className="!text-white">{messages.seeCategories}</span>
                 <ArrowRight className="ml-2 h-4 w-4 !text-white" />
               </Link>
             </div>
