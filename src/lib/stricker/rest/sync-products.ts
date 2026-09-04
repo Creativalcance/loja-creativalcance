@@ -314,6 +314,96 @@ async function filterChangedProductRecords(params: {
   });
 }
 
+async function getProductsByReferences(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  records: StrickerProductRecord[];
+}): Promise<ImportedProductRow[]> {
+  const references = Array.from(
+    new Set(
+      params.records
+        .map((record) => getProductReference(record))
+        .filter((reference): reference is string => Boolean(reference)),
+    ),
+  );
+  const products: ImportedProductRow[] = [];
+
+  for (const referenceChunk of chunkArray(references, QUERY_CHUNK_SIZE)) {
+    const { data, error } = await params.supabaseAdmin
+      .from("products")
+      .select("id,supplier_id,external_id,sku,name")
+      .eq("supplier_id", params.supplierId)
+      .in("external_id", referenceChunk)
+      .returns<ImportedProductRow[]>();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    products.push(...(data ?? []));
+  }
+
+  return products;
+}
+
+async function filterChangedProductTranslationRecords(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  lang: StrickerLanguage;
+  records: StrickerProductRecord[];
+  products: ImportedProductRow[];
+}): Promise<StrickerProductRecord[]> {
+  const productsByReference = new Map(
+    params.products.map((product) => [product.external_id, product]),
+  );
+  const recordsByProductId = new Map<string, StrickerProductRecord>();
+
+  for (const record of params.records) {
+    const reference = getProductReference(record);
+    const product = reference ? productsByReference.get(reference) : null;
+
+    if (product) {
+      recordsByProductId.set(product.id, record);
+    }
+  }
+
+  const changedProductIds = new Set(recordsByProductId.keys());
+
+  for (const productIdChunk of chunkArray(
+    [...recordsByProductId.keys()],
+    QUERY_CHUNK_SIZE,
+  )) {
+    const { data, error } = await params.supabaseAdmin
+      .from("product_translations")
+      .select("product_id,supplier_payload")
+      .eq("language", params.lang)
+      .in("product_id", productIdChunk)
+      .returns<
+        Array<{ product_id: string; supplier_payload: JsonRecord | null }>
+      >();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    for (const existing of data ?? []) {
+      const nextRecord = recordsByProductId.get(existing.product_id);
+
+      if (
+        nextRecord &&
+        !hasSupplierPayloadChanged(existing.supplier_payload, nextRecord)
+      ) {
+        changedProductIds.delete(existing.product_id);
+      }
+    }
+  }
+
+  return params.records.filter((record) => {
+    const reference = getProductReference(record);
+    const product = reference ? productsByReference.get(reference) : null;
+    return Boolean(product && changedProductIds.has(product.id));
+  });
+}
+
 function buildProductRows(params: {
   supplierId: string;
   records: StrickerProductRecord[];
@@ -694,17 +784,20 @@ export async function syncRestProducts(params: {
       ? (payload.Products as StrickerProductRecord[])
       : [];
 
-    const changedRecords = await filterChangedProductRecords({
-      supabaseAdmin,
-      supplierId,
-      records,
-    });
+    const isCanonicalLanguage = params.lang === "PT";
+    const changedCoreRecords = isCanonicalLanguage
+      ? await filterChangedProductRecords({
+          supabaseAdmin,
+          supplierId,
+          records,
+        })
+      : [];
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     const productRows = buildProductRows({
       supplierId,
-      records: changedRecords,
+      records: changedCoreRecords,
     });
 
     const importedProducts =
@@ -715,10 +808,22 @@ export async function syncRestProducts(params: {
           })
         : [];
 
+    const catalogProducts = await getProductsByReferences({
+      supabaseAdmin,
+      supplierId,
+      records,
+    });
+    const changedTranslationRecords =
+      await filterChangedProductTranslationRecords({
+        supabaseAdmin,
+        lang: params.lang,
+        records,
+        products: catalogProducts,
+      });
     const productTranslationRows = buildProductTranslationRows({
       lang: params.lang,
-      records: changedRecords,
-      products: importedProducts,
+      records: changedTranslationRecords,
+      products: catalogProducts,
     });
 
     const productTranslationsImported =
@@ -731,7 +836,7 @@ export async function syncRestProducts(params: {
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
-    if (importedProducts.length > 0) {
+    if (isCanonicalLanguage && importedProducts.length > 0) {
       await deleteProductImages({
         supabaseAdmin,
         productIds: importedProducts.map((product) => product.id),
@@ -739,7 +844,7 @@ export async function syncRestProducts(params: {
     }
 
     const imageRows = buildImageRows({
-      records: changedRecords,
+      records: changedCoreRecords,
       products: importedProducts,
     });
 
@@ -763,7 +868,12 @@ export async function syncRestProducts(params: {
         Currency: payload.Currency ?? null,
         Language: payload.Language ?? params.lang,
         productTranslationsImported,
-        recordsUnchanged: records.length - changedRecords.length,
+        canonicalDataUpdated: isCanonicalLanguage,
+        recordsUnchanged: records.length - changedCoreRecords.length,
+        translationsUnchanged:
+          catalogProducts.length - changedTranslationRecords.length,
+        productsMissingCanonicalRecord:
+          records.length - catalogProducts.length,
         sample: records.slice(0, 5),
       },
       errors: [],
@@ -774,7 +884,7 @@ export async function syncRestProducts(params: {
       lang: params.lang,
       recordsReceived: records.length,
       productsImported: importedProducts.length,
-      productsUnchanged: records.length - changedRecords.length,
+      productsUnchanged: records.length - changedCoreRecords.length,
       productTranslationsImported,
       imagesImported: imageRows.length,
       datasetImportId,
