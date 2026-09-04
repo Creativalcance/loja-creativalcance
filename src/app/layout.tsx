@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import GoogleAnalyticsTag from "@/components/analytics/GoogleAnalyticsTag";
 import { absoluteUrl, getSiteUrl } from "@/lib/seo/site";
+import { SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -71,7 +73,8 @@ type RootLayoutProps = {
   children: React.ReactNode;
 };
 
-export default function RootLayout({ children }: RootLayoutProps) {
+export default async function RootLayout({ children }: RootLayoutProps) {
+  const locale = await getCurrentLocale();
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
@@ -90,7 +93,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         "@id": `${getSiteUrl()}/#website`,
         url: absoluteUrl("/"),
         name: "360 Merchandising",
-        inLanguage: "pt-PT",
+        inLanguage: SITE_LOCALES[locale].htmlLang,
         publisher: { "@id": `${getSiteUrl()}/#organization` },
         potentialAction: {
           "@type": "SearchAction",
@@ -102,7 +105,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
   };
 
   return (
-    <html lang="pt-PT">
+    <html lang={SITE_LOCALES[locale].htmlLang}>
       <body>
         <GoogleAnalyticsTag />
         {children}
