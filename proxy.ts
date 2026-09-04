@@ -1,8 +1,41 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { DEFAULT_SITE_LOCALE, isSiteLocale } from "@/lib/i18n/config";
 
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
+  const originalPath = request.nextUrl.pathname;
+  const firstSegment = originalPath.split("/").filter(Boolean)[0] ?? "";
+  const localizedPath = isSiteLocale(firstSegment) && firstSegment !== "pt";
+  const locale = localizedPath ? firstSegment : DEFAULT_SITE_LOCALE;
+  const applicationPath = localizedPath
+    ? originalPath.replace(new RegExp(`^/${firstSegment}(?=/|$)`), "") || "/"
+    : originalPath;
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-site-locale", locale);
+
+  function createResponse() {
+    let nextResponse: NextResponse;
+
+    if (localizedPath) {
+      const destination = request.nextUrl.clone();
+      destination.pathname = applicationPath;
+      nextResponse = NextResponse.rewrite(destination, {
+        request: { headers: requestHeaders },
+      });
+    } else {
+      nextResponse = NextResponse.next({ request: { headers: requestHeaders } });
+    }
+
+    nextResponse.cookies.set("site-locale", locale, {
+      path: "/",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+
+    return nextResponse;
+  }
+
+  let response = createResponse();
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -21,7 +54,7 @@ export async function proxy(request: NextRequest) {
           request.cookies.set(name, value);
         });
 
-        response = NextResponse.next({ request });
+        response = createResponse();
 
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
@@ -35,7 +68,7 @@ export async function proxy(request: NextRequest) {
   });
 
   const { data: claimsData } = await supabase.auth.getClaims();
-  const path = request.nextUrl.pathname;
+  const path = applicationPath;
   const isAdminPath = path.startsWith("/admin") || path.startsWith("/api/admin");
   const isCustomerPath = path.startsWith("/area-cliente");
 
@@ -52,8 +85,8 @@ export async function proxy(request: NextRequest) {
       }
 
       const loginUrl = request.nextUrl.clone();
-      loginUrl.pathname = "/login";
-      loginUrl.search = `?next=${encodeURIComponent(path + request.nextUrl.search)}`;
+      loginUrl.pathname = localizedPath ? `/${locale}/login` : "/login";
+      loginUrl.search = `?next=${encodeURIComponent(originalPath + request.nextUrl.search)}`;
       return NextResponse.redirect(loginUrl);
     }
 
@@ -73,7 +106,11 @@ export async function proxy(request: NextRequest) {
       }
 
       const destination = request.nextUrl.clone();
-      destination.pathname = profile?.role === "admin" ? "/admin" : "/";
+      destination.pathname = profile?.role === "admin"
+        ? "/admin"
+        : localizedPath
+          ? `/${locale}`
+          : "/";
       destination.search = "";
       return NextResponse.redirect(destination);
     }
