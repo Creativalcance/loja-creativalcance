@@ -2,28 +2,32 @@
 
 import { useState } from "react";
 import { Check, Euro, Search, Sparkles, UsersRound } from "lucide-react";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
 
 type SmartMerchSearchFormProps = {
   defaultRequest?: string;
   defaultQuantity?: number | null;
   defaultBudget?: number | null;
   compact?: boolean;
+  locale?: SiteLocale;
 };
-
-const SUGGESTIONS_REQUEST = "Não sei! Aceito as vossas sugestões.";
 
 export default function SmartMerchSearchForm({
   defaultRequest = "",
   defaultQuantity = null,
   defaultBudget = null,
   compact = false,
+  locale = "pt",
 }: SmartMerchSearchFormProps) {
-  const initiallySuggestions = defaultRequest === SUGGESTIONS_REQUEST;
+  const messages = getMessages(locale).home.smart;
+  const suggestionsRequest = messages.suggestions;
+  const initiallySuggestions = defaultRequest === suggestionsRequest;
   const [suggestions, setSuggestions] = useState(initiallySuggestions);
 
   return (
     <form
-      action="/smart-merch"
+      action={localizePath("/smart-merch", locale)}
       method="get"
       className={
         compact
@@ -33,7 +37,7 @@ export default function SmartMerchSearchForm({
     >
       <label className="block">
         <span className={compact ? "text-sm font-semibold text-neutral-950" : "text-sm font-semibold text-white"}>
-          O que procura?
+          {messages.request}
         </span>
         <div className="relative mt-2">
           <Search className={`pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 ${compact ? "text-neutral-400" : "text-white/45"}`} />
@@ -45,17 +49,17 @@ export default function SmartMerchSearchForm({
             maxLength={500}
             defaultValue={initiallySuggestions ? "" : defaultRequest}
             disabled={suggestions}
-            placeholder="500 garrafas sustentáveis até 3 € para uma feira"
+            placeholder={messages.placeholder}
             className={`w-full rounded-2xl border py-4 pl-12 pr-4 text-base outline-none transition focus:ring-2 ${compact ? "border-neutral-300 bg-white text-neutral-950 focus:border-neutral-950 focus:ring-neutral-950/10" : "border-white/15 bg-white text-neutral-950 placeholder:text-neutral-400 focus:border-white focus:ring-white/20"}`}
           />
         </div>
       </label>
 
       <p className={`mt-2 text-xs ${compact ? "text-neutral-500" : "text-white/55"}`}>
-        Pode pesquisar por produto ou simplesmente dizer-nos o que precisa.
+        {messages.hint}
       </p>
 
-      {suggestions ? <input type="hidden" name="pedido" value={SUGGESTIONS_REQUEST} /> : null}
+      {suggestions ? <input type="hidden" name="pedido" value={suggestionsRequest} /> : null}
 
       <label
         className={`mt-4 flex cursor-pointer items-center gap-3 rounded-2xl border p-4 transition ${
@@ -78,16 +82,16 @@ export default function SmartMerchSearchForm({
           {suggestions ? <Check className="h-4 w-4" aria-hidden="true" /> : null}
         </span>
         <span>
-          <span className="block text-sm font-semibold">Não sei! Aceito as vossas sugestões.</span>
+          <span className="block text-sm font-semibold">{messages.suggestions}</span>
           <span className={`mt-0.5 block text-xs ${suggestions ? "opacity-75" : "opacity-60"}`}>
-            Indique apenas a quantidade e o orçamento disponível.
+            {messages.suggestionsHint}
           </span>
         </span>
       </label>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <label className="relative block">
-          <span className="sr-only">Quantidade</span>
+          <span className="sr-only">{messages.quantity}</span>
           <UsersRound className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
             type="number"
@@ -96,13 +100,13 @@ export default function SmartMerchSearchForm({
             max={1_000_000}
             required={suggestions}
             defaultValue={defaultQuantity ?? ""}
-            placeholder="Quantidade"
+            placeholder={messages.quantity}
             className="w-full rounded-2xl border border-neutral-300 bg-white py-3 pl-11 pr-4 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />
         </label>
 
         <label className="relative block">
-          <span className="sr-only">Orçamento total</span>
+          <span className="sr-only">{messages.budget}</span>
           <Euro className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
             type="number"
@@ -112,7 +116,7 @@ export default function SmartMerchSearchForm({
             step="0.01"
             required={suggestions}
             defaultValue={defaultBudget ?? ""}
-            placeholder="Orçamento total"
+            placeholder={messages.budget}
             className="w-full rounded-2xl border border-neutral-300 bg-white py-3 pl-11 pr-4 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />
         </label>
@@ -128,7 +132,7 @@ export default function SmartMerchSearchForm({
         }`}
       >
         <Sparkles className="mr-2 h-5 w-5" aria-hidden="true" />
-        Mostrar sugestões
+        {messages.submit}
       </button>
     </form>
   );
