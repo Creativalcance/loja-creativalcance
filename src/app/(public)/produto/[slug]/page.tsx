@@ -799,7 +799,8 @@ export default async function ProductDetailPage({
           {backLabel}
         </Link>
 
-       <ProductDirectPurchasePanel
+        <ProductDirectPurchasePanel
+          locale={locale}
   productId={product.id}
   productSlug={baseSlug}
   productSku={product.sku}
