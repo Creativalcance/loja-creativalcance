@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSiteLocale, localizePath } from "@/lib/i18n/config";
 import { getStrickerConfig } from "@/lib/stricker/config";
 import {
   getCustomizationServiceCodeHints,
@@ -367,6 +368,7 @@ export async function createPaymentCheckoutSessionAction(
   _previousState: CheckoutPaymentActionState,
   formData: FormData,
 ): Promise<CheckoutPaymentActionState> {
+  const locale = getSiteLocale(String(formData.get("locale") ?? "pt"));
   let checkoutUrl: string | null = null;
 
   try {
@@ -390,7 +392,7 @@ export async function createPaymentCheckoutSessionAction(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      redirect("/login");
+      redirect(localizePath("/login", locale));
     }
 
     const supabaseAdmin = createSupabaseAdminClient();
@@ -977,12 +979,12 @@ export async function createPaymentCheckoutSessionAction(
       customer_email: cart.customer_email,
       line_items: lineItems,
       success_url:
-        `${siteUrl}/checkout/sucesso` +
+        `${siteUrl}${localizePath("/checkout/sucesso", locale)}` +
         "?session_id={CHECKOUT_SESSION_ID}",
       cancel_url:
-        `${siteUrl}/checkout/cancelado` +
+        `${siteUrl}${localizePath("/checkout/cancelado", locale)}` +
         `?order_id=${encodeURIComponent(order.id)}`,
-      locale: "pt",
+      locale,
       billing_address_collection: "auto",
       phone_number_collection: {
         enabled: true,
