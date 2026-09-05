@@ -10,7 +10,7 @@ import {
 type RemoveCartItemButtonProps = {
   itemId: string;
   productName: string;
-  returnTo: "/carrinho" | "/checkout" | "/checkout/expedicao";
+  returnTo: string;
 };
 
 const initialState: RemoveCartItemActionState = {
