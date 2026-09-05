@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Star } from "lucide-react";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
 
 export type ProductCardImage = {
   external_url: string | null;
@@ -40,16 +42,17 @@ export type ProductCardProduct = {
 
 type ProductCardProps = {
   product: ProductCardProduct;
+  locale?: SiteLocale;
 };
 
-function formatPrice(value: number | string | null, currency: string | null): string {
+function formatPrice(value: number | string | null, currency: string | null, locale: SiteLocale): string {
   const numericValue = Number(value);
 
   if (!Number.isFinite(numericValue)) {
-    return "Sob consulta";
+    return getMessages(locale).common.quote;
   }
 
-  return new Intl.NumberFormat("pt-PT", {
+  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, {
     style: "currency",
     currency: currency ?? "EUR",
   }).format(numericValue);
@@ -115,7 +118,8 @@ function formatCatalogText(value: string | null): string | null {
   return formatted.length > 0 ? formatted : null;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, locale = "pt" }: ProductCardProps) {
+  const labels = getMessages(locale);
   const primaryImage = getPrimaryImage(product);
   const imageUrl = primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
   const bestPrice = getBestPrice(product);
@@ -125,7 +129,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <Link
-      href={`/produto/${product.slug}`}
+      href={localizePath(`/produto/${product.slug}`, locale)}
       className="group min-w-0 w-full max-w-full overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
     >
       <div className="aspect-square bg-neutral-100">
@@ -137,7 +141,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-neutral-400">
-            Sem imagem disponível
+            {labels.catalog.noImage}
           </div>
         )}
       </div>
@@ -151,7 +155,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.is_featured ? (
             <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
               <Star className="mr-1 h-3 w-3" />
-              Destaque
+              {labels.catalog.featured}
             </span>
           ) : null}
         </div>
@@ -170,7 +174,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.is_customizable ? (
             <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
               <CheckCircle2 className="mr-1 h-3 w-3" />
-              Personalizável
+              {labels.catalog.customizable}
             </span>
           ) : null}
 
@@ -190,26 +194,26 @@ export default function ProductCard({ product }: ProductCardProps) {
         <div className="mt-6 flex items-end justify-between gap-4">
           <div>
             <p className="text-xs text-neutral-500">
-              Desde {minimumOrderQuantity.toLocaleString("pt-PT")} un.
+              {labels.catalog.from} {minimumOrderQuantity.toLocaleString(SITE_LOCALES[locale].intlLocale)} {labels.common.units}
             </p>
 
             <p className="mt-1 text-lg font-semibold text-neutral-950">
               {bestPrice
-                ? formatPrice(bestPrice.final_price, bestPrice.currency)
-                : "Sob consulta"}
+                ? formatPrice(bestPrice.final_price, bestPrice.currency, locale)
+                : labels.common.quote}
             </p>
           </div>
 
           <div className="text-right">
-            <p className="text-xs text-neutral-500">Stock</p>
+            <p className="text-xs text-neutral-500">{labels.common.stock}</p>
             <p className="mt-1 text-sm font-semibold text-neutral-950">
-              {totalStock.toLocaleString("pt-PT")}
+              {totalStock.toLocaleString(SITE_LOCALES[locale].intlLocale)}
             </p>
           </div>
         </div>
 
         <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">
-          Ver produto
+          {labels.catalog.viewProduct}
           <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
         </span>
       </div>
