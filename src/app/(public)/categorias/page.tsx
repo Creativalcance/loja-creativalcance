@@ -2,6 +2,9 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Boxes, Search } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type ProductImage = {
   external_url: string | null;
@@ -32,12 +35,15 @@ type CatalogCategory = {
   imageAlt: string;
 };
 
-export const metadata: Metadata = {
-  title: "Categorias de merchandising e brindes",
-  description:
-    "Explore categorias de brindes promocionais, merchandising corporativo, vestuário personalizado e gifts empresariais.",
-  alternates: { canonical: "/categorias" },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getCurrentLocale();
+  const text = getMessages(locale).catalog;
+  return {
+    title: text.title,
+    description: text.intro,
+    alternates: { canonical: localizePath("/categorias", locale) },
+  };
+}
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "")
@@ -158,6 +164,9 @@ function getCatalogCategories(rows: CategoryRow[]): CatalogCategory[] {
 }
 
 export default async function CategoriesPage() {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -197,40 +206,39 @@ export default async function CategoriesPage() {
     <main className="min-h-screen bg-neutral-950 text-white">
       <section className="mx-auto w-full max-w-7xl px-6 py-12">
         <Link
-          href="/"
+          href={localizePath("/", locale)}
           className="text-sm font-medium text-white/50 transition hover:text-white"
         >
-          ← Voltar à página inicial
+          ← {labels.common.backHome}
         </Link>
 
         <div className="mt-12 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-white/45">
-              Catálogo
+              {labels.catalog.eyebrow}
             </p>
 
             <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-6xl">
-              Categorias de produtos
+              {labels.catalog.title}
             </h1>
 
             <p className="mt-5 max-w-3xl text-base leading-8 text-white/65">
-              Explora o catálogo por categorias e encontra rapidamente produtos
-              para campanhas, eventos, equipas, clientes e ações empresariais.
+              {labels.catalog.intro}
             </p>
           </div>
 
           <Link
-            href="/pesquisa"
+            href={localizePath("/pesquisa", locale)}
             className="inline-flex items-center justify-center rounded-full border border-white/20 !bg-transparent px-6 py-3 text-sm font-semibold !text-white transition hover:border-white/40 hover:!bg-white/10"
           >
             <Search className="mr-2 h-4 w-4" />
-            Pesquisar produtos
+            {labels.common.searchProducts}
           </Link>
         </div>
 
         {error ? (
           <div className="mt-10 rounded-3xl border border-red-400/30 bg-red-500/10 p-6 text-sm text-red-100">
-            Não foi possível carregar as categorias. Tenta novamente.
+            {labels.catalog.loadError} {labels.common.retry}
           </div>
         ) : null}
 
@@ -239,7 +247,7 @@ export default async function CategoriesPage() {
             {categories.map((category) => (
               <Link
                 key={category.name}
-                href={buildCategoryHref(category.name)}
+                href={localizePath(buildCategoryHref(category.name), locale)}
                 className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
               >
                 <div className="aspect-[4/3] bg-white">
@@ -266,12 +274,11 @@ export default async function CategoriesPage() {
                   </h2>
 
                   <p className="mt-3 text-sm text-white/55">
-                    {category.count.toLocaleString("pt-PT")} produto(s)
-                    disponíveis
+                    {category.count.toLocaleString(intlLocale)} {category.count === 1 ? labels.common.product : labels.common.products} {labels.common.available}
                   </p>
 
                   <span className="mt-6 inline-flex items-center text-sm font-semibold text-white">
-                    Ver produtos
+                    {labels.common.viewProducts}
                     <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
                   </span>
                 </div>
@@ -281,12 +288,11 @@ export default async function CategoriesPage() {
         ) : (
           <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
             <h2 className="text-xl font-semibold text-white">
-              Ainda não existem categorias disponíveis
+              {labels.catalog.emptyTitle}
             </h2>
 
             <p className="mt-3 text-white/60">
-              Confirma se os produtos importados têm o campo type_name
-              preenchido e se estão activos.
+              {labels.catalog.emptyText}
             </p>
           </div>
         )}
