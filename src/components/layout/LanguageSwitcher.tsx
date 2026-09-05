@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Languages } from "lucide-react";
 import {
   localizePath,
@@ -18,7 +18,6 @@ export default function LanguageSwitcher({
   label,
 }: LanguageSwitcherProps) {
   const pathname = usePathname();
-  const router = useRouter();
 
   return (
     <label className="relative inline-flex h-11 items-center rounded-full border border-[#162334]/12 bg-white pl-1 text-[#162334]/70 transition hover:border-[#162334]/35 sm:pl-3">
@@ -27,7 +26,13 @@ export default function LanguageSwitcher({
       <select
         value={locale}
         onChange={(event) => {
-          router.push(localizePath(pathname, event.target.value as SiteLocale));
+          const nextLocale = event.target.value as SiteLocale;
+          const nextPath = localizePath(pathname, nextLocale);
+
+          document.cookie = `site-locale=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
+          window.location.assign(
+            `${nextPath}${window.location.search}${window.location.hash}`,
+          );
         }}
         aria-label={label}
         className="h-full w-10 cursor-pointer appearance-none bg-transparent py-0 pl-2 pr-4 text-sm font-semibold uppercase outline-none sm:w-14 sm:pr-5"
