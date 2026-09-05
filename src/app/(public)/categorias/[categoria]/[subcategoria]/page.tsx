@@ -11,6 +11,8 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type SubcategoryPageProps = {
   params: Promise<{
@@ -28,6 +30,7 @@ function sanitizeValue(value: string): string {
 }
 
 export default async function SubcategoryPage({ params }: SubcategoryPageProps) {
+  const locale = await getCurrentLocale();
   const resolvedParams = await params;
   const categoryName = sanitizeValue(resolvedParams.categoria);
   const subcategoryName = sanitizeValue(resolvedParams.subcategoria);
@@ -118,7 +121,7 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
           </div>
 
           <Link
-            href={`/pesquisa?q=${encodeURIComponent(subcategoryName)}`}
+            href={localizePath(`/pesquisa?q=${encodeURIComponent(subcategoryName)}`, locale)}
             className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
             <Search className="mr-2 h-4 w-4" />
@@ -140,7 +143,7 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
         {products.length > 0 ? (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} locale={locale} />
             ))}
           </div>
         ) : (
