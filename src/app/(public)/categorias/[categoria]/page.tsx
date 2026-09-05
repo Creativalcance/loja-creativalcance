@@ -10,6 +10,8 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type CategoryProductsPageProps = {
   params: Promise<{
@@ -42,6 +44,7 @@ function getSubcategories(rows: SubtypeRow[]): string[] {
 export default async function CategoryProductsPage({
   params,
 }: CategoryProductsPageProps) {
+  const locale = await getCurrentLocale();
   const resolvedParams = await params;
   const categoryName = sanitizeCategoryValue(resolvedParams.categoria);
   const seoContent = buildCategorySeoContent(categoryName);
@@ -121,7 +124,7 @@ export default async function CategoryProductsPage({
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
         <Link
-          href="/categorias"
+          href={localizePath("/categorias", locale)}
           className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           ← Voltar às categorias
@@ -143,7 +146,7 @@ export default async function CategoryProductsPage({
           </div>
 
           <Link
-            href="/pesquisa"
+            href={localizePath("/pesquisa", locale)}
             className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
             <Search className="mr-2 h-4 w-4" />
@@ -186,7 +189,7 @@ export default async function CategoryProductsPage({
         {products.length > 0 ? (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} locale={locale} />
             ))}
           </div>
         ) : (
@@ -224,19 +227,19 @@ export default async function CategoryProductsPage({
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
-                href="/solucoes"
+                href={localizePath("/solucoes", locale)}
                 className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#162334]"
               >
                 Soluções <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
               <Link
-                href="/aplicacoes"
+                href={localizePath("/aplicacoes", locale)}
                 className="inline-flex items-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Aplicações
               </Link>
               <Link
-                href="/industrias"
+                href={localizePath("/industrias", locale)}
                 className="inline-flex items-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Indústrias
