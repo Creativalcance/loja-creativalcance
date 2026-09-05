@@ -16,6 +16,9 @@ import Ga4BeginCheckoutTracker from "@/components/analytics/Ga4BeginCheckoutTrac
 import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -69,8 +72,8 @@ type Profile = {
 
 type CustomerAddress = CheckoutSavedAddress;
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPrice(value: number, currency: string, intlLocale: string): string {
+  return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
   }).format(Number(value ?? 0));
@@ -81,6 +84,9 @@ function roundMoney(value: number): number {
 }
 
 export default async function CheckoutPage() {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -88,7 +94,7 @@ export default async function CheckoutPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(localizePath("/login", locale));
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
@@ -157,7 +163,7 @@ export default async function CheckoutPage() {
   const items = cart?.cart_items ?? [];
 
   if (!cart || items.length === 0) {
-    redirect("/carrinho");
+    redirect(localizePath("/carrinho", locale));
   }
 
   const { data: addressesData } = await supabaseAdmin
@@ -260,11 +266,11 @@ export default async function CheckoutPage() {
       />
       <section className="mx-auto max-w-7xl">
         <Link
-          href="/carrinho"
+          href={localizePath("/carrinho", locale)}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar ao carrinho
+          {labels.checkout.back}
         </Link>
 
         <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
@@ -277,11 +283,11 @@ export default async function CheckoutPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Destino
+                    {labels.checkout.destination}
                   </p>
 
                   <p className="mt-1 text-xs text-neutral-300">
-                    Dados e morada
+                    {labels.checkout.detailsAddress}
                   </p>
                 </div>
               </div>
@@ -295,11 +301,11 @@ export default async function CheckoutPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Expedição
+                    {labels.checkout.shipping}
                   </p>
 
                   <p className="mt-1 text-xs">
-                    Transporte e prazo
+                    {labels.checkout.shippingTime}
                   </p>
                 </div>
               </div>
@@ -313,11 +319,11 @@ export default async function CheckoutPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Pagamento
+                    {labels.checkout.payment}
                   </p>
 
                   <p className="mt-1 text-xs">
-                    Revisão e pagamento
+                    {labels.checkout.reviewPayment}
                   </p>
                 </div>
               </div>
@@ -334,16 +340,15 @@ export default async function CheckoutPage() {
 
               <div>
                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                  Passo 1 de 3
+                  {labels.checkout.step}
                 </p>
 
                 <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
-                  Destino da encomenda
+                  {labels.checkout.title}
                 </h1>
 
                 <p className="mt-4 max-w-3xl leading-7 text-neutral-600">
-                  Confirma os dados do cliente e indica a
-                  morada onde pretendes receber a encomenda.
+                  {labels.checkout.intro}
                 </p>
               </div>
             </div>
@@ -359,6 +364,7 @@ export default async function CheckoutPage() {
               customerNotes={cart.customer_notes ?? ""}
               selectedAddressId={cart.shipping_address_id}
               savedAddresses={savedAddresses}
+              locale={locale}
             />
           </section>
 
@@ -367,11 +373,11 @@ export default async function CheckoutPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium uppercase tracking-[0.16em] text-neutral-500">
-                    Encomenda
+                    {labels.checkout.order}
                   </p>
 
                   <h2 className="mt-2 text-xl font-semibold text-neutral-950">
-                    Resumo
+                    {labels.checkout.summary}
                   </h2>
                 </div>
 
@@ -392,19 +398,19 @@ export default async function CheckoutPage() {
                         </p>
 
                         <p className="mt-1 text-sm text-neutral-500">
-                          {item.quantity.toLocaleString("pt-PT")} un.
+                          {item.quantity.toLocaleString(intlLocale)} {labels.common.units}
                         </p>
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-3">
                         <p className="text-sm font-semibold text-neutral-950">
-                          {formatPrice(item.total, currency)}
+                          {formatPrice(item.total, currency, intlLocale)}
                         </p>
 
                         <RemoveCartItemButton
                           itemId={item.id}
                           productName={item.product_name}
-                          returnTo="/checkout"
+                          returnTo={localizePath("/checkout", locale)}
                         />
                       </div>
                     </div>
@@ -413,34 +419,34 @@ export default async function CheckoutPage() {
                       <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600">
                         <div className="flex items-center gap-2 font-semibold text-neutral-950">
                           <Check className="h-4 w-4 text-emerald-600" />
-                          Personalização configurada
+                          {labels.checkout.configured}
                         </div>
 
                         <dl className="mt-3 space-y-2">
                           <div className="flex justify-between gap-4">
-                            <dt>Local</dt>
+                            <dt>{labels.checkout.location}</dt>
 
                             <dd className="text-right font-medium text-neutral-950">
                               {item.customization_location_name ??
-                                "A confirmar"}
+                                labels.common.confirm}
                             </dd>
                           </div>
 
                           <div className="flex justify-between gap-4">
-                            <dt>Técnica</dt>
+                            <dt>{labels.checkout.technique}</dt>
 
                             <dd className="text-right font-medium text-neutral-950">
                               {item.customization_technique_name ??
-                                "A confirmar"}
+                                labels.common.confirm}
                             </dd>
                           </div>
 
                           <div className="flex justify-between gap-4">
-                            <dt>Logótipo</dt>
+                            <dt>{labels.checkout.logo}</dt>
 
                             <dd className="max-w-48 truncate text-right font-medium text-neutral-950">
                               {item.logo_file_name ??
-                                "Ainda não carregado"}
+                                labels.checkout.notUploaded}
                             </dd>
                           </div>
                         </dl>
@@ -452,70 +458,70 @@ export default async function CheckoutPage() {
 
               <div className="mt-6 space-y-3 border-t border-neutral-200 pt-5 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>Produtos</span>
+                  <span>{labels.common.products}</span>
 
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart.subtotal, currency)}
+                    {formatPrice(cart.subtotal, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Personalização</span>
+                  <span>{labels.common.personalization}</span>
 
                   <span className="font-semibold text-neutral-950">
                     {formatPrice(
                       cart.personalization_total,
                       currency,
+                      intlLocale,
                     )}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Preparação</span>
+                  <span>{labels.common.setup}</span>
 
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(setupTotal, currency)}
+                    {formatPrice(setupTotal, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Extras</span>
+                  <span>{labels.common.extras}</span>
 
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(extrasTotal, currency)}
+                    {formatPrice(extrasTotal, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Transporte</span>
+                  <span>{labels.checkout.shipping}</span>
 
                   <span className="font-semibold text-neutral-500">
-                    A calcular
+                    {labels.checkout.shippingCalc}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>IVA</span>
+                  <span>{labels.common.vat}</span>
 
                   <span className="font-semibold text-neutral-500">
-                    A calcular
+                    {labels.checkout.shippingCalc}
                   </span>
                 </div>
 
                 <div className="border-t border-neutral-200 pt-4">
                   <div className="flex justify-between gap-4 text-base">
                     <span className="font-semibold text-neutral-950">
-                      Total atual
+                      {labels.checkout.currentTotal}
                     </span>
 
                     <span className="font-semibold text-neutral-950">
-                      {formatPrice(currentTotal, currency)}
+                      {formatPrice(currentTotal, currency, intlLocale)}
                     </span>
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    O transporte e o IVA serão adicionados
-                    antes do pagamento.
+                    {labels.checkout.taxNote}
                   </p>
                 </div>
               </div>
@@ -527,13 +533,11 @@ export default async function CheckoutPage() {
 
                 <div>
                   <p className="text-sm font-semibold text-neutral-950">
-                    Próximo passo
+                    {labels.checkout.next}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-neutral-600">
-                    Na expedição poderás escolher o método de
-                    transporte, consultar o prazo e confirmar o
-                    respetivo custo.
+                    {labels.checkout.nextText}
                   </p>
                 </div>
               </div>
@@ -545,13 +549,11 @@ export default async function CheckoutPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Pagamento seguro
+                    {labels.checkout.securePayment}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-neutral-300">
-                    O pagamento só será pedido depois da
-                    escolha do transporte e da revisão do
-                    valor final.
+                    {labels.checkout.secureText}
                   </p>
                 </div>
               </div>
