@@ -4,6 +4,9 @@ import { ArrowLeft, ShoppingCart } from "lucide-react";
 import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type CartItem = {
   id: string;
@@ -34,8 +37,8 @@ type Cart = {
 
 const CART_SESSION_COOKIE = "loja_creativ_cart_session";
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPrice(value: number, currency: string, intlLocale: string): string {
+  return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
   }).format(value);
@@ -52,6 +55,9 @@ async function getCurrentUserId(): Promise<string | null> {
 }
 
 export default async function CartPage() {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(CART_SESSION_COOKIE)?.value ?? null;
   const userId = await getCurrentUserId();
@@ -106,11 +112,11 @@ export default async function CartPage() {
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-5xl">
         <Link
-          href="/pesquisa"
+          href={localizePath("/", locale)}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Continuar a comprar
+          {labels.cart.continueShopping}
         </Link>
 
         <div className="mt-8">
@@ -119,12 +125,11 @@ export default async function CartPage() {
           </p>
 
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
-            Carrinho
+            {labels.cart.title}
           </h1>
 
           <p className="mt-4 max-w-3xl text-neutral-600">
-            Revê os produtos antes de avançar para checkout. O pagamento online
-            será implementado na etapa seguinte com Stripe.
+            {labels.cart.intro}
           </p>
         </div>
 
@@ -147,9 +152,9 @@ export default async function CartPage() {
                       </h2>
 
                       <p className="mt-3 text-sm text-neutral-600">
-                        Quantidade:{" "}
+                        {labels.common.quantity}:{" "}
                         <span className="font-semibold text-neutral-950">
-                          {item.quantity.toLocaleString("pt-PT")}
+                          {item.quantity.toLocaleString(intlLocale)}
                         </span>
                       </p>
 
@@ -162,35 +167,35 @@ export default async function CartPage() {
 
                     <div className="flex flex-col items-start text-sm text-neutral-600 md:items-end md:text-right">
                       <p>
-                        Unitário:{" "}
+                        {labels.cart.unit}:{" "}
                         <span className="font-semibold text-neutral-950">
-                          {formatPrice(item.unit_price, currency)}
+                          {formatPrice(item.unit_price, currency, intlLocale)}
                         </span>
                       </p>
 
                       <p className="mt-2">
-                        Personalização:{" "}
+                        {labels.common.personalization}:{" "}
                         <span className="font-semibold text-neutral-950">
-                          {formatPrice(item.personalization_total, currency)}
+                          {formatPrice(item.personalization_total, currency, intlLocale)}
                         </span>
                       </p>
 
                       <p className="mt-2">
-                        Setup:{" "}
+                        {labels.common.setup}:{" "}
                         <span className="font-semibold text-neutral-950">
-                          {formatPrice(item.setup_cost, currency)}
+                          {formatPrice(item.setup_cost, currency, intlLocale)}
                         </span>
                       </p>
 
                       <p className="mt-4 text-lg font-semibold text-neutral-950">
-                        {formatPrice(item.total, currency)}
+                        {formatPrice(item.total, currency, intlLocale)}
                       </p>
 
                       <div className="mt-5">
                         <RemoveCartItemButton
                           itemId={item.id}
                           productName={item.product_name}
-                          returnTo="/carrinho"
+                          returnTo={localizePath("/carrinho", locale)}
                         />
                       </div>
                     </div>
@@ -201,59 +206,59 @@ export default async function CartPage() {
 
             <aside className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
               <h2 className="text-xl font-semibold text-neutral-950">
-                Resumo
+                {labels.cart.summary}
               </h2>
 
               <div className="mt-6 space-y-3 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>Produtos</span>
+                  <span>{labels.common.products}</span>
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.subtotal ?? 0, currency)}
+                    {formatPrice(cart?.subtotal ?? 0, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Personalização</span>
+                  <span>{labels.common.personalization}</span>
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.personalization_total ?? 0, currency)}
+                    {formatPrice(cart?.personalization_total ?? 0, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Setup</span>
+                  <span>{labels.common.setup}</span>
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.setup_total ?? 0, currency)}
+                    {formatPrice(cart?.setup_total ?? 0, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>IVA</span>
+                  <span>{labels.common.vat}</span>
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.tax_total ?? 0, currency)}
+                    {formatPrice(cart?.tax_total ?? 0, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="border-t border-neutral-200 pt-4">
                   <div className="flex justify-between gap-4 text-base">
                     <span className="font-semibold text-neutral-950">
-                      Total
+                      {labels.common.total}
                     </span>
                     <span className="font-semibold text-neutral-950">
-                      {formatPrice(cart?.grand_total ?? 0, currency)}
+                      {formatPrice(cart?.grand_total ?? 0, currency, intlLocale)}
                     </span>
                   </div>
                 </div>
               </div>
 
               <Link
-  href="/checkout"
+  href={localizePath("/checkout", locale)}
   className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
 >
-  Avançar para checkout
+  {labels.cart.checkout}
 </Link>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-  O pagamento será processado de forma segura através da Stripe.
+  {labels.cart.secure}
 </p>
             </aside>
           </div>
@@ -262,18 +267,18 @@ export default async function CartPage() {
             <ShoppingCart className="mx-auto h-10 w-10 text-neutral-400" />
 
             <h2 className="mt-5 text-xl font-semibold text-neutral-950">
-              O carrinho está vazio
+              {labels.cart.empty}
             </h2>
 
             <p className="mt-3 text-neutral-600">
-              Adiciona produtos ao carrinho para preparar a tua encomenda.
+              {labels.cart.emptyText}
             </p>
 
             <Link
-              href="/pesquisa"
+              href={localizePath("/pesquisa", locale)}
               className="mt-8 inline-flex rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
             >
-              Procurar produtos
+              {labels.cart.find}
             </Link>
           </div>
         )}
