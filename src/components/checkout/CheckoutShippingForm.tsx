@@ -6,10 +6,12 @@ import {
   saveCheckoutShippingAction,
   type CheckoutShippingActionState,
 } from "@/lib/checkout/shipping-actions";
+import { SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 
 export type CheckoutShippingMethod = "store_transport";
 
 type CheckoutShippingFormProps = {
+  locale: SiteLocale;
   cartId: string;
   currency: string;
   merchandiseTotal: number;
@@ -25,8 +27,8 @@ const initialState: CheckoutShippingActionState = {
   message: "",
 };
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPrice(value: number, currency: string, locale: SiteLocale): string {
+  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, {
     style: "currency",
     currency,
   }).format(value);
@@ -78,8 +80,8 @@ function addBusinessDays(value: string, amount: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-function formatDateLabel(value: string): string {
-  return new Intl.DateTimeFormat("pt-PT", {
+function formatDateLabel(value: string, locale: SiteLocale): string {
+  return new Intl.DateTimeFormat(SITE_LOCALES[locale].intlLocale, {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -87,6 +89,7 @@ function formatDateLabel(value: string): string {
 }
 
 export default function CheckoutShippingForm({
+  locale,
   cartId,
   currency,
   merchandiseTotal,
@@ -96,6 +99,13 @@ export default function CheckoutShippingForm({
   initialInternalReference,
   initialShippingNotes,
 }: CheckoutShippingFormProps) {
+  const text = locale === "en" ? {
+    method: "Shipping method", store: "Shipping provided by the store", storeHint: "The order is sent to the address entered in the previous step.", estimate: "Estimate: 1 to 3 business days", free: "Free", cost: "Estimated cost", date: "Preferred date", dateHint: "This date will be considered for planning and confirmed after production and shipping validation.", recommended: "Recommended dates", earliest: "Earliest", day: "day", days: "days", dateNote: "The first available date is the second business day after today.", accept: "I accept delivery after this date", references: "References and instructions", internal: "Internal reference", notes: "Shipping instructions", notesPlaceholder: "Receiving hours, loading access, local contact or other instructions.", beforeVat: "Total before VAT", goods: "Products and customisation", shipping: "Shipping", current: "Current total", saving: "Saving shipping...", continue: "Continue to payment"
+  } : locale === "fr" ? {
+    method: "Mode d’expédition", store: "Transport assuré par la boutique", storeHint: "La commande est expédiée à l’adresse indiquée à l’étape précédente.", estimate: "Estimation : 1 à 3 jours ouvrés", free: "Gratuit", cost: "Coût estimé", date: "Date souhaitée", dateHint: "Cette date sera prise en compte et confirmée après validation de la production et du transport.", recommended: "Dates recommandées", earliest: "Au plus tôt", day: "jour", days: "jours", dateNote: "La première date disponible correspond au deuxième jour ouvré après aujourd’hui.", accept: "J’accepte une livraison après cette date", references: "Références et indications", internal: "Référence interne", notes: "Instructions d’expédition", notesPlaceholder: "Horaires de réception, accès, contact sur place ou autres indications.", beforeVat: "Total avant TVA", goods: "Produits et personnalisation", shipping: "Expédition", current: "Total actuel", saving: "Enregistrement...", continue: "Continuer vers le paiement"
+  } : {
+    method: "Método de expedição", store: "Transporte disponibilizado pela loja", storeHint: "A encomenda é expedida para a morada definida no passo anterior.", estimate: "Estimativa: 1 a 3 dias úteis", free: "Grátis", cost: "Custo estimado", date: "Data pretendida", dateHint: "A data será considerada no planeamento, mas só fica confirmada depois da validação da produção e do transporte.", recommended: "Datas recomendadas", earliest: "Mais cedo", day: "dia", days: "dias", dateNote: "A primeira data disponível corresponde ao segundo dia útil após hoje.", accept: "Aceito entrega após esta data", references: "Referências e indicações", internal: "Referência interna", notes: "Indicações para a expedição", notesPlaceholder: "Horário de receção, acesso a cais, contacto no local ou outras indicações.", beforeVat: "Total antes de IVA", goods: "Produtos e personalização", shipping: "Expedição", current: "Total atual", saving: "A guardar expedição...", continue: "Continuar para pagamento"
+  };
   const minimumDeliveryDate = getMinimumDeliveryDate();
   const initialDate =
     initialRequestedDeliveryDate >= minimumDeliveryDate
@@ -175,6 +185,7 @@ export default function CheckoutShippingForm({
       onInvalid={handleInvalid}
     >
       <input type="hidden" name="cartId" value={cartId} />
+      <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="shippingMethod" value={shippingMethod} />
       <input
         type="hidden"
@@ -184,7 +195,7 @@ export default function CheckoutShippingForm({
 
       <section>
         <h2 className="text-xl font-semibold text-neutral-950">
-          Método de expedição
+          {text.method}
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
           Escolhe como pretendes receber ou recolher a encomenda.
@@ -219,7 +230,7 @@ export default function CheckoutShippingForm({
                 </div>
 
                 <div>
-                  <p className="font-semibold">Transporte disponibilizado pela loja</p>
+                  <p className="font-semibold">{text.store}</p>
                   <p
                     className={`mt-2 text-sm leading-6 ${
                       shippingMethod === "store_transport"
@@ -227,7 +238,7 @@ export default function CheckoutShippingForm({
                         : "text-neutral-500"
                     }`}
                   >
-                    A encomenda é expedida para a morada definida no passo anterior.
+                    {text.storeHint}
                   </p>
                   <div
                     className={`mt-4 flex flex-wrap gap-2 text-xs ${
@@ -243,7 +254,7 @@ export default function CheckoutShippingForm({
                           : "bg-neutral-100"
                       }`}
                     >
-                      Estimativa: 1 a 3 dias úteis
+                      {text.estimate}
                     </span>
                     <span
                       className={`rounded-full px-3 py-1 ${
@@ -276,11 +287,11 @@ export default function CheckoutShippingForm({
                   : "border-neutral-200"
               }`}
             >
-              <span className="text-sm">Custo estimado</span>
+              <span className="text-sm">{text.cost}</span>
               <span className="font-semibold">
                 {estimatedShippingPrice === 0
                   ? "Grátis"
-                  : formatPrice(estimatedShippingPrice, currency)}
+                  : formatPrice(estimatedShippingPrice, currency, locale)}
               </span>
             </div>
           </button>
@@ -297,10 +308,9 @@ export default function CheckoutShippingForm({
               <CalendarDays className="h-5 w-5 text-neutral-600" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-neutral-950">Data pretendida</h2>
+              <h2 className="text-xl font-semibold text-neutral-950">{text.date}</h2>
               <p className="mt-1 text-sm leading-6 text-neutral-500">
-                A data será considerada no planeamento, mas só fica confirmada
-                depois da validação da produção e do transporte.
+                {text.dateHint}
               </p>
             </div>
           </div>
@@ -336,7 +346,7 @@ export default function CheckoutShippingForm({
             </div>
 
             <div className="mt-3 sm:hidden">
-              <p className="text-xs font-medium text-neutral-600">Datas recomendadas</p>
+              <p className="text-xs font-medium text-neutral-600">{text.recommended}</p>
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {recommendedDates.map((date, index) => (
                   <button
@@ -349,9 +359,9 @@ export default function CheckoutShippingForm({
                         : "border-neutral-200 bg-white text-neutral-700"
                     }`}
                   >
-                    <span className="block">{index === 0 ? "Mais cedo" : `+${index} dia${index > 1 ? "s" : ""}`}</span>
+                    <span className="block">{index === 0 ? text.earliest : `+${index} ${index > 1 ? text.days : text.day}`}</span>
                     <span className="mt-1 block font-medium opacity-80">
-                      {formatDateLabel(date)}
+                      {formatDateLabel(date, locale)}
                     </span>
                   </button>
                 ))}
@@ -359,7 +369,7 @@ export default function CheckoutShippingForm({
             </div>
 
             <p className="mt-2 text-xs leading-5 text-neutral-500">
-              A primeira data disponível corresponde ao segundo dia útil após hoje.
+              {text.dateNote}
             </p>
           </div>
 
@@ -372,7 +382,7 @@ export default function CheckoutShippingForm({
             />
             <span>
               <span className="block text-sm font-semibold text-neutral-950">
-                Aceito entrega após esta data
+                {text.accept}
               </span>
               <span className="mt-1 block text-xs leading-5 text-neutral-500">
                 Autoriza o envio assim que a encomenda estiver pronta, mesmo que
@@ -385,7 +395,7 @@ export default function CheckoutShippingForm({
 
       <section className="border-t border-neutral-200 pt-8">
         <h2 className="text-xl font-semibold text-neutral-950">
-          Referências e indicações
+          {text.references}
         </h2>
 
         <div className="mt-6">
@@ -393,7 +403,7 @@ export default function CheckoutShippingForm({
             htmlFor="internalReference"
             className="block text-sm font-medium text-neutral-700"
           >
-            Referência interna
+            {text.internal}
           </label>
           <input
             id="internalReference"
@@ -411,7 +421,7 @@ export default function CheckoutShippingForm({
             htmlFor="shippingNotes"
             className="block text-sm font-medium text-neutral-700"
           >
-            Indicações para a expedição
+            {text.notes}
           </label>
           <textarea
             id="shippingNotes"
@@ -419,32 +429,32 @@ export default function CheckoutShippingForm({
             rows={4}
             defaultValue={initialShippingNotes}
             maxLength={1000}
-            placeholder="Horário de receção, acesso a cais, contacto no local ou outras indicações."
+            placeholder={text.notesPlaceholder}
             className="mt-2 w-full resize-none rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />
         </div>
       </section>
 
       <section className="rounded-3xl bg-neutral-50 p-5">
-        <p className="text-sm font-semibold text-neutral-950">Total antes de IVA</p>
+        <p className="text-sm font-semibold text-neutral-950">{text.beforeVat}</p>
         <div className="mt-4 space-y-3 text-sm text-neutral-600">
           <div className="flex justify-between gap-4">
-            <span>Produtos e personalização</span>
+            <span>{text.goods}</span>
             <span className="font-semibold text-neutral-950">
-              {formatPrice(merchandiseTotal, currency)}
+              {formatPrice(merchandiseTotal, currency, locale)}
             </span>
           </div>
           <div className="flex justify-between gap-4">
-            <span>Expedição</span>
+            <span>{text.shipping}</span>
             <span className="font-semibold text-neutral-950">
-              {formatPrice(estimatedShippingPrice, currency)}
+              {formatPrice(estimatedShippingPrice, currency, locale)}
             </span>
           </div>
           <div className="border-t border-neutral-200 pt-3">
             <div className="flex justify-between gap-4 text-base">
-              <span className="font-semibold text-neutral-950">Total atual</span>
+              <span className="font-semibold text-neutral-950">{text.current}</span>
               <span className="font-semibold text-neutral-950">
-                {formatPrice(estimatedTotal, currency)}
+                {formatPrice(estimatedTotal, currency, locale)}
               </span>
             </div>
           </div>
