@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 import {
   useEffect,
   useMemo,
@@ -144,6 +145,7 @@ type LocationGroup = {
 };
 
 type ProductCustomizationEditorProps = {
+  locale?: SiteLocale;
   productId: string;
   supplierId: string | null;
   productName: string;
@@ -846,6 +848,7 @@ function findProductPriceTier(params: {
 }
 
 export default function ProductCustomizationEditor({
+  locale = "pt",
   productId,
   supplierId,
   productName,
@@ -1575,7 +1578,7 @@ export default function ProductCustomizationEditor({
         return;
       }
 
-      router.push(result.redirectUrl);
+      router.push(localizePath(result.redirectUrl, locale));
       router.refresh();
     });
   }
@@ -1804,7 +1807,7 @@ export default function ProductCustomizationEditor({
               </div>
 
               <Link
-                href={`/produto/${productSlug}`}
+                href={localizePath(`/produto/${productSlug}`, locale)}
                 className="mt-4 inline-flex text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
               >
                 Alterar produto
