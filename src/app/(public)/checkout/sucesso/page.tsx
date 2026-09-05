@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { localizePath } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 import { CheckCircle2, Clock3 } from "lucide-react";
 import Ga4PurchaseTracker from "@/components/analytics/Ga4PurchaseTracker";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -31,8 +33,8 @@ type PurchaseOrderItem = {
   total: number;
 };
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPrice(value: number, currency: string, locale: string): string {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
   }).format(Number(value ?? 0));
@@ -41,6 +43,49 @@ function formatPrice(value: number, currency: string): string {
 export default async function CheckoutSuccessPage({
   searchParams,
 }: CheckoutSuccessPageProps) {
+  const locale = await getCurrentLocale();
+  const text =
+    locale === "en"
+      ? {
+          confirmed: "Payment confirmed",
+          confirming: "Payment being confirmed",
+          thanks: "Thank you for your order",
+          received: "We have received your payment",
+          paidHelp: "Your order has been registered and will now be validated by our team before it is sent to production.",
+          pendingHelp: "Stripe is confirming the payment. The order status will be updated automatically.",
+          orderNumber: "Order number",
+          total: "Total",
+          orders: "View orders",
+          continueShopping: "Continue shopping",
+          intlLocale: "en-GB",
+        }
+      : locale === "fr"
+        ? {
+            confirmed: "Paiement confirmé",
+            confirming: "Paiement en cours de confirmation",
+            thanks: "Merci pour votre commande",
+            received: "Nous avons reçu votre paiement",
+            paidHelp: "Votre commande a été enregistrée et sera maintenant validée par notre équipe avant son envoi en production.",
+            pendingHelp: "Stripe confirme le paiement. Le statut de la commande sera mis à jour automatiquement.",
+            orderNumber: "Numéro de commande",
+            total: "Total",
+            orders: "Voir les commandes",
+            continueShopping: "Continuer mes achats",
+            intlLocale: "fr-FR",
+          }
+        : {
+            confirmed: "Pagamento confirmado",
+            confirming: "Pagamento em confirmação",
+            thanks: "Obrigado pela tua encomenda",
+            received: "Recebemos o teu pagamento",
+            paidHelp: "A encomenda foi registada e será agora validada pela nossa equipa antes do envio para produção.",
+            pendingHelp: "A Stripe está a confirmar o pagamento. O estado da encomenda será atualizado automaticamente.",
+            orderNumber: "Número da encomenda",
+            total: "Total",
+            orders: "Ver encomendas",
+            continueShopping: "Continuar a comprar",
+            intlLocale: "pt-PT",
+          };
   const resolvedSearchParams = await searchParams;
   const sessionId =
     resolvedSearchParams?.session_id?.trim() ?? null;
@@ -133,26 +178,26 @@ export default async function CheckoutSuccessPage({
           }`}
         >
           {isPaid
-            ? "Pagamento confirmado"
-            : "Pagamento em confirmação"}
+            ? text.confirmed
+            : text.confirming}
         </p>
 
         <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
           {isPaid
-            ? "Obrigado pela tua encomenda"
-            : "Recebemos o teu pagamento"}
+            ? text.thanks
+            : text.received}
         </h1>
 
         <p className="mx-auto mt-4 max-w-2xl leading-7 text-neutral-600">
           {isPaid
-            ? "A encomenda foi registada e será agora validada pela nossa equipa antes do envio para produção."
-            : "A Stripe está a confirmar o pagamento. O estado da encomenda será atualizado automaticamente."}
+            ? text.paidHelp
+            : text.pendingHelp}
         </p>
 
         {checkout?.orders?.order_number ? (
           <div className="mt-8 rounded-2xl bg-neutral-50 p-5">
             <p className="text-sm text-neutral-500">
-              Número da encomenda
+              {text.orderNumber}
             </p>
 
             <p className="mt-1 text-xl font-semibold text-neutral-950">
@@ -160,13 +205,14 @@ export default async function CheckoutSuccessPage({
             </p>
 
             <p className="mt-4 text-sm text-neutral-500">
-              Total
+              {text.total}
             </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
               {formatPrice(
                 checkout.amount_total,
                 checkout.currency,
+                text.intlLocale,
               )}
             </p>
           </div>
@@ -174,17 +220,17 @@ export default async function CheckoutSuccessPage({
 
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Link
-            href="/area-cliente/encomendas"
+            href={localizePath("/area-cliente/encomendas", locale)}
             className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
-            Ver encomendas
+            {text.orders}
           </Link>
 
           <Link
-            href="/"
+            href={localizePath("/", locale)}
             className="inline-flex items-center justify-center rounded-2xl border border-neutral-300 bg-white px-6 py-3 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950"
           >
-            Continuar a comprar
+            {text.continueShopping}
           </Link>
         </div>
       </section>
