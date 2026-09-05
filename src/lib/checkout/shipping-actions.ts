@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getSiteLocale, localizePath } from "@/lib/i18n/config";
 
 export type CheckoutShippingActionState = {
   success: boolean;
@@ -171,6 +172,7 @@ export async function saveCheckoutShippingAction(
   _previousState: CheckoutShippingActionState,
   formData: FormData,
 ): Promise<CheckoutShippingActionState> {
+  const locale = getSiteLocale(String(formData.get("locale") ?? "pt"));
   let redirectUrl: string | null = null;
 
   try {
@@ -363,7 +365,7 @@ export async function saveCheckoutShippingAction(
         };
       }
 
-      redirectUrl = "/checkout/pagamento";
+      redirectUrl = localizePath("/checkout/pagamento", locale);
     }
   } catch (error) {
     return {
