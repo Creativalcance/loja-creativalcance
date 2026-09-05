@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
 import {
   useActionState,
   useEffect,
@@ -94,6 +96,7 @@ type ColorGroup = {
 };
 
 type ProductDirectPurchasePanelProps = {
+  locale?: SiteLocale;
   productId: string;
   productSlug: string;
   productSku: string;
@@ -609,6 +612,7 @@ function formatProductText(value: string | null): string | null {
 }
 
 export default function ProductDirectPurchasePanel({
+  locale = "pt",
   productId,
   productSlug,
   productSku,
@@ -630,6 +634,137 @@ export default function ProductDirectPurchasePanel({
   futureStocks,
   customizationDraft,
 }: ProductDirectPurchasePanelProps) {
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
+  const panelText =
+    locale === "en"
+      ? {
+          product: "Product",
+          from: "From",
+          perUnit: "/ unit",
+          minQuantity: "Minimum quantity",
+          stockAvailable: "Available stock",
+          personalization: "Personalization",
+          available: "Available",
+          notIncluded: "Not included",
+          priceTiers: "Price tiers",
+          quantity: "Quantity",
+          unitPrice: "Price / unit",
+          pricePending: "The price will be shown before the order is completed.",
+          orderTitle: "Place your order",
+          orderWithSizes: "Choose a colour first, then enter the quantity for the required size.",
+          orderWithoutSizes: "Enter the quantity for the required colour. You can add it directly to the cart or continue to personalization.",
+          selectedColour: "Selected colour",
+          mockupReady: "Mockup ready",
+          mockupHelp: "The personalization will be linked to this order line.",
+          saved: "Saved",
+          location: "Location",
+          technique: "Technique",
+          logo: "Logo",
+          toConfirm: "To be confirmed",
+          noLogo: "Not uploaded yet",
+          editMockup: "Edit or create a new mockup",
+          staleMockup: "The colour, size or quantity has changed. The previous mockup is no longer linked. Create a new mockup before adding personalization to the cart.",
+          inStock: "units in stock",
+          nextDelivery: "Next delivery:",
+          futureStock: "This order includes units from future stock. Expected deliveries:",
+          summary: "Order summary",
+          size: "Size",
+          preparation: "Setup",
+          total: "Estimated total",
+          disclaimer: "Prices exclude VAT and shipping. Availability, personalization and the final amount are confirmed before the order is completed.",
+          viewCart: "View cart",
+          preparing: "Preparing personalization...",
+          continuePersonalization: "Continue to personalization",
+          adding: "Adding...",
+          addPersonalized: "Add personalized order",
+          addWithout: "Add without personalization",
+        }
+      : locale === "fr"
+        ? {
+            product: "Produit",
+            from: "À partir de",
+            perUnit: "/ unité",
+            minQuantity: "Quantité minimale",
+            stockAvailable: "Stock disponible",
+            personalization: "Personnalisation",
+            available: "Disponible",
+            notIncluded: "Non incluse",
+            priceTiers: "Tarifs dégressifs",
+            quantity: "Quantité",
+            unitPrice: "Prix / unité",
+            pricePending: "Le prix sera affiché avant la finalisation de la commande.",
+            orderTitle: "Passez votre commande",
+            orderWithSizes: "Choisissez d’abord une couleur, puis saisissez la quantité pour la taille souhaitée.",
+            orderWithoutSizes: "Saisissez la quantité pour la couleur souhaitée. Vous pouvez l’ajouter directement au panier ou poursuivre la personnalisation.",
+            selectedColour: "Couleur sélectionnée",
+            mockupReady: "Maquette prête",
+            mockupHelp: "La personnalisation sera associée à cette ligne de commande.",
+            saved: "Enregistrée",
+            location: "Emplacement",
+            technique: "Technique",
+            logo: "Logo",
+            toConfirm: "À confirmer",
+            noLogo: "Pas encore téléchargé",
+            editMockup: "Modifier ou créer une nouvelle maquette",
+            staleMockup: "La couleur, la taille ou la quantité a changé. La maquette précédente n’est plus associée. Créez une nouvelle maquette avant d’ajouter la personnalisation au panier.",
+            inStock: "unités en stock",
+            nextDelivery: "Prochaine livraison :",
+            futureStock: "Cette commande comprend des unités provenant d’un stock futur. Livraisons prévues :",
+            summary: "Récapitulatif de la commande",
+            size: "Taille",
+            preparation: "Préparation",
+            total: "Total estimé",
+            disclaimer: "Prix hors TVA et frais de livraison. La disponibilité, la personnalisation et le montant final sont confirmés avant la finalisation de la commande.",
+            viewCart: "Voir le panier",
+            preparing: "Préparation de la personnalisation...",
+            continuePersonalization: "Continuer vers la personnalisation",
+            adding: "Ajout en cours...",
+            addPersonalized: "Ajouter la commande personnalisée",
+            addWithout: "Ajouter sans personnalisation",
+          }
+        : {
+            product: "Produto",
+            from: "Desde",
+            perUnit: "/ un.",
+            minQuantity: "Quantidade mín.",
+            stockAvailable: "Stock disponível",
+            personalization: "Personalização",
+            available: "Disponível",
+            notIncluded: "Não incluída",
+            priceTiers: "Escalões de preço",
+            quantity: "Quantidade",
+            unitPrice: "Preço / un.",
+            pricePending: "O preço será apresentado antes da conclusão da encomenda.",
+            orderTitle: "Faça a sua encomenda",
+            orderWithSizes: "Escolha primeiro a cor e indique a quantidade no tamanho pretendido.",
+            orderWithoutSizes: "Indique a quantidade pretendida na cor desejada. Pode adicionar diretamente ao carrinho ou continuar para personalização.",
+            selectedColour: "Cor selecionada",
+            mockupReady: "Maquete preparada",
+            mockupHelp: "A personalização será associada a esta linha da encomenda.",
+            saved: "Guardada",
+            location: "Localização",
+            technique: "Técnica",
+            logo: "Logótipo",
+            toConfirm: "A confirmar",
+            noLogo: "Ainda não carregado",
+            editMockup: "Editar ou criar nova maquete",
+            staleMockup: "A cor, o tamanho ou a quantidade foram alterados. A maquete anterior deixou de estar associada. Cria uma nova maquete antes de adicionar a personalização ao carrinho.",
+            inStock: "un. em stock",
+            nextDelivery: "Próxima entrada:",
+            futureStock: "Esta encomenda inclui unidades de reposição futura. Próximas entradas previstas:",
+            summary: "Resumo da encomenda",
+            size: "Tamanho",
+            preparation: "Preparação",
+            total: "Total estimado",
+            disclaimer: "Valores sem IVA e sem portes. A disponibilidade, personalização e valor final são confirmados antes da conclusão da encomenda.",
+            viewCart: "Ver carrinho",
+            preparing: "A preparar personalização...",
+            continuePersonalization: "Continuar para personalização",
+            adding: "A adicionar...",
+            addPersonalized: "Adicionar encomenda personalizada",
+            addWithout: "Adicionar sem personalização",
+          };
   const formattedShortDescription = formatProductText(shortDescription);
   const formattedProductDescription = formatProductText(productDescription);
   const hasSizes = useMemo(
@@ -1199,7 +1334,7 @@ export default function ProductDirectPurchasePanel({
 
       <div className="min-w-0 max-w-full">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          {brand ?? "Produto"}
+          {brand ?? panelText.product}
         </p>
 
         <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight text-neutral-950 [overflow-wrap:anywhere] sm:text-4xl">
@@ -1214,14 +1349,14 @@ export default function ProductDirectPurchasePanel({
 
         {lowestPrice ? (
           <p className="mt-6 text-sm text-neutral-500">
-            Desde{" "}
+            {panelText.from}{" "}
             <span className="text-2xl font-semibold text-neutral-950">
               {formatPrice(
                 lowestPrice.final_price,
                 lowestPrice.currency,
               )}
             </span>{" "}
-            / un.
+            {panelText.perUnit}
           </p>
         ) : null}
 
@@ -1230,7 +1365,7 @@ export default function ProductDirectPurchasePanel({
             <Package className="h-5 w-5 text-neutral-500" />
 
             <p className="mt-4 text-sm text-neutral-500">
-              Quantidade mín.
+              {panelText.minQuantity}
             </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
@@ -1245,7 +1380,7 @@ export default function ProductDirectPurchasePanel({
             <Truck className="h-5 w-5 text-neutral-500" />
 
             <p className="mt-4 text-sm text-neutral-500">
-              Stock disponível
+              {panelText.stockAvailable}
             </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
@@ -1260,20 +1395,20 @@ export default function ProductDirectPurchasePanel({
             <Palette className="h-5 w-5 text-neutral-500" />
 
             <p className="mt-4 text-sm text-neutral-500">
-              Personalização
+              {panelText.personalization}
             </p>
 
             <p className="mt-1 font-semibold text-neutral-950">
               {isCustomizable
-                ? "Disponível"
-                : "Não incluída"}
+                ? panelText.available
+                : panelText.notIncluded}
             </p>
           </div>
         </div>
 
         <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-neutral-950">
-            Escalões de preço
+            {panelText.priceTiers}
           </h2>
 
           {activePrices.length > 0 ? (
@@ -1282,7 +1417,7 @@ export default function ProductDirectPurchasePanel({
                 <thead>
                   <tr>
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                      Quantidade
+                      {panelText.quantity}
                     </th>
 
                     {activePrices
@@ -1308,7 +1443,7 @@ export default function ProductDirectPurchasePanel({
                 <tbody>
                   <tr>
                     <td className="border-b border-neutral-100 px-4 py-3 text-left font-medium text-neutral-500">
-                      Preço / un.
+                      {panelText.unitPrice}
                     </td>
 
                     {activePrices
@@ -1335,27 +1470,26 @@ export default function ProductDirectPurchasePanel({
             </div>
           ) : (
             <p className="mt-4 text-sm text-neutral-600">
-              O preço será apresentado antes da
-              conclusão da encomenda.
+              {panelText.pricePending}
             </p>
           )}
         </div>
 
         <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-neutral-950">
-            Faça a sua encomenda
+            {panelText.orderTitle}
           </h2>
 
           <p className="mt-2 text-sm leading-6 text-neutral-600">
             {hasSizes
-              ? "Escolha primeiro a cor e indique a quantidade no tamanho pretendido."
-              : "Indique a quantidade pretendida na cor desejada. Pode adicionar diretamente ao carrinho ou continuar para personalização."}
+              ? panelText.orderWithSizes
+              : panelText.orderWithoutSizes}
           </p>
 
           {hasSizes &&
           selectedColorGroup ? (
             <div className="mt-5 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600">
-              Cor selecionada:{" "}
+              {panelText.selectedColour}:{" "}
               <span className="font-semibold text-neutral-950">
                 {selectedColorGroup.label}
               </span>
@@ -1367,88 +1501,84 @@ export default function ProductDirectPurchasePanel({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-emerald-950">
-                    Maquete preparada
+                    {panelText.mockupReady}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-emerald-800">
-                    A personalização será associada a esta
-                    linha da encomenda.
+                    {panelText.mockupHelp}
                   </p>
                 </div>
 
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                  Guardada
+                  {panelText.saved}
                 </span>
               </div>
 
               <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
                 <div>
                   <dt className="text-emerald-700">
-                    Localização
+                    {panelText.location}
                   </dt>
 
                   <dd className="mt-1 font-semibold text-emerald-950">
                     {activeCustomizationDraft.location_name ??
-                      "A confirmar"}
+                      panelText.toConfirm}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-emerald-700">
-                    Técnica
+                    {panelText.technique}
                   </dt>
 
                   <dd className="mt-1 font-semibold text-emerald-950">
                     {activeCustomizationDraft.technique_name ??
-                      "A confirmar"}
+                      panelText.toConfirm}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-emerald-700">
-                    Logótipo
+                    {panelText.logo}
                   </dt>
 
                   <dd className="mt-1 font-semibold text-emerald-950">
                     {activeCustomizationDraft.logo_file_name ??
-                      "Ainda não carregado"}
+                      panelText.noLogo}
                   </dd>
                 </div>
 
                 <div>
                   <dt className="text-emerald-700">
-                    Quantidade
+                    {labels.common.quantity}
                   </dt>
 
                   <dd className="mt-1 font-semibold text-emerald-950">
                     {activeCustomizationDraft.quantity.toLocaleString(
-                      "pt-PT",
+                      intlLocale,
                     )}{" "}
-                    un.
+                    {labels.common.units}
                   </dd>
                 </div>
               </dl>
 
               <Link
-                href={`/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
+                href={localizePath(`/produto/${productSlug}/personalizar?cor=${encodeURIComponent(
                   activeCustomizationDraft.variant_id ??
                     "",
                 )}&quantidade=${encodeURIComponent(
                   String(
                     activeCustomizationDraft.quantity,
                   ),
-                )}`}
+                )}`, locale)}
                 className="mt-5 inline-flex text-sm font-semibold text-emerald-950 underline-offset-4 hover:underline"
               >
-                Editar ou criar nova maquete
+                {panelText.editMockup}
               </Link>
             </div>
           ) : customizationDraft ? (
             <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-              A cor, o tamanho ou a quantidade foram
-              alterados. A maquete anterior deixou de estar
-              associada. Cria uma nova maquete antes de
-              adicionar a personalização ao carrinho.
+              {panelText.staleMockup}
             </div>
           ) : null}
 
@@ -1567,7 +1697,7 @@ export default function ProductDirectPurchasePanel({
                                 </span>
 
                                 <span className="mt-1 block text-xs text-neutral-500">
-                                  {stock.available.toLocaleString("pt-PT")} un. em stock
+                                  {stock.available.toLocaleString(intlLocale)} {panelText.inStock}
                                 </span>
                               </button>
 
@@ -1627,7 +1757,7 @@ export default function ProductDirectPurchasePanel({
                             {stock.nextEntries.length > 0 ? (
                               <p className="border-t border-neutral-200 px-4 py-3 text-xs leading-5 text-neutral-600">
                                 <span className="font-medium text-neutral-700">
-                                  Próxima entrada:
+                                  {panelText.nextDelivery}
                                 </span>{" "}
                                 {formatNextEntries(stock.nextEntries)}
                               </p>
@@ -1643,7 +1773,7 @@ export default function ProductDirectPurchasePanel({
                   htmlFor="quantity"
                   className="block text-sm font-medium text-neutral-700"
                 >
-                  Quantidade
+                  {panelText.quantity}
                 </label>
 
                 <input
@@ -1681,19 +1811,19 @@ export default function ProductDirectPurchasePanel({
             {selectedQuantity > selectedStock.available &&
             selectedStock.nextEntries.length > 0 ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                Esta encomenda inclui unidades de reposição futura. Próximas entradas previstas: {formatNextEntries(selectedStock.nextEntries)}.
+                {panelText.futureStock} {formatNextEntries(selectedStock.nextEntries)}.
               </div>
             ) : null}
 
             <div className="rounded-2xl bg-neutral-50 p-5">
               <p className="text-sm font-semibold text-neutral-950">
-                Resumo da encomenda
+                {panelText.summary}
               </p>
 
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
                   <span>
-                    Cor selecionada
+                    {panelText.selectedColour}
                   </span>
 
                   <span className="font-medium text-neutral-950">
@@ -1705,7 +1835,7 @@ export default function ProductDirectPurchasePanel({
 
                 {hasSizes ? (
                   <div className="flex justify-between gap-4">
-                    <span>Tamanho</span>
+                    <span>{panelText.size}</span>
 
                     <span className="font-medium text-neutral-950">
                       {selectedVariant
@@ -1718,7 +1848,7 @@ export default function ProductDirectPurchasePanel({
                 ) : null}
 
                 <div className="flex justify-between gap-4">
-                  <span>Quantidade</span>
+                  <span>{panelText.quantity}</span>
 
                   <span className="font-medium text-neutral-950">
                     {selectedQuantity.toLocaleString(
@@ -1729,7 +1859,7 @@ export default function ProductDirectPurchasePanel({
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Produto</span>
+                  <span>{panelText.product}</span>
 
                   <span className="font-medium text-neutral-950">
                     {formatPrice(
@@ -1743,7 +1873,7 @@ export default function ProductDirectPurchasePanel({
                   <>
                     <div className="flex justify-between gap-4">
                       <span>
-                        Personalização
+                        {panelText.personalization}
                       </span>
 
                       <span className="font-medium text-neutral-950">
@@ -1757,7 +1887,7 @@ export default function ProductDirectPurchasePanel({
 
                     <div className="flex justify-between gap-4">
                       <span>
-                        Preparação
+                        {panelText.preparation}
                       </span>
 
                       <span className="font-medium text-neutral-950">
@@ -1786,7 +1916,7 @@ export default function ProductDirectPurchasePanel({
                 <div className="border-t border-neutral-200 pt-3">
                   <div className="flex justify-between gap-4 text-base">
                     <span className="font-semibold text-neutral-950">
-                      Total estimado
+                      {panelText.total}
                     </span>
 
                     <span className="font-semibold text-neutral-950">
@@ -1800,10 +1930,7 @@ export default function ProductDirectPurchasePanel({
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    Valores sem IVA e sem portes. A
-                    disponibilidade, personalização e valor
-                    final são confirmados antes da conclusão
-                    da encomenda.
+                    {panelText.disclaimer}
                   </p>
                 </div>
               </div>
@@ -1833,10 +1960,10 @@ export default function ProductDirectPurchasePanel({
 
                 {cartState.success ? (
                   <Link
-                    href="/carrinho"
+                    href={localizePath("/carrinho", locale)}
                     className="ml-2 font-semibold underline-offset-4 hover:underline"
                   >
-                    Ver carrinho
+                    {panelText.viewCart}
                   </Link>
                 ) : null}
               </div>
@@ -1856,8 +1983,8 @@ export default function ProductDirectPurchasePanel({
                   className="inline-flex w-full items-center justify-center rounded-2xl border border-neutral-950 bg-white px-6 py-4 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isStartingCustomization
-                    ? "A preparar personalização..."
-                    : "Continuar para personalização"}
+                    ? panelText.preparing
+                    : panelText.continuePersonalization}
                 </button>
               ) : (
                 <button
@@ -1865,7 +1992,7 @@ export default function ProductDirectPurchasePanel({
                   disabled
                   className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100 px-6 py-4 text-sm font-semibold text-neutral-400"
                 >
-                  Continuar para personalização
+                  {panelText.continuePersonalization}
                 </button>
               )}
 
@@ -1880,10 +2007,10 @@ export default function ProductDirectPurchasePanel({
                 <ShoppingCart className="mr-2 h-4 w-4" />
 
                 {isAddingToCart
-                  ? "A adicionar..."
+                  ? panelText.adding
                   : activeCustomizationDraft
-                    ? "Adicionar encomenda personalizada"
-                    : "Adicionar sem personalização"}
+                    ? panelText.addPersonalized
+                    : panelText.addWithout}
               </button>
             </div>
           </form>
