@@ -6,9 +6,11 @@ import {
   createPaymentCheckoutSessionAction,
   type CheckoutPaymentActionState,
 } from "@/lib/checkout/payment-actions";
+import type { SiteLocale } from "@/lib/i18n/config";
 
 type CheckoutPaymentFormProps = {
   cartId: string;
+  locale: SiteLocale;
 };
 
 const initialState: CheckoutPaymentActionState = {
@@ -18,7 +20,15 @@ const initialState: CheckoutPaymentActionState = {
 
 export default function CheckoutPaymentForm({
   cartId,
+  locale,
 }: CheckoutPaymentFormProps) {
+  const text = locale === "en" ? {
+    confirm: "I confirm the order details", detail: "I have checked the products, quantities, customisation, address, shipping and final order amount.", protected: "Payment protected by Stripe", protectedText: "You will be redirected to Stripe’s secure payment page. The order is only confirmed after payment approval.", preparing: "Preparing payment...", pay: "Pay for order"
+  } : locale === "fr" ? {
+    confirm: "Je confirme les informations de la commande", detail: "J’ai vérifié les produits, quantités, personnalisations, adresse, transport et montant final.", protected: "Paiement protégé par Stripe", protectedText: "Vous serez redirigé vers la page de paiement sécurisée de Stripe. La commande n’est confirmée qu’après validation du paiement.", preparing: "Préparation du paiement...", pay: "Payer la commande"
+  } : {
+    confirm: "Confirmo os dados da encomenda", detail: "Confirmo que verifiquei os produtos, quantidades, personalizações, morada, transporte e valor final da encomenda.", protected: "Pagamento protegido pela Stripe", protectedText: "Serás encaminhado para o ambiente seguro da Stripe. A encomenda só fica validada depois da confirmação do pagamento.", preparing: "A preparar pagamento...", pay: "Pagar encomenda"
+  };
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [state, formAction, isPending] = useActionState(
@@ -29,6 +39,7 @@ export default function CheckoutPaymentForm({
   return (
     <form action={formAction} className="mt-8 space-y-6">
       <input type="hidden" name="cartId" value={cartId} />
+      <input type="hidden" name="locale" value={locale} />
 
       <input
         type="hidden"
@@ -48,13 +59,11 @@ export default function CheckoutPaymentForm({
 
         <span>
           <span className="block text-sm font-semibold text-neutral-950">
-            Confirmo os dados da encomenda
+            {text.confirm}
           </span>
 
           <span className="mt-1 block text-xs leading-5 text-neutral-500">
-            Confirmo que verifiquei os produtos, quantidades,
-            personalizações, morada, transporte e valor final da
-            encomenda.
+            {text.detail}
           </span>
         </span>
       </label>
@@ -65,13 +74,11 @@ export default function CheckoutPaymentForm({
 
           <div>
             <p className="text-sm font-semibold">
-              Pagamento protegido pela Stripe
+              {text.protected}
             </p>
 
             <p className="mt-1 text-sm leading-6 text-neutral-300">
-              Serás encaminhado para o ambiente seguro da Stripe.
-              A encomenda só fica validada depois da confirmação
-              do pagamento.
+              {text.protectedText}
             </p>
           </div>
         </div>
@@ -97,8 +104,8 @@ export default function CheckoutPaymentForm({
         <CreditCard className="mr-2 h-4 w-4" />
 
         {isPending
-          ? "A preparar pagamento..."
-          : "Pagar encomenda"}
+          ? text.preparing
+          : text.pay}
       </button>
     </form>
   );
