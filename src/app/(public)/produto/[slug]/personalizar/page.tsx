@@ -14,6 +14,10 @@ import {
 } from "@/lib/stricker/images";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getLocalizedProductText } from "@/lib/i18n/catalog";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -678,6 +682,9 @@ export default async function ProductPersonalizePage({
   params,
   searchParams,
 }: ProductPersonalizePageProps) {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
 
@@ -763,6 +770,8 @@ export default async function ProductPersonalizePage({
   }
 
   const product = data as unknown as ProductDetail;
+  const localized = await getLocalizedProductText({ productId: product.id, locale });
+  if (localized) product.name = localized.name || product.name;
   const minimumQuantity = getEffectiveMinimumOrderQuantity(
     product.min_order_quantity,
   );
@@ -896,18 +905,18 @@ export default async function ProductPersonalizePage({
     <main className="min-h-screen max-w-full overflow-x-hidden bg-neutral-50 px-4 py-8 sm:px-6 sm:py-12">
       <section className="mx-auto min-w-0 max-w-[1600px]">
         <Link
-          href={`/produto/${product.slug}`}
+          href={localizePath(`/produto/${product.slug}`, locale)}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar ao produto
+          {labels.product.backProduct}
         </Link>
 
         <div className="mt-6 min-w-0 max-w-full rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:mt-8 sm:p-6">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                Passo 2 · Personalização
+                {labels.product.customizeStep}
               </p>
 
               <h1 className="mt-3 break-words text-3xl font-semibold tracking-tight text-neutral-950 [overflow-wrap:anywhere] sm:text-4xl">
@@ -915,24 +924,23 @@ export default async function ProductPersonalizePage({
               </h1>
 
               <p className="mt-4 max-w-3xl text-neutral-600">
-                Escolhe a localização e a técnica, carrega o logótipo e confirma
-                a maquete para avançar diretamente para o checkout.
+                {labels.product.customizeIntro}
               </p>
             </div>
 
             <div className="rounded-2xl bg-neutral-50 px-5 py-4 text-sm text-neutral-600">
               <p>
-                Quantidade:{" "}
+                {labels.common.quantity}:{" "}
                 <span className="font-semibold text-neutral-950">
-                  {selectedQuantity.toLocaleString("pt-PT")} un.
+                  {selectedQuantity.toLocaleString(intlLocale)} {labels.common.units}
                 </span>
               </p>
 
               {selectedVariant ? (
                 <p className="mt-1">
-                  Cor / tamanho:{" "}
+                  {labels.product.colourSize}:{" "}
                   <span className="font-semibold text-neutral-950">
-                    {getVariantLabel(selectedVariant) ?? "Selecionado"}
+                    {getVariantLabel(selectedVariant) ?? labels.product.selected}
                   </span>
                 </p>
               ) : null}
@@ -963,23 +971,24 @@ export default async function ProductPersonalizePage({
             initialLocationId={selectedLocationId}
             initialQuantity={selectedQuantity}
             minimumQuantity={minimumQuantity}
+            locale={locale}
           />
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Este produto ainda não tem áreas de personalização disponíveis
+              {labels.product.noAreas}
             </h2>
 
             <p className="mx-auto mt-3 max-w-2xl text-neutral-600">
-              Pode voltar ao produto e adicionar ao carrinho sem personalização.
+              {labels.product.noAreasText}
             </p>
 
             <Link
-              href={`/produto/${product.slug}`}
+              href={localizePath(`/produto/${product.slug}`, locale)}
               className="mt-6 inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
             >
               <ShoppingCart className="mr-2 h-4 w-4" />
-              Voltar ao produto
+              {labels.product.backProduct}
             </Link>
           </div>
         )}
