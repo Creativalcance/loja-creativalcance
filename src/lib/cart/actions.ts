@@ -316,14 +316,12 @@ const REMOVE_RETURN_PATHS = new Set([
 
 function getSafeRemoveReturnPath(
   value: FormDataEntryValue | null,
-): "/carrinho" | "/checkout" | "/checkout/expedicao" {
+): string {
   const path = String(value ?? "").trim();
 
-  if (REMOVE_RETURN_PATHS.has(path)) {
-    return path as
-      | "/carrinho"
-      | "/checkout"
-      | "/checkout/expedicao";
+  const basePath = path.replace(/^\/(?:en|fr)(?=\/|$)/, "") || "/";
+  if (REMOVE_RETURN_PATHS.has(basePath)) {
+    return path;
   }
 
   return "/carrinho";
@@ -478,7 +476,8 @@ export async function removeCartItemAction(
     revalidatePath("/checkout/expedicao");
     revalidatePath("/checkout/pagamento");
 
-    redirectUrl = remainingItem ? returnTo : "/carrinho";
+    const localePrefix = returnTo.match(/^\/(en|fr)(?=\/|$)/)?.[0] ?? "";
+    redirectUrl = remainingItem ? returnTo : `${localePrefix}/carrinho`;
   } catch (error) {
     return {
       success: false,
