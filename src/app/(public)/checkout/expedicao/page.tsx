@@ -15,6 +15,8 @@ import CheckoutShippingForm, {
 import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +84,7 @@ function roundMoney(value: number): number {
 }
 
 export default async function CheckoutShippingPage() {
+  const locale = await getCurrentLocale();
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -89,7 +92,7 @@ export default async function CheckoutShippingPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(localizePath("/login", locale));
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
@@ -151,18 +154,18 @@ export default async function CheckoutShippingPage() {
     .maybeSingle();
 
   if (cartError || !cartData) {
-    redirect("/carrinho");
+    redirect(localizePath("/carrinho", locale));
   }
 
   const cart = cartData as unknown as Cart;
   const items = cart.cart_items ?? [];
 
   if (items.length === 0) {
-    redirect("/carrinho");
+    redirect(localizePath("/carrinho", locale));
   }
 
   if (!cart.shipping_address_id || !cart.customer_addresses) {
-    redirect("/checkout");
+    redirect(localizePath("/checkout", locale));
   }
 
   const currency = cart.currency || "EUR";
@@ -210,7 +213,7 @@ export default async function CheckoutShippingPage() {
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
       <section className="mx-auto max-w-7xl">
         <Link
-          href="/checkout"
+          href={localizePath("/checkout", locale)}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -300,6 +303,7 @@ export default async function CheckoutShippingPage() {
             </div>
 
             <CheckoutShippingForm
+              locale={locale}
               cartId={cart.id}
               currency={currency}
               merchandiseTotal={merchandiseTotal}
@@ -369,7 +373,7 @@ export default async function CheckoutShippingPage() {
               </div>
 
               <Link
-                href="/checkout"
+                href={localizePath("/checkout", locale)}
                 className="mt-4 inline-flex text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
               >
                 Alterar destino
