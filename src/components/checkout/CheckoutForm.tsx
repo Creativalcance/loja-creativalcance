@@ -12,6 +12,7 @@ import {
   saveCheckoutDestinationAction,
   type CheckoutDestinationActionState,
 } from "@/lib/checkout/actions";
+import type { SiteLocale } from "@/lib/i18n/config";
 
 export type CheckoutSavedAddress = {
   id: string;
@@ -39,6 +40,7 @@ type CheckoutFormProps = {
   customerNotes: string;
   selectedAddressId: string | null;
   savedAddresses: CheckoutSavedAddress[];
+  locale: SiteLocale;
 };
 
 const initialState: CheckoutDestinationActionState = {
@@ -57,7 +59,15 @@ export default function CheckoutForm({
   customerNotes,
   selectedAddressId,
   savedAddresses,
+  locale,
 }: CheckoutFormProps) {
+  const text = locale === "en" ? {
+    customer: "Customer details", customerHint: "Details used for the order and billing.", fullName: "Full name *", phone: "Phone", company: "Company", companyPlaceholder: "Company name", save: "Save to account", saveHint: "These details will be available for future orders and can be changed in My Account.", defaultAddress: "Set this as my preferred delivery address.", billing: "Use this address for billing as well.", delivery: "Delivery address", deliveryHint: "Choose a saved address or add a new one.", useSaved: "Use saved address", chooseSaved: "Choose an address linked to your account.", addNew: "Add new address", addNewHint: "Save a new delivery address.", contact: "Contact person", receiving: "Name of the person receiving", addressCompany: "Company at address", companyEntity: "Company or organisation", deliveryPhone: "Delivery phone", address: "Address *", addressPlaceholder: "Street, number and unit", addressExtra: "Additional address", addressExtraPlaceholder: "Warehouse, floor, door or other details", postal: "Postcode *", city: "City *", district: "Region", country: "Country", artwork: "Artwork and notes", artworkHint: "Enter where you wish to receive artwork approval.", artworkEmail: "Artwork approval email *", notes: "Order notes", notesPlaceholder: "Additional delivery information, access instructions or other relevant details.", saving: "Saving destination...", continue: "Continue to shipping"
+  } : locale === "fr" ? {
+    customer: "Coordonnées client", customerHint: "Coordonnées utilisées pour la commande et la facturation.", fullName: "Nom complet *", phone: "Téléphone", company: "Entreprise", companyPlaceholder: "Nom de l’entreprise", save: "Enregistrer dans le compte", saveHint: "Ces informations seront disponibles pour les prochaines commandes et modifiables dans Mon compte.", defaultAddress: "Définir comme adresse de livraison préférée.", billing: "Utiliser également cette adresse pour la facturation.", delivery: "Adresse de livraison", deliveryHint: "Choisissez une adresse enregistrée ou ajoutez-en une nouvelle.", useSaved: "Utiliser une adresse enregistrée", chooseSaved: "Choisir une adresse liée à votre compte.", addNew: "Ajouter une adresse", addNewHint: "Enregistrer une nouvelle adresse de livraison.", contact: "Personne de contact", receiving: "Nom de la personne qui reçoit", addressCompany: "Entreprise à l’adresse", companyEntity: "Entreprise ou organisme", deliveryPhone: "Téléphone de livraison", address: "Adresse *", addressPlaceholder: "Rue, numéro et complément", addressExtra: "Complément d’adresse", addressExtraPlaceholder: "Entrepôt, étage, porte ou autre indication", postal: "Code postal *", city: "Ville *", district: "Région", country: "Pays", artwork: "Maquette et observations", artworkHint: "Indiquez où vous souhaitez recevoir la validation de la maquette.", artworkEmail: "E-mail de validation de la maquette *", notes: "Observations sur la commande", notesPlaceholder: "Informations de livraison, accès ou autres indications utiles.", saving: "Enregistrement...", continue: "Continuer vers l’expédition"
+  } : {
+    customer: "Dados do cliente", customerHint: "Dados utilizados na encomenda e na faturação.", fullName: "Nome completo *", phone: "Telefone", company: "Empresa", companyPlaceholder: "Nome da empresa", save: "Guardar na conta", saveHint: "Estes dados ficarão disponíveis para as próximas encomendas e podem ser alterados na Área Cliente.", defaultAddress: "Definir esta como a minha morada de entrega preferida.", billing: "Utilizar também esta morada para faturação.", delivery: "Morada de entrega", deliveryHint: "Escolhe uma morada guardada ou adiciona uma nova.", useSaved: "Utilizar morada guardada", chooseSaved: "Escolher uma morada associada à conta.", addNew: "Adicionar nova morada", addNewHint: "Guardar uma nova morada de entrega.", contact: "Pessoa de contacto", receiving: "Nome de quem recebe", addressCompany: "Empresa na morada", companyEntity: "Empresa ou entidade", deliveryPhone: "Telefone para entrega", address: "Morada *", addressPlaceholder: "Rua, avenida, número e fração", addressExtra: "Morada complementar", addressExtraPlaceholder: "Armazém, piso, porta ou outra indicação", postal: "Código postal *", city: "Localidade *", district: "Distrito", country: "País", artwork: "Maquete e observações", artworkHint: "Indica onde pretendes receber a validação da maquete.", artworkEmail: "E-mail para receção da maquete *", notes: "Observações da encomenda", notesPlaceholder: "Informações adicionais sobre a entrega, horários, acessos ou outras indicações relevantes.", saving: "A guardar destino...", continue: "Continuar para expedição"
+  };
   const defaultSavedAddress =
     savedAddresses.find(
       (address) => address.id === selectedAddressId,
@@ -82,6 +92,7 @@ export default function CheckoutForm({
   return (
     <form action={formAction} className="mt-8 space-y-8">
       <input type="hidden" name="cartId" value={cartId} />
+      <input type="hidden" name="locale" value={locale} />
 
       <input
         type="hidden"
@@ -103,11 +114,11 @@ export default function CheckoutForm({
 
           <div>
             <h2 className="text-xl font-semibold text-neutral-950">
-              Dados do cliente
+              {text.customer}
             </h2>
 
             <p className="mt-1 text-sm text-neutral-500">
-              Dados utilizados na encomenda e na faturação.
+              {text.customerHint}
             </p>
           </div>
         </div>
@@ -118,7 +129,7 @@ export default function CheckoutForm({
               htmlFor="customerName"
               className="block text-sm font-medium text-neutral-700"
             >
-              Nome completo *
+              {text.fullName}
             </label>
 
             <input
@@ -156,7 +167,7 @@ export default function CheckoutForm({
               htmlFor="customerPhone"
               className="block text-sm font-medium text-neutral-700"
             >
-              Telefone
+              {text.phone}
             </label>
 
             <input
@@ -175,7 +186,7 @@ export default function CheckoutForm({
               htmlFor="companyName"
               className="block text-sm font-medium text-neutral-700"
             >
-              Empresa
+              {text.company}
             </label>
 
             <input
@@ -184,7 +195,7 @@ export default function CheckoutForm({
               type="text"
               defaultValue={companyName}
               autoComplete="organization"
-              placeholder="Nome da empresa"
+              placeholder={text.companyPlaceholder}
               className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
             />
           </div>
@@ -211,16 +222,16 @@ export default function CheckoutForm({
       </section>
 
       <section className="border-t border-neutral-200 pt-8">
-        <h2 className="text-xl font-semibold text-neutral-950">Guardar na conta</h2>
-        <p className="mt-1 text-sm text-neutral-500">Estes dados ficarão disponíveis para as próximas encomendas e podem ser alterados na Área Cliente.</p>
+        <h2 className="text-xl font-semibold text-neutral-950">{text.save}</h2>
+        <p className="mt-1 text-sm text-neutral-500">{text.saveHint}</p>
         <div className="mt-5 space-y-3 rounded-2xl bg-neutral-50 p-4">
           <label className="flex items-start gap-3 text-sm text-neutral-700">
             <input type="checkbox" name="makeShippingDefault" defaultChecked className="mt-0.5 h-4 w-4" />
-            <span>Definir esta como a minha morada de entrega preferida.</span>
+            <span>{text.defaultAddress}</span>
           </label>
           <label className="flex items-start gap-3 text-sm text-neutral-700">
             <input type="checkbox" name="billingSameAsShipping" defaultChecked className="mt-0.5 h-4 w-4" />
-            <span>Utilizar também esta morada para faturação. Podes adicionar uma morada de faturação diferente na Área Cliente.</span>
+            <span>{text.billing}</span>
           </label>
         </div>
       </section>
@@ -233,11 +244,11 @@ export default function CheckoutForm({
 
           <div>
             <h2 className="text-xl font-semibold text-neutral-950">
-              Morada de entrega
+              {text.delivery}
             </h2>
 
             <p className="mt-1 text-sm text-neutral-500">
-              Escolhe uma morada guardada ou adiciona uma nova.
+              {text.deliveryHint}
             </p>
           </div>
         </div>
@@ -254,7 +265,7 @@ export default function CheckoutForm({
               }`}
             >
               <span className="block text-sm font-semibold">
-                Utilizar morada guardada
+                {text.useSaved}
               </span>
 
               <span
@@ -264,7 +275,7 @@ export default function CheckoutForm({
                     : "text-neutral-500"
                 }`}
               >
-                Escolher uma morada associada à conta.
+                {text.chooseSaved}
               </span>
             </button>
 
@@ -278,7 +289,7 @@ export default function CheckoutForm({
               }`}
             >
               <span className="block text-sm font-semibold">
-                Adicionar nova morada
+                {text.addNew}
               </span>
 
               <span
@@ -288,7 +299,7 @@ export default function CheckoutForm({
                     : "text-neutral-500"
                 }`}
               >
-                Guardar uma nova morada de entrega.
+                {text.addNewHint}
               </span>
             </button>
           </div>
@@ -358,7 +369,7 @@ export default function CheckoutForm({
                 htmlFor="shippingContactName"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Pessoa de contacto
+                {text.contact}
               </label>
 
               <input
@@ -366,7 +377,7 @@ export default function CheckoutForm({
                 name="shippingContactName"
                 type="text"
                 autoComplete="name"
-                placeholder="Nome de quem recebe"
+                placeholder={text.receiving}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               />
             </div>
@@ -376,7 +387,7 @@ export default function CheckoutForm({
                 htmlFor="shippingCompanyName"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Empresa na morada
+                {text.addressCompany}
               </label>
 
               <input
@@ -384,7 +395,7 @@ export default function CheckoutForm({
                 name="shippingCompanyName"
                 type="text"
                 autoComplete="organization"
-                placeholder="Empresa ou entidade"
+                placeholder={text.companyEntity}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               />
             </div>
@@ -394,7 +405,7 @@ export default function CheckoutForm({
                 htmlFor="shippingPhone"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Telefone para entrega
+                {text.deliveryPhone}
               </label>
 
               <input
@@ -412,7 +423,7 @@ export default function CheckoutForm({
                 htmlFor="shippingAddressLine1"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Morada *
+                {text.address}
               </label>
 
               <input
@@ -421,7 +432,7 @@ export default function CheckoutForm({
                 type="text"
                 required={addressMode === "new"}
                 autoComplete="address-line1"
-                placeholder="Rua, avenida, número e fração"
+                placeholder={text.addressPlaceholder}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               />
             </div>
@@ -431,7 +442,7 @@ export default function CheckoutForm({
                 htmlFor="shippingAddressLine2"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Morada complementar
+                {text.addressExtra}
               </label>
 
               <input
@@ -439,7 +450,7 @@ export default function CheckoutForm({
                 name="shippingAddressLine2"
                 type="text"
                 autoComplete="address-line2"
-                placeholder="Armazém, piso, porta ou outra indicação"
+                placeholder={text.addressExtraPlaceholder}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               />
             </div>
@@ -449,7 +460,7 @@ export default function CheckoutForm({
                 htmlFor="shippingPostalCode"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Código postal *
+                {text.postal}
               </label>
 
               <input
@@ -468,7 +479,7 @@ export default function CheckoutForm({
                 htmlFor="shippingCity"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Localidade *
+                {text.city}
               </label>
 
               <input
@@ -486,7 +497,7 @@ export default function CheckoutForm({
                 htmlFor="shippingDistrict"
                 className="block text-sm font-medium text-neutral-700"
               >
-                Distrito
+                {text.district}
               </label>
 
               <input
@@ -503,7 +514,7 @@ export default function CheckoutForm({
                 htmlFor="shippingCountryCode"
                 className="block text-sm font-medium text-neutral-700"
               >
-                País
+                {text.country}
               </label>
 
               <select
@@ -528,12 +539,11 @@ export default function CheckoutForm({
 
           <div>
             <h2 className="text-xl font-semibold text-neutral-950">
-              Maquete e observações
+              {text.artwork}
             </h2>
 
             <p className="mt-1 text-sm text-neutral-500">
-              Indica onde pretendes receber a validação da
-              maquete.
+              {text.artworkHint}
             </p>
           </div>
         </div>
@@ -543,7 +553,7 @@ export default function CheckoutForm({
             htmlFor="artworkEmail"
             className="block text-sm font-medium text-neutral-700"
           >
-            E-mail para receção da maquete *
+            {text.artworkEmail}
           </label>
 
           <input
@@ -561,7 +571,7 @@ export default function CheckoutForm({
             htmlFor="customerNotes"
             className="block text-sm font-medium text-neutral-700"
           >
-            Observações da encomenda
+            {text.notes}
           </label>
 
           <textarea
@@ -570,7 +580,7 @@ export default function CheckoutForm({
             rows={4}
             defaultValue={customerNotes}
             maxLength={1000}
-            placeholder="Informações adicionais sobre a entrega, horários, acessos ou outras indicações relevantes."
+            placeholder={text.notesPlaceholder}
             className="mt-2 w-full resize-none rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />
         </div>
@@ -599,8 +609,8 @@ export default function CheckoutForm({
         <Truck className="mr-2 h-4 w-4" />
 
         {isPending
-          ? "A guardar destino..."
-          : "Continuar para expedição"}
+          ? text.saving
+          : text.continue}
       </button>
     </form>
   );
