@@ -12,6 +12,8 @@ import CheckoutPaymentForm from "@/components/checkout/CheckoutPaymentForm";
 import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -136,6 +138,7 @@ function determineTaxRate(address: ShippingAddress): number {
 }
 
 export default async function CheckoutPaymentPage() {
+  const locale = await getCurrentLocale();
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -143,7 +146,7 @@ export default async function CheckoutPaymentPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/login");
+    redirect(localizePath("/login", locale));
   }
 
   const supabaseAdmin = createSupabaseAdminClient();
@@ -206,7 +209,7 @@ export default async function CheckoutPaymentPage() {
     .maybeSingle();
 
   if (cartError || !cartData) {
-    redirect("/carrinho");
+    redirect(localizePath("/carrinho", locale));
   }
 
   const cart = cartData as unknown as Cart;
@@ -214,15 +217,15 @@ export default async function CheckoutPaymentPage() {
   const address = cart.customer_addresses;
 
   if (items.length === 0) {
-    redirect("/carrinho");
+    redirect(localizePath("/carrinho", locale));
   }
 
   if (!address || !cart.shipping_address_id) {
-    redirect("/checkout");
+    redirect(localizePath("/checkout", locale));
   }
 
   if (!cart.shipping_method) {
-    redirect("/checkout/expedicao");
+    redirect(localizePath("/checkout/expedicao", locale));
   }
 
   const currency = cart.currency || "EUR";
@@ -263,7 +266,7 @@ export default async function CheckoutPaymentPage() {
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
       <section className="mx-auto max-w-7xl">
         <Link
-          href="/checkout/expedicao"
+          href={localizePath("/checkout/expedicao", locale)}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -374,7 +377,7 @@ export default async function CheckoutPaymentPage() {
               </div>
             </div>
 
-            <CheckoutPaymentForm cartId={cart.id} />
+            <CheckoutPaymentForm cartId={cart.id} locale={locale} />
           </section>
 
           <aside className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm lg:sticky lg:top-28">
