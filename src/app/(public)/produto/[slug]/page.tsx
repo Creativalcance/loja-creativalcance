@@ -22,6 +22,10 @@ import {
   buildProductStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
+import { localizePath } from "@/lib/i18n/config";
+import { getLocalizedProductText } from "@/lib/i18n/catalog";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -123,6 +127,7 @@ type ProductDetail = {
 };
 
 type ProductMetadataRow = {
+  id: string;
   name: string;
   slug: string;
   short_description: string | null;
@@ -219,6 +224,7 @@ function getMetadataImageUrl(product: ProductMetadataRow): string | null {
 export async function generateMetadata({
   params,
 }: ProductPageProps): Promise<Metadata> {
+  const locale = await getCurrentLocale();
   const { slug } = await params;
   const supabase = await createSupabaseServerClient();
 
@@ -226,6 +232,7 @@ export async function generateMetadata({
     .from("products")
     .select(
       `
+        id,
         name,
         slug,
         short_description,
@@ -265,12 +272,13 @@ export async function generateMetadata({
   }
 
   const product = data as unknown as ProductMetadataRow;
+  const localized = await getLocalizedProductText({ productId: product.id, locale });
 
   return buildProductMetadata({
-    name: product.name,
+    name: localized?.name ?? product.name,
     slug: product.slug,
-    shortDescription: product.short_description,
-    description: product.description,
+    shortDescription: localized?.shortDescription ?? product.short_description,
+    description: localized?.description ?? product.description,
     brand: product.brand,
     material: product.material,
     imageUrl: getMetadataImageUrl(product),
@@ -497,6 +505,8 @@ export default async function ProductDetailPage({
   params,
   searchParams,
 }: ProductPageProps) {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
   const { slug } = await params;
   const resolvedSearchParams = await searchParams;
   const customizationDraftId =
@@ -599,6 +609,16 @@ export default async function ProductDetailPage({
   }
 
   const product = data as unknown as ProductDetail;
+  const baseSlug = product.slug;
+  const localized = await getLocalizedProductText({ productId: product.id, locale });
+  if (localized) {
+    product.name = localized.name || product.name;
+    product.short_description = localized.shortDescription ?? product.short_description;
+    product.description = localized.description ?? product.description;
+    product.material = localized.material ?? product.material;
+    product.type_name = localized.typeName ?? product.type_name;
+    product.subtype_name = localized.subtypeName ?? product.subtype_name;
+  }
   let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
 
   if (customizationDraftId) {
@@ -763,10 +783,10 @@ export default async function ProductDetailPage({
     })),
   });
 
-  const categoryHref = buildCategoryHref(product);
+  const categoryHref = localizePath(buildCategoryHref(product), locale);
   const backLabel = product.type_name
-    ? `Voltar a ${product.type_name}`
-    : "Voltar às categorias";
+    ? `${labels.product.backTo} ${product.type_name}`
+    : labels.product.back;
 
   return (
     <main className="min-h-screen max-w-full overflow-x-hidden bg-neutral-50 px-4 py-8 sm:px-6 sm:py-12">
@@ -781,7 +801,7 @@ export default async function ProductDetailPage({
 
        <ProductDirectPurchasePanel
   productId={product.id}
-  productSlug={product.slug}
+  productSlug={baseSlug}
   productSku={product.sku}
   productName={product.name}
   shortDescription={product.short_description}
@@ -800,6 +820,7 @@ export default async function ProductDetailPage({
   stocks={purchaseStocks}
   futureStocks={purchaseFutureStocks}
   customizationDraft={customizationDraft}
+  locale={locale}
 />
       </section>
 
