@@ -820,7 +820,6 @@ export default async function ProductDetailPage({
   stocks={purchaseStocks}
   futureStocks={purchaseFutureStocks}
   customizationDraft={customizationDraft}
-  locale={locale}
 />
       </section>
 
