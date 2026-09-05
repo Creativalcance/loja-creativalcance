@@ -5,6 +5,9 @@ import ProductCard, {
   type ProductCardProduct,
 } from "@/components/catalog/ProductCard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getStrickerLanguage, localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getMessages } from "@/lib/i18n/messages";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type SearchPageProps = {
   searchParams?: Promise<{
@@ -23,11 +26,11 @@ type FacetProduct = {
 
 type SortOption = "destaque" | "recentes" | "nome_asc" | "nome_desc";
 
-export const metadata: Metadata = {
-  title: "Pesquisar produtos",
-  description: "Pesquise o catálogo de merchandising e brindes promocionais.",
-  robots: { index: false, follow: true },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getCurrentLocale();
+  const text = getMessages(locale).catalog;
+  return { title: text.searchTitle, description: text.searchIntro, robots: { index: false, follow: true } };
+}
 
 function sanitizeSearchQuery(value: string): string {
   return value
@@ -82,6 +85,9 @@ function getUniqueSortedValues(
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
   const resolvedSearchParams = await searchParams;
 
   const query = sanitizeSearchQuery(resolvedSearchParams?.q ?? "");
@@ -118,6 +124,25 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   let hasProductsError = false;
 
   if (hasActiveSearch) {
+    let localizedProductIds: string[] = [];
+    if (query && locale !== "pt") {
+      const language = getStrickerLanguage(locale);
+      const { data: translatedMatches } = await supabase
+        .from("product_translations")
+        .select("product_id")
+        .eq("language", language)
+        .or([
+          `name.ilike.%${query}%`,
+          `short_description.ilike.%${query}%`,
+          `description.ilike.%${query}%`,
+          `material.ilike.%${query}%`,
+          `type_name.ilike.%${query}%`,
+          `subtype_name.ilike.%${query}%`,
+        ].join(","))
+        .limit(200);
+      localizedProductIds = Array.from(new Set((translatedMatches ?? []).map((row) => row.product_id)));
+    }
+
     let productsQuery = supabase
       .from("products")
       .select(
@@ -158,7 +183,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       .limit(48);
 
     if (query) {
-      productsQuery = productsQuery.or(buildSearchFilter(query));
+      const filters = buildSearchFilter(query);
+      productsQuery = localizedProductIds.length > 0
+        ? productsQuery.or(`${filters},id.in.(${localizedProductIds.join(",")})`)
+        : productsQuery.or(filters);
     }
 
     if (selectedType) {
@@ -199,35 +227,52 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
     products = error ? [] : ((data ?? []) as unknown as ProductCardProduct[]);
     hasProductsError = Boolean(error);
+
+    if (!error && locale !== "pt" && products.length > 0) {
+      const languages = Array.from(new Set([getStrickerLanguage(locale), "EN"]));
+      const { data: translations } = await supabase
+        .from("product_translations")
+        .select("product_id,language,name,short_description,material,type_name,subtype_name")
+        .in("product_id", products.map((product) => product.id))
+        .in("language", languages);
+      const byProduct = new Map<string, Record<string, unknown>>();
+      for (const language of [...languages].reverse()) {
+        for (const translation of translations ?? []) {
+          if (translation.language === language) byProduct.set(translation.product_id, translation);
+        }
+      }
+      products = products.map((product) => {
+        const translation = byProduct.get(product.id);
+        return translation ? { ...product, name: String(translation.name ?? product.name), short_description: (translation.short_description as string | null) ?? product.short_description, material: (translation.material as string | null) ?? product.material, type_name: (translation.type_name as string | null) ?? product.type_name, subtype_name: (translation.subtype_name as string | null) ?? product.subtype_name } : product;
+      });
+    }
   }
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
         <Link
-          href="/"
+          href={localizePath("/", locale)}
           className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
-          ← Voltar à página inicial
+          ← {labels.common.backHome}
         </Link>
 
         <div className="mt-8">
           <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-            Pesquisa
+            {labels.catalog.searchEyebrow}
           </p>
 
           <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
-            Pesquisa de produtos
+            {labels.catalog.searchTitle}
           </h1>
 
           <p className="mt-4 max-w-3xl text-neutral-600">
-            Encontra brindes promocionais, merchandising corporativo, gifts
-            empresariais e vestuário promocional para campanhas, eventos e
-            equipas.
+            {labels.catalog.searchIntro}
           </p>
         </div>
 
-        <form className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <form action={localizePath("/pesquisa", locale)} className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
@@ -236,7 +281,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 type="search"
                 name="q"
                 defaultValue={query}
-                placeholder="Pesquisar por produto, SKU, material, marca ou categoria"
+                placeholder={labels.catalog.placeholder}
                 className="w-full rounded-2xl border border-neutral-300 bg-white py-3 pl-11 pr-4 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               />
             </div>
@@ -245,14 +290,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               type="submit"
               className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
             >
-              Pesquisar
+              {labels.header.search}
             </button>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-4">
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Tipo
+                {labels.catalog.type}
               </span>
 
               <select
@@ -260,7 +305,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 defaultValue={selectedType}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               >
-                <option value="">Todos os tipos</option>
+                <option value="">{labels.catalog.allTypes}</option>
                 {typeOptions.map((type) => (
                   <option key={type} value={type}>
                     {type}
@@ -271,7 +316,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Material
+                {labels.catalog.material}
               </span>
 
               <select
@@ -279,7 +324,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 defaultValue={selectedMaterial}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               >
-                <option value="">Todos os materiais</option>
+                <option value="">{labels.catalog.allMaterials}</option>
                 {materialOptions.map((material) => (
                   <option key={material} value={material}>
                     {material}
@@ -290,7 +335,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Personalização
+                {labels.catalog.customisation}
               </span>
 
               <select
@@ -298,15 +343,15 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 defaultValue={selectedCustomizable}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               >
-                <option value="">Todos</option>
-                <option value="sim">Personalizáveis</option>
-                <option value="nao">Não personalizáveis</option>
+                <option value="">{labels.catalog.all}</option>
+                <option value="sim">{labels.catalog.customisable}</option>
+                <option value="nao">{labels.catalog.notCustomisable}</option>
               </select>
             </label>
 
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                Ordenar
+                {labels.catalog.sort}
               </span>
 
               <select
@@ -314,10 +359,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                 defaultValue={selectedSort}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
               >
-                <option value="destaque">Destaques primeiro</option>
-                <option value="recentes">Mais recentes</option>
-                <option value="nome_asc">Nome A-Z</option>
-                <option value="nome_desc">Nome Z-A</option>
+                <option value="destaque">{labels.catalog.featuredFirst}</option>
+                <option value="recentes">{labels.catalog.newest}</option>
+                <option value="nome_asc">{labels.catalog.nameAsc}</option>
+                <option value="nome_desc">{labels.catalog.nameDesc}</option>
               </select>
             </label>
           </div>
@@ -326,52 +371,50 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <div className="mt-8 flex items-center justify-between gap-4">
           <p className="text-sm text-neutral-500">
             {hasActiveSearch
-              ? `${products.length.toLocaleString("pt-PT")} produto(s) apresentado(s)`
-              : "Introduz uma pesquisa ou usa os filtros para encontrar produtos."}
+              ? `${products.length.toLocaleString(intlLocale)} ${labels.catalog.shown}`
+              : labels.catalog.start}
           </p>
 
           {hasActiveSearch ? (
             <Link
-              href="/pesquisa"
+              href={localizePath("/pesquisa", locale)}
               className="text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
             >
-              Limpar pesquisa
+              {labels.catalog.clear}
             </Link>
           ) : null}
         </div>
 
         {hasProductsError ? (
           <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-            Não foi possível carregar a pesquisa. Tenta novamente.
+            {labels.catalog.loadError} {labels.common.retry}
           </div>
         ) : null}
 
         {!hasActiveSearch ? (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Pesquisa pronta a usar
+              {labels.catalog.readyTitle}
             </h2>
 
             <p className="mt-3 text-neutral-600">
-              Escreve o nome de um produto, SKU, material ou marca. Também
-              podes usar os filtros por tipo, material ou personalização.
+              {labels.catalog.readyText}
             </p>
           </div>
         ) : products.length > 0 ? (
           <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
+              <ProductCard key={product.id} product={product} locale={locale} />
             ))}
           </div>
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Sem resultados
+              {labels.catalog.noResults}
             </h2>
 
             <p className="mt-3 text-neutral-600">
-              Experimenta pesquisar por “garrafa”, “caneca”, “t-shirt”,
-              “algodão”, “metal” ou SKU.
+              {labels.catalog.noResultsText}
             </p>
           </div>
         )}
