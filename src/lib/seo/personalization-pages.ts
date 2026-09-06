@@ -1,3 +1,6 @@
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizePersonalizationConfig } from "@/lib/i18n/personalization-content";
+
 export type PersonalizationConfig = {
   slug: string;
   title: string;
@@ -167,20 +170,23 @@ const TECHNIQUES: PersonalizationConfig[] = [
   },
 ];
 
-export function getPersonalizationPages(): PersonalizationConfig[] {
-  return TECHNIQUES;
+export function getPersonalizationPages(locale: SiteLocale = "pt"): PersonalizationConfig[] {
+  return TECHNIQUES.map((page) => localizePersonalizationConfig(page, locale));
 }
 
 export function getPersonalizationPage(
   slug: string,
+  locale: SiteLocale = "pt",
 ): PersonalizationConfig | null {
-  return TECHNIQUES.find((technique) => technique.slug === slug) ?? null;
+  const page = TECHNIQUES.find((technique) => technique.slug === slug);
+  return page ? localizePersonalizationConfig(page, locale) : null;
 }
 
 export function getRelatedPersonalizationPages(
   config: PersonalizationConfig,
+  locale: SiteLocale = "pt",
 ): PersonalizationConfig[] {
   return config.relatedSlugs
-    .map((slug) => getPersonalizationPage(slug))
+    .map((slug) => getPersonalizationPage(slug, locale))
     .filter((page): page is PersonalizationConfig => Boolean(page));
 }

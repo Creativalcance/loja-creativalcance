@@ -2,29 +2,34 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import InstitutionalPage from "@/components/seo/InstitutionalPage";
 import { getInstitutionalPage } from "@/lib/seo/institutional-pages";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 import {
   buildEditorialStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
 
-const config = getInstitutionalPage("qualidade");
-
-export const metadata: Metadata = config
-  ? {
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getCurrentLocale();
+  const config = getInstitutionalPage("qualidade", locale);
+  return config ? {
       title: config.title,
       description: config.description,
-      alternates: { canonical: "/qualidade" },
+      alternates: { canonical: localizePath("/qualidade", locale) },
       openGraph: {
         type: "website",
-        locale: "pt_PT",
+        locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
         title: config.title,
         description: config.description,
-        url: "/qualidade",
+        url: localizePath("/qualidade", locale),
       },
     }
-  : { title: "Página não encontrada", robots: { index: false } };
+  : { title: "Page not found", robots: { index: false } };
+}
 
-export default function Page() {
+export default async function Page() {
+  const locale = await getCurrentLocale();
+  const config = getInstitutionalPage("qualidade", locale);
   if (!config) {
     return notFound();
   }
@@ -32,13 +37,13 @@ export default function Page() {
   const structuredData = buildEditorialStructuredData({
     name: config.h1,
     description: config.description,
-    path: "/qualidade",
+    path: localizePath("/qualidade", locale),
     breadcrumbLabel: config.eyebrow,
   });
 
   return (
     <>
-      <InstitutionalPage config={config} />
+      <InstitutionalPage config={config} locale={locale} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}

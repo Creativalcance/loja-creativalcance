@@ -752,26 +752,29 @@ const COMMERCIAL_PAGES: CommercialLandingConfig[] = [
   },
 ];
 
-export function getCommercialPages(): CommercialLandingConfig[] {
-  return COMMERCIAL_PAGES;
+export function getCommercialPages(locale: SiteLocale = "pt"): CommercialLandingConfig[] {
+  return COMMERCIAL_PAGES.map((page) => localizeCommercialConfig(page, locale));
 }
 
-export function getCommercialPage(slug: string): CommercialLandingConfig | null {
-  return COMMERCIAL_PAGES.find((page) => page.slug === slug) ?? null;
+export function getCommercialPage(slug: string, locale: SiteLocale = "pt"): CommercialLandingConfig | null {
+  const page = COMMERCIAL_PAGES.find((item) => item.slug === slug);
+  return page ? localizeCommercialConfig(page, locale) : null;
 }
 
 export function getRelatedCommercialPages(
   config: CommercialLandingConfig,
+  locale: SiteLocale = "pt",
 ): CommercialLandingConfig[] {
   return config.relatedSlugs
-    .map((slug) => getCommercialPage(slug))
+    .map((slug) => getCommercialPage(slug, locale))
     .filter((page): page is CommercialLandingConfig => Boolean(page));
 }
 
 export function getCommercialPagesByGroup(
   group: CommercialLandingGroup,
+  locale: SiteLocale = "pt",
 ): CommercialLandingConfig[] {
-  return COMMERCIAL_PAGES.filter((page) => page.group === group);
+  return getCommercialPages(locale).filter((page) => page.group === group);
 }
 
 export type CommercialFaq = {
@@ -781,7 +784,20 @@ export type CommercialFaq = {
 
 export function getCommercialPageFaq(
   config: CommercialLandingConfig,
+  locale: SiteLocale = "pt",
 ): CommercialFaq[] {
+  if (locale !== "pt") {
+    const en = locale === "en";
+    return en ? [
+      { question: "How are the products selected?", answer: "The page searches the active catalogue using terms and commercial filters related to this need." },
+      { question: "Does this selection replace the product page?", answer: "No. The product page remains the reference for stock, minimum quantity, price, materials, variants and customisation." },
+      { question: "Can I combine budget and quantity criteria?", answer: "Yes. Use Smart Merch or the budget and quantity solution pages to narrow down the options." },
+    ] : [
+      { question: "Comment les produits sont-ils sélectionnés ?", answer: "La page recherche dans le catalogue actif à l’aide de termes et de filtres commerciaux liés à ce besoin." },
+      { question: "Cette sélection remplace-t-elle la page produit ?", answer: "Non. La page produit reste la référence pour le stock, la quantité minimale, le prix, les matériaux, les variantes et la personnalisation." },
+      { question: "Puis-je combiner budget et quantité ?", answer: "Oui. Utilisez Smart Merch ou les pages par budget et quantité pour affiner les options." },
+    ];
+  }
   if (config.group === "budget") {
     return [
       {
@@ -860,3 +876,5 @@ export function getCommercialPageFaq(
     },
   ];
 }
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizeCommercialConfig } from "@/lib/i18n/commercial-content";

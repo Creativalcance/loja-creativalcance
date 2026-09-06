@@ -5,6 +5,7 @@ import ProductCard, {
 } from "@/components/catalog/ProductCard";
 import type { SeoLandingConfig } from "@/lib/seo/landing-pages";
 import { getRelatedLandingPages } from "@/lib/seo/landing-pages";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 
 function getBasePath(config: SeoLandingConfig): string {
   return config.kind === "application" ? "/aplicacoes" : "/industrias";
@@ -13,25 +14,28 @@ function getBasePath(config: SeoLandingConfig): string {
 type SeoLandingPageProps = {
   config: SeoLandingConfig;
   products: ProductCardProduct[];
+  locale: SiteLocale;
 };
 
 export default function SeoLandingPage({
   config,
   products,
+  locale,
 }: SeoLandingPageProps) {
   const basePath = getBasePath(config);
-  const hubLabel = config.kind === "application" ? "Aplicações" : "Indústrias";
-  const relatedPages = getRelatedLandingPages(config);
+  const text = locale === "en" ? { applications: "applications", industries: "industries", back: "Back to", thinking: "Planning for this requirement?", thinkingText: "Use Smart Merch to combine product type, quantity, budget and deadline, or explore the suggestions on this page.", trySmart: "Try Smart Merch", budget: "By budget and quantity", relatedProducts: "Related products", suggestions: "Suggestions to get started", suggestionsText: "This selection uses the active catalogue and terms related to this requirement. Always confirm stock, quantities and customisation on the product page.", search: "Search catalogue", explore: "Browse the full catalogue", empty: "Specific suggestions are not available right now. Continue with search or Smart Merch.", also: "Explore more", view: "View page" } : locale === "fr" ? { applications: "applications", industries: "secteurs", back: "Retour aux", thinking: "Vous préparez ce type de projet ?", thinkingText: "Utilisez Smart Merch pour croiser type de produit, quantité, budget et délai, ou consultez les suggestions de cette page.", trySmart: "Essayer Smart Merch", budget: "Par budget et quantité", relatedProducts: "Produits associés", suggestions: "Suggestions pour commencer", suggestionsText: "Cette sélection repose sur le catalogue actif et des termes liés à ce besoin. Vérifiez toujours le stock, les quantités et la personnalisation sur la fiche produit.", search: "Rechercher dans le catalogue", explore: "Explorer tout le catalogue", empty: "Aucune suggestion spécifique n’est disponible pour le moment. Continuez avec la recherche ou Smart Merch.", also: "À découvrir également", view: "Voir la page" } : { applications: "aplicações", industries: "indústrias", back: "Voltar a", thinking: "A pensar nesta necessidade?", thinkingText: "Use o Smart Merch para cruzar tipo de produto, quantidade, orçamento e prazo, ou explore as sugestões desta página.", trySmart: "Experimentar Smart Merch", budget: "Por orçamento e quantidade", relatedProducts: "Produtos relacionados", suggestions: "Sugestões para começar", suggestionsText: "A seleção abaixo é construída a partir do catálogo ativo e de termos relacionados com esta necessidade. Confirme sempre stock, quantidades e opções de personalização na página do produto.", search: "Pesquisar catálogo", explore: "Explore o catálogo completo", empty: "Não foi possível carregar sugestões específicas neste momento. Pode continuar pela pesquisa ou pelo Smart Merch.", also: "Explorar também", view: "Ver página" };
+  const hubLabel = config.kind === "application" ? text.applications : text.industries;
+  const relatedPages = getRelatedLandingPages(config, locale);
 
   return (
     <main className="min-h-screen bg-neutral-50">
       <section className="border-b border-neutral-200 bg-white">
         <div className="mx-auto max-w-7xl px-6 py-12 md:py-16">
           <Link
-            href={basePath}
+            href={localizePath(basePath, locale)}
             className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
           >
-            ← Voltar a {hubLabel.toLowerCase()}
+            ← {text.back} {hubLabel}
           </Link>
 
           <div className="mt-10 grid gap-10 lg:grid-cols-[1.4fr_0.8fr] lg:items-start">
@@ -52,25 +56,24 @@ export default function SeoLandingPage({
                 <Sparkles className="h-5 w-5" />
               </div>
               <h2 className="mt-5 text-lg font-semibold text-neutral-950">
-                A pensar nesta necessidade?
+                {text.thinking}
               </h2>
               <p className="mt-3 text-sm leading-6 text-neutral-600">
-                Use o Smart Merch para cruzar tipo de produto, quantidade,
-                orçamento e prazo, ou explore as sugestões desta página.
+                {text.thinkingText}
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
-                  href="/smart-merch"
+                  href={localizePath("/smart-merch", locale)}
                   className="inline-flex items-center rounded-full bg-[#162334] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#24364d]"
                 >
-                  Experimentar Smart Merch
+                  {text.trySmart}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
                 <Link
-                  href="/solucoes"
+                  href={localizePath("/solucoes", locale)}
                   className="inline-flex items-center rounded-full border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-500"
                 >
-                  Por orçamento e quantidade
+                  {text.budget}
                 </Link>
               </div>
             </aside>
@@ -110,42 +113,38 @@ export default function SeoLandingPage({
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">
-                Produtos relacionados
+                {text.relatedProducts}
               </p>
               <h2 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
-                Sugestões para começar
+                {text.suggestions}
               </h2>
               <p className="mt-3 max-w-3xl text-neutral-600">
-                A seleção abaixo é construída a partir do catálogo ativo e de
-                termos relacionados com esta necessidade. Confirme sempre
-                stock, quantidades e opções de personalização na página do
-                produto.
+                {text.suggestionsText}
               </p>
             </div>
 
             <Link
-              href={`/pesquisa?q=${encodeURIComponent(config.productQueries[0] ?? "")}`}
+              href={localizePath(`/pesquisa?q=${encodeURIComponent(config.productQueries[0] ?? "")}`, locale)}
               className="inline-flex items-center justify-center rounded-full border border-neutral-300 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-900 transition hover:border-neutral-500"
             >
               <Search className="mr-2 h-4 w-4" />
-              Pesquisar catálogo
+              {text.search}
             </Link>
           </div>
 
           {products.length > 0 ? (
             <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {products.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product} locale={locale} />
               ))}
             </div>
           ) : (
             <div className="mt-8 rounded-3xl border border-neutral-200 bg-neutral-50 p-8 text-center">
               <h3 className="text-lg font-semibold text-neutral-950">
-                Explore o catálogo completo
+                {text.explore}
               </h3>
               <p className="mt-2 text-sm text-neutral-600">
-                Não foi possível carregar sugestões específicas neste momento.
-                Pode continuar pela pesquisa ou pelo Smart Merch.
+                {text.empty}
               </p>
             </div>
           )}
@@ -155,13 +154,13 @@ export default function SeoLandingPage({
       {relatedPages.length > 0 ? (
         <section className="mx-auto max-w-7xl px-6 py-12 md:py-16">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-neutral-500">
-            Explorar também
+            {text.also}
           </p>
           <div className="mt-6 grid gap-5 md:grid-cols-3">
             {relatedPages.map((item) => (
               <Link
                 key={item.slug}
-                href={`${basePath}/${item.slug}`}
+                href={localizePath(`${basePath}/${item.slug}`, locale)}
                 className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
               >
                 <h2 className="text-xl font-semibold tracking-tight text-neutral-950">
@@ -171,7 +170,7 @@ export default function SeoLandingPage({
                   {item.description}
                 </p>
                 <span className="mt-5 inline-flex items-center text-sm font-semibold text-neutral-950">
-                  Ver página
+                  {text.view}
                   <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
                 </span>
               </Link>

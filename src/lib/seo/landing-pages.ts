@@ -384,30 +384,35 @@ const INDUSTRIES: SeoLandingConfig[] = [
   },
 ];
 
-export function getApplicationPages(): SeoLandingConfig[] {
-  return APPLICATIONS;
+export function getApplicationPages(locale: SiteLocale = "pt"): SeoLandingConfig[] {
+  return APPLICATIONS.map((page) => localizeLandingConfig(page, locale));
 }
 
-export function getIndustryPages(): SeoLandingConfig[] {
-  return INDUSTRIES;
+export function getIndustryPages(locale: SiteLocale = "pt"): SeoLandingConfig[] {
+  return INDUSTRIES.map((page) => localizeLandingConfig(page, locale));
 }
 
-export function getApplicationPage(slug: string): SeoLandingConfig | null {
-  return APPLICATIONS.find((item) => item.slug === slug) ?? null;
+export function getApplicationPage(slug: string, locale: SiteLocale = "pt"): SeoLandingConfig | null {
+  const page = APPLICATIONS.find((item) => item.slug === slug);
+  return page ? localizeLandingConfig(page, locale) : null;
 }
 
-export function getIndustryPage(slug: string): SeoLandingConfig | null {
-  return INDUSTRIES.find((item) => item.slug === slug) ?? null;
+export function getIndustryPage(slug: string, locale: SiteLocale = "pt"): SeoLandingConfig | null {
+  const page = INDUSTRIES.find((item) => item.slug === slug);
+  return page ? localizeLandingConfig(page, locale) : null;
 }
 
-export function getLandingPage(kind: SeoLandingKind, slug: string): SeoLandingConfig | null {
-  return kind === "application" ? getApplicationPage(slug) : getIndustryPage(slug);
+export function getLandingPage(kind: SeoLandingKind, slug: string, locale: SiteLocale = "pt"): SeoLandingConfig | null {
+  return kind === "application" ? getApplicationPage(slug, locale) : getIndustryPage(slug, locale);
 }
 
-export function getRelatedLandingPages(config: SeoLandingConfig): SeoLandingConfig[] {
+export function getRelatedLandingPages(config: SeoLandingConfig, locale: SiteLocale = "pt"): SeoLandingConfig[] {
   const source = config.kind === "application" ? APPLICATIONS : INDUSTRIES;
 
   return config.relatedSlugs
     .map((slug) => source.find((item) => item.slug === slug))
-    .filter((item): item is SeoLandingConfig => Boolean(item));
+    .filter((item): item is SeoLandingConfig => Boolean(item))
+    .map((item) => localizeLandingConfig(item, locale));
 }
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizeLandingConfig } from "@/lib/i18n/landing-content";

@@ -10,6 +10,8 @@ import {
   buildCollectionStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type CommercialSolutionPageProps = {
   params: Promise<{ slug: string }>;
@@ -23,13 +25,14 @@ export async function generateMetadata({
   params,
 }: CommercialSolutionPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const config = getCommercialPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getCommercialPage(slug, locale);
 
   if (!config) {
-    return { title: "Solução não encontrada", robots: { index: false } };
+    return { title: locale === "en" ? "Solution not found" : locale === "fr" ? "Solution introuvable" : "Solução não encontrada", robots: { index: false } };
   }
 
-  const path = `/solucoes/${config.slug}`;
+  const path = localizePath(`/solucoes/${config.slug}`, locale);
 
   return {
     title: config.title,
@@ -37,7 +40,7 @@ export async function generateMetadata({
     alternates: { canonical: path },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
+      locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
       title: config.title,
       description: config.description,
       url: path,
@@ -60,7 +63,8 @@ export default async function CommercialSolutionPage({
   params,
 }: CommercialSolutionPageProps) {
   const { slug } = await params;
-  const config = getCommercialPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getCommercialPage(slug, locale);
 
   if (!config) {
     return notFound();
@@ -72,19 +76,19 @@ export default async function CommercialSolutionPage({
     requireCustomizable: config.productFilter?.requireCustomizable,
     limit: 12,
   });
-  const path = `/solucoes/${config.slug}`;
+  const path = localizePath(`/solucoes/${config.slug}`, locale);
   const structuredData = buildCollectionStructuredData({
     name: config.h1,
     description: config.description,
     path,
-    breadcrumbParentPath: "/solucoes",
-    breadcrumbParentLabel: "Soluções",
+    breadcrumbParentPath: localizePath("/solucoes", locale),
+    breadcrumbParentLabel: locale === "en" ? "Solutions" : locale === "fr" ? "Solutions" : "Soluções",
     breadcrumbLabel: config.h1,
   });
 
   return (
     <>
-      <CommercialLandingPage config={config} products={products} />
+      <CommercialLandingPage config={config} products={products} locale={locale} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}

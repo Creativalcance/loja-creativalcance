@@ -7,6 +7,8 @@ import {
   buildCollectionStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type IndustryPageProps = {
   params: Promise<{ slug: string }>;
@@ -20,13 +22,14 @@ export async function generateMetadata({
   params,
 }: IndustryPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const config = getIndustryPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getIndustryPage(slug, locale);
 
   if (!config) {
     return { title: "Indústria não encontrada", robots: { index: false } };
   }
 
-  const path = `/industrias/${config.slug}`;
+  const path = localizePath(`/industrias/${config.slug}`, locale);
 
   return {
     title: config.title,
@@ -34,7 +37,7 @@ export async function generateMetadata({
     alternates: { canonical: path },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
+      locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
       title: config.title,
       description: config.description,
       url: path,
@@ -55,26 +58,27 @@ export async function generateMetadata({
 
 export default async function IndustryPage({ params }: IndustryPageProps) {
   const { slug } = await params;
-  const config = getIndustryPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getIndustryPage(slug, locale);
 
   if (!config) {
     return notFound();
   }
 
   const products = await getLandingProducts(config.productQueries, 12);
-  const path = `/industrias/${config.slug}`;
+  const path = localizePath(`/industrias/${config.slug}`, locale);
   const structuredData = buildCollectionStructuredData({
     name: config.h1,
     description: config.description,
     path,
-    breadcrumbParentPath: "/industrias",
-    breadcrumbParentLabel: "Indústrias",
+    breadcrumbParentPath: localizePath("/industrias", locale),
+    breadcrumbParentLabel: locale === "en" ? "Industries" : locale === "fr" ? "Secteurs" : "Indústrias",
     breadcrumbLabel: config.h1,
   });
 
   return (
     <>
-      <SeoLandingPage config={config} products={products} />
+      <SeoLandingPage config={config} products={products} locale={locale} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}

@@ -335,10 +335,17 @@ const PAGES: InstitutionalPageConfig[] = [
   },
 ];
 
-export function getInstitutionalPages(): InstitutionalPageConfig[] {
-  return PAGES;
+export function getInstitutionalPages(locale: SiteLocale = "pt"): InstitutionalPageConfig[] {
+  return PAGES.map((page) => getInstitutionalTranslation(locale, page.slug) ?? page);
 }
 
-export function getInstitutionalPage(slug: string): InstitutionalPageConfig | null {
-  return PAGES.find((page) => page.slug === slug) ?? null;
+export function getInstitutionalPage(
+  slug: string,
+  locale: SiteLocale = "pt",
+): InstitutionalPageConfig | null {
+  return getInstitutionalTranslation(locale, slug) ??
+    PAGES.find((page) => page.slug === slug) ??
+    null;
 }
+import type { SiteLocale } from "@/lib/i18n/config";
+import { getInstitutionalTranslation } from "@/lib/i18n/institutional-content";

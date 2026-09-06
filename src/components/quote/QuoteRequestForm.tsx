@@ -5,8 +5,10 @@ import {
   createQuoteRequestAction,
   type QuoteRequestActionState,
 } from "@/lib/quote/actions";
+import type { SiteLocale } from "@/lib/i18n/config";
 
 type QuoteRequestFormProps = {
+  locale: SiteLocale;
   productSku?: string;
   productName?: string;
   minimumQuantity?: number;
@@ -18,10 +20,18 @@ const initialState: QuoteRequestActionState = {
 };
 
 export default function QuoteRequestForm({
+  locale,
   productSku,
   productName,
   minimumQuantity = 1,
 }: QuoteRequestFormProps) {
+  const text = locale === "en" ? {
+    selected: "Selected product", product: "Product", name: "Full name *", namePlaceholder: "First and last name", email: "Email *", phone: "Phone", preference: "Preferred contact method", company: "Company", companyPlaceholder: "Company name", taxId: "Company tax number", quantity: "Quantity *", date: "Required delivery date", budgetMin: "Minimum budget", budgetMax: "Maximum budget", subject: "Subject", subjectPlaceholder: "Quotation request", notes: "Customisation notes", notesPlaceholder: "Tell us the colours, logo position, required technique or other instructions.", message: "Message", messagePlaceholder: "Describe the request, event, deadline or campaign objective.", sending: "Sending request...", submit: "Send quotation request",
+  } : locale === "fr" ? {
+    selected: "Produit sélectionné", product: "Produit", name: "Nom complet *", namePlaceholder: "Prénom et nom", email: "E-mail *", phone: "Téléphone", preference: "Mode de contact préféré", company: "Entreprise", companyPlaceholder: "Nom de l’entreprise", taxId: "Numéro fiscal de l’entreprise", quantity: "Quantité *", date: "Date de livraison souhaitée", budgetMin: "Budget minimum", budgetMax: "Budget maximum", subject: "Objet", subjectPlaceholder: "Demande de devis", notes: "Notes de personnalisation", notesPlaceholder: "Indiquez les couleurs, la position du logo, la technique souhaitée ou toute autre instruction.", message: "Message", messagePlaceholder: "Décrivez la demande, l’événement, le délai ou l’objectif de la campagne.", sending: "Envoi de la demande...", submit: "Envoyer la demande de devis",
+  } : {
+    selected: "Produto selecionado", product: "Produto", name: "Nome completo *", namePlaceholder: "Nome e apelido", email: "E-mail *", phone: "Telefone", preference: "Preferência de contacto", company: "Empresa", companyPlaceholder: "Nome da empresa", taxId: "NIF da empresa", quantity: "Quantidade *", date: "Data pretendida", budgetMin: "Orçamento mínimo", budgetMax: "Orçamento máximo", subject: "Assunto", subjectPlaceholder: "Pedido de orçamento", notes: "Notas de personalização", notesPlaceholder: "Indica cores, posição do logótipo, técnica pretendida ou outras instruções.", message: "Mensagem", messagePlaceholder: "Descreve o contexto do pedido, evento, prazo ou objetivo da campanha.", sending: "A enviar pedido...", submit: "Enviar pedido de orçamento",
+  };
   const [state, formAction, isPending] = useActionState(
     createQuoteRequestAction,
     initialState,
@@ -35,11 +45,11 @@ export default function QuoteRequestForm({
       {productSku || productName ? (
         <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
           <p className="text-sm font-semibold text-neutral-950">
-            Produto seleccionado
+            {text.selected}
           </p>
 
           <p className="mt-1 text-sm text-neutral-600">
-            {productName ?? "Produto"} {productSku ? `(${productSku})` : ""}
+            {productName ?? text.product} {productSku ? `(${productSku})` : ""}
           </p>
         </div>
       ) : null}
@@ -50,7 +60,7 @@ export default function QuoteRequestForm({
             htmlFor="contactName"
             className="block text-sm font-medium text-neutral-700"
           >
-            Nome completo *
+            {text.name}
           </label>
 
           <input
@@ -59,7 +69,7 @@ export default function QuoteRequestForm({
             type="text"
             required
             className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-            placeholder="Nome e apelido"
+            placeholder={text.namePlaceholder}
           />
         </div>
 
@@ -68,7 +78,7 @@ export default function QuoteRequestForm({
             htmlFor="contactEmail"
             className="block text-sm font-medium text-neutral-700"
           >
-            E-mail *
+            {text.email}
           </label>
 
           <input
@@ -86,7 +96,7 @@ export default function QuoteRequestForm({
             htmlFor="contactPhone"
             className="block text-sm font-medium text-neutral-700"
           >
-            Telefone
+            {text.phone}
           </label>
 
           <input
@@ -103,7 +113,7 @@ export default function QuoteRequestForm({
             htmlFor="preferredContactMethod"
             className="block text-sm font-medium text-neutral-700"
           >
-            Preferência de contacto
+            {text.preference}
           </label>
 
           <select
@@ -123,7 +133,7 @@ export default function QuoteRequestForm({
             htmlFor="companyName"
             className="block text-sm font-medium text-neutral-700"
           >
-            Empresa
+            {text.company}
           </label>
 
           <input
@@ -131,7 +141,7 @@ export default function QuoteRequestForm({
             name="companyName"
             type="text"
             className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-            placeholder="Nome da empresa"
+            placeholder={text.companyPlaceholder}
           />
         </div>
 
@@ -140,7 +150,7 @@ export default function QuoteRequestForm({
             htmlFor="companyTaxId"
             className="block text-sm font-medium text-neutral-700"
           >
-            NIF da empresa
+            {text.taxId}
           </label>
 
           <input
@@ -157,7 +167,7 @@ export default function QuoteRequestForm({
             htmlFor="quantity"
             className="block text-sm font-medium text-neutral-700"
           >
-            Quantidade *
+            {text.quantity}
           </label>
 
           <input
@@ -176,7 +186,7 @@ export default function QuoteRequestForm({
             htmlFor="desiredDeliveryDate"
             className="block text-sm font-medium text-neutral-700"
           >
-            Data pretendida
+            {text.date}
           </label>
 
           <input
@@ -192,7 +202,7 @@ export default function QuoteRequestForm({
             htmlFor="budgetMin"
             className="block text-sm font-medium text-neutral-700"
           >
-            Orçamento mínimo
+            {text.budgetMin}
           </label>
 
           <input
@@ -211,7 +221,7 @@ export default function QuoteRequestForm({
             htmlFor="budgetMax"
             className="block text-sm font-medium text-neutral-700"
           >
-            Orçamento máximo
+            {text.budgetMax}
           </label>
 
           <input
@@ -231,7 +241,7 @@ export default function QuoteRequestForm({
           htmlFor="subject"
           className="block text-sm font-medium text-neutral-700"
         >
-          Assunto
+          {text.subject}
         </label>
 
         <input
@@ -239,7 +249,7 @@ export default function QuoteRequestForm({
           name="subject"
           type="text"
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Pedido de orçamento"
+          placeholder={text.subjectPlaceholder}
         />
       </div>
 
@@ -248,7 +258,7 @@ export default function QuoteRequestForm({
           htmlFor="personalizationNotes"
           className="block text-sm font-medium text-neutral-700"
         >
-          Notas de personalização
+          {text.notes}
         </label>
 
         <textarea
@@ -256,7 +266,7 @@ export default function QuoteRequestForm({
           name="personalizationNotes"
           rows={4}
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Indica cores, posição do logótipo, técnica pretendida ou outras instruções."
+          placeholder={text.notesPlaceholder}
         />
       </div>
 
@@ -265,7 +275,7 @@ export default function QuoteRequestForm({
           htmlFor="message"
           className="block text-sm font-medium text-neutral-700"
         >
-          Mensagem
+          {text.message}
         </label>
 
         <textarea
@@ -273,7 +283,7 @@ export default function QuoteRequestForm({
           name="message"
           rows={5}
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Descreve o contexto do pedido, evento, prazo ou objectivo da campanha."
+          placeholder={text.messagePlaceholder}
         />
       </div>
 
@@ -294,7 +304,7 @@ export default function QuoteRequestForm({
         disabled={isPending}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "A enviar pedido..." : "Enviar pedido de orçamento"}
+        {isPending ? text.sending : text.submit}
       </button>
     </form>
   );

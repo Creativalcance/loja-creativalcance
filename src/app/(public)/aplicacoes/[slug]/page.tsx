@@ -10,6 +10,8 @@ import {
   buildCollectionStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type ApplicationPageProps = {
   params: Promise<{ slug: string }>;
@@ -23,13 +25,14 @@ export async function generateMetadata({
   params,
 }: ApplicationPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const config = getApplicationPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getApplicationPage(slug, locale);
 
   if (!config) {
     return { title: "Aplicação não encontrada", robots: { index: false } };
   }
 
-  const path = `/aplicacoes/${config.slug}`;
+  const path = localizePath(`/aplicacoes/${config.slug}`, locale);
 
   return {
     title: config.title,
@@ -37,7 +40,7 @@ export async function generateMetadata({
     alternates: { canonical: path },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
+      locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
       title: config.title,
       description: config.description,
       url: path,
@@ -58,26 +61,27 @@ export async function generateMetadata({
 
 export default async function ApplicationPage({ params }: ApplicationPageProps) {
   const { slug } = await params;
-  const config = getApplicationPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getApplicationPage(slug, locale);
 
   if (!config) {
     return notFound();
   }
 
   const products = await getLandingProducts(config.productQueries, 12);
-  const path = `/aplicacoes/${config.slug}`;
+  const path = localizePath(`/aplicacoes/${config.slug}`, locale);
   const structuredData = buildCollectionStructuredData({
     name: config.h1,
     description: config.description,
     path,
-    breadcrumbParentPath: "/aplicacoes",
-    breadcrumbParentLabel: "Aplicações",
+    breadcrumbParentPath: localizePath("/aplicacoes", locale),
+    breadcrumbParentLabel: locale === "en" ? "Applications" : locale === "fr" ? "Applications" : "Aplicações",
     breadcrumbLabel: config.h1,
   });
 
   return (
     <>
-      <SeoLandingPage config={config} products={products} />
+      <SeoLandingPage config={config} products={products} locale={locale} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}
