@@ -7,6 +7,8 @@ import {
   buildSelectionStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type SelectionDetailPageProps = {
   params: Promise<{ slug: string }>;
@@ -20,13 +22,14 @@ export async function generateMetadata({
   params,
 }: SelectionDetailPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const config = getSelectionPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getSelectionPage(slug, locale);
 
   if (!config) {
-    return { title: "Seleção não encontrada", robots: { index: false } };
+    return { title: locale === "en" ? "Selection not found" : locale === "fr" ? "Sélection introuvable" : "Seleção não encontrada", robots: { index: false } };
   }
 
-  const path = `/selecoes/${config.slug}`;
+  const path = localizePath(`/selecoes/${config.slug}`, locale);
 
   return {
     title: config.title,
@@ -34,7 +37,7 @@ export async function generateMetadata({
     alternates: { canonical: path },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
+      locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
       title: config.title,
       description: config.description,
       url: path,
@@ -57,7 +60,8 @@ export default async function SelectionDetailPage({
   params,
 }: SelectionDetailPageProps) {
   const { slug } = await params;
-  const config = getSelectionPage(slug);
+  const locale = await getCurrentLocale();
+  const config = getSelectionPage(slug, locale);
 
   if (!config) {
     return notFound();
@@ -67,7 +71,7 @@ export default async function SelectionDetailPage({
     requireCustomizable: true,
     limit: 12,
   });
-  const path = `/selecoes/${config.slug}`;
+  const path = localizePath(`/selecoes/${config.slug}`, locale);
   const structuredData = buildSelectionStructuredData({
     name: config.h1,
     description: config.description,
@@ -81,7 +85,7 @@ export default async function SelectionDetailPage({
 
   return (
     <>
-      <SelectionPage config={config} products={products} />
+      <SelectionPage config={config} products={products} locale={locale} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}

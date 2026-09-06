@@ -286,18 +286,22 @@ const SELECTION_PAGES: SelectionConfig[] = [
   },
 ];
 
-export function getSelectionPages(): SelectionConfig[] {
-  return SELECTION_PAGES;
+export function getSelectionPages(locale: SiteLocale = "pt"): SelectionConfig[] {
+  return SELECTION_PAGES.map((page) => localizeSelectionConfig(page, locale));
 }
 
-export function getSelectionPage(slug: string): SelectionConfig | null {
-  return SELECTION_PAGES.find((page) => page.slug === slug) ?? null;
+export function getSelectionPage(slug: string, locale: SiteLocale = "pt"): SelectionConfig | null {
+  const page = SELECTION_PAGES.find((item) => item.slug === slug);
+  return page ? localizeSelectionConfig(page, locale) : null;
 }
 
 export function getRelatedSelectionPages(
   config: SelectionConfig,
+  locale: SiteLocale = "pt",
 ): SelectionConfig[] {
   return config.relatedSlugs
-    .map((slug) => getSelectionPage(slug))
+    .map((slug) => getSelectionPage(slug, locale))
     .filter((page): page is SelectionConfig => Boolean(page));
 }
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizeSelectionConfig } from "@/lib/i18n/selection-content";

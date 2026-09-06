@@ -7,6 +7,8 @@ import {
   buildEditorialStructuredData,
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 type GuidePageProps = {
   params: Promise<{ slug: string }>;
@@ -20,24 +22,25 @@ export async function generateMetadata({
   params,
 }: GuidePageProps): Promise<Metadata> {
   const { slug } = await params;
-  const config = getGuide(slug);
+  const locale = await getCurrentLocale();
+  const config = getGuide(slug, locale);
 
   if (!config) {
-    return { title: "Guia não encontrado", robots: { index: false } };
+    return { title: locale === "en" ? "Guide not found" : locale === "fr" ? "Guide introuvable" : "Guia não encontrado", robots: { index: false } };
   }
 
-  const path = `/guias/${config.slug}`;
+  const path = localizePath(`/guias/${config.slug}`, locale);
 
   return {
     title: config.title,
     description: config.description,
     authors: [
-      { name: "360 Merchandising", url: "/autores/360-merchandising" },
+      { name: "360 Merchandising", url: localizePath("/autores/360-merchandising", locale) },
     ],
     alternates: { canonical: path },
     openGraph: {
       type: "article",
-      locale: "pt_PT",
+      locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
       title: config.title,
       description: config.description,
       url: path,
@@ -58,27 +61,28 @@ export async function generateMetadata({
 
 export default async function GuideDetailPage({ params }: GuidePageProps) {
   const { slug } = await params;
-  const config = getGuide(slug);
+  const locale = await getCurrentLocale();
+  const config = getGuide(slug, locale);
 
   if (!config) {
     return notFound();
   }
 
   const products = await getLandingProducts(config.productQueries, 8);
-  const path = `/guias/${config.slug}`;
+  const path = localizePath(`/guias/${config.slug}`, locale);
   const structuredData = buildEditorialStructuredData({
     name: config.h1,
     description: config.description,
     path,
-    breadcrumbParentPath: "/guias",
-    breadcrumbParentLabel: "Guias",
+    breadcrumbParentPath: localizePath("/guias", locale),
+    breadcrumbParentLabel: locale === "en" ? "Guides" : locale === "fr" ? "Guides" : "Guias",
     breadcrumbLabel: config.h1,
     article: true,
   });
 
   return (
     <>
-      <GuidePage config={config} products={products} />
+      <GuidePage config={config} products={products} locale={locale} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: serializeJsonLd(structuredData) }}

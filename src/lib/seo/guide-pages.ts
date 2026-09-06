@@ -379,16 +379,19 @@ const GUIDES: GuideConfig[] = [
   },
 ];
 
-export function getGuides(): GuideConfig[] {
-  return GUIDES;
+export function getGuides(locale: SiteLocale = "pt"): GuideConfig[] {
+  return GUIDES.map((guide) => localizeGuideConfig(guide, locale));
 }
 
-export function getGuide(slug: string): GuideConfig | null {
-  return GUIDES.find((guide) => guide.slug === slug) ?? null;
+export function getGuide(slug: string, locale: SiteLocale = "pt"): GuideConfig | null {
+  const guide = GUIDES.find((item) => item.slug === slug);
+  return guide ? localizeGuideConfig(guide, locale) : null;
 }
 
-export function getRelatedGuides(config: GuideConfig): GuideConfig[] {
+export function getRelatedGuides(config: GuideConfig, locale: SiteLocale = "pt"): GuideConfig[] {
   return config.relatedSlugs
-    .map((slug) => getGuide(slug))
+    .map((slug) => getGuide(slug, locale))
     .filter((guide): guide is GuideConfig => Boolean(guide));
 }
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizeGuideConfig } from "@/lib/i18n/guide-content";

@@ -271,8 +271,15 @@ export function buildEditorialStructuredData(
 }
 
 
-export function buildAuthorStructuredData(): Record<string, unknown> {
-  const authorUrl = absoluteUrl("/autores/360-merchandising");
+export function buildAuthorStructuredData(path = "/autores/360-merchandising"): Record<string, unknown> {
+  const authorUrl = absoluteUrl(path);
+  const locale = getStructuredDataLocale(path);
+  const prefix = locale.homePath === "/" ? "" : locale.homePath;
+  const labels = locale.language === "en-GB"
+    ? { title: "editorial author", breadcrumb: "Editorial author", description: "Editorial profile responsible for the guides, technical pages and purchase guidance published by 360 Merchandising." }
+    : locale.language === "fr-FR"
+      ? { title: "auteur éditorial", breadcrumb: "Auteur éditorial", description: "Profil éditorial responsable des guides, pages techniques et contenus d’aide à l’achat publiés par 360 Merchandising." }
+      : { title: "autor editorial", breadcrumb: "Autor editorial", description: "Perfil editorial responsável pelos guias, páginas técnicas e conteúdos de apoio à compra publicados pela 360 Merchandising." };
 
   return {
     "@context": "https://schema.org",
@@ -281,12 +288,11 @@ export function buildAuthorStructuredData(): Record<string, unknown> {
         "@type": "ProfilePage",
         "@id": `${authorUrl}#profilepage`,
         url: authorUrl,
-        name: `${SITE_NAME} — autor editorial`,
-        description:
-          "Perfil editorial responsável pelos guias, páginas técnicas e conteúdos de apoio à compra publicados pela 360 Merchandising.",
-        inLanguage: "pt-PT",
+        name: `${SITE_NAME} — ${labels.title}`,
+        description: labels.description,
+        inLanguage: locale.language,
         isPartOf: {
-          "@id": `${absoluteUrl("/")}#website`,
+          "@id": `${absoluteUrl(locale.homePath)}#website`,
         },
         mainEntity: {
           "@id": `${authorUrl}#author`,
@@ -296,15 +302,15 @@ export function buildAuthorStructuredData(): Record<string, unknown> {
         "@type": "Organization",
         "@id": `${authorUrl}#author`,
         name: SITE_NAME,
-        url: absoluteUrl("/sobre"),
+        url: absoluteUrl(`${prefix}/sobre`),
         logo: absoluteUrl("/brand/360-merchandising.png"),
         description:
           "Entidade editorial responsável pelos conteúdos institucionais e guias da 360 Merchandising.",
-        publishingPrinciples: absoluteUrl("/metodologia-editorial"),
+        publishingPrinciples: absoluteUrl(`${prefix}/metodologia-editorial`),
       },
       buildBreadcrumbList([
-        { name: SITE_NAME, url: absoluteUrl("/") },
-        { name: "Autor editorial", url: authorUrl },
+        { name: SITE_NAME, url: absoluteUrl(locale.homePath) },
+        { name: labels.breadcrumb, url: authorUrl },
       ]),
     ],
   };
@@ -325,16 +331,23 @@ export function buildSelectionStructuredData(
   input: SelectionStructuredDataInput,
 ): Record<string, unknown> {
   const pageUrl = absoluteUrl(input.path);
+  const locale = getStructuredDataLocale(input.path);
+  const prefix = locale.homePath === "/" ? "" : locale.homePath;
+  const labels = locale.language === "en-GB"
+    ? { products: "related products", selections: "360 Selections" }
+    : locale.language === "fr-FR"
+      ? { products: "produits associés", selections: "Sélections 360" }
+      : { products: "produtos relacionados", selections: "Seleções 360" };
   const itemList = {
     "@type": "ItemList",
     "@id": `${pageUrl}#itemlist`,
-    name: `${input.name} — produtos relacionados`,
+    name: `${input.name} — ${labels.products}`,
     numberOfItems: input.items.length,
     itemListElement: input.items.map((item, index) => ({
       "@type": "ListItem",
       position: index + 1,
       name: item.name,
-      url: absoluteUrl(`/produto/${encodeURIComponent(item.slug)}`),
+      url: absoluteUrl(`${prefix}/produto/${encodeURIComponent(item.slug)}`),
     })),
   };
 
@@ -347,9 +360,9 @@ export function buildSelectionStructuredData(
         url: pageUrl,
         name: input.name,
         description: input.description,
-        inLanguage: "pt-PT",
+        inLanguage: locale.language,
         isPartOf: {
-          "@id": `${absoluteUrl("/")}#website`,
+          "@id": `${absoluteUrl(locale.homePath)}#website`,
         },
         mainEntity: {
           "@id": `${pageUrl}#itemlist`,
@@ -357,8 +370,8 @@ export function buildSelectionStructuredData(
       },
       itemList,
       buildBreadcrumbList([
-        { name: SITE_NAME, url: absoluteUrl("/") },
-        { name: "Seleções 360", url: absoluteUrl("/selecoes") },
+        { name: SITE_NAME, url: absoluteUrl(locale.homePath) },
+        { name: labels.selections, url: absoluteUrl(`${prefix}/selecoes`) },
         { name: input.breadcrumbLabel, url: pageUrl },
       ]),
     ],
