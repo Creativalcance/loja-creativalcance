@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { registerAction, type AuthActionState } from "@/lib/auth/actions";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { authCopy } from "@/lib/i18n/account";
 
 const initialState: AuthActionState = {
   success: false,
   message: "",
 };
 
-export default function RegisterForm() {
+export default function RegisterForm({ locale }: { locale: SiteLocale }) {
+  const t = authCopy[locale];
   const [state, formAction, isPending] = useActionState(
     registerAction,
     initialState,
@@ -17,12 +20,13 @@ export default function RegisterForm() {
 
   return (
     <form action={formAction} className="mt-8 space-y-5">
+      <input type="hidden" name="locale" value={locale} />
       <div>
         <label
           htmlFor="fullName"
           className="block text-sm font-medium text-neutral-700"
         >
-          Nome completo
+          {t.fullName}
         </label>
 
         <input
@@ -32,7 +36,7 @@ export default function RegisterForm() {
           autoComplete="name"
           required
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Nome e apelido"
+          placeholder={t.namePlaceholder}
         />
       </div>
 
@@ -41,7 +45,7 @@ export default function RegisterForm() {
           htmlFor="email"
           className="block text-sm font-medium text-neutral-700"
         >
-          E-mail profissional
+          {t.professionalEmail}
         </label>
 
         <input
@@ -60,7 +64,7 @@ export default function RegisterForm() {
           htmlFor="password"
           className="block text-sm font-medium text-neutral-700"
         >
-          Palavra-passe
+          {t.password}
         </label>
 
         <input
@@ -71,13 +75,13 @@ export default function RegisterForm() {
           required
           minLength={8}
           pattern="(?=.*[A-Za-zÀ-ÿ])(?=.*[0-9]).{8,}"
-          title="A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número."
+          title={t.passwordRule}
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Mínimo 8 caracteres, com letras e números"
+          placeholder={t.passwordPlaceholder}
         />
 
         <p className="mt-2 text-xs leading-5 text-neutral-500">
-          Mínimo de 8 caracteres, incluindo pelo menos uma letra e um número.
+          {t.passwordRule}
         </p>
       </div>
 
@@ -86,7 +90,7 @@ export default function RegisterForm() {
           htmlFor="confirmPassword"
           className="block text-sm font-medium text-neutral-700"
         >
-          Confirmar palavra-passe
+          {t.confirmPassword}
         </label>
 
         <input
@@ -97,9 +101,9 @@ export default function RegisterForm() {
           required
           minLength={8}
           pattern="(?=.*[A-Za-zÀ-ÿ])(?=.*[0-9]).{8,}"
-          title="A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número."
+          title={t.passwordRule}
           className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-          placeholder="Repetir palavra-passe"
+          placeholder={t.repeatPassword}
         />
       </div>
 
@@ -120,16 +124,16 @@ export default function RegisterForm() {
         disabled={isPending}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "A criar conta..." : "Criar conta"}
+        {isPending ? t.creating : t.createAccount}
       </button>
 
       <p className="text-center text-sm text-neutral-600">
-        Já tens conta?{" "}
+        {t.hasAccount}{" "}
         <Link
-          href="/login"
+          href={localizePath("/login", locale)}
           className="font-semibold text-neutral-950 underline-offset-4 hover:underline"
         >
-          Entrar
+          {t.signIn}
         </Link>
       </p>
     </form>

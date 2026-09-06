@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { loginAction, type AuthActionState } from "@/lib/auth/actions";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { authCopy } from "@/lib/i18n/account";
 
 const initialState: AuthActionState = {
   success: false,
@@ -12,12 +14,15 @@ const initialState: AuthActionState = {
 type LoginFormProps = {
   nextPath?: string;
   registrationSucceeded?: boolean;
+  locale: SiteLocale;
 };
 
 export function LoginForm({
   nextPath,
   registrationSucceeded = false,
+  locale,
 }: LoginFormProps) {
+  const t = authCopy[locale];
   const [state, formAction, isPending] = useActionState(
     loginAction,
     initialState,
@@ -26,12 +31,11 @@ export function LoginForm({
   return (
     <form action={formAction} className="mt-8 space-y-5">
       {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
+      <input type="hidden" name="locale" value={locale} />
 
       {registrationSucceeded ? (
         <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800">
-          Conta criada com sucesso. Enviámos um email de confirmação para o
-          endereço indicado. Confirma a conta através desse email antes de
-          iniciares sessão.
+          {t.registrationSuccess}
         </div>
       ) : null}
 
@@ -59,7 +63,7 @@ export function LoginForm({
           htmlFor="password"
           className="block text-sm font-medium text-neutral-700"
         >
-          Palavra-passe
+          {t.password}
         </label>
 
         <input
@@ -90,22 +94,22 @@ export function LoginForm({
         disabled={isPending}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "A entrar..." : "Entrar"}
+        {isPending ? t.signingIn : t.signIn}
       </button>
 
       <p className="text-center text-sm text-neutral-600">
-        <Link href="/recuperar-password" className="font-semibold text-neutral-950 underline-offset-4 hover:underline">
-          Esqueci-me da palavra-passe
+        <Link href={localizePath("/recuperar-password", locale)} className="font-semibold text-neutral-950 underline-offset-4 hover:underline">
+          {t.forgot}
         </Link>
       </p>
 
       <p className="text-center text-sm text-neutral-600">
-        Ainda não tens conta?{" "}
+        {t.noAccount}{" "}
         <Link
-          href="/registo"
+          href={localizePath("/registo", locale)}
           className="font-semibold text-neutral-950 underline-offset-4 hover:underline"
         >
-          Criar conta
+          {t.createAccount}
         </Link>
       </p>
     </form>

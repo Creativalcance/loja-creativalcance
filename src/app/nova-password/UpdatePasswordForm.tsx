@@ -3,23 +3,26 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { updatePasswordAction } from "./actions";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { authCopy } from "@/lib/i18n/account";
 
 const initialState = { success: false, message: "" };
 
-export default function UpdatePasswordForm() {
+export default function UpdatePasswordForm({ locale }: { locale: SiteLocale }) {
+  const t = authCopy[locale];
   const [state, action, pending] = useActionState(
     updatePasswordAction,
     initialState,
   );
 
   return (
-    <form action={action} className="mt-8 space-y-5">
+    <form action={action} className="mt-8 space-y-5"><input type="hidden" name="locale" value={locale}/>
       <div>
         <label
           htmlFor="password"
           className="block text-sm font-medium text-neutral-700"
         >
-          Nova palavra-passe
+          {t.newPassword}
         </label>
         <input
           id="password"
@@ -28,13 +31,13 @@ export default function UpdatePasswordForm() {
           autoComplete="new-password"
           minLength={8}
           pattern="(?=.*[A-Za-zÀ-ÿ])(?=.*[0-9]).{8,}"
-          title="A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número."
+          title={t.passwordRule}
           required
-          placeholder="Mínimo 8 caracteres, com letras e números"
+          placeholder={t.passwordPlaceholder}
           className="mt-2 w-full rounded-2xl border border-neutral-300 px-4 py-3"
         />
         <p className="mt-2 text-xs leading-5 text-neutral-500">
-          Mínimo de 8 caracteres, incluindo pelo menos uma letra e um número.
+          {t.passwordRule}
         </p>
       </div>
 
@@ -43,7 +46,7 @@ export default function UpdatePasswordForm() {
           htmlFor="confirmation"
           className="block text-sm font-medium text-neutral-700"
         >
-          Confirmar palavra-passe
+          {t.confirmPassword}
         </label>
         <input
           id="confirmation"
@@ -52,9 +55,9 @@ export default function UpdatePasswordForm() {
           autoComplete="new-password"
           minLength={8}
           pattern="(?=.*[A-Za-zÀ-ÿ])(?=.*[0-9]).{8,}"
-          title="A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número."
+          title={t.passwordRule}
           required
-          placeholder="Repetir palavra-passe"
+          placeholder={t.repeatPassword}
           className="mt-2 w-full rounded-2xl border border-neutral-300 px-4 py-3"
         />
       </div>
@@ -76,13 +79,13 @@ export default function UpdatePasswordForm() {
         disabled={pending}
         className="w-full rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {pending ? "A alterar..." : "Alterar palavra-passe"}
+        {pending ? t.changing : t.changePassword}
       </button>
 
       {state.success ? (
         <p className="text-center text-sm">
-          <Link href="/area-cliente" className="font-semibold underline">
-            Continuar
+          <Link href={localizePath("/area-cliente", locale)} className="font-semibold underline">
+            {t.continue}
           </Link>
         </p>
       ) : null}

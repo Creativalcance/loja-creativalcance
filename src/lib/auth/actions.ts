@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { authActionMessages } from "@/lib/i18n/account";
+import { getSiteLocale, localizePath, type SiteLocale } from "@/lib/i18n/config";
 
 export type AuthActionState = {
   success: boolean;
@@ -34,20 +36,21 @@ function getSafeRedirectPath(value: FormDataEntryValue | null): string | null {
   return trimmed || null;
 }
 
-function getDefaultRedirectPath(role: string | null | undefined): string {
+function getDefaultRedirectPath(role: string | null | undefined, locale: SiteLocale): string {
   if (role === "admin") {
     return "/admin";
   }
 
-  return "/area-cliente";
+  return localizePath("/area-cliente", locale);
 }
 
 function canUseRequestedPath(role: string | null | undefined, path: string): boolean {
-  if (path.startsWith("/admin") || path.startsWith("/area-comercial")) {
+  const normalizedPath = path.replace(/^\/(?:en|fr)(?=\/|$)/, "") || "/";
+  if (normalizedPath.startsWith("/admin") || normalizedPath.startsWith("/area-comercial")) {
     return role === "admin";
   }
 
-  if (path.startsWith("/area-cliente")) {
+  if (normalizedPath.startsWith("/area-cliente")) {
     return role === "customer";
   }
 
@@ -60,13 +63,15 @@ export async function loginAction(
 ): Promise<AuthActionState> {
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
+  const locale = getSiteLocale(String(formData.get("locale") || "pt"));
+  const messages = authActionMessages(locale);
   const requestedNextPath = getSafeRedirectPath(formData.get("next"));
   let destinationPath = requestedNextPath;
 
   if (!email || !password) {
     return {
       success: false,
-      message: "Preenche o e-mail e a palavra-passe.",
+      message: messages.loginRequired,
     };
   }
 
@@ -81,7 +86,7 @@ export async function loginAction(
     if (error) {
       return {
         success: false,
-        message: "Dados de acesso inválidos.",
+        message: messages.invalid,
       };
     }
 
@@ -94,24 +99,21 @@ export async function loginAction(
 
       if (!profile || profile.is_active === false) {
         await supabase.auth.signOut();
-        return { success: false, message: "Esta conta está inativa. Contacta o apoio ao cliente." };
+        return { success: false, message: messages.inactive };
       }
 
       if (!destinationPath || !canUseRequestedPath(profile.role, destinationPath)) {
-        destinationPath = getDefaultRedirectPath(profile.role);
+        destinationPath = getDefaultRedirectPath(profile.role, locale);
       }
     }
   } catch (error) {
     return {
       success: false,
-      message:
-        error instanceof Error
-          ? `Erro ao iniciar sessão: ${error.message}`
-          : "Erro inesperado ao iniciar sessão.",
+      message: error instanceof Error ? `${messages.unexpectedLogin} ${error.message}` : messages.unexpectedLogin,
     };
   }
 
-  redirect(destinationPath ?? "/area-cliente");
+  redirect(destinationPath ?? localizePath("/area-cliente", locale));
 }
 
 export async function registerAction(
@@ -122,11 +124,13 @@ export async function registerAction(
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
+  const locale = getSiteLocale(String(formData.get("locale") || "pt"));
+  const messages = authActionMessages(locale);
 
   if (!fullName || !email || !password || !confirmPassword) {
     return {
       success: false,
-      message: "Preenche todos os campos.",
+      message: messages.required,
     };
   }
 
@@ -137,15 +141,14 @@ export async function registerAction(
   if (!hasMinimumLength || !hasLetter || !hasNumber) {
     return {
       success: false,
-      message:
-        "A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número.",
+      message: messages.passwordRule,
     };
   }
 
   if (password !== confirmPassword) {
     return {
       success: false,
-      message: "As palavras-passe não coincidem.",
+      message: messages.mismatch,
     };
   }
 
@@ -156,7 +159,7 @@ export async function registerAction(
       email,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=/area-cliente`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(localizePath("/area-cliente", locale))}`,
         data: {
           full_name: fullName,
         },
@@ -166,26 +169,23 @@ export async function registerAction(
     if (error) {
       return {
         success: false,
-        message: `Erro ao criar conta: ${error.message}`,
+        message: `${messages.createFailed} ${error.message}`,
       };
     }
 
     if (!data.user) {
       return {
         success: false,
-        message: "Não foi possível criar a conta. Tenta novamente.",
+        message: messages.createFailed,
       };
     }
 
   } catch (error) {
     return {
       success: false,
-      message:
-        error instanceof Error
-          ? `Erro técnico ao criar conta: ${error.message}`
-          : "Erro técnico inesperado ao criar conta.",
+      message: error instanceof Error ? `${messages.unexpectedCreate} ${error.message}` : messages.unexpectedCreate,
     };
   }
 
-  redirect("/login?registo=sucesso");
+  redirect(`${localizePath("/login", locale)}?registo=sucesso`);
 }

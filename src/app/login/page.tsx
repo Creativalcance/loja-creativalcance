@@ -1,6 +1,9 @@
 import { LoginForm } from "@/components/auth/LoginForm";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { localizePath } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
+import { authCopy } from "@/lib/i18n/account";
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -32,12 +35,14 @@ function getSafeNextPath(value: string | undefined): string | undefined {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const locale = await getCurrentLocale();
+  const t = authCopy[locale];
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
     const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
-    if (profile?.is_active !== false) redirect(profile?.role === "admin" ? "/admin" : "/area-cliente");
+    if (profile?.is_active !== false) redirect(profile?.role === "admin" ? "/admin" : localizePath("/area-cliente", locale));
     await supabase.auth.signOut();
   }
   const resolvedSearchParams = await searchParams;
@@ -52,16 +57,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         </p>
 
         <h1 className="mt-4 text-3xl font-semibold tracking-tight text-neutral-950">
-          Entrar na plataforma
+          {t.loginTitle}
         </h1>
 
         <p className="mt-4 text-sm leading-6 text-neutral-600">
-          Acede à tua Área de Cliente ou ao backoffice de Administração.
+          {t.loginIntro}
         </p>
 
         <LoginForm
           nextPath={nextPath}
           registrationSucceeded={registrationSucceeded}
+          locale={locale}
         />
       </section>
     </main>

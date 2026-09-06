@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 import SiteHeader from "@/components/layout/SiteHeader";
 import { assertCustomerAccess } from "@/lib/auth/assert-customer";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
+import { getCurrentLocale } from "@/lib/i18n/server";
+import { customerCopy } from "@/lib/i18n/account";
 
 type Profile = {
   full_name: string | null;
@@ -38,54 +41,37 @@ type QuoteSummary = {
   created_at: string;
 };
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("pt-PT", {
+function formatDate(value: string, locale: SiteLocale): string {
+  return new Intl.DateTimeFormat(SITE_LOCALES[locale].intlLocale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPrice(value: number, currency: string, locale: SiteLocale): string {
+  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, {
     style: "currency",
     currency,
   }).format(value);
 }
 
-function getOrderStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    pending_payment: "A aguardar pagamento",
-    paid: "Pago",
-    processing: "Em processamento",
-    sent_to_supplier: "Enviado ao fornecedor",
-    supplier_confirmed: "Confirmado pelo fornecedor",
-    in_production: "Em produção",
-    shipped: "Expedido",
-    delivered: "Entregue",
-    cancelled: "Cancelado",
-    refunded: "Reembolsado",
-    failed: "Falhou",
-  };
+function getOrderStatusLabel(status: string, locale: SiteLocale): string {
+  const all = { pt: { pending_payment: "A aguardar pagamento", paid: "Pago", processing: "Em processamento", sent_to_supplier: "Enviado ao fornecedor", supplier_confirmed: "Confirmado pelo fornecedor", in_production: "Em produção", shipped: "Expedido", delivered: "Entregue", cancelled: "Cancelado", refunded: "Reembolsado", failed: "Falhou" }, en: { pending_payment: "Awaiting payment", paid: "Paid", processing: "Processing", sent_to_supplier: "Sent to supplier", supplier_confirmed: "Confirmed by supplier", in_production: "In production", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled", refunded: "Refunded", failed: "Failed" }, fr: { pending_payment: "En attente de paiement", paid: "Payé", processing: "En traitement", sent_to_supplier: "Envoyé au fournisseur", supplier_confirmed: "Confirmé par le fournisseur", in_production: "En production", shipped: "Expédié", delivered: "Livré", cancelled: "Annulé", refunded: "Remboursé", failed: "Échec" } };
+  const labels: Record<string, string> = all[locale];
 
   return labels[status] ?? status;
 }
 
-function getQuoteStatusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    new: "Novo",
-    in_analysis: "Em análise",
-    proposal_sent: "Proposta enviada",
-    negotiation: "Negociação",
-    won: "Ganho",
-    lost: "Perdido",
-    cancelled: "Cancelado",
-  };
+function getQuoteStatusLabel(status: string, locale: SiteLocale): string {
+  const all = { pt: { new: "Novo", in_analysis: "Em análise", proposal_sent: "Proposta enviada", negotiation: "Negociação", won: "Ganho", lost: "Perdido", cancelled: "Cancelado" }, en: { new: "New", in_analysis: "Under review", proposal_sent: "Proposal sent", negotiation: "Negotiation", won: "Won", lost: "Lost", cancelled: "Cancelled" }, fr: { new: "Nouveau", in_analysis: "En analyse", proposal_sent: "Proposition envoyée", negotiation: "Négociation", won: "Gagné", lost: "Perdu", cancelled: "Annulé" } };
+  const labels: Record<string, string> = all[locale];
 
   return labels[status] ?? status;
 }
 
 export default async function CustomerAreaPage() {
-  const { user, supabase } = await assertCustomerAccess("/area-cliente");
+  const locale = await getCurrentLocale(); const t = customerCopy[locale];
+  const { user, supabase } = await assertCustomerAccess(localizePath("/area-cliente", locale));
 
   const [
     { data: profile },
@@ -129,16 +115,15 @@ export default async function CustomerAreaPage() {
           <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                Área Cliente
+                {t.area}
               </p>
 
               <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
-                Olá, {profile?.full_name || "bem-vindo"}
+                {t.hello}, {profile?.full_name || t.welcome}
               </h1>
 
               <p className="mt-4 max-w-3xl text-neutral-600">
-                Acompanha as tuas encomendas, pedidos de orçamento, carrinho e
-                dados comerciais da tua conta 360 Merchandising.
+                {t.intro}
               </p>
             </div>
 
@@ -146,7 +131,7 @@ export default async function CustomerAreaPage() {
               <UserRound className="h-6 w-6 text-neutral-500" />
 
               <p className="mt-4 font-semibold text-neutral-950">
-                {profile?.full_name || "Cliente"}
+                {profile?.full_name || t.customer}
               </p>
 
               <p className="mt-1 text-sm text-neutral-500">
@@ -159,7 +144,7 @@ export default async function CustomerAreaPage() {
                   className="inline-flex items-center rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold text-neutral-950 transition hover:border-neutral-950"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
-                  Sair
+                  {t.logout}
                 </button>
               </form>
             </aside>
@@ -167,66 +152,66 @@ export default async function CustomerAreaPage() {
 
           <div className="mt-10 grid gap-5 md:grid-cols-3">
             <a
-              href="/area-cliente/dados"
+              href={localizePath("/area-cliente/dados", locale)}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <Settings className="h-7 w-7 text-neutral-500" />
-              <p className="mt-6 text-sm text-neutral-500">Conta</p>
-              <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">Dados pessoais</p>
-              <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">Gerir dados<ArrowRight className="ml-2 h-4 w-4" /></span>
+              <p className="mt-6 text-sm text-neutral-500">{t.account}</p>
+              <p className="mt-1 text-2xl font-semibold tracking-tight text-neutral-950">{t.personalData}</p>
+              <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">{t.manageData}<ArrowRight className="ml-2 h-4 w-4" /></span>
             </a>
             <a
-              href="/area-cliente/encomendas"
+              href={localizePath("/area-cliente/encomendas", locale)}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <Package className="h-7 w-7 text-neutral-500" />
 
-              <p className="mt-6 text-sm text-neutral-500">Encomendas</p>
+              <p className="mt-6 text-sm text-neutral-500">{t.orders}</p>
 
               <p className="mt-1 text-3xl font-semibold tracking-tight text-neutral-950">
-                {(ordersCount ?? 0).toLocaleString("pt-PT")}
+                {(ordersCount ?? 0).toLocaleString(SITE_LOCALES[locale].intlLocale)}
               </p>
 
               <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">
-                Ver encomendas
+                {t.viewOrders}
                 <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
               </span>
             </a>
 
             <a
-              href="/area-cliente/pedidos"
+              href={localizePath("/area-cliente/pedidos", locale)}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <ClipboardList className="h-7 w-7 text-neutral-500" />
 
               <p className="mt-6 text-sm text-neutral-500">
-                Pedidos personalizados
+                {t.requests}
               </p>
 
               <p className="mt-1 text-3xl font-semibold tracking-tight text-neutral-950">
-                {(quoteRequestsCount ?? 0).toLocaleString("pt-PT")}
+                {(quoteRequestsCount ?? 0).toLocaleString(SITE_LOCALES[locale].intlLocale)}
               </p>
 
               <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">
-                Ver pedidos
+                {t.viewRequests}
                 <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
               </span>
             </a>
 
             <Link
-              href="/carrinho"
+              href={localizePath("/carrinho", locale)}
               className="group rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
             >
               <ShoppingCart className="h-7 w-7 text-neutral-500" />
 
-              <p className="mt-6 text-sm text-neutral-500">Carrinho</p>
+              <p className="mt-6 text-sm text-neutral-500">{t.cart}</p>
 
               <p className="mt-1 text-3xl font-semibold tracking-tight text-neutral-950">
-                Activo
+                {t.active}
               </p>
 
               <span className="mt-6 inline-flex items-center text-sm font-semibold text-neutral-950">
-                Abrir carrinho
+                {t.openCart}
                 <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" />
               </span>
             </Link>
@@ -237,11 +222,11 @@ export default async function CustomerAreaPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-neutral-950">
-                    Encomendas recentes
+                    {t.recentOrders}
                   </h2>
 
                   <p className="mt-2 text-sm text-neutral-500">
-                    Compra directa, pagamento e estado de processamento.
+                    {t.recentOrdersText}
                   </p>
                 </div>
 
@@ -259,16 +244,16 @@ export default async function CustomerAreaPage() {
                           </p>
 
                           <p className="mt-1 text-sm text-neutral-500">
-                            {formatDate(order.created_at)}
+                            {formatDate(order.created_at, locale)}
                           </p>
 
                           <p className="mt-2 text-sm text-neutral-600">
-                            {getOrderStatusLabel(order.status)}
+                            {getOrderStatusLabel(order.status, locale)}
                           </p>
                         </div>
 
                         <p className="font-semibold text-neutral-950">
-                          {formatPrice(order.grand_total, order.currency)}
+                          {formatPrice(order.grand_total, order.currency, locale)}
                         </p>
                       </div>
                     </article>
@@ -276,8 +261,7 @@ export default async function CustomerAreaPage() {
                 </div>
               ) : (
                 <div className="mt-6 rounded-2xl bg-neutral-50 p-6 text-sm text-neutral-600">
-                  Ainda não existem encomendas. Quando comprares online, vais
-                  poder acompanhar aqui o estado da encomenda.
+                  {t.noOrders}
                 </div>
               )}
             </section>
@@ -286,12 +270,11 @@ export default async function CustomerAreaPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="text-xl font-semibold text-neutral-950">
-                    Pedidos personalizados
+                    {t.requests}
                   </h2>
 
                   <p className="mt-2 text-sm text-neutral-500">
-                    Orçamentos para pedidos especiais ou personalizações
-                    complexas.
+                    {t.requestsText}
                   </p>
                 </div>
 
@@ -303,21 +286,20 @@ export default async function CustomerAreaPage() {
                   {quoteRequests.map((quoteRequest) => (
                     <article key={quoteRequest.id} className="py-4">
                       <p className="font-semibold text-neutral-950">
-                        {quoteRequest.subject ?? "Pedido de orçamento"}
+                        {quoteRequest.subject ?? t.quote}
                       </p>
 
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-neutral-500">
-                        <span>{formatDate(quoteRequest.created_at)}</span>
+                        <span>{formatDate(quoteRequest.created_at, locale)}</span>
                         <span>·</span>
-                        <span>{getQuoteStatusLabel(quoteRequest.status)}</span>
+                        <span>{getQuoteStatusLabel(quoteRequest.status, locale)}</span>
                       </div>
                     </article>
                   ))}
                 </div>
               ) : (
                 <div className="mt-6 rounded-2xl bg-neutral-50 p-6 text-sm text-neutral-600">
-                  Ainda não existem pedidos personalizados associados à tua
-                  conta.
+                  {t.noRequests}
                 </div>
               )}
             </section>
