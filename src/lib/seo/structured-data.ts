@@ -17,6 +17,7 @@ type ProductStructuredDataInput = {
   subcategoryName?: string | null;
   totalStock: number;
   prices: ProductPriceForSchema[];
+  locale?: "pt" | "en" | "fr";
 };
 
 type BreadcrumbItem = {
@@ -83,7 +84,11 @@ function getStructuredDataLocale(path: string): {
 export function buildProductStructuredData(
   input: ProductStructuredDataInput,
 ): Record<string, unknown> {
-  const productPath = `/produto/${encodeURIComponent(input.slug)}`;
+  const localeCode = input.locale ?? "pt";
+  const prefix = localeCode === "pt" ? "" : `/${localeCode}`;
+  const language = localeCode === "en" ? "en-GB" : localeCode === "fr" ? "fr-FR" : "pt-PT";
+  const labels = localeCode === "en" ? { categories: "Categories" } : localeCode === "fr" ? { categories: "Catégories" } : { categories: "Categorias" };
+  const productPath = `${prefix}/produto/${encodeURIComponent(input.slug)}`;
   const productUrl = absoluteUrl(productPath);
   const categoryName = input.categoryName?.trim() || null;
   const subcategoryName = input.subcategoryName?.trim() || null;
@@ -93,12 +98,12 @@ export function buildProductStructuredData(
   const primaryPrice = getPrimaryValidPrice(input.prices);
 
   const breadcrumbs: BreadcrumbItem[] = [
-    { name: SITE_NAME, url: absoluteUrl("/") },
-    { name: "Categorias", url: absoluteUrl("/categorias") },
+    { name: SITE_NAME, url: absoluteUrl(prefix || "/") },
+    { name: labels.categories, url: absoluteUrl(`${prefix}/categorias`) },
   ];
 
   if (categoryName) {
-    const categoryPath = `/categorias/${encodeURIComponent(categoryName)}`;
+    const categoryPath = `${prefix}/categorias/${encodeURIComponent(categoryName)}`;
 
     breadcrumbs.push({
       name: categoryName,
@@ -152,6 +157,7 @@ export function buildProductStructuredData(
     material: input.material?.trim() || undefined,
     category: categoryLabel || undefined,
     offers: offer,
+    inLanguage: language,
   });
 
   return {
@@ -254,12 +260,12 @@ export function buildEditorialStructuredData(
     },
     author: input.article
       ? {
-          "@id": `${absoluteUrl("/autores/360-merchandising")}#author`,
+          "@id": `${absoluteUrl(`${locale.homePath === "/" ? "" : locale.homePath}/autores/360-merchandising`)}#author`,
         }
       : undefined,
     publisher: input.article
       ? {
-          "@id": `${absoluteUrl("/")}#organization`,
+          "@id": `${absoluteUrl(locale.homePath)}#organization`,
         }
       : undefined,
   };

@@ -47,7 +47,33 @@ export default async function CategoryProductsPage({
   const locale = await getCurrentLocale();
   const resolvedParams = await params;
   const categoryName = sanitizeCategoryValue(resolvedParams.categoria);
-  const seoContent = buildCategorySeoContent(categoryName);
+  const seoContent = buildCategorySeoContent(categoryName, locale);
+  const copy = locale === "en"
+    ? {
+        back: "Back to categories", category: "Category", search: "Search products",
+        subcategories: "Subcategories", productCount: (count: number) => `${count.toLocaleString("en-GB")} product${count === 1 ? "" : "s"}`,
+        loadError: "We couldn't load the products in this category. Please try again.", emptyTitle: "No products in this category",
+        emptyText: "Check whether there are active products assigned to this category.", explore: "Explore by need",
+        exploreTitle: "Go beyond categories", exploreText: "Browse solutions by budget and quantity, use cases such as welcome kits and events, or pages for specific industries.",
+        solutions: "Solutions", applications: "Use cases", industries: "Industries", breadcrumb: "Categories",
+      }
+    : locale === "fr"
+      ? {
+          back: "Retour aux catégories", category: "Catégorie", search: "Rechercher des produits",
+          subcategories: "Sous-catégories", productCount: (count: number) => `${count.toLocaleString("fr-FR")} produit${count === 1 ? "" : "s"}`,
+          loadError: "Impossible de charger les produits de cette catégorie. Veuillez réessayer.", emptyTitle: "Aucun produit dans cette catégorie",
+          emptyText: "Vérifiez que des produits actifs sont associés à cette catégorie.", explore: "Explorer selon vos besoins",
+          exploreTitle: "Ne vous limitez pas aux catégories", exploreText: "Découvrez des solutions par budget et quantité, des usages comme les welcome kits et événements, ou des pages dédiées à des secteurs précis.",
+          solutions: "Solutions", applications: "Usages", industries: "Secteurs", breadcrumb: "Catégories",
+        }
+      : {
+          back: "Voltar às categorias", category: "Categoria", search: "Pesquisar produtos",
+          subcategories: "Subcategorias", productCount: (count: number) => `${count.toLocaleString("pt-PT")} produto${count === 1 ? "" : "s"} apresentado${count === 1 ? "" : "s"}`,
+          loadError: "Não foi possível carregar os produtos desta categoria. Tenta novamente.", emptyTitle: "Sem produtos nesta categoria",
+          emptyText: "Confirma se existem produtos ativos com esta categoria.", explore: "Explorar por necessidade",
+          exploreTitle: "Não procure apenas por categoria", exploreText: "Consulte soluções por orçamento e quantidade, aplicações como welcome kits e eventos, ou páginas dedicadas a setores específicos.",
+          solutions: "Soluções", applications: "Aplicações", industries: "Indústrias", breadcrumb: "Categorias",
+        };
 
   const supabase = await createSupabaseServerClient();
 
@@ -116,7 +142,7 @@ export default async function CategoryProductsPage({
     description: seoContent.description,
     path: categoryPath,
     breadcrumbParentPath: "/categorias",
-    breadcrumbParentLabel: "Categorias",
+    breadcrumbParentLabel: copy.breadcrumb,
     breadcrumbLabel: categoryName,
   });
 
@@ -127,13 +153,13 @@ export default async function CategoryProductsPage({
           href={localizePath("/categorias", locale)}
           className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
-          ← Voltar às categorias
+          ← {copy.back}
         </Link>
 
         <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-              Categoria
+              {copy.category}
             </p>
 
             <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
@@ -150,20 +176,20 @@ export default async function CategoryProductsPage({
             className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
             <Search className="mr-2 h-4 w-4" />
-            Pesquisar produtos
+            {copy.search}
           </Link>
         </div>
 
         {subcategories.length > 0 ? (
           <div className="mt-10 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-              Subcategorias
+              {copy.subcategories}
             </p>
             <div className="mt-4 flex flex-wrap gap-2.5">
               {subcategories.map((subcategory) => (
                 <Link
                   key={subcategory}
-                  href={`${categoryPath}/${encodeURIComponent(subcategory)}`}
+                  href={localizePath(`${categoryPath}/${encodeURIComponent(subcategory)}`, locale)}
                   className="rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-white hover:text-neutral-950"
                 >
                   {subcategory}
@@ -175,14 +201,13 @@ export default async function CategoryProductsPage({
 
         <div className="mt-8 flex items-center justify-between gap-4">
           <p className="text-sm text-neutral-500">
-            {products.length.toLocaleString("pt-PT")} produto(s) apresentado(s)
+            {copy.productCount(products.length)}
           </p>
         </div>
 
         {productsResult.error ? (
           <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-            Não foi possível carregar os produtos desta categoria. Tenta
-            novamente.
+            {copy.loadError}
           </div>
         ) : null}
 
@@ -195,11 +220,11 @@ export default async function CategoryProductsPage({
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Sem produtos nesta categoria
+              {copy.emptyTitle}
             </h2>
 
             <p className="mt-3 text-neutral-600">
-              Confirma se existem produtos activos com esta categoria.
+              {copy.emptyText}
             </p>
           </div>
         )}
@@ -216,33 +241,32 @@ export default async function CategoryProductsPage({
 
           <aside className="rounded-3xl bg-[#162334] p-7 text-white">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">
-              Explorar por necessidade
+              {copy.explore}
             </p>
             <h2 className="mt-3 text-2xl font-semibold tracking-tight">
-              Não procure apenas por categoria
+              {copy.exploreTitle}
             </h2>
             <p className="mt-4 text-sm leading-6 text-white/65">
-              Consulte soluções por orçamento e quantidade, aplicações como
-              welcome kits e eventos, ou páginas dedicadas a setores específicos.
+              {copy.exploreText}
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
                 href={localizePath("/solucoes", locale)}
                 className="inline-flex items-center rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#162334]"
               >
-                Soluções <ArrowRight className="ml-2 h-4 w-4" />
+                {copy.solutions} <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
               <Link
                 href={localizePath("/aplicacoes", locale)}
                 className="inline-flex items-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
-                Aplicações
+                {copy.applications}
               </Link>
               <Link
                 href={localizePath("/industrias", locale)}
                 className="inline-flex items-center rounded-full border border-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
-                Indústrias
+                {copy.industries}
               </Link>
             </div>
           </aside>
@@ -261,9 +285,10 @@ export async function generateMetadata({
   params,
 }: CategoryProductsPageProps): Promise<Metadata> {
   const resolvedParams = await params;
+  const locale = await getCurrentLocale();
   const categoryName = sanitizeCategoryValue(resolvedParams.categoria);
-  const seoContent = buildCategorySeoContent(categoryName);
-  const canonical = `/categorias/${encodeURIComponent(categoryName)}`;
+  const seoContent = buildCategorySeoContent(categoryName, locale);
+  const canonical = localizePath(`/categorias/${encodeURIComponent(categoryName)}`, locale);
 
   return {
     title: seoContent.title,
@@ -271,7 +296,7 @@ export async function generateMetadata({
     alternates: { canonical },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
+      locale: locale === "en" ? "en_GB" : locale === "fr" ? "fr_FR" : "pt_PT",
       title: seoContent.title,
       description: seoContent.description,
       url: canonical,

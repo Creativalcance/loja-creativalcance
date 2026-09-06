@@ -4,6 +4,7 @@ import {
   DEFAULT_SOCIAL_IMAGE,
   SITE_NAME,
 } from "@/lib/seo/site";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 
 type ProductMetadataInput = {
   name: string;
@@ -13,6 +14,7 @@ type ProductMetadataInput = {
   brand?: string | null;
   material?: string | null;
   imageUrl?: string | null;
+  locale?: SiteLocale;
 };
 
 function stripMarkup(value: string): string {
@@ -57,8 +59,14 @@ export function buildProductMetaDescription(
 
   const suffix = details.length > 0 ? ` ${details.join(" · ")}.` : "";
 
+  const locale = input.locale ?? "pt";
+  const callToAction = locale === "en"
+    ? `View quantity pricing, stock and customisation options at ${SITE_NAME}.`
+    : locale === "fr"
+      ? `Consultez les prix par quantité, le stock et les options de personnalisation sur ${SITE_NAME}.`
+      : `Consulte preços por quantidade, stock e opções de personalização na ${SITE_NAME}.`;
   return truncateSeoText(
-    `${input.name}.${suffix} Consulte preços por quantidade, stock e opções de personalização na ${SITE_NAME}.`,
+    `${input.name}.${suffix} ${callToAction}`,
     160,
   );
 }
@@ -66,7 +74,8 @@ export function buildProductMetaDescription(
 export function buildProductMetadata(
   input: ProductMetadataInput,
 ): Metadata {
-  const canonicalPath = `/produto/${encodeURIComponent(input.slug)}`;
+  const locale = input.locale ?? "pt";
+  const canonicalPath = localizePath(`/produto/${encodeURIComponent(input.slug)}`, locale);
   const description = buildProductMetaDescription(input);
   const imageUrl = input.imageUrl?.trim() || DEFAULT_SOCIAL_IMAGE;
 
@@ -78,7 +87,7 @@ export function buildProductMetadata(
     },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
+      locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"),
       siteName: SITE_NAME,
       url: absoluteUrl(canonicalPath),
       title: input.name,

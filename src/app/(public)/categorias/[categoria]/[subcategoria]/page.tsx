@@ -34,6 +34,29 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
   const resolvedParams = await params;
   const categoryName = sanitizeValue(resolvedParams.categoria);
   const subcategoryName = sanitizeValue(resolvedParams.subcategoria);
+  const copy = locale === "en"
+    ? {
+        back: `Back to ${categoryName}`, label: "Subcategory",
+        title: `Customisable ${subcategoryName} products`, search: "Search the catalogue",
+        productCount: (count: number) => `${count.toLocaleString("en-GB")} product${count === 1 ? "" : "s"}`,
+        loadError: "We couldn't load the products in this subcategory. Please try again.",
+        emptyTitle: "No products available", emptyText: "Explore the main category or search the catalogue.",
+      }
+    : locale === "fr"
+      ? {
+          back: `Retour à ${categoryName}`, label: "Sous-catégorie",
+          title: `Produits ${subcategoryName} personnalisables`, search: "Rechercher dans le catalogue",
+          productCount: (count: number) => `${count.toLocaleString("fr-FR")} produit${count === 1 ? "" : "s"}`,
+          loadError: "Impossible de charger les produits de cette sous-catégorie. Veuillez réessayer.",
+          emptyTitle: "Aucun produit disponible", emptyText: "Explorez la catégorie principale ou utilisez la recherche du catalogue.",
+        }
+      : {
+          back: `Voltar a ${categoryName}`, label: "Subcategoria",
+          title: `Produtos de ${subcategoryName} personalizáveis`, search: "Pesquisar no catálogo",
+          productCount: (count: number) => `${count.toLocaleString("pt-PT")} produto${count === 1 ? "" : "s"} apresentado${count === 1 ? "" : "s"}`,
+          loadError: "Não foi possível carregar os produtos desta subcategoria. Tenta novamente.",
+          emptyTitle: "Sem produtos disponíveis", emptyText: "Explore a categoria principal ou utilize a pesquisa do catálogo.",
+        };
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -87,12 +110,12 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
 
   const categoryPath = `/categorias/${encodeURIComponent(categoryName)}`;
   const path = `${categoryPath}/${encodeURIComponent(subcategoryName)}`;
-  const description = buildSubcategoryDescription(categoryName, subcategoryName);
+  const description = buildSubcategoryDescription(categoryName, subcategoryName, locale);
   const structuredData = buildCollectionStructuredData({
-    name: `Produtos de ${subcategoryName} personalizáveis`,
+    name: copy.title,
     description,
-    path,
-    breadcrumbParentPath: categoryPath,
+    path: localizePath(path, locale),
+    breadcrumbParentPath: localizePath(categoryPath, locale),
     breadcrumbParentLabel: categoryName,
     breadcrumbLabel: subcategoryName,
   });
@@ -101,19 +124,19 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
         <Link
-          href={categoryPath}
+          href={localizePath(categoryPath, locale)}
           className="text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
-          ← Voltar a {categoryName}
+          ← {copy.back}
         </Link>
 
         <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-              {categoryName} · Subcategoria
+              {categoryName} · {copy.label}
             </p>
             <h1 className="mt-4 text-4xl font-semibold tracking-tight text-neutral-950">
-              Produtos de {subcategoryName} personalizáveis
+              {copy.title}
             </h1>
             <p className="mt-4 max-w-3xl leading-7 text-neutral-600">
               {description}
@@ -125,18 +148,17 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
             className="inline-flex items-center justify-center rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-neutral-800"
           >
             <Search className="mr-2 h-4 w-4" />
-            Pesquisar no catálogo
+            {copy.search}
           </Link>
         </div>
 
         <p className="mt-8 text-sm text-neutral-500">
-          {products.length.toLocaleString("pt-PT")} produto(s) apresentado(s)
+          {copy.productCount(products.length)}
         </p>
 
         {error ? (
           <div className="mt-8 rounded-3xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-            Não foi possível carregar os produtos desta subcategoria. Tenta
-            novamente.
+            {copy.loadError}
           </div>
         ) : null}
 
@@ -149,10 +171,10 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
         ) : (
           <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-10 text-center shadow-sm">
             <h2 className="text-xl font-semibold text-neutral-950">
-              Sem produtos disponíveis
+              {copy.emptyTitle}
             </h2>
             <p className="mt-3 text-neutral-600">
-              Explore a categoria principal ou utilize a pesquisa do catálogo.
+              {copy.emptyText}
             </p>
           </div>
         )}
@@ -170,19 +192,25 @@ export async function generateMetadata({
   params,
 }: SubcategoryPageProps): Promise<Metadata> {
   const resolvedParams = await params;
+  const locale = await getCurrentLocale();
   const categoryName = sanitizeValue(resolvedParams.categoria);
   const subcategoryName = sanitizeValue(resolvedParams.subcategoria);
-  const path = `/categorias/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`;
-  const description = buildSubcategoryDescription(categoryName, subcategoryName);
+  const path = localizePath(`/categorias/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`, locale);
+  const description = buildSubcategoryDescription(categoryName, subcategoryName, locale);
+  const title = locale === "en"
+    ? `Customisable ${subcategoryName} products`
+    : locale === "fr"
+      ? `Produits ${subcategoryName} personnalisables`
+      : `Produtos de ${subcategoryName} personalizáveis`;
 
   return {
-    title: `Produtos de ${subcategoryName} personalizáveis`,
+    title,
     description,
     alternates: { canonical: path },
     openGraph: {
       type: "website",
-      locale: "pt_PT",
-      title: `Produtos de ${subcategoryName} personalizáveis`,
+      locale: locale === "en" ? "en_GB" : locale === "fr" ? "fr_FR" : "pt_PT",
+      title,
       description,
       url: path,
     },

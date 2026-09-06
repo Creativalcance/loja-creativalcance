@@ -54,7 +54,7 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
           />
         </Link>
 
-        <nav className="hidden items-center gap-7 text-sm font-medium text-[#162334]/70 lg:flex" aria-label="Navegação principal">
+        <nav className="hidden items-center gap-7 text-sm font-medium text-[#162334]/70 lg:flex" aria-label={locale === "en" ? "Main navigation" : locale === "fr" ? "Navigation principale" : "Navegação principal"}>
           <Link href={localizePath("/smart-merch", locale)} className="inline-flex items-center gap-1.5 text-[#e85f00] transition hover:text-[#ff6a00]">
             <Sparkles className="h-4 w-4" />
             Smart Merch

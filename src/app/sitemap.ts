@@ -7,6 +7,7 @@ import { getPersonalizationPages } from "@/lib/seo/personalization-pages";
 import { getSelectionPages } from "@/lib/seo/selection-pages";
 import { absoluteUrl } from "@/lib/seo/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -61,6 +62,25 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
   }
 
   return products;
+}
+
+function withLocalizedEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
+  const locales: SiteLocale[] = ["pt", "en", "fr"];
+  return entries.map((entry) => {
+    const path = new URL(entry.url).pathname;
+    const languages = Object.fromEntries(
+      locales.map((locale) => [
+        locale === "pt" ? "pt-PT" : locale === "en" ? "en-GB" : "fr-FR",
+        absoluteUrl(localizePath(path, locale)),
+      ]),
+    );
+
+    return {
+      ...entry,
+      url: absoluteUrl(localizePath(path, "pt")),
+      alternates: { languages },
+    };
+  });
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
@@ -271,14 +291,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.75,
       }));
 
-    return [
+    return withLocalizedEntries([
       ...staticEntries,
       ...categoryEntries,
       ...subcategoryEntries,
       ...productEntries,
-    ];
+    ]);
   } catch (error) {
     console.error("SEO sitemap generation failed:", error);
-    return staticEntries;
+    return withLocalizedEntries(staticEntries);
   }
 }

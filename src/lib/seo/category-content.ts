@@ -1,4 +1,5 @@
 import { truncateSeoText } from "@/lib/seo/metadata";
+import type { SiteLocale } from "@/lib/i18n/config";
 
 export type CategorySeoContent = {
   title: string;
@@ -15,7 +16,36 @@ function normalize(value: string): string {
     .toLowerCase();
 }
 
-export function buildCategorySeoContent(categoryName: string): CategorySeoContent {
+export function buildCategorySeoContent(
+  categoryName: string,
+  locale: SiteLocale = "pt",
+): CategorySeoContent {
+  if (locale === "en") {
+    return {
+      title: `Customisable ${categoryName} products`,
+      description: truncateSeoText(
+        `Explore customisable ${categoryName} products for companies, campaigns, events and teams. Compare products, volume pricing, stock and customisation options.`,
+      ),
+      intro: `Explore ${categoryName} products for companies, campaigns, events, teams and clients. Compare materials, volume pricing, stock and the available customisation options.`,
+      guideTitle: `How to choose ${categoryName} products`,
+      guideText:
+        "Start with the objective, audience, quantity and budget. Then compare materials, dimensions, stock and customisation techniques to select the right solution for its intended use.",
+    };
+  }
+
+  if (locale === "fr") {
+    return {
+      title: `Produits ${categoryName} personnalisables`,
+      description: truncateSeoText(
+        `Découvrez des produits ${categoryName} personnalisables pour les entreprises, campagnes, événements et équipes. Comparez les produits, tarifs dégressifs, stocks et options de personnalisation.`,
+      ),
+      intro: `Découvrez des produits ${categoryName} pour les entreprises, campagnes, événements, équipes et clients. Comparez les matériaux, tarifs dégressifs, stocks et options de personnalisation disponibles.`,
+      guideTitle: `Comment choisir des produits ${categoryName}`,
+      guideText:
+        "Commencez par définir l’objectif, le public, la quantité et le budget. Comparez ensuite les matériaux, dimensions, stocks et techniques de personnalisation pour choisir la solution adaptée.",
+    };
+  }
+
   const normalized = normalize(categoryName);
   const title = `Produtos de ${categoryName} personalizáveis`;
 
@@ -99,7 +129,20 @@ export function buildCategorySeoContent(categoryName: string): CategorySeoConten
 export function buildSubcategoryDescription(
   categoryName: string,
   subcategoryName: string,
+  locale: SiteLocale = "pt",
 ): string {
+  if (locale === "en") {
+    return truncateSeoText(
+      `Explore ${subcategoryName} in the ${categoryName} category. Compare customisable products, volume pricing, stock and customisation options for companies and events.`,
+    );
+  }
+
+  if (locale === "fr") {
+    return truncateSeoText(
+      `Découvrez ${subcategoryName} dans la catégorie ${categoryName}. Comparez les produits personnalisables, tarifs dégressifs, stocks et options de personnalisation pour entreprises et événements.`,
+    );
+  }
+
   return truncateSeoText(
     `Explore ${subcategoryName} na categoria ${categoryName}. Compare produtos personalizáveis, preços por quantidade, stock e opções de personalização para empresas e eventos.`,
   );

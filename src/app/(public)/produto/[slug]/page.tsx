@@ -266,7 +266,12 @@ export async function generateMetadata({
 
   if (!data) {
     return {
-      title: "Produto não encontrado",
+      title:
+        locale === "en"
+          ? "Product not found"
+          : locale === "fr"
+            ? "Produit introuvable"
+            : "Produto não encontrado",
       robots: { index: false, follow: false },
     };
   }
@@ -282,6 +287,7 @@ export async function generateMetadata({
     brand: product.brand,
     material: product.material,
     imageUrl: getMetadataImageUrl(product),
+    locale,
   });
 }
 
@@ -770,6 +776,7 @@ export default async function ProductDetailPage({
       brand: product.brand,
       material: product.material,
       imageUrl: structuredDataImageUrl,
+      locale,
     }),
     imageUrl: structuredDataImageUrl,
     brand: product.brand,
@@ -777,6 +784,7 @@ export default async function ProductDetailPage({
     categoryName: product.type_name,
     subcategoryName: product.subtype_name,
     totalStock: getTotalStock(product),
+    locale,
     prices: prices.map((price) => ({
       final_price: Number(price.final_price),
       currency: price.currency,
