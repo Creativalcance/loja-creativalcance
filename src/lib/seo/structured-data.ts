@@ -65,6 +65,21 @@ function buildBreadcrumbList(items: BreadcrumbItem[]) {
   };
 }
 
+function getStructuredDataLocale(path: string): {
+  language: "pt-PT" | "en-GB" | "fr-FR";
+  homePath: "/" | "/en" | "/fr";
+} {
+  if (/^\/en(?:\/|$)/.test(path)) {
+    return { language: "en-GB", homePath: "/en" };
+  }
+
+  if (/^\/fr(?:\/|$)/.test(path)) {
+    return { language: "fr-FR", homePath: "/fr" };
+  }
+
+  return { language: "pt-PT", homePath: "/" };
+}
+
 export function buildProductStructuredData(
   input: ProductStructuredDataInput,
 ): Record<string, unknown> {
@@ -162,8 +177,9 @@ export function buildCollectionStructuredData(
   input: CollectionStructuredDataInput,
 ): Record<string, unknown> {
   const pageUrl = absoluteUrl(input.path);
+  const locale = getStructuredDataLocale(input.path);
   const breadcrumbs: BreadcrumbItem[] = [
-    { name: SITE_NAME, url: absoluteUrl("/") },
+    { name: SITE_NAME, url: absoluteUrl(locale.homePath) },
   ];
 
   if (input.breadcrumbParentPath && input.breadcrumbParentLabel) {
@@ -187,9 +203,9 @@ export function buildCollectionStructuredData(
         url: pageUrl,
         name: input.name,
         description: input.description,
-        inLanguage: "pt-PT",
+        inLanguage: locale.language,
         isPartOf: {
-          "@id": `${absoluteUrl("/")}#website`,
+          "@id": `${absoluteUrl(locale.homePath)}#website`,
         },
       },
       buildBreadcrumbList(breadcrumbs),
@@ -211,8 +227,9 @@ export function buildEditorialStructuredData(
   input: EditorialStructuredDataInput,
 ): Record<string, unknown> {
   const pageUrl = absoluteUrl(input.path);
+  const locale = getStructuredDataLocale(input.path);
   const breadcrumbs: BreadcrumbItem[] = [
-    { name: SITE_NAME, url: absoluteUrl("/") },
+    { name: SITE_NAME, url: absoluteUrl(locale.homePath) },
   ];
 
   if (input.breadcrumbParentPath && input.breadcrumbParentLabel) {
@@ -231,9 +248,9 @@ export function buildEditorialStructuredData(
     name: input.name,
     headline: input.article ? input.name : undefined,
     description: input.description,
-    inLanguage: "pt-PT",
+    inLanguage: locale.language,
     isPartOf: {
-      "@id": `${absoluteUrl("/")}#website`,
+      "@id": `${absoluteUrl(locale.homePath)}#website`,
     },
     author: input.article
       ? {
