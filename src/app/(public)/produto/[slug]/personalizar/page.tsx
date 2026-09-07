@@ -21,13 +21,13 @@ import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Personalizar produto",
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getCurrentLocale();
+  return {
+    title: locale === "en" ? "Personalize product" : locale === "fr" ? "Personnaliser le produit" : "Personalizar produto",
+    robots: { index: false, follow: false },
+  };
+}
 
 type JsonRecord = Record<string, unknown>;
 
@@ -947,9 +947,11 @@ export default async function ProductPersonalizePage({
 
               {selectedVariantWasReplaced ? (
                 <p className="mt-3 border-t border-neutral-200 pt-3 text-xs leading-5 text-neutral-500">
-                  A variante {getVariantLabel(requestedVariant) ?? "selecionada"}{" "}
-                  não tem áreas de personalização comunicadas pelo fornecedor.
-                  Apresentamos a primeira variante compatível.
+                  {locale === "en"
+                    ? `The ${getVariantLabel(requestedVariant) ?? "selected"} variant has no personalization areas provided by the supplier. We are showing the first compatible variant.`
+                    : locale === "fr"
+                      ? `La variante ${getVariantLabel(requestedVariant) ?? "sélectionnée"} ne comporte aucune zone de personnalisation fournie par le fournisseur. Nous affichons la première variante compatible.`
+                      : `A variante ${getVariantLabel(requestedVariant) ?? "selecionada"} não tem áreas de personalização comunicadas pelo fornecedor. Apresentamos a primeira variante compatível.`}
                 </p>
               ) : null}
             </div>

@@ -1598,6 +1598,8 @@ export default function ProductDirectPurchasePanel({
               value={productSlug}
             />
 
+            <input type="hidden" name="locale" value={locale} />
+
             <input
               type="hidden"
               name="variantId"

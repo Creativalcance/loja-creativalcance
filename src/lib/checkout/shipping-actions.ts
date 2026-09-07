@@ -238,7 +238,7 @@ export async function saveCheckoutShippingAction(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      redirectUrl = "/login";
+      redirectUrl = localizePath("/login", locale);
     } else {
       const supabaseAdmin = createSupabaseAdminClient();
 

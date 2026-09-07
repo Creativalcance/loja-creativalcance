@@ -15,7 +15,7 @@ import CheckoutShippingForm, {
 import RemoveCartItemButton from "@/components/cart/RemoveCartItemButton";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { localizePath } from "@/lib/i18n/config";
+import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -72,8 +72,8 @@ type Cart = {
   cart_items: CartItem[] | null;
 };
 
-function formatPrice(value: number, currency: string): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPrice(value: number, currency: string, intlLocale: string): string {
+  return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
   }).format(Number(value ?? 0));
@@ -85,6 +85,14 @@ function roundMoney(value: number): number {
 
 export default async function CheckoutShippingPage() {
   const locale = await getCurrentLocale();
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
+  const text = locale === "en" ? {
+    back: "Back to destination", destination: "Destination", complete: "Complete", shipping: "Shipping", shippingTime: "Method and lead time", payment: "Payment", reviewPayment: "Review and payment", step: "Step 2 of 3", intro: "Choose the shipping method, confirm the estimated lead time and add the references required for delivery.", address: "Delivery address", change: "Change destination", order: "Order", summary: "Summary", configured: "Personalization configured", location: "Location", technique: "Technique", confirm: "To be confirmed", products: "Products", personalization: "Personalization", setup: "Setup", extras: "Extras", selecting: "To be selected", current: "Current total", before: "Amount before shipping and VAT.", next: "Next step", nextHelp: "At payment you can review all amounts, confirm the billing details and complete secure payment.", units: "units",
+  } : locale === "fr" ? {
+    back: "Retour à la destination", destination: "Destination", complete: "Terminé", shipping: "Expédition", shippingTime: "Transport et délai", payment: "Paiement", reviewPayment: "Vérification et paiement", step: "Étape 2 sur 3", intro: "Choisissez le mode d’expédition, confirmez le délai estimé et ajoutez les références nécessaires à la livraison.", address: "Adresse de livraison", change: "Modifier la destination", order: "Commande", summary: "Récapitulatif", configured: "Personnalisation configurée", location: "Emplacement", technique: "Technique", confirm: "À confirmer", products: "Produits", personalization: "Personnalisation", setup: "Préparation", extras: "Options", selecting: "À sélectionner", current: "Total actuel", before: "Montant avant transport et TVA.", next: "Étape suivante", nextHelp: "Lors du paiement, vous pourrez vérifier tous les montants, confirmer les informations de facturation et effectuer le paiement sécurisé.", units: "unités",
+  } : {
+    back: "Voltar ao destino", destination: "Destino", complete: "Concluído", shipping: "Expedição", shippingTime: "Transporte e prazo", payment: "Pagamento", reviewPayment: "Revisão e pagamento", step: "Passo 2 de 3", intro: "Escolhe o método de transporte, confirma o prazo estimado e indica as referências necessárias para a entrega.", address: "Morada de entrega", change: "Alterar destino", order: "Encomenda", summary: "Resumo", configured: "Personalização configurada", location: "Local", technique: "Técnica", confirm: "A confirmar", products: "Produtos", personalization: "Personalização", setup: "Preparação", extras: "Extras", selecting: "A selecionar", current: "Total atual", before: "Valor antes de transporte e IVA.", next: "Próximo passo", nextHelp: "No pagamento poderás rever todos os valores, confirmar os dados fiscais e efetuar o pagamento seguro.", units: "un.",
+  };
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -217,7 +225,7 @@ export default async function CheckoutShippingPage() {
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Voltar ao destino
+          {text.back}
         </Link>
 
         <div className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
@@ -230,11 +238,11 @@ export default async function CheckoutShippingPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Destino
+                    {text.destination}
                   </p>
 
                   <p className="mt-1 text-xs text-emerald-700">
-                    Concluído
+                    {text.complete}
                   </p>
                 </div>
               </div>
@@ -248,11 +256,11 @@ export default async function CheckoutShippingPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Expedição
+                    {text.shipping}
                   </p>
 
                   <p className="mt-1 text-xs text-neutral-300">
-                    Transporte e prazo
+                    {text.shippingTime}
                   </p>
                 </div>
               </div>
@@ -266,11 +274,11 @@ export default async function CheckoutShippingPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Pagamento
+                    {text.payment}
                   </p>
 
                   <p className="mt-1 text-xs">
-                    Revisão e pagamento
+                    {text.reviewPayment}
                   </p>
                 </div>
               </div>
@@ -287,17 +295,15 @@ export default async function CheckoutShippingPage() {
 
               <div>
                 <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-                  Passo 2 de 3
+                  {text.step}
                 </p>
 
                 <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
-                  Expedição
+                  {text.shipping}
                 </h1>
 
                 <p className="mt-4 max-w-3xl leading-7 text-neutral-600">
-                  Escolhe o método de transporte, confirma o
-                  prazo estimado e indica as referências
-                  necessárias para a entrega.
+                  {text.intro}
                 </p>
               </div>
             </div>
@@ -328,11 +334,11 @@ export default async function CheckoutShippingPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium uppercase tracking-[0.16em] text-neutral-500">
-                    Destino
+                    {text.destination}
                   </p>
 
                   <h2 className="mt-2 text-xl font-semibold text-neutral-950">
-                    Morada de entrega
+                    {text.address}
                   </h2>
                 </div>
 
@@ -376,7 +382,7 @@ export default async function CheckoutShippingPage() {
                 href={localizePath("/checkout", locale)}
                 className="mt-4 inline-flex text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
               >
-                Alterar destino
+                {text.change}
               </Link>
             </div>
 
@@ -384,11 +390,11 @@ export default async function CheckoutShippingPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium uppercase tracking-[0.16em] text-neutral-500">
-                    Encomenda
+                    {text.order}
                   </p>
 
                   <h2 className="mt-2 text-xl font-semibold text-neutral-950">
-                    Resumo
+                    {text.summary}
                   </h2>
                 </div>
 
@@ -409,19 +415,19 @@ export default async function CheckoutShippingPage() {
                         </p>
 
                         <p className="mt-1 text-sm text-neutral-500">
-                          {item.quantity.toLocaleString("pt-PT")} un.
+                          {item.quantity.toLocaleString(intlLocale)} {text.units}
                         </p>
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-3">
                         <p className="text-sm font-semibold text-neutral-950">
-                          {formatPrice(item.total, currency)}
+                          {formatPrice(item.total, currency, intlLocale)}
                         </p>
 
                         <RemoveCartItemButton
                           itemId={item.id}
                           productName={item.product_name}
-                          returnTo="/checkout/expedicao"
+                          returnTo={localizePath("/checkout/expedicao", locale)}
                         />
                       </div>
                     </div>
@@ -430,25 +436,25 @@ export default async function CheckoutShippingPage() {
                       <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600">
                         <div className="flex items-center gap-2 font-semibold text-neutral-950">
                           <Check className="h-4 w-4 text-emerald-600" />
-                          Personalização configurada
+                          {text.configured}
                         </div>
 
                         <dl className="mt-3 space-y-2">
                           <div className="flex justify-between gap-4">
-                            <dt>Local</dt>
+                            <dt>{text.location}</dt>
 
                             <dd className="text-right font-medium text-neutral-950">
                               {item.customization_location_name ??
-                                "A confirmar"}
+                                text.confirm}
                             </dd>
                           </div>
 
                           <div className="flex justify-between gap-4">
-                            <dt>Técnica</dt>
+                            <dt>{text.technique}</dt>
 
                             <dd className="text-right font-medium text-neutral-950">
                               {item.customization_technique_name ??
-                                "A confirmar"}
+                                text.confirm}
                             </dd>
                           </div>
                         </dl>
@@ -460,64 +466,64 @@ export default async function CheckoutShippingPage() {
 
               <div className="mt-6 space-y-3 border-t border-neutral-200 pt-5 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>Produtos</span>
+                  <span>{text.products}</span>
 
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(productsTotal, currency)}
+                    {formatPrice(productsTotal, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Personalização</span>
+                  <span>{text.personalization}</span>
 
                   <span className="font-semibold text-neutral-950">
                     {formatPrice(
                       personalizationTotal,
-                      currency,
+                      currency, intlLocale,
                     )}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Preparação</span>
+                  <span>{text.setup}</span>
 
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(setupTotal, currency)}
+                    {formatPrice(setupTotal, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Extras</span>
+                  <span>{text.extras}</span>
 
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(extrasTotal, currency)}
+                    {formatPrice(extrasTotal, currency, intlLocale)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Expedição</span>
+                  <span>{text.shipping}</span>
 
                   <span className="font-semibold text-neutral-500">
-                    A selecionar
+                    {text.selecting}
                   </span>
                 </div>
 
                 <div className="border-t border-neutral-200 pt-4">
                   <div className="flex justify-between gap-4 text-base">
                     <span className="font-semibold text-neutral-950">
-                      Total atual
+                      {text.current}
                     </span>
 
                     <span className="font-semibold text-neutral-950">
                       {formatPrice(
                         merchandiseTotal,
-                        currency,
+                        currency, intlLocale,
                       )}
                     </span>
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    Valor antes de transporte e IVA.
+                    {text.before}
                   </p>
                 </div>
               </div>
@@ -529,13 +535,11 @@ export default async function CheckoutShippingPage() {
 
                 <div>
                   <p className="text-sm font-semibold">
-                    Próximo passo
+                    {text.next}
                   </p>
 
                   <p className="mt-1 text-sm leading-6 text-neutral-300">
-                    No pagamento poderás rever todos os valores,
-                    confirmar os dados fiscais e efetuar o
-                    pagamento seguro.
+                    {text.nextHelp}
                   </p>
                 </div>
               </div>

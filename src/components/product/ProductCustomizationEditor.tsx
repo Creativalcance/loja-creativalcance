@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import {
   useEffect,
   useMemo,
@@ -173,16 +173,16 @@ const DEFAULT_PRINT_AREA: PrintAreaDimensions = {
   heightMm: 20,
 };
 
-function getColorLabel(variant: ProductEditorVariant | null): string {
+function getColorLabel(variant: ProductEditorVariant | null, fallback = "Cor selecionada"): string {
   if (!variant) {
-    return "Cor selecionada";
+    return fallback;
   }
 
   if (variant.color_name && variant.size) {
     return `${variant.color_name} · ${variant.size}`;
   }
 
-  return variant.color_name ?? variant.size ?? "Cor selecionada";
+  return variant.color_name ?? variant.size ?? fallback;
 }
 
 function getLocationLabel(location: ProductEditorLocation): string {
@@ -331,11 +331,23 @@ function roundMoney(value: number): number {
   return Number(value.toFixed(2));
 }
 
-function formatPrice(value: number, currency = "EUR"): string {
-  return new Intl.NumberFormat("pt-PT", {
+function formatPriceValue(value: number, currency: string, intlLocale: string): string {
+  return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
   }).format(value);
+}
+
+function getEditorCopy(locale: SiteLocale) {
+  if (locale === "en") return {
+    personalization: "Personalization", unavailable: "Mockup unavailable for this product", unavailableHelp: "Our team can review this product and confirm the best personalization solution.", location: "Location", recommended: "Recommended", type: "Personalization type", technique: "Technique", maximumArea: "Maximum area", quantity: "Quantity", technicalImageHelp: "The image shows the technical area provided by the supplier. The final position will be validated before production.", selectedProduct: "Selected product", colourSize: "Colour / size", changeProduct: "Change product", selectedOption: "Selected option", toConfirm: "To be confirmed", locationToConfirm: "Location to be confirmed", estimatedProduction: "Estimated production:", uploadLogo: "Upload logo", uploadFile: "Upload file", file: "File:", adjustArea: "Adjust within the area", reset: "Reset", reduce: "Reduce", centre: "Centre", enlarge: "Enlarge", fitMaximum: "Fit to maximum area", horizontal: "Horizontal", vertical: "Vertical", width: "Width", rotation: "Rotation", colours: "Personalization colours", coloursHelp: "Choose the number of colours allowed by the technique and set the references applied to the simulation.", detectedColours: "Colours detected in the logo", printColours: "Print colours", colour: "Colour", notSelected: "Not selected", selectReference: "Select a reference for colour", coloursApplied: "The selected colours are already applied to the simulation.", selectToContinue: "Select the required print colours to continue.", pantoneHelp: "Pantone references and the on-screen simulation are indicative. The final colour will be confirmed before production.", extrasNotes: "Extras and notes", designHelp: "I need help preparing the logo", artworkEstimate: "Estimated artwork preparation:", extraProof: "I want an additional artwork proof", proofEstimate: "Estimated extra proof:", nominative: "Individual name personalization", estimatedPerUnit: "Estimated per unit:", internalReference: "Internal reference", referencePlaceholder: "E.g. Event, campaign or client", notes: "Notes", notesPlaceholder: "E.g. Centre it, preferably in white.", summary: "Personalization summary", personalizationFor: "Personalization for", unit: "unit", units: "units", allPrices: "View all prices", unitPriceHelp: "The personalization unit price decreases with the selected quantity.", from: "From", savePerUnit: "save per unit", compareQuantities: "Compare quantities", otherQuantity: "Enter another quantity", intendedQuantity: "Required quantity", productUnit: "Product / unit", productSubtotal: "Product subtotal", personalizationUnit: "Personalization / unit", personalizationSubtotal: "Personalization subtotal", setup: "Setup (one-off)", extras: "Extras", estimatedTotal: "Estimated total", totalHelp: "Product + personalization + setup + extras", prices: "View prices", productionTimes: "Production times", disclaimer: "Prices exclude VAT. The mockup shown is a visual simulation. Our team confirms the technique, area and final price before production.", confirming: "Confirming mockup...", confirm: "Confirm mockup and continue to checkout", priceTable: "Price table", closePriceTable: "Close price table", priceUnit: "Price / unit", tableHelp: "Indicative table to support the simulation. Final prices will be confirmed according to the technique, area and file received.", productionEstimate: "Estimate by technique and quantity.", closeProduction: "Close production times", days: "days", onRequest: "On request", productionHelp: "Times may vary depending on the technique, availability, personalization size and mockup approval.", logoAlt: "Uploaded logo", printArea: "Print area", noLogo: "Not uploaded yet", selectedColour: "Selected colour", customizationArea: "Personalization area", allImageColours: "All image colours", colourSingular: "colour", colourPlural: "colours", variantError: "The selected variant could not be identified.", locationError: "Select a location and a technique.", priceError: "The product price could not be determined for this quantity.",
+  };
+  if (locale === "fr") return {
+    personalization: "Personnalisation", unavailable: "Maquette indisponible pour ce produit", unavailableHelp: "Notre équipe peut analyser ce produit et confirmer la meilleure solution de personnalisation.", location: "Emplacement", recommended: "Recommandé", type: "Type de personnalisation", technique: "Technique", maximumArea: "Zone maximale", quantity: "Quantité", technicalImageHelp: "L’image montre la zone technique fournie par le fournisseur. La position finale sera validée avant la production.", selectedProduct: "Produit sélectionné", colourSize: "Couleur / taille", changeProduct: "Modifier le produit", selectedOption: "Option sélectionnée", toConfirm: "À confirmer", locationToConfirm: "Emplacement à confirmer", estimatedProduction: "Production estimée :", uploadLogo: "Télécharger le logo", uploadFile: "Télécharger un fichier", file: "Fichier :", adjustArea: "Ajuster dans la zone", reset: "Réinitialiser", reduce: "Réduire", centre: "Centrer", enlarge: "Agrandir", fitMaximum: "Ajuster à la zone maximale", horizontal: "Horizontal", vertical: "Vertical", width: "Largeur", rotation: "Rotation", colours: "Couleurs de personnalisation", coloursHelp: "Choisissez le nombre de couleurs autorisé par la technique et définissez les références appliquées à la simulation.", detectedColours: "Couleurs détectées dans le logo", printColours: "Couleurs d’impression", colour: "Couleur", notSelected: "Non sélectionnée", selectReference: "Sélectionner une référence pour la couleur", coloursApplied: "Les couleurs choisies sont déjà appliquées à la simulation.", selectToContinue: "Sélectionnez les couleurs d’impression requises pour continuer.", pantoneHelp: "Les références Pantone et la simulation à l’écran sont indicatives. La couleur finale sera confirmée avant la production.", extrasNotes: "Options et observations", designHelp: "J’ai besoin d’aide pour préparer le logo", artworkEstimate: "Préparation graphique estimée :", extraProof: "Je souhaite une validation graphique supplémentaire", proofEstimate: "Maquette supplémentaire estimée :", nominative: "Personnalisation nominative", estimatedPerUnit: "Estimation par unité :", internalReference: "Référence interne", referencePlaceholder: "Ex. : événement, campagne ou client", notes: "Observations", notesPlaceholder: "Ex. : centrer, de préférence en blanc.", summary: "Récapitulatif de la personnalisation", personalizationFor: "Personnalisation pour", unit: "unité", units: "unités", allPrices: "Voir tous les prix", unitPriceHelp: "Le prix unitaire de la personnalisation diminue avec la quantité sélectionnée.", from: "À partir de", savePerUnit: "économisez par unité", compareQuantities: "Comparer les quantités", otherQuantity: "Saisir une autre quantité", intendedQuantity: "Quantité souhaitée", productUnit: "Produit / unité", productSubtotal: "Sous-total produit", personalizationUnit: "Personnalisation / unité", personalizationSubtotal: "Sous-total personnalisation", setup: "Mise en route (unique)", extras: "Options", estimatedTotal: "Total estimé", totalHelp: "Produit + personnalisation + mise en route + options", prices: "Voir les prix", productionTimes: "Délais de production", disclaimer: "Prix hors TVA. La maquette affichée est une simulation visuelle. Notre équipe confirme la technique, la zone et le prix final avant la production.", confirming: "Confirmation de la maquette...", confirm: "Confirmer la maquette et continuer vers le paiement", priceTable: "Tableau des prix", closePriceTable: "Fermer le tableau des prix", priceUnit: "Prix / unité", tableHelp: "Tableau indicatif pour la simulation. Les prix finaux seront confirmés selon la technique, la zone et le fichier reçu.", productionEstimate: "Estimation par technique et quantité.", closeProduction: "Fermer les délais de production", days: "jours", onRequest: "Sur demande", productionHelp: "Les délais peuvent varier selon la technique, la disponibilité, la taille de la personnalisation et la validation de la maquette.", logoAlt: "Logo téléchargé", printArea: "Zone d’impression", noLogo: "Pas encore téléchargé", selectedColour: "Couleur sélectionnée", customizationArea: "Zone de personnalisation", allImageColours: "Toutes les couleurs de l’image", colourSingular: "couleur", colourPlural: "couleurs", variantError: "Impossible d’identifier la variante sélectionnée.", locationError: "Sélectionnez un emplacement et une technique.", priceError: "Impossible de déterminer le prix du produit pour cette quantité.",
+  };
+  return {
+    personalization: "Personalização", unavailable: "Maquete indisponível para este produto", unavailableHelp: "A nossa equipa pode analisar este produto e confirmar a melhor solução de personalização.", location: "Localização", recommended: "Recomendada", type: "Tipo de personalização", technique: "Técnica", maximumArea: "Área máxima", quantity: "Quantidade", technicalImageHelp: "A imagem mostra a zona técnica enviada pelo fornecedor. A posição final será validada antes da produção.", selectedProduct: "Produto selecionado", colourSize: "Cor / tamanho", changeProduct: "Alterar produto", selectedOption: "Opção selecionada", toConfirm: "A confirmar", locationToConfirm: "Localização a confirmar", estimatedProduction: "Produção estimada:", uploadLogo: "Carregar logótipo", uploadFile: "Carregar ficheiro", file: "Ficheiro:", adjustArea: "Ajustar dentro da área", reset: "Repor", reduce: "Reduzir", centre: "Centrar", enlarge: "Aumentar", fitMaximum: "Ajustar à área máxima", horizontal: "Horizontal", vertical: "Vertical", width: "Largura", rotation: "Rotação", colours: "Cores da personalização", coloursHelp: "Escolhe o número de cores permitido pela técnica e define as referências que serão aplicadas à simulação.", detectedColours: "Cores detetadas no logótipo", printColours: "Cores de impressão", colour: "Cor", notSelected: "Por selecionar", selectReference: "Selecionar referência para a cor", coloursApplied: "As cores escolhidas já estão aplicadas à simulação.", selectToContinue: "Seleciona as cores de impressão necessárias para continuar.", pantoneHelp: "As referências Pantone e a simulação apresentada no ecrã são indicativas. A cor final será confirmada antes da produção.", extrasNotes: "Extras e observações", designHelp: "Preciso de ajuda a preparar o logótipo", artworkEstimate: "Tratamento gráfico estimado:", extraProof: "Quero validação gráfica adicional", proofEstimate: "Maquete extra estimada:", nominative: "Personalização nominativa", estimatedPerUnit: "Estimado por unidade:", internalReference: "Referência interna", referencePlaceholder: "Ex.: Evento, campanha ou cliente", notes: "Observações", notesPlaceholder: "Ex.: Colocar centrado, preferencialmente em branco.", summary: "Resumo da personalização", personalizationFor: "Personalização para", unit: "unidade", units: "unidades", allPrices: "Ver todos os preços", unitPriceHelp: "O preço unitário da personalização diminui com a quantidade selecionada.", from: "A partir de", savePerUnit: "poupa por unidade", compareQuantities: "Comparar quantidades", otherQuantity: "Introduzir outra quantidade", intendedQuantity: "Quantidade pretendida", productUnit: "Produto / un.", productSubtotal: "Subtotal produto", personalizationUnit: "Personalização / un.", personalizationSubtotal: "Subtotal personalização", setup: "Setup (único)", extras: "Extras", estimatedTotal: "Total estimado", totalHelp: "Produto + personalização + setup + extras", prices: "Ver preços", productionTimes: "Tempos de produção", disclaimer: "Valores sem IVA. A maquete apresentada é uma simulação visual. A nossa equipa confirma técnica, área e preço final antes da produção.", confirming: "A confirmar maquete...", confirm: "Confirmar maquete e avançar para checkout", priceTable: "Tabela de preços", closePriceTable: "Fechar tabela de preços", priceUnit: "Preço / un.", tableHelp: "Tabela indicativa para apoio à simulação. Os valores finais serão confirmados com base na técnica, área e ficheiro recebido.", productionEstimate: "Estimativa por técnica e quantidade.", closeProduction: "Fechar tempos de produção", days: "dias", onRequest: "Sob consulta", productionHelp: "Os tempos podem variar consoante técnica, disponibilidade, dimensão da personalização e validação da maquete.", logoAlt: "Logótipo carregado", printArea: "Área de impressão", noLogo: "Ainda não carregado", selectedColour: "Cor selecionada", customizationArea: "Área de personalização", allImageColours: "Todas as cores da imagem", colourSingular: "cor", colourPlural: "cores", variantError: "Não foi possível identificar a variante selecionada.", locationError: "Seleciona uma localização e uma técnica.", priceError: "Não foi possível determinar o preço do produto para esta quantidade.",
+  };
 }
 
 function hexToRgb(hex: string): [number, number, number] {
@@ -864,6 +876,10 @@ export default function ProductCustomizationEditor({
   minimumQuantity,
 }: ProductCustomizationEditorProps) {
   const router = useRouter();
+  const copy = getEditorCopy(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
+  const formatPrice = (value: number, currency = "EUR") =>
+    formatPriceValue(value, currency, intlLocale);
 
   const printAreaRef = useRef<HTMLDivElement | null>(null);
 
@@ -966,8 +982,13 @@ export default function ProductCustomizationEditor({
   const [notes, setNotes] = useState("");
 
   const printColorOptions = useMemo(
-    () => getPrintColorOptions(selectedLocation?.price_tiers ?? []),
-    [selectedLocation?.price_tiers],
+    () => getPrintColorOptions(selectedLocation?.price_tiers ?? []).map((option) => ({
+      ...option,
+      label: option.mode === "full"
+        ? copy.allImageColours
+        : `${option.mode.split(":")[1]} ${Number(option.mode.split(":")[1]) === 1 ? copy.colourSingular : copy.colourPlural}`,
+    })),
+    [copy.allImageColours, copy.colourPlural, copy.colourSingular, selectedLocation?.price_tiers],
   );
   const [selectedPrintColorMode, setSelectedPrintColorMode] =
     useState<PrintColorMode | null>(null);
@@ -1454,25 +1475,25 @@ export default function ProductCustomizationEditor({
 
   function handleConfirmCustomization() {
     if (!selectedColor) {
-      setSaveMessage("Não foi possível identificar a variante selecionada.");
+      setSaveMessage(copy.variantError);
       return;
     }
 
     if (!selectedLocation) {
-      setSaveMessage("Seleciona uma localização e uma técnica.");
+      setSaveMessage(copy.locationError);
       return;
     }
 
     if (productUnitPrice <= 0) {
       setSaveMessage(
-        "Não foi possível determinar o preço do produto para esta quantidade.",
+        copy.priceError,
       );
       return;
     }
 
     if (!printColorsAreValid) {
       setSaveMessage(
-        `Seleciona ${requiredPrintColorCount} ${requiredPrintColorCount === 1 ? "cor de impressão" : "cores de impressão"} para continuar.`,
+        `${copy.selectToContinue} (${requiredPrintColorCount})`,
       );
       return;
     }
@@ -1587,16 +1608,15 @@ export default function ProductCustomizationEditor({
     return (
       <section className="mt-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-neutral-500">
-          Personalização
+          {copy.personalization}
         </p>
 
         <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
-          Maquete indisponível para este produto
+          {copy.unavailable}
         </h2>
 
         <div className="mt-6 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-6 text-sm leading-6 text-neutral-600">
-          A nossa equipa pode analisar este produto e confirmar a melhor solução
-          de personalização.
+          {copy.unavailableHelp}
         </div>
       </section>
     );
@@ -1610,7 +1630,7 @@ export default function ProductCustomizationEditor({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-neutral-950">
-                  Localização
+                  {copy.location}
                 </p>
 
                 <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto pr-1">
@@ -1650,7 +1670,7 @@ export default function ProductCustomizationEditor({
 
                           {group.isRecommended ? (
                             <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-200">
-                              Recomendada
+                              {copy.recommended}
                             </span>
                           ) : null}
                         </div>
@@ -1662,7 +1682,7 @@ export default function ProductCustomizationEditor({
 
               <div className="min-w-0 border-t border-neutral-200 pt-4 sm:border-l sm:border-t-0 sm:pl-4 sm:pt-0">
                 <p className="text-sm font-semibold text-neutral-950">
-                  Tipo de personalização
+                  {copy.type}
                 </p>
 
                 <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto pr-1">
@@ -1716,7 +1736,7 @@ export default function ProductCustomizationEditor({
                           productImageUrl,
                         ]
                   }
-                  alt={`${productName} — ${selectedLocation?.technique ?? "personalização"}`}
+                  alt={`${productName} — ${selectedLocation?.technique ?? copy.personalization}`}
                   className="max-h-[600px] w-full object-contain p-5 sm:p-7"
                   artworkUrl={displayedLogoPreviewUrl}
                   artworkPosition={safePosition}
@@ -1733,17 +1753,17 @@ export default function ProductCustomizationEditor({
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-4 xl:grid-cols-2">
                   <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                      Técnica
+                      {copy.technique}
                     </p>
 
                     <p className="mt-1 font-semibold text-neutral-950">
-                      {selectedLocation?.technique ?? "A confirmar"}
+                      {selectedLocation?.technique ?? copy.toConfirm}
                     </p>
                   </div>
 
                   <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                      Localização
+                      {copy.location}
                     </p>
 
                     <p className="mt-1 font-semibold text-neutral-950">
@@ -1755,7 +1775,7 @@ export default function ProductCustomizationEditor({
 
                   <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                      Área máxima
+                      {copy.maximumArea}
                     </p>
 
                     <p className="mt-1 font-semibold text-neutral-950">
@@ -1765,18 +1785,17 @@ export default function ProductCustomizationEditor({
 
                   <div className="rounded-xl bg-neutral-50 p-3">
                     <p className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                      Quantidade
+                      {copy.quantity}
                     </p>
 
                     <p className="mt-1 font-semibold text-neutral-950">
-                      {quantity.toLocaleString("pt-PT")} un.
+                      {quantity.toLocaleString(intlLocale)} {copy.units}
                     </p>
                   </div>
                 </div>
 
                 <p className="mt-4 text-xs leading-5 text-neutral-500">
-                  A imagem mostra a zona técnica enviada pelo fornecedor. A
-                  posição final será validada antes da produção.
+                  {copy.technicalImageHelp}
                 </p>
               </div>
             </div>
@@ -1785,23 +1804,23 @@ export default function ProductCustomizationEditor({
           <aside className="space-y-4 xl:order-3">
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
-                Produto selecionado
+                {copy.selectedProduct}
               </p>
 
               <div className="mt-4 space-y-2 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>Cor / tamanho</span>
+                  <span>{copy.colourSize}</span>
 
                   <span className="text-right font-semibold text-neutral-950">
-                    {getColorLabel(selectedColor)}
+                    {getColorLabel(selectedColor, copy.selectedColour)}
                   </span>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>Quantidade</span>
+                  <span>{copy.quantity}</span>
 
                   <span className="text-right font-semibold text-neutral-950">
-                    {quantity.toLocaleString("pt-PT")} un.
+                    {quantity.toLocaleString(intlLocale)} {copy.units}
                   </span>
                 </div>
               </div>
@@ -1810,23 +1829,23 @@ export default function ProductCustomizationEditor({
                 href={localizePath(`/produto/${productSlug}`, locale)}
                 className="mt-4 inline-flex text-sm font-semibold text-neutral-950 underline-offset-4 hover:underline"
               >
-                Alterar produto
+                {copy.changeProduct}
               </Link>
             </div>
 
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
-                Opção selecionada
+                {copy.selectedOption}
               </p>
 
               <div className="mt-4 rounded-2xl bg-neutral-950 px-4 py-3 text-sm text-white">
                 <p className="font-semibold">
-                  {selectedLocation?.technique ?? "A confirmar"}
+                  {selectedLocation?.technique ?? copy.toConfirm}
                 </p>
                 <p className="mt-1 text-xs text-neutral-300">
                   {selectedLocation
                     ? getLocationLabel(selectedLocation)
-                    : "Localização a confirmar"}
+                    : copy.locationToConfirm}
                   {selectedLocation?.max_printing_area_mm
                     ? ` · ${selectedLocation.max_printing_area_mm}`
                     : ""}
@@ -1834,7 +1853,7 @@ export default function ProductCustomizationEditor({
               </div>
 
               <div className="mt-4 rounded-2xl bg-neutral-50 p-4 text-xs leading-5 text-neutral-600">
-                Produção estimada:{" "}
+                {copy.estimatedProduction}{" "}
                 <span className="font-semibold text-neutral-950">
                   {productionDays}
                 </span>
@@ -1843,7 +1862,7 @@ export default function ProductCustomizationEditor({
 
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
               <p className="text-sm font-semibold text-neutral-950">
-                Carregar logótipo
+                {copy.uploadLogo}
               </p>
 
               <label
@@ -1853,7 +1872,7 @@ export default function ProductCustomizationEditor({
                 <Upload className="h-5 w-5 text-neutral-500" />
 
                 <span className="text-sm font-semibold text-neutral-950">
-                  Carregar ficheiro
+                  {copy.uploadFile}
                 </span>
 
                 <span className="text-xs text-neutral-500">
@@ -1871,7 +1890,7 @@ export default function ProductCustomizationEditor({
 
               {logoFileName ? (
                 <div className="mt-3 rounded-2xl bg-neutral-50 p-3 text-xs leading-5 text-neutral-600">
-                  Ficheiro:{" "}
+                  {copy.file}{" "}
                   <span className="font-semibold text-neutral-950">
                     {logoFileName}
                   </span>
@@ -1885,7 +1904,7 @@ export default function ProductCustomizationEditor({
               <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 xl:order-4 xl:col-span-2">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-sm font-semibold text-neutral-950">
-                    Ajustar dentro da área
+                    {copy.adjustArea}
                   </p>
 
                   <button
@@ -1894,7 +1913,7 @@ export default function ProductCustomizationEditor({
                     className="inline-flex items-center rounded-full bg-neutral-100 px-3 py-1.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-200"
                   >
                     <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
-                    Repor
+                    {copy.reset}
                   </button>
                 </div>
 
@@ -1905,7 +1924,7 @@ export default function ProductCustomizationEditor({
                 >
                   <div
                     ref={printAreaRef}
-                    aria-label={`Área de impressão ${printAreaDimensions.widthMm} por ${printAreaDimensions.heightMm} milímetros`}
+                    aria-label={`${copy.printArea} ${printAreaDimensions.widthMm} × ${printAreaDimensions.heightMm} mm`}
                     className="relative shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
                     style={editorPrintAreaStyle}
                   >
@@ -1928,7 +1947,7 @@ export default function ProductCustomizationEditor({
                     >
                       <img
                         src={displayedLogoPreviewUrl ?? logoPreviewUrl}
-                        alt="Logótipo carregado"
+                        alt={copy.logoAlt}
                         draggable={false}
                         className="h-full w-full select-none object-contain"
                       />
@@ -1943,7 +1962,7 @@ export default function ProductCustomizationEditor({
                     className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                   >
                     <Minus className="mr-1.5 h-4 w-4" />
-                    Reduzir
+                    {copy.reduce}
                   </button>
 
                   <button
@@ -1952,7 +1971,7 @@ export default function ProductCustomizationEditor({
                     className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                   >
                     <Move className="mr-1.5 h-4 w-4" />
-                    Centrar
+                    {copy.centre}
                   </button>
 
                   <button
@@ -1961,7 +1980,7 @@ export default function ProductCustomizationEditor({
                     className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                   >
                     <Plus className="mr-1.5 h-4 w-4" />
-                    Aumentar
+                    {copy.enlarge}
                   </button>
                 </div>
 
@@ -1971,14 +1990,14 @@ export default function ProductCustomizationEditor({
                   className="mt-2 inline-flex w-full items-center justify-center rounded-xl border border-neutral-950 bg-white px-4 py-2.5 text-xs font-semibold text-neutral-950 transition hover:bg-neutral-50"
                 >
                   <Maximize2 className="mr-1.5 h-4 w-4" />
-                  Ajustar à área máxima
+                  {copy.fitMaximum}
                 </button>
                   </div>
 
                 <div className="space-y-4">
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Horizontal
+                        {copy.horizontal}
                         <span>{Math.round(safePosition.x)}%</span>
                       </span>
 
@@ -1996,7 +2015,7 @@ export default function ProductCustomizationEditor({
 
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Vertical
+                        {copy.vertical}
                         <span>{Math.round(safePosition.y)}%</span>
                       </span>
 
@@ -2014,7 +2033,7 @@ export default function ProductCustomizationEditor({
 
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Largura
+                        {copy.width}
                         <span>{Math.round(safePosition.width)}%</span>
                       </span>
 
@@ -2032,7 +2051,7 @@ export default function ProductCustomizationEditor({
 
                     <div>
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                        Rotação
+                        {copy.rotation}
                         <span>{Math.round(safePosition.rotation)}º</span>
                       </span>
 
@@ -2065,12 +2084,11 @@ export default function ProductCustomizationEditor({
                 {printColorOptions.length > 0 ? (
                   <div className="border-t border-neutral-200 pt-4">
                     <p className="text-sm font-semibold text-neutral-950">
-                      Cores da personalização
+                      {copy.colours}
                     </p>
 
                     <p className="mt-1 text-xs leading-5 text-neutral-500">
-                      Escolhe o número de cores permitido pela técnica e define
-                      as referências que serão aplicadas à simulação.
+                      {copy.coloursHelp}
                     </p>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -2096,7 +2114,7 @@ export default function ProductCustomizationEditor({
                         {logoPreviewUrl && detectedLogoColors.length > 0 ? (
                           <div>
                             <p className="text-xs font-semibold text-neutral-700">
-                              Cores detetadas no logótipo
+                              {copy.detectedColours}
                             </p>
 
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -2118,7 +2136,7 @@ export default function ProductCustomizationEditor({
 
                         <div>
                           <p className="text-xs font-semibold text-neutral-700">
-                            Cores de impressão
+                            {copy.printColours}
                           </p>
 
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -2142,10 +2160,10 @@ export default function ProductCustomizationEditor({
                                   }}
                                 />
                                 <span>
-                                  Cor {index + 1}
+                                  {copy.colour} {index + 1}
                                   {selectedColor
                                     ? ` · Pantone ${selectedColor.code}`
-                                    : " · Por selecionar"}
+                                    : ` · ${copy.notSelected}`}
                                 </span>
                               </button>
                             ))}
@@ -2154,7 +2172,7 @@ export default function ProductCustomizationEditor({
 
                         <div>
                           <p className="text-xs font-semibold text-neutral-700">
-                            Selecionar referência para a cor {activePrintColorIndex + 1}
+                            {copy.selectReference} {activePrintColorIndex + 1}
                           </p>
 
                           <div className="mt-2 grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
@@ -2214,18 +2232,14 @@ export default function ProductCustomizationEditor({
                           }`}
                         >
                           {printColorsAreValid
-                            ? "As cores escolhidas já estão aplicadas à simulação."
-                            : `Seleciona ${requiredPrintColorCount} ${
-                                requiredPrintColorCount === 1 ? "cor" : "cores"
-                              } para continuar.`}
+                            ? copy.coloursApplied
+                            : `${copy.selectToContinue} (${requiredPrintColorCount})`}
                         </p>
                       </div>
                     ) : null}
 
                     <p className="mt-3 text-xs leading-5 text-neutral-500">
-                      As referências Pantone e a simulação apresentada no ecrã
-                      são indicativas. A cor final será confirmada antes da
-                      produção.
+                      {copy.pantoneHelp}
                     </p>
                   </div>
                 ) : null}
@@ -2236,7 +2250,7 @@ export default function ProductCustomizationEditor({
 
             <div className="rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm xl:order-5 xl:col-span-2">
               <p className="text-sm font-semibold text-neutral-950">
-                Extras e observações
+                {copy.extrasNotes}
               </p>
 
               <div className="mt-4 grid gap-3 text-sm text-neutral-700 lg:grid-cols-3">
@@ -2252,11 +2266,11 @@ export default function ProductCustomizationEditor({
 
                   <span>
                     <span className="block font-semibold text-neutral-950">
-                      Preciso de ajuda a preparar o logótipo
+                      {copy.designHelp}
                     </span>
 
                     <span className="text-xs text-neutral-500">
-                      Tratamento gráfico estimado: {formatPrice(21)}
+                      {copy.artworkEstimate} {formatPrice(21)}
                     </span>
                   </span>
                 </label>
@@ -2271,11 +2285,11 @@ export default function ProductCustomizationEditor({
 
                   <span>
                     <span className="block font-semibold text-neutral-950">
-                      Quero validação gráfica adicional
+                      {copy.extraProof}
                     </span>
 
                     <span className="text-xs text-neutral-500">
-                      Maquete extra estimada: {formatPrice(15)}
+                      {copy.proofEstimate} {formatPrice(15)}
                     </span>
                   </span>
                 </label>
@@ -2290,11 +2304,11 @@ export default function ProductCustomizationEditor({
 
                   <span>
                     <span className="block font-semibold text-neutral-950">
-                      Personalização nominativa
+                      {copy.nominative}
                     </span>
 
                     <span className="text-xs text-neutral-500">
-                      Estimado: {formatPrice(0.7)} por unidade
+                      {copy.estimatedPerUnit} {formatPrice(0.7)}
                     </span>
                   </span>
                 </label>
@@ -2303,27 +2317,27 @@ export default function ProductCustomizationEditor({
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                  Referência interna
+                  {copy.internalReference}
                 </span>
 
                 <input
                   type="text"
                   value={internalReference}
                   onChange={(event) => setInternalReference(event.target.value)}
-                  placeholder="Ex.: Evento, campanha ou cliente"
+                  placeholder={copy.referencePlaceholder}
                   className="mt-2 w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
                 />
               </label>
 
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
-                  Observações
+                  {copy.notes}
                 </span>
 
                 <textarea
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
-                  placeholder="Ex.: Colocar centrado, preferencialmente em branco."
+                  placeholder={copy.notesPlaceholder}
                   rows={3}
                   className="mt-2 w-full resize-none rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
                 />
@@ -2336,15 +2350,15 @@ export default function ProductCustomizationEditor({
                 <Move className="h-5 w-5 text-neutral-300" />
 
                 <p className="text-sm font-semibold">
-                  Resumo da personalização
+                  {copy.summary}
                 </p>
               </div>
 
               <div className="mt-4 grid items-start gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:gap-8">
                 <div className="rounded-2xl border border-white/10 bg-white/10 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-400">
-                  Personalização para {quantity.toLocaleString("pt-PT")} {" "}
-                  {quantity === 1 ? "unidade" : "unidades"}
+                  {copy.personalizationFor} {quantity.toLocaleString(intlLocale)} {" "}
+                  {quantity === 1 ? copy.unit : copy.units}
                 </p>
 
                 <div className="mt-2 flex flex-wrap items-baseline justify-between gap-2">
@@ -2360,13 +2374,12 @@ export default function ProductCustomizationEditor({
                     onClick={() => setShowPriceTable(true)}
                     className="text-xs font-semibold text-white underline decoration-white/40 underline-offset-4 transition hover:decoration-white"
                   >
-                    Ver todos os preços
+                    {copy.allPrices}
                   </button>
                 </div>
 
                 <p className="mt-2 text-xs leading-5 text-neutral-300">
-                  O preço unitário da personalização diminui com a quantidade
-                  selecionada.
+                  {copy.unitPriceHelp}
                 </p>
 
                 {nextSavingTier ? (
@@ -2376,11 +2389,11 @@ export default function ProductCustomizationEditor({
                     className="mt-3 w-full rounded-xl bg-emerald-400/15 px-3 py-3 text-left ring-1 ring-inset ring-emerald-300/20 transition hover:bg-emerald-400/20"
                   >
                     <span className="block text-xs text-emerald-100">
-                      A partir de {nextSavingTier.quantity.toLocaleString("pt-PT")} unidades
+                      {copy.from} {nextSavingTier.quantity.toLocaleString(intlLocale)} {copy.units}
                     </span>
                     <span className="mt-1 block text-sm font-semibold text-white">
                       {formatPrice(nextSavingTier.unitPrice, productCurrency)}
-                      /un. · poupa {nextSavingTier.savingPercentage}% por unidade
+                      /{copy.unit} · {nextSavingTier.savingPercentage}% {copy.savePerUnit}
                     </span>
                   </button>
                 ) : null}
@@ -2388,7 +2401,7 @@ export default function ProductCustomizationEditor({
                 {customizationQuantityBreaks.length > 1 ? (
                   <div className="mt-4">
                     <p className="text-xs font-medium text-neutral-300">
-                      Comparar quantidades
+                      {copy.compareQuantities}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       {customizationQuantityBreaks.map((tierQuantity) => (
@@ -2403,7 +2416,7 @@ export default function ProductCustomizationEditor({
                               : "bg-white/10 text-white hover:bg-white/15"
                           }`}
                         >
-                          {tierQuantity.toLocaleString("pt-PT")}
+                          {tierQuantity.toLocaleString(intlLocale)}
                         </button>
                       ))}
                     </div>
@@ -2412,7 +2425,7 @@ export default function ProductCustomizationEditor({
 
                 <label className="mt-4 block">
                   <span className="text-xs font-medium text-neutral-300">
-                    Introduzir outra quantidade
+                    {copy.otherQuantity}
                   </span>
                   <input
                     type="number"
@@ -2429,14 +2442,14 @@ export default function ProductCustomizationEditor({
                       }
                     }}
                     className="mt-2 w-full rounded-xl border border-white/15 bg-white px-4 py-3 text-base font-semibold text-neutral-950 outline-none transition focus:border-emerald-300 focus:ring-2 focus:ring-emerald-300/30"
-                    aria-label="Quantidade pretendida"
+                    aria-label={copy.intendedQuantity}
                   />
                 </label>
                 </div>
 
                 <dl className="space-y-3 text-sm text-neutral-300">
                 <div className="flex justify-between gap-4">
-                  <dt>Local</dt>
+                  <dt>{copy.location}</dt>
 
                   <dd className="text-right text-white">
                     {selectedLocation
@@ -2446,32 +2459,32 @@ export default function ProductCustomizationEditor({
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <dt>Técnica</dt>
+                  <dt>{copy.technique}</dt>
 
                   <dd className="text-right text-white">
-                    {selectedLocation?.technique ?? "A confirmar"}
+                    {selectedLocation?.technique ?? copy.toConfirm}
                   </dd>
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <dt>Logótipo</dt>
+                  <dt>{copy.uploadLogo}</dt>
 
                   <dd className="max-w-48 truncate text-right text-white">
-                    {logoFileName ?? "Ainda não carregado"}
+                    {logoFileName ?? copy.noLogo}
                   </dd>
                 </div>
 
                 <div className="border-t border-white/10 pt-3">
                   <div className="flex justify-between gap-4">
-                    <dt>Quantidade</dt>
+                    <dt>{copy.quantity}</dt>
 
                     <dd className="text-right text-white">
-                      {quantity.toLocaleString("pt-PT")} un.
+                      {quantity.toLocaleString(intlLocale)} {copy.units}
                     </dd>
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Produto / un.</dt>
+                    <dt>{copy.productUnit}</dt>
 
                     <dd className="text-right text-white">
                       {formatPrice(productUnitPrice, productCurrency)}
@@ -2479,7 +2492,7 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Subtotal produto</dt>
+                    <dt>{copy.productSubtotal}</dt>
 
                     <dd className="text-right text-white">
                       {formatPrice(productSubtotal, productCurrency)}
@@ -2487,7 +2500,7 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Personalização / un.</dt>
+                    <dt>{copy.personalizationUnit}</dt>
 
                     <dd className="text-right text-white">
                       {formatPrice(personalizationUnitPrice, productCurrency)}
@@ -2495,7 +2508,7 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Subtotal personalização</dt>
+                    <dt>{copy.personalizationSubtotal}</dt>
 
                     <dd className="text-right text-white">
                       {formatPrice(personalizationSubtotal, productCurrency)}
@@ -2503,7 +2516,7 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Setup (único)</dt>
+                    <dt>{copy.setup}</dt>
 
                     <dd className="text-right text-white">
                       {formatPrice(setupCost, productCurrency)}
@@ -2511,7 +2524,7 @@ export default function ProductCustomizationEditor({
                   </div>
 
                   <div className="mt-2 flex justify-between gap-4">
-                    <dt>Extras</dt>
+                    <dt>{copy.extras}</dt>
 
                     <dd className="text-right text-white">
                       {formatPrice(extrasTotal, productCurrency)}
@@ -2521,7 +2534,7 @@ export default function ProductCustomizationEditor({
                   <div className="mt-4 border-t border-white/10 pt-4">
                     <div className="flex justify-between gap-4 text-base">
                       <dt className="font-semibold text-white">
-                        Total estimado
+                        {copy.estimatedTotal}
                       </dt>
 
                       <dd className="font-semibold text-white">
@@ -2530,7 +2543,7 @@ export default function ProductCustomizationEditor({
                     </div>
 
                     <p className="mt-1 text-xs text-neutral-400">
-                      Produto + personalização + setup + extras
+                      {copy.totalHelp}
                     </p>
                   </div>
                 </div>
@@ -2543,7 +2556,7 @@ export default function ProductCustomizationEditor({
                   onClick={() => setShowPriceTable(true)}
                   className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-white/15"
                 >
-                  Ver preços
+                  {copy.prices}
                 </button>
 
                 <button
@@ -2551,14 +2564,12 @@ export default function ProductCustomizationEditor({
                   onClick={() => setShowProductionTimes(true)}
                   className="rounded-xl bg-white/10 px-3 py-2.5 text-xs font-semibold text-white transition hover:bg-white/15"
                 >
-                  Tempos de produção
+                  {copy.productionTimes}
                 </button>
               </div>
 
               <div className="mt-5 rounded-2xl bg-white/10 p-4 text-xs leading-5 text-neutral-300">
-                Valores sem IVA. A maquete apresentada é uma simulação visual.
-                A nossa equipa confirma técnica, área e preço final antes da
-                produção.
+                {copy.disclaimer}
               </div>
 
               {saveMessage ? (
@@ -2575,8 +2586,8 @@ export default function ProductCustomizationEditor({
               >
                 <span className="text-neutral-950">
                   {isSavingDraft
-                    ? "A confirmar maquete..."
-                    : "Confirmar maquete e avançar para checkout"}
+                    ? copy.confirming
+                    : copy.confirm}
                 </span>
 
                 <ArrowRight className="ml-2 h-4 w-4 text-neutral-950" />
@@ -2591,18 +2602,18 @@ export default function ProductCustomizationEditor({
             <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-5">
               <div>
                 <h3 className="text-xl font-semibold text-neutral-950">
-                  Tabela de preços
+                  {copy.priceTable}
                 </h3>
 
                 <p className="mt-1 text-sm text-neutral-500">
-                  Técnica: {selectedLocation?.technique ?? "A confirmar"}
+                  {copy.technique}: {selectedLocation?.technique ?? copy.toConfirm}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowPriceTable(false)}
-                aria-label="Fechar tabela de preços"
+                aria-label={copy.closePriceTable}
                 className="rounded-full bg-neutral-100 p-2 text-neutral-600 transition hover:bg-neutral-200"
               >
                 <X className="h-5 w-5" />
@@ -2614,7 +2625,7 @@ export default function ProductCustomizationEditor({
                 <thead>
                   <tr>
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                      Quantidade
+                      {copy.quantity}
                     </th>
 
                     {customizationQuantityBreaks.map((item) => (
@@ -2622,7 +2633,7 @@ export default function ProductCustomizationEditor({
                         key={item}
                         className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950"
                       >
-                        {item.toLocaleString("pt-PT")}
+                        {item.toLocaleString(intlLocale)}
                       </th>
                     ))}
                   </tr>
@@ -2631,7 +2642,7 @@ export default function ProductCustomizationEditor({
                 <tbody>
                   <tr>
                     <td className="border-b border-neutral-100 px-4 py-3 font-medium text-neutral-500">
-                      Preço / un.
+                      {copy.priceUnit}
                     </td>
 
                     {customizationQuantityBreaks.map((item) => (
@@ -2657,8 +2668,7 @@ export default function ProductCustomizationEditor({
               </table>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-                Tabela indicativa para apoio à simulação. Os valores finais
-                serão confirmados com base na técnica, área e ficheiro recebido.
+                {copy.tableHelp}
               </p>
             </div>
           </div>
@@ -2671,18 +2681,18 @@ export default function ProductCustomizationEditor({
             <div className="flex items-center justify-between border-b border-neutral-200 px-6 py-5">
               <div>
                 <h3 className="text-xl font-semibold text-neutral-950">
-                  Tempos de produção
+                  {copy.productionTimes}
                 </h3>
 
                 <p className="mt-1 text-sm text-neutral-500">
-                  Estimativa por técnica e quantidade.
+                  {copy.productionEstimate}
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setShowProductionTimes(false)}
-                aria-label="Fechar tempos de produção"
+                aria-label={copy.closeProduction}
                 className="rounded-full bg-neutral-100 p-2 text-neutral-600 transition hover:bg-neutral-200"
               >
                 <X className="h-5 w-5" />
@@ -2694,7 +2704,7 @@ export default function ProductCustomizationEditor({
                 <thead>
                   <tr>
                     <th className="border-b border-neutral-200 px-4 py-3 text-left font-semibold text-neutral-500">
-                      Técnica
+                      {copy.technique}
                     </th>
 
                     <th className="border-b border-neutral-200 px-4 py-3 text-right font-semibold text-neutral-950">
@@ -2729,19 +2739,19 @@ export default function ProductCustomizationEditor({
                       </td>
 
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                        1-3 dias
+                        1-3 {copy.days}
                       </td>
 
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                        2-5 dias
+                        2-5 {copy.days}
                       </td>
 
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                        4-8 dias
+                        4-8 {copy.days}
                       </td>
 
                       <td className="border-b border-neutral-100 px-4 py-3 text-right text-neutral-700">
-                        Sob consulta
+                        {copy.onRequest}
                       </td>
                     </tr>
                   ))}
@@ -2749,8 +2759,7 @@ export default function ProductCustomizationEditor({
               </table>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-                Os tempos podem variar consoante técnica, disponibilidade,
-                dimensão da personalização e validação da maquete.
+                {copy.productionHelp}
               </p>
             </div>
           </div>

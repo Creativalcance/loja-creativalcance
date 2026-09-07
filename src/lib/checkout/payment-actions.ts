@@ -5,7 +5,7 @@ import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getSiteLocale, localizePath } from "@/lib/i18n/config";
+import { getSiteLocale, localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import { getStrickerConfig } from "@/lib/stricker/config";
 import {
   getCustomizationServiceCodeHints,
@@ -301,17 +301,24 @@ function buildStripeLineItems(params: {
   shippingTotal: number;
   taxTotal: number;
   currency: string;
+  locale: SiteLocale;
 }): StripeLineItem[] {
   const currency = params.currency.toLowerCase();
+  const intlLocale = SITE_LOCALES[params.locale].intlLocale;
+  const text = params.locale === "en"
+    ? { units: "units", location: "Location", technique: "Technique", shipping: "Shipping", shippingDescription: "Order shipping", tax: "VAT", taxDescription: "Value added tax" }
+    : params.locale === "fr"
+      ? { units: "unités", location: "Emplacement", technique: "Technique", shipping: "Expédition", shippingDescription: "Transport de la commande", tax: "TVA", taxDescription: "Taxe sur la valeur ajoutée" }
+      : { units: "unidades", location: "Local", technique: "Técnica", shipping: "Expedição", shippingDescription: "Transporte da encomenda", tax: "IVA", taxDescription: "Imposto sobre o valor acrescentado" };
 
   const lineItems: StripeLineItem[] = params.cartItems.map((item) => {
     const descriptionParts = [
-      `${item.quantity.toLocaleString("pt-PT")} unidades`,
+      `${item.quantity.toLocaleString(intlLocale)} ${text.units}`,
       item.customization_location_name
-        ? `Local: ${item.customization_location_name}`
+        ? `${text.location}: ${item.customization_location_name}`
         : null,
       item.customization_technique_name
-        ? `Técnica: ${item.customization_technique_name}`
+        ? `${text.technique}: ${item.customization_technique_name}`
         : null,
     ].filter((value): value is string => Boolean(value));
 
@@ -340,8 +347,8 @@ function buildStripeLineItems(params: {
         currency,
         unit_amount: toStripeAmount(params.shippingTotal),
         product_data: {
-          name: "Expedição",
-          description: "Transporte da encomenda",
+          name: text.shipping,
+          description: text.shippingDescription,
         },
       },
     });
@@ -354,8 +361,8 @@ function buildStripeLineItems(params: {
         currency,
         unit_amount: toStripeAmount(params.taxTotal),
         product_data: {
-          name: "IVA",
-          description: "Imposto sobre o valor acrescentado",
+          name: text.tax,
+          description: text.taxDescription,
         },
       },
     });
@@ -965,6 +972,7 @@ export async function createPaymentCheckoutSessionAction(
       shippingTotal,
       taxTotal,
       currency: cart.currency,
+      locale,
     });
 
     const commonMetadata = {

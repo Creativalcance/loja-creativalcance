@@ -15,6 +15,7 @@ import {
 import type { PricingRule } from "@/lib/pricing/types";
 import { resolveCustomizationServiceCode } from "@/lib/stricker/resolve-customization-service-code";
 import { getEffectiveMinimumOrderQuantity } from "@/lib/commerce/minimum-order-quantity";
+import { getSiteLocale, localizePath } from "@/lib/i18n/config";
 
 export type StartCustomizationDraftState = {
   success: boolean;
@@ -312,6 +313,7 @@ export async function startCustomizationDraftAction(
   try {
     const productId = getRequiredString(formData, "productId");
     const productSlug = getRequiredString(formData, "productSlug");
+    const locale = getSiteLocale(getOptionalString(formData, "locale"));
     const variantId = getRequiredString(formData, "variantId");
     const quantity = Math.floor(
       getRequiredNumber(formData, "quantity"),
@@ -494,11 +496,13 @@ export async function startCustomizationDraftAction(
       draftId = draft.id;
     }
 
-    redirectUrl =
+    redirectUrl = localizePath(
       `/produto/${product.slug}/personalizar` +
       `?draft=${encodeURIComponent(draftId)}` +
       `&cor=${encodeURIComponent(variant.id)}` +
-      `&quantidade=${encodeURIComponent(String(quantity))}`;
+      `&quantidade=${encodeURIComponent(String(quantity))}`,
+      locale,
+    );
   } catch (error) {
     return {
       success: false,

@@ -100,11 +100,11 @@ export default function CheckoutShippingForm({
   initialShippingNotes,
 }: CheckoutShippingFormProps) {
   const text = locale === "en" ? {
-    method: "Shipping method", store: "Shipping provided by the store", storeHint: "The order is sent to the address entered in the previous step.", estimate: "Estimate: 1 to 3 business days", free: "Free", cost: "Estimated cost", date: "Preferred date", dateHint: "This date will be considered for planning and confirmed after production and shipping validation.", recommended: "Recommended dates", earliest: "Earliest", day: "day", days: "days", dateNote: "The first available date is the second business day after today.", accept: "I accept delivery after this date", references: "References and instructions", internal: "Internal reference", notes: "Shipping instructions", notesPlaceholder: "Receiving hours, loading access, local contact or other instructions.", beforeVat: "Total before VAT", goods: "Products and customisation", shipping: "Shipping", current: "Current total", saving: "Saving shipping...", continue: "Continue to payment"
+    method: "Shipping method", methodHint: "Choose how you want to receive the order.", store: "Shipping provided by the store", storeHint: "The order is sent to the address entered in the previous step.", estimate: "Estimate: 1 to 3 business days", origin: "Origin: Portugal", free: "Free", cost: "Estimated cost", date: "Preferred date", dateLabel: "Preferred delivery date *", dateHint: "This date will be considered for planning and confirmed after production and shipping validation.", recommended: "Recommended dates", earliest: "Earliest", day: "day", days: "days", dateNote: "The first available date is the second business day after today.", accept: "I accept delivery after this date", acceptHelp: "Authorise shipping as soon as the order is ready, even if the selected date has passed.", references: "References and instructions", internal: "Internal reference", notes: "Shipping instructions", notesPlaceholder: "Receiving hours, loading access, local contact or other instructions.", beforeVat: "Total before VAT", goods: "Products and customisation", shipping: "Shipping", current: "Current total", saving: "Saving shipping...", continue: "Continue to payment"
   } : locale === "fr" ? {
-    method: "Mode d’expédition", store: "Transport assuré par la boutique", storeHint: "La commande est expédiée à l’adresse indiquée à l’étape précédente.", estimate: "Estimation : 1 à 3 jours ouvrés", free: "Gratuit", cost: "Coût estimé", date: "Date souhaitée", dateHint: "Cette date sera prise en compte et confirmée après validation de la production et du transport.", recommended: "Dates recommandées", earliest: "Au plus tôt", day: "jour", days: "jours", dateNote: "La première date disponible correspond au deuxième jour ouvré après aujourd’hui.", accept: "J’accepte une livraison après cette date", references: "Références et indications", internal: "Référence interne", notes: "Instructions d’expédition", notesPlaceholder: "Horaires de réception, accès, contact sur place ou autres indications.", beforeVat: "Total avant TVA", goods: "Produits et personnalisation", shipping: "Expédition", current: "Total actuel", saving: "Enregistrement...", continue: "Continuer vers le paiement"
+    method: "Mode d’expédition", methodHint: "Choisissez comment vous souhaitez recevoir la commande.", store: "Transport assuré par la boutique", storeHint: "La commande est expédiée à l’adresse indiquée à l’étape précédente.", estimate: "Estimation : 1 à 3 jours ouvrés", origin: "Origine : Portugal", free: "Gratuit", cost: "Coût estimé", date: "Date souhaitée", dateLabel: "Date de livraison souhaitée *", dateHint: "Cette date sera prise en compte et confirmée après validation de la production et du transport.", recommended: "Dates recommandées", earliest: "Au plus tôt", day: "jour", days: "jours", dateNote: "La première date disponible correspond au deuxième jour ouvré après aujourd’hui.", accept: "J’accepte une livraison après cette date", acceptHelp: "Autorisez l’expédition dès que la commande est prête, même si la date indiquée est dépassée.", references: "Références et indications", internal: "Référence interne", notes: "Instructions d’expédition", notesPlaceholder: "Horaires de réception, accès, contact sur place ou autres indications.", beforeVat: "Total avant TVA", goods: "Produits et personnalisation", shipping: "Expédition", current: "Total actuel", saving: "Enregistrement...", continue: "Continuer vers le paiement"
   } : {
-    method: "Método de expedição", store: "Transporte disponibilizado pela loja", storeHint: "A encomenda é expedida para a morada definida no passo anterior.", estimate: "Estimativa: 1 a 3 dias úteis", free: "Grátis", cost: "Custo estimado", date: "Data pretendida", dateHint: "A data será considerada no planeamento, mas só fica confirmada depois da validação da produção e do transporte.", recommended: "Datas recomendadas", earliest: "Mais cedo", day: "dia", days: "dias", dateNote: "A primeira data disponível corresponde ao segundo dia útil após hoje.", accept: "Aceito entrega após esta data", references: "Referências e indicações", internal: "Referência interna", notes: "Indicações para a expedição", notesPlaceholder: "Horário de receção, acesso a cais, contacto no local ou outras indicações.", beforeVat: "Total antes de IVA", goods: "Produtos e personalização", shipping: "Expedição", current: "Total atual", saving: "A guardar expedição...", continue: "Continuar para pagamento"
+    method: "Método de expedição", methodHint: "Escolhe como pretendes receber a encomenda.", store: "Transporte disponibilizado pela loja", storeHint: "A encomenda é expedida para a morada definida no passo anterior.", estimate: "Estimativa: 1 a 3 dias úteis", origin: "Origem: Portugal", free: "Grátis", cost: "Custo estimado", date: "Data pretendida", dateLabel: "Data pretendida de entrega *", dateHint: "A data será considerada no planeamento, mas só fica confirmada depois da validação da produção e do transporte.", recommended: "Datas recomendadas", earliest: "Mais cedo", day: "dia", days: "dias", dateNote: "A primeira data disponível corresponde ao segundo dia útil após hoje.", accept: "Aceito entrega após esta data", acceptHelp: "Autoriza o envio assim que a encomenda estiver pronta, mesmo que a data indicada já tenha sido ultrapassada.", references: "Referências e indicações", internal: "Referência interna", notes: "Indicações para a expedição", notesPlaceholder: "Horário de receção, acesso a cais, contacto no local ou outras indicações.", beforeVat: "Total antes de IVA", goods: "Produtos e personalização", shipping: "Expedição", current: "Total atual", saving: "A guardar expedição...", continue: "Continuar para pagamento"
   };
   const minimumDeliveryDate = getMinimumDeliveryDate();
   const initialDate =
@@ -198,7 +198,7 @@ export default function CheckoutShippingForm({
           {text.method}
         </h2>
         <p className="mt-2 text-sm leading-6 text-neutral-600">
-          Escolhe como pretendes receber ou recolher a encomenda.
+          {text.methodHint}
         </p>
 
         <div className="mt-6 grid gap-4">
@@ -263,7 +263,7 @@ export default function CheckoutShippingForm({
                           : "bg-neutral-100"
                       }`}
                     >
-                      Origem: Portugal
+                      {text.origin}
                     </span>
                   </div>
                 </div>
@@ -290,7 +290,7 @@ export default function CheckoutShippingForm({
               <span className="text-sm">{text.cost}</span>
               <span className="font-semibold">
                 {estimatedShippingPrice === 0
-                  ? "Grátis"
+                  ? text.free
                   : formatPrice(estimatedShippingPrice, currency, locale)}
               </span>
             </div>
@@ -320,7 +320,7 @@ export default function CheckoutShippingForm({
               htmlFor="requestedDeliveryDate"
               className="block text-sm font-medium text-neutral-700"
             >
-              Data pretendida de entrega *
+              {text.dateLabel}
             </label>
 
             <div className="mt-2 flex max-w-sm items-stretch gap-2">
@@ -338,7 +338,7 @@ export default function CheckoutShippingForm({
               <button
                 type="button"
                 onClick={openDatePicker}
-                aria-label="Abrir calendário"
+                aria-label={locale === "en" ? "Open calendar" : locale === "fr" ? "Ouvrir le calendrier" : "Abrir calendário"}
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-neutral-300 bg-white text-neutral-700 shadow-none transition hover:border-neutral-950"
               >
                 <CalendarDays className="h-5 w-5" />
@@ -385,8 +385,7 @@ export default function CheckoutShippingForm({
                 {text.accept}
               </span>
               <span className="mt-1 block text-xs leading-5 text-neutral-500">
-                Autoriza o envio assim que a encomenda estiver pronta, mesmo que
-                a data indicada já tenha sido ultrapassada.
+                {text.acceptHelp}
               </span>
             </span>
           </label>
@@ -411,7 +410,7 @@ export default function CheckoutShippingForm({
             type="text"
             defaultValue={initialInternalReference}
             maxLength={120}
-            placeholder="Ex.: PO-2026-001, evento ou centro de custo"
+            placeholder={locale === "en" ? "E.g. PO-2026-001, event or cost centre" : locale === "fr" ? "Ex. : PO-2026-001, événement ou centre de coûts" : "Ex.: PO-2026-001, evento ou centro de custo"}
             className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />
         </div>
@@ -478,7 +477,7 @@ export default function CheckoutShippingForm({
         disabled={isPending}
         className="inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "A guardar expedição..." : "Continuar para pagamento"}
+        {isPending ? text.saving : text.continue}
       </button>
     </form>
   );
