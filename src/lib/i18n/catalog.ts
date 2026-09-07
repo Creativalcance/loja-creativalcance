@@ -89,7 +89,9 @@ export async function getLocalizedProductText(params: {
   return null;
 }
 
-const QUERY_CHUNK_SIZE = 400;
+// Each product can return three fallback languages; stay safely below the
+// PostgREST default response limit of 1,000 rows per request.
+const QUERY_CHUNK_SIZE = 250;
 
 function chunkValues<T>(values: T[], size = QUERY_CHUNK_SIZE): T[][] {
   const chunks: T[][] = [];
