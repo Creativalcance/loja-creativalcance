@@ -34,9 +34,13 @@ type CatalogCategory = {
   sourceName: string;
   name: string;
   count: number;
+  representativeProductId: string | null;
   imageUrl: string | null;
   imageAlt: string;
 };
+
+const CATEGORY_PAGE_SIZE = 1000;
+const MAX_CATEGORY_PRODUCTS = 10000;
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getCurrentLocale();
@@ -165,6 +169,9 @@ function getCatalogCategories(
       categoryMap.set(sourceName, {
         ...existingCategory,
         count: existingCategory.count + 1,
+        representativeProductId:
+          existingCategory.representativeProductId ??
+          (isDemoProduct(row) ? null : row.id),
         imageUrl: existingCategory.imageUrl ?? imageUrl,
         imageAlt:
           existingCategory.imageAlt !== categoryName
@@ -179,6 +186,7 @@ function getCatalogCategories(
       sourceName,
       name: categoryName,
       count: 1,
+      representativeProductId: isDemoProduct(row) ? null : row.id,
       imageUrl,
       imageAlt: localizedProductName ?? row.name ?? categoryName,
     });
@@ -194,43 +202,62 @@ export default async function CategoriesPage() {
   const labels = getMessages(locale);
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const supabase = await createSupabaseServerClient();
+  const rows: CategoryRow[] = [];
+  let catalogError: Error | null = null;
 
-  const { data, error } = await supabase
-    .from("products")
-    .select(
-      `
-        id,
-        sku,
-        name,
-        type_name,
-        product_images (
-          external_url,
-          storage_url,
-          alt_text,
-          is_primary,
-          sort_order,
-          image_type
-        ),
-        product_variants (
-          optional_image_1_url,
-          optional_image_2_url
-        )
-      `,
-    )
-    .eq("status", "active")
-    .eq("is_active", true)
-    .not("type_name", "is", null)
-    .order("is_purchasable", { ascending: false })
-    .order("is_featured", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(10000);
+  for (let from = 0; from < MAX_CATEGORY_PRODUCTS; from += CATEGORY_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("products")
+      .select("id,sku,name,type_name")
+      .eq("status", "active")
+      .eq("is_active", true)
+      .not("type_name", "is", null)
+      .order("is_purchasable", { ascending: false })
+      .order("is_featured", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .range(from, from + CATEGORY_PAGE_SIZE - 1);
 
-  const rows = error ? [] : ((data ?? []) as unknown as CategoryRow[]);
+    if (error) {
+      catalogError = new Error(error.message);
+      break;
+    }
+
+    const pageRows = (data ?? []) as unknown as CategoryRow[];
+    rows.push(...pageRows);
+    if (pageRows.length < CATEGORY_PAGE_SIZE) break;
+  }
+
   const translations = await getLocalizedProductTexts({
     productIds: rows.map((row) => row.id),
     locale,
   });
-  const categories = getCatalogCategories(rows, translations);
+  let categories = getCatalogCategories(rows, translations);
+  const representativeIds = categories
+    .map((category) => category.representativeProductId)
+    .filter((id): id is string => Boolean(id));
+
+  if (representativeIds.length > 0) {
+    const { data: mediaRows, error: mediaError } = await supabase
+      .from("products")
+      .select(`
+        id, sku, name, type_name,
+        product_images (external_url,storage_url,alt_text,is_primary,sort_order,image_type),
+        product_variants (optional_image_1_url,optional_image_2_url)
+      `)
+      .in("id", representativeIds);
+
+    if (!mediaError) {
+      const mediaById = new Map(
+        ((mediaRows ?? []) as unknown as CategoryRow[]).map((row) => [row.id, row]),
+      );
+      categories = categories.map((category) => {
+        const media = category.representativeProductId
+          ? mediaById.get(category.representativeProductId)
+          : undefined;
+        return media ? { ...category, imageUrl: getImageUrl(media) } : category;
+      });
+    }
+  }
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
@@ -266,7 +293,7 @@ export default async function CategoriesPage() {
           </Link>
         </div>
 
-        {error ? (
+        {catalogError ? (
           <div className="mt-10 rounded-3xl border border-red-400/30 bg-red-500/10 p-6 text-sm text-red-100">
             {labels.catalog.loadError} {labels.common.retry}
           </div>
