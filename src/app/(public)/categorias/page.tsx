@@ -5,6 +5,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import { getLocalizedProductTexts, type LocalizedProductText } from "@/lib/i18n/catalog";
 
 type ProductImage = {
   external_url: string | null;
@@ -21,6 +22,7 @@ type ProductVariant = {
 };
 
 type CategoryRow = {
+  id: string;
   sku: string;
   name: string | null;
   type_name: string | null;
@@ -29,6 +31,7 @@ type CategoryRow = {
 };
 
 type CatalogCategory = {
+  sourceName: string;
   name: string;
   count: number;
   imageUrl: string | null;
@@ -123,38 +126,61 @@ function getImageUrl(row: CategoryRow): string | null {
   );
 }
 
-function getCatalogCategories(rows: CategoryRow[]): CatalogCategory[] {
+function getCatalogCategories(
+  rows: CategoryRow[],
+  translations: Map<string, LocalizedProductText>,
+): CatalogCategory[] {
   const categoryMap = new Map<string, CatalogCategory>();
+  const localizedNameCounts = new Map<string, Map<string, number>>();
+
+  for (const row of rows) {
+    const sourceName = row.type_name?.trim();
+    const localizedName = translations.get(row.id)?.typeName?.trim();
+    if (!sourceName || !localizedName) continue;
+    const counts = localizedNameCounts.get(sourceName) ?? new Map<string, number>();
+    counts.set(localizedName, (counts.get(localizedName) ?? 0) + 1);
+    localizedNameCounts.set(sourceName, counts);
+  }
+
+  const preferredNames = new Map(
+    [...localizedNameCounts.entries()].map(([sourceName, counts]) => [
+      sourceName,
+      [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? sourceName,
+    ]),
+  );
 
   rows.forEach((row) => {
-    const categoryName = row.type_name?.trim();
+    const sourceName = row.type_name?.trim();
 
-    if (!categoryName) {
+    if (!sourceName) {
       return;
     }
 
-    const existingCategory = categoryMap.get(categoryName);
+    const categoryName = preferredNames.get(sourceName) ?? sourceName;
+    const localizedProductName = translations.get(row.id)?.name;
+    const existingCategory = categoryMap.get(sourceName);
     const imageUrl = isDemoProduct(row) ? null : getImageUrl(row);
 
     if (existingCategory) {
-      categoryMap.set(categoryName, {
+      categoryMap.set(sourceName, {
         ...existingCategory,
         count: existingCategory.count + 1,
         imageUrl: existingCategory.imageUrl ?? imageUrl,
         imageAlt:
           existingCategory.imageAlt !== categoryName
             ? existingCategory.imageAlt
-            : row.name ?? categoryName,
+            : localizedProductName ?? row.name ?? categoryName,
       });
 
       return;
     }
 
-    categoryMap.set(categoryName, {
+    categoryMap.set(sourceName, {
+      sourceName,
       name: categoryName,
       count: 1,
       imageUrl,
-      imageAlt: row.name ?? categoryName,
+      imageAlt: localizedProductName ?? row.name ?? categoryName,
     });
   });
 
@@ -173,6 +199,7 @@ export default async function CategoriesPage() {
     .from("products")
     .select(
       `
+        id,
         sku,
         name,
         type_name,
@@ -198,9 +225,12 @@ export default async function CategoriesPage() {
     .order("updated_at", { ascending: false })
     .limit(10000);
 
-  const categories = error
-    ? []
-    : getCatalogCategories((data ?? []) as unknown as CategoryRow[]);
+  const rows = error ? [] : ((data ?? []) as unknown as CategoryRow[]);
+  const translations = await getLocalizedProductTexts({
+    productIds: rows.map((row) => row.id),
+    locale,
+  });
+  const categories = getCatalogCategories(rows, translations);
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
@@ -246,7 +276,7 @@ export default async function CategoriesPage() {
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {categories.map((category) => (
               <Link
-                key={category.name}
+                key={category.sourceName}
                 href={localizePath(buildCategoryHref(category.name), locale)}
                 className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
               >

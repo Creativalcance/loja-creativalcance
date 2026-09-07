@@ -12,6 +12,11 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import {
+  getLocalizedProductTexts,
+  resolveCategoryRoute,
+  type LocalizedProductText,
+} from "@/lib/i18n/catalog";
 
 type CategoryProductsPageProps = {
   params: Promise<{
@@ -20,8 +25,11 @@ type CategoryProductsPageProps = {
 };
 
 type SubtypeRow = {
+  id: string;
   subtype_name: string | null;
 };
+
+type CatalogSubcategory = { sourceName: string; name: string };
 
 function sanitizeCategoryValue(value: string): string {
   return decodeURIComponent(value)
@@ -31,14 +39,41 @@ function sanitizeCategoryValue(value: string): string {
     .slice(0, 100);
 }
 
-function getSubcategories(rows: SubtypeRow[]): string[] {
-  return Array.from(
-    new Set(
-      rows
-        .map((row) => row.subtype_name?.trim())
-        .filter((value): value is string => Boolean(value)),
-    ),
-  ).sort((a, b) => a.localeCompare(b, "pt-PT"));
+function getSubcategories(
+  rows: SubtypeRow[],
+  translations: Map<string, LocalizedProductText>,
+): CatalogSubcategory[] {
+  const grouped = new Map<string, Map<string, number>>();
+  for (const row of rows) {
+    const sourceName = row.subtype_name?.trim();
+    if (!sourceName) continue;
+    const localizedName = translations.get(row.id)?.subtypeName?.trim() ?? sourceName;
+    const counts = grouped.get(sourceName) ?? new Map<string, number>();
+    counts.set(localizedName, (counts.get(localizedName) ?? 0) + 1);
+    grouped.set(sourceName, counts);
+  }
+
+  return [...grouped.entries()]
+    .map(([sourceName, counts]) => ({
+      sourceName,
+      name: [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? sourceName,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function applyTranslation(
+  product: ProductCardProduct,
+  translation: LocalizedProductText | undefined,
+): ProductCardProduct {
+  if (!translation) return product;
+  return {
+    ...product,
+    name: translation.name || product.name,
+    short_description: translation.shortDescription ?? product.short_description,
+    material: translation.material ?? product.material,
+    type_name: translation.typeName ?? product.type_name,
+    subtype_name: translation.subtypeName ?? product.subtype_name,
+  };
 }
 
 export default async function CategoryProductsPage({
@@ -46,7 +81,9 @@ export default async function CategoryProductsPage({
 }: CategoryProductsPageProps) {
   const locale = await getCurrentLocale();
   const resolvedParams = await params;
-  const categoryName = sanitizeCategoryValue(resolvedParams.categoria);
+  const routeCategoryName = sanitizeCategoryValue(resolvedParams.categoria);
+  const category = await resolveCategoryRoute(routeCategoryName, locale);
+  const categoryName = category.localizedName;
   const seoContent = buildCategorySeoContent(categoryName, locale);
   const copy = locale === "en"
     ? {
@@ -114,34 +151,38 @@ export default async function CategoryProductsPage({
       )
       .eq("status", "active")
       .eq("is_active", true)
-      .eq("type_name", categoryName)
+      .eq("type_name", category.sourceName)
       .order("is_purchasable", { ascending: false })
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(48),
     supabase
       .from("products")
-      .select("subtype_name")
+      .select("id,subtype_name")
       .eq("status", "active")
       .eq("is_active", true)
-      .eq("type_name", categoryName)
+      .eq("type_name", category.sourceName)
       .not("subtype_name", "is", null)
       .limit(2000),
   ]);
 
-  const products = productsResult.error
+  const baseProducts = productsResult.error
     ? []
     : ((productsResult.data ?? []) as unknown as ProductCardProduct[]);
-  const subcategories = subtypesResult.error
-    ? []
-    : getSubcategories((subtypesResult.data ?? []) as SubtypeRow[]);
+  const subtypeRows = subtypesResult.error ? [] : ((subtypesResult.data ?? []) as SubtypeRow[]);
+  const translations = await getLocalizedProductTexts({
+    productIds: [...baseProducts.map((product) => product.id), ...subtypeRows.map((row) => row.id)],
+    locale,
+  });
+  const products = baseProducts.map((product) => applyTranslation(product, translations.get(product.id)));
+  const subcategories = getSubcategories(subtypeRows, translations);
 
   const categoryPath = `/categorias/${encodeURIComponent(categoryName)}`;
   const structuredData = buildCollectionStructuredData({
     name: seoContent.title,
     description: seoContent.description,
-    path: categoryPath,
-    breadcrumbParentPath: "/categorias",
+    path: localizePath(categoryPath, locale),
+    breadcrumbParentPath: localizePath("/categorias", locale),
     breadcrumbParentLabel: copy.breadcrumb,
     breadcrumbLabel: categoryName,
   });
@@ -188,11 +229,11 @@ export default async function CategoryProductsPage({
             <div className="mt-4 flex flex-wrap gap-2.5">
               {subcategories.map((subcategory) => (
                 <Link
-                  key={subcategory}
-                  href={localizePath(`${categoryPath}/${encodeURIComponent(subcategory)}`, locale)}
+                  key={subcategory.sourceName}
+                  href={localizePath(`${categoryPath}/${encodeURIComponent(subcategory.name)}`, locale)}
                   className="rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-white hover:text-neutral-950"
                 >
-                  {subcategory}
+                  {subcategory.name}
                 </Link>
               ))}
             </div>
@@ -286,7 +327,9 @@ export async function generateMetadata({
 }: CategoryProductsPageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const locale = await getCurrentLocale();
-  const categoryName = sanitizeCategoryValue(resolvedParams.categoria);
+  const routeCategoryName = sanitizeCategoryValue(resolvedParams.categoria);
+  const category = await resolveCategoryRoute(routeCategoryName, locale);
+  const categoryName = category.localizedName;
   const seoContent = buildCategorySeoContent(categoryName, locale);
   const canonical = localizePath(`/categorias/${encodeURIComponent(categoryName)}`, locale);
 

@@ -13,6 +13,12 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import {
+  getLocalizedProductTexts,
+  resolveCategoryRoute,
+  resolveSubcategoryRoute,
+  type LocalizedProductText,
+} from "@/lib/i18n/catalog";
 
 type SubcategoryPageProps = {
   params: Promise<{
@@ -29,11 +35,34 @@ function sanitizeValue(value: string): string {
     .slice(0, 120);
 }
 
+function applyTranslation(
+  product: ProductCardProduct,
+  translation: LocalizedProductText | undefined,
+): ProductCardProduct {
+  if (!translation) return product;
+  return {
+    ...product,
+    name: translation.name || product.name,
+    short_description: translation.shortDescription ?? product.short_description,
+    material: translation.material ?? product.material,
+    type_name: translation.typeName ?? product.type_name,
+    subtype_name: translation.subtypeName ?? product.subtype_name,
+  };
+}
+
 export default async function SubcategoryPage({ params }: SubcategoryPageProps) {
   const locale = await getCurrentLocale();
   const resolvedParams = await params;
-  const categoryName = sanitizeValue(resolvedParams.categoria);
-  const subcategoryName = sanitizeValue(resolvedParams.subcategoria);
+  const routeCategoryName = sanitizeValue(resolvedParams.categoria);
+  const routeSubcategoryName = sanitizeValue(resolvedParams.subcategoria);
+  const category = await resolveCategoryRoute(routeCategoryName, locale);
+  const subcategory = await resolveSubcategoryRoute({
+    categorySourceName: category.sourceName,
+    routeName: routeSubcategoryName,
+    locale,
+  });
+  const categoryName = category.localizedName;
+  const subcategoryName = subcategory.localizedName;
   const copy = locale === "en"
     ? {
         back: `Back to ${categoryName}`, label: "Subcategory",
@@ -95,14 +124,19 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
     )
     .eq("status", "active")
     .eq("is_active", true)
-    .eq("type_name", categoryName)
-    .eq("subtype_name", subcategoryName)
+    .eq("type_name", category.sourceName)
+    .eq("subtype_name", subcategory.sourceName)
     .order("is_purchasable", { ascending: false })
     .order("is_featured", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(48);
 
-  const products = error ? [] : ((data ?? []) as unknown as ProductCardProduct[]);
+  const baseProducts = error ? [] : ((data ?? []) as unknown as ProductCardProduct[]);
+  const translations = await getLocalizedProductTexts({
+    productIds: baseProducts.map((product) => product.id),
+    locale,
+  });
+  const products = baseProducts.map((product) => applyTranslation(product, translations.get(product.id)));
 
   if (!error && products.length === 0) {
     return notFound();
@@ -193,8 +227,16 @@ export async function generateMetadata({
 }: SubcategoryPageProps): Promise<Metadata> {
   const resolvedParams = await params;
   const locale = await getCurrentLocale();
-  const categoryName = sanitizeValue(resolvedParams.categoria);
-  const subcategoryName = sanitizeValue(resolvedParams.subcategoria);
+  const routeCategoryName = sanitizeValue(resolvedParams.categoria);
+  const routeSubcategoryName = sanitizeValue(resolvedParams.subcategoria);
+  const category = await resolveCategoryRoute(routeCategoryName, locale);
+  const subcategory = await resolveSubcategoryRoute({
+    categorySourceName: category.sourceName,
+    routeName: routeSubcategoryName,
+    locale,
+  });
+  const categoryName = category.localizedName;
+  const subcategoryName = subcategory.localizedName;
   const path = localizePath(`/categorias/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`, locale);
   const description = buildSubcategoryDescription(categoryName, subcategoryName, locale);
   const title = locale === "en"
