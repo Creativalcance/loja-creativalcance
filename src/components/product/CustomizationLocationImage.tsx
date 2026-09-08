@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState, type SyntheticEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SyntheticEvent,
+} from "react";
 import { ImageIcon } from "lucide-react";
 
 type CustomizationLocationImageProps = {
@@ -317,10 +324,20 @@ export default function CustomizationLocationImage({
 }: CustomizationLocationImageProps) {
   const imageUrls = useMemo(() => getValidUrls(urls), [urls]);
   const imageUrlsKey = imageUrls.join("|");
+  const printAreaKey = printAreaGeometry
+    ? [
+        printAreaGeometry.left,
+        printAreaGeometry.top,
+        printAreaGeometry.width,
+        printAreaGeometry.height,
+        printAreaGeometry.origin_x,
+        printAreaGeometry.origin_y,
+      ].join(":")
+    : "detected";
 
   return (
     <CustomizationLocationImageContent
-      key={imageUrlsKey}
+      key={`${imageUrlsKey}|${printAreaKey}`}
       imageUrls={imageUrls}
       alt={alt}
       className={className}
@@ -371,17 +388,9 @@ function CustomizationLocationImageContent({
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [printArea, setPrintArea] = useState<DetectedPrintArea | null>(null);
+  const imageRef = useRef<HTMLImageElement | null>(null);
 
   const activeUrl = imageUrls[activeIndex] ?? null;
-
-  if (!activeUrl) {
-    return (
-      <div className="flex h-full w-full items-center justify-center text-neutral-400">
-        <ImageIcon className="h-8 w-8" />
-      </div>
-    );
-  }
-
   const safeArtworkPosition = artworkPosition ?? {
     x: 20,
     y: 35,
@@ -392,35 +401,60 @@ function CustomizationLocationImageContent({
     (safeArtworkPosition.width * printAreaAspectRatio) /
     Math.max(artworkAspectRatio, 0.01);
 
-  function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
+  const updatePrintArea = useCallback((image: HTMLImageElement) => {
+    if (!image.complete || !image.naturalWidth || !image.naturalHeight) {
+      return;
+    }
+
     const detectedArea =
-      detectWhiteDashedArea(event.currentTarget) ??
-        (printAreaGeometry
-        ? resolveSupplierPrintArea(event.currentTarget, printAreaGeometry)
+      (printAreaGeometry
+        ? resolveSupplierPrintArea(image, printAreaGeometry)
         : null) ??
-        getFallbackPrintArea(event.currentTarget, printAreaAspectRatio);
+      detectWhiteDashedArea(image) ??
+      getFallbackPrintArea(image, printAreaAspectRatio);
 
     setPrintArea(detectedArea);
 
-    const detectedWidth =
-      (detectedArea.width / 100) * event.currentTarget.naturalWidth;
-    const detectedHeight =
-      (detectedArea.height / 100) * event.currentTarget.naturalHeight;
+    const detectedWidth = (detectedArea.width / 100) * image.naturalWidth;
+    const detectedHeight = (detectedArea.height / 100) * image.naturalHeight;
 
     if (detectedWidth > 0 && detectedHeight > 0) {
       onPrintAreaAspectRatioDetected?.(detectedWidth / detectedHeight);
     }
+  }, [
+    onPrintAreaAspectRatioDetected,
+    printAreaAspectRatio,
+    printAreaGeometry,
+  ]);
+
+  useEffect(() => {
+    if (imageRef.current) {
+      updatePrintArea(imageRef.current);
+    }
+  }, [updatePrintArea]);
+
+  function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
+    updatePrintArea(event.currentTarget);
+  }
+
+  if (!activeUrl) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-neutral-400">
+        <ImageIcon className="h-8 w-8" />
+      </div>
+    );
   }
 
   return (
     <div className="max-w-full p-8">
-      <div className="relative inline-block max-w-full align-middle">
+      <div className="relative isolate inline-block max-w-full align-middle">
         <img
+          ref={imageRef}
           src={activeUrl}
           alt={alt}
           referrerPolicy="no-referrer"
           loading="lazy"
-          className={className.replace(/\bp-\d+\b/g, "")}
+          className={`${className.replace(/\bp-\d+\b/g, "")} relative z-0`}
           onLoad={handleLoad}
           onError={() => {
             setPrintArea(null);
@@ -431,7 +465,7 @@ function CustomizationLocationImageContent({
         {artworkUrl && printArea ? (
           <div
             aria-label="Área de personalização definida pelo fornecedor"
-            className="pointer-events-none absolute overflow-hidden"
+            className="pointer-events-none absolute z-10 overflow-hidden"
             style={{
               left: `${printArea.left}%`,
               top: `${printArea.top}%`,
@@ -440,7 +474,7 @@ function CustomizationLocationImageContent({
             }}
           >
             <div
-              className="absolute"
+              className="absolute z-10 opacity-100"
               style={{
                 left: `${safeArtworkPosition.x + safeArtworkPosition.width / 2}%`,
                 top: `${safeArtworkPosition.y + artworkHeight / 2}%`,
@@ -454,7 +488,7 @@ function CustomizationLocationImageContent({
                 src={artworkUrl}
                 alt="Pré-visualização da imagem carregada no produto"
                 draggable={false}
-                className="h-full w-full select-none object-contain"
+                className="h-full w-full select-none object-contain opacity-100"
               />
             </div>
           </div>
