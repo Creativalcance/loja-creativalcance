@@ -592,9 +592,13 @@ export function mapOrderToStricker(
 
     relatedOrderStamp: null,
 
-    shippingDate:
-      order.requested_shipping_date?.trim() ||
-      null,
+    /*
+     * A data pretendida é uma informação interna da loja. A Stricker
+     * confirmou que ShippingDate é opcional e os exemplos oficiais de
+     * OrderV1 enviam este campo a null. Como a API não documenta o formato
+     * aceite, enviar a nossa data ISO (YYYY-MM-DD) provoca o erro 52.
+     */
+    shippingDate: null,
 
     noShipping: order.no_shipping,
 
