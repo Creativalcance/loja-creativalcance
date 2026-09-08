@@ -30,6 +30,7 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommercialForm";
 import AdminDeleteOrderForm from "@/components/admin/orders/AdminDeleteOrderForm";
 import AdminRetrySupplierSubmissionForm from "@/components/admin/orders/AdminRetrySupplierSubmissionForm";
+import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
 import { replaceSupplierBrandName } from "@/lib/supplier/display";
 
 export const dynamic = "force-dynamic";
@@ -641,7 +642,6 @@ async function getOrderItemViews(
         mockupPreviewUrl:
           signedMockupUrl ??
           item.mockup_url ??
-          item.technical_preview_url ??
           null,
       };
     }),
@@ -1796,6 +1796,34 @@ const supabaseAdmin = createSupabaseAdminClient();
                               <img
                                 src={item.mockupPreviewUrl}
                                 alt={`Mockup de ${item.product_name}`}
+                                className="max-h-56 w-full object-contain p-4"
+                              />
+                            ) : item.technical_preview_url &&
+                              item.logoPreviewUrl ? (
+                              <CustomizationLocationImage
+                                urls={[item.technical_preview_url]}
+                                artworkUrl={item.logoPreviewUrl}
+                                artworkPosition={{
+                                  x: Number(item.logo_position_x ?? 20),
+                                  y: Number(item.logo_position_y ?? 35),
+                                  width: Number(item.logo_scale ?? 60),
+                                  rotation: Number(item.logo_rotation ?? 0),
+                                }}
+                                printAreaAspectRatio={
+                                  item.printing_width_mm &&
+                                  item.printing_height_mm
+                                    ? Number(item.printing_width_mm) /
+                                      Number(item.printing_height_mm)
+                                    : 1
+                                }
+                                artworkAspectRatio={
+                                  item.logo_width_mm &&
+                                  item.logo_height_mm
+                                    ? Number(item.logo_width_mm) /
+                                      Number(item.logo_height_mm)
+                                    : 1
+                                }
+                                alt={`Maquete personalizada de ${item.product_name}`}
                                 className="max-h-56 w-full object-contain p-4"
                               />
                             ) : (
