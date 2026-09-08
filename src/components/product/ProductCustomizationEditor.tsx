@@ -465,6 +465,106 @@ function recolorLogo(params: {
   return canvas.toDataURL("image/png");
 }
 
+function createTightLogoPreview(image: HTMLImageElement): {
+  url: string | null;
+  aspectRatio: number;
+} {
+  const maximumPreviewSize = 1800;
+  const scale = Math.min(
+    1,
+    maximumPreviewSize / Math.max(image.naturalWidth, image.naturalHeight),
+  );
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+
+  if (!context) {
+    return {
+      url: null,
+      aspectRatio: image.naturalWidth / Math.max(image.naturalHeight, 1),
+    };
+  }
+
+  canvas.width = width;
+  canvas.height = height;
+  context.drawImage(image, 0, 0, width, height);
+
+  const pixels = context.getImageData(0, 0, width, height).data;
+  let left = width;
+  let top = height;
+  let right = -1;
+  let bottom = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const alpha = pixels[(y * width + x) * 4 + 3];
+
+      if (alpha <= 12) continue;
+
+      left = Math.min(left, x);
+      top = Math.min(top, y);
+      right = Math.max(right, x);
+      bottom = Math.max(bottom, y);
+    }
+  }
+
+  if (right < left || bottom < top) {
+    return {
+      url: null,
+      aspectRatio: image.naturalWidth / Math.max(image.naturalHeight, 1),
+    };
+  }
+
+  const contentWidth = right - left + 1;
+  const contentHeight = bottom - top + 1;
+  const hasUsefulTransparentMargin =
+    contentWidth < width * 0.98 || contentHeight < height * 0.98;
+
+  if (!hasUsefulTransparentMargin) {
+    return {
+      url: null,
+      aspectRatio: width / Math.max(height, 1),
+    };
+  }
+
+  const padding = Math.max(2, Math.round(Math.min(width, height) * 0.01));
+  const cropLeft = Math.max(0, left - padding);
+  const cropTop = Math.max(0, top - padding);
+  const cropRight = Math.min(width - 1, right + padding);
+  const cropBottom = Math.min(height - 1, bottom + padding);
+  const cropWidth = cropRight - cropLeft + 1;
+  const cropHeight = cropBottom - cropTop + 1;
+  const croppedCanvas = document.createElement("canvas");
+  const croppedContext = croppedCanvas.getContext("2d");
+
+  if (!croppedContext) {
+    return {
+      url: null,
+      aspectRatio: contentWidth / Math.max(contentHeight, 1),
+    };
+  }
+
+  croppedCanvas.width = cropWidth;
+  croppedCanvas.height = cropHeight;
+  croppedContext.drawImage(
+    canvas,
+    cropLeft,
+    cropTop,
+    cropWidth,
+    cropHeight,
+    0,
+    0,
+    cropWidth,
+    cropHeight,
+  );
+
+  return {
+    url: croppedCanvas.toDataURL("image/png"),
+    aspectRatio: cropWidth / Math.max(cropHeight, 1),
+  };
+}
+
 function getLogoHeightPercent(params: {
   logoWidthPercent: number;
   printAreaAspectRatio: number;
@@ -529,7 +629,7 @@ function normalizeRotation(value: number): number {
     return 0;
   }
 
-  const normalized = ((value + 180) % 360 + 360) % 360 - 180;
+  const normalized = ((value % 360) + 360) % 360;
   return Math.round(normalized * 10) / 10;
 }
 
@@ -559,8 +659,12 @@ function getCenteredFittedLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
   rotation: number;
+  maximumWidthPercent?: number;
 }): LogoPosition {
-  const maximumWidth = getMaximumLogoWidthPercent(params);
+  const maximumWidth = Math.min(
+    getMaximumLogoWidthPercent(params),
+    params.maximumWidthPercent ?? 100,
+  );
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: maximumWidth,
     printAreaAspectRatio: params.printAreaAspectRatio,
@@ -576,7 +680,25 @@ function getCenteredFittedLogoPosition(params: {
     },
     printAreaAspectRatio: params.printAreaAspectRatio,
     logoAspectRatio: params.logoAspectRatio,
+    maximumWidthPercent: params.maximumWidthPercent,
   });
+}
+
+function getMaximumPricedLogoWidthPercent(params: {
+  maximumAreaCm2: number | null;
+  logoAspectRatio: number;
+  printAreaWidthMm: number;
+}): number {
+  if (!params.maximumAreaCm2) return 100;
+
+  return Math.min(
+    100,
+    (Math.sqrt(
+      params.maximumAreaCm2 * 100 * Math.max(params.logoAspectRatio, 0.01),
+    ) /
+      params.printAreaWidthMm) *
+      100,
+  );
 }
 
 function getTableCodeOptionColorCount(
@@ -1066,16 +1188,11 @@ export default function ProductCustomizationEditor({
   const maximumPricedAreaCm2 = applicableAreaTiers.length
     ? Math.max(...applicableAreaTiers.map((tier) => tier.area_cm2 as number))
     : null;
-  const maximumPricedWidthPercent = maximumPricedAreaCm2
-    ? Math.min(
-        100,
-        (Math.sqrt(
-          maximumPricedAreaCm2 * 100 * Math.max(logoAspectRatio, 0.01),
-        ) /
-          printAreaDimensions.widthMm) *
-          100,
-      )
-    : 100;
+  const maximumPricedWidthPercent = getMaximumPricedLogoWidthPercent({
+    maximumAreaCm2: maximumPricedAreaCm2,
+    logoAspectRatio,
+    printAreaWidthMm: printAreaDimensions.widthMm,
+  });
 
   const safePosition = getSafeLogoPosition({
     position,
@@ -1083,6 +1200,16 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
     maximumWidthPercent: maximumPricedWidthPercent,
   });
+
+  const maximumAllowedLogoWidthPercent = getSafeLogoPosition({
+    position: {
+      ...safePosition,
+      width: 100,
+    },
+    printAreaAspectRatio: editorAreaAspectRatio,
+    logoAspectRatio,
+    maximumWidthPercent: maximumPricedWidthPercent,
+  }).width;
 
   const logoHeightPercent = getLogoHeightPercent({
     logoWidthPercent: safePosition.width,
@@ -1255,6 +1382,7 @@ export default function ProductCustomizationEditor({
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }, [selectedLocation?.id]);
@@ -1265,9 +1393,10 @@ export default function ProductCustomizationEditor({
         position: current,
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
-  }, [editorAreaAspectRatio, logoAspectRatio]);
+  }, [editorAreaAspectRatio, logoAspectRatio, maximumPricedWidthPercent]);
 
   useEffect(() => {
     return () => {
@@ -1303,11 +1432,29 @@ export default function ProductCustomizationEditor({
 
     image.onload = () => {
       if (image.naturalWidth > 0 && image.naturalHeight > 0) {
-        const nextLogoAspectRatio = image.naturalWidth / image.naturalHeight;
+        let tightPreview = {
+          url: null as string | null,
+          aspectRatio: image.naturalWidth / image.naturalHeight,
+        };
+
+        try {
+          tightPreview = createTightLogoPreview(image);
+        } catch {
+          // SVGs com recursos externos podem bloquear a leitura do canvas.
+          // Nesses casos mantemos a pré-visualização original sem impedir o upload.
+        }
+
+        const nextLogoAspectRatio = tightPreview.aspectRatio;
         const rotation = getSuggestedRotation({
           printAreaAspectRatio,
           logoAspectRatio: nextLogoAspectRatio,
         });
+        const nextMaximumPricedWidthPercent =
+          getMaximumPricedLogoWidthPercent({
+            maximumAreaCm2: maximumPricedAreaCm2,
+            logoAspectRatio: nextLogoAspectRatio,
+            printAreaWidthMm: printAreaDimensions.widthMm,
+          });
 
         setLogoAspectRatio(nextLogoAspectRatio);
         setDetectedLogoColors(detectLogoColors(image));
@@ -1322,9 +1469,20 @@ export default function ProductCustomizationEditor({
             printAreaAspectRatio: editorAreaAspectRatio,
             logoAspectRatio: nextLogoAspectRatio,
             rotation,
+            maximumWidthPercent: nextMaximumPricedWidthPercent,
           }),
         );
+
+        if (tightPreview.url) {
+          setLogoPreviewUrl(tightPreview.url);
+          URL.revokeObjectURL(objectUrl);
+        }
       }
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setLogoPreviewUrl(null);
     };
 
     image.src = objectUrl;
@@ -1340,6 +1498,7 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1373,6 +1532,7 @@ export default function ProductCustomizationEditor({
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1383,6 +1543,7 @@ export default function ProductCustomizationEditor({
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation: safePosition.rotation,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1405,6 +1566,7 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1463,6 +1625,7 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
+        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1959,7 +2122,8 @@ export default function ProductCustomizationEditor({
                   <button
                     type="button"
                     onClick={reduceLogo}
-                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
+                    disabled={safePosition.width <= Math.min(10, maximumAllowedLogoWidthPercent)}
+                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Minus className="mr-1.5 h-4 w-4" />
                     {copy.reduce}
@@ -1977,7 +2141,8 @@ export default function ProductCustomizationEditor({
                   <button
                     type="button"
                     onClick={enlargeLogo}
-                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
+                    disabled={safePosition.width >= maximumAllowedLogoWidthPercent}
+                    className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Plus className="mr-1.5 h-4 w-4" />
                     {copy.enlarge}
@@ -2039,8 +2204,8 @@ export default function ProductCustomizationEditor({
 
                       <input
                         type="range"
-                        min="10"
-                        max="100"
+                        min={Math.min(10, maximumAllowedLogoWidthPercent)}
+                        max={maximumAllowedLogoWidthPercent}
                         value={safePosition.width}
                         onChange={(event) =>
                           updatePosition("width", Number(event.target.value))
@@ -2057,8 +2222,8 @@ export default function ProductCustomizationEditor({
 
                       <input
                         type="range"
-                        min="-180"
-                        max="180"
+                        min="0"
+                        max="359"
                         step="1"
                         value={safePosition.rotation}
                         onChange={(event) =>
@@ -2068,14 +2233,14 @@ export default function ProductCustomizationEditor({
                       />
 
                       <div className="mt-3 grid grid-cols-4 gap-2">
-                        {[0, 90, 180, -90].map((rotation) => (
+                        {[0, 90, 180, 270].map((rotation) => (
                           <button
                             key={rotation}
                             type="button"
                             onClick={() => updatePosition("rotation", rotation)}
                             className="rounded-xl border border-neutral-200 bg-white px-2 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400"
                           >
-                            {rotation === -90 ? "270º" : `${rotation}º`}
+                            {`${rotation}º`}
                           </button>
                         ))}
                       </div>
