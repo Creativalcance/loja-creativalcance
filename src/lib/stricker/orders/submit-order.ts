@@ -22,6 +22,7 @@ import {
   type StrickerMappedOrder,
   type StrickerOrderDatabaseItem,
   type StrickerOrderDatabaseRecord,
+  type StrickerPlaceOrderPayload,
   type StrickerServiceArtworkFile,
   type SubmitOrderToStrickerResult,
 } from "@/lib/stricker/orders/types";
@@ -205,12 +206,17 @@ function getFileNameParts(fileName: string): {
   const extension = path.extname(fileName);
 
   const baseName =
-    path.basename(fileName, extension).trim() ||
-    "artwork";
+    path
+      .basename(fileName, extension)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 100) || "artwork";
 
   return {
     baseName,
-    extension: extension || "",
+    extension: extension.toLowerCase() || "",
   };
 }
 
@@ -634,6 +640,130 @@ async function downloadArtworkFile(params: {
   };
 }
 
+async function prepareProductPayloadWithArtwork(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  order: StrickerOrderDatabaseRecord;
+  mappedOrder: StrickerMappedOrder;
+}): Promise<{
+  payload: StrickerPlaceOrderPayload;
+  embeddedArtworkItemIds: string[];
+}> {
+  const serviceItemsByOrderItemId = new Map(
+    params.mappedOrder.serviceItems.map((item) => [
+      item.orderItemId,
+      item.servicePayload,
+    ]),
+  );
+  const embeddedArtworkItemIds: string[] = [];
+
+  const orderLines = await Promise.all(
+    params.mappedOrder.productPayload.order.map(
+      async (line, index) => {
+        const item = params.order.order_items[index];
+
+        if (!item?.personalization_required) {
+          return line;
+        }
+
+        const servicePayload = serviceItemsByOrderItemId.get(item.id);
+
+        if (!servicePayload) {
+          throw new Error(
+            `Não foi possível preparar a personalização de "${item.product_name}".`,
+          );
+        }
+
+        if (!item.logo_storage_path && !item.logo_url) {
+          return {
+            ...line,
+            WaitArtWork: true,
+          };
+        }
+
+        const artworkFile = await downloadArtworkFile({
+          supabaseAdmin: params.supabaseAdmin,
+          item,
+        });
+        const {
+          OrderLineStamp: _orderLineStamp,
+          ...embeddedServiceLine
+        } = servicePayload;
+
+        embeddedArtworkItemIds.push(item.id);
+
+        return {
+          ...line,
+          WaitArtWork: false,
+          ServiceOrderLines: [
+            {
+              ...embeddedServiceLine,
+              Files: [artworkFile],
+            },
+          ],
+        };
+      },
+    ),
+  );
+
+  return {
+    payload: {
+      ...params.mappedOrder.productPayload,
+      order: orderLines,
+    },
+    embeddedArtworkItemIds,
+  };
+}
+
+function redactArtworkBytes(
+  payload: StrickerPlaceOrderPayload,
+): JsonRecord {
+  return {
+    ...payload,
+    order: payload.order.map((line) => ({
+      ...line,
+      ServiceOrderLines: line.ServiceOrderLines?.map(
+        (serviceLine) => ({
+          ...serviceLine,
+          Files: serviceLine.Files.map((file) => ({
+            FileName: file.FileName,
+            FileExtension: file.FileExtension,
+            FileSize: file.FileBytes.length,
+          })),
+        })),
+    })),
+  } as unknown as JsonRecord;
+}
+
+async function markEmbeddedArtworkAsSubmitted(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  orderStamp: string;
+  orderItemIds: string[];
+  response: JsonRecord;
+}): Promise<void> {
+  if (params.orderItemIds.length === 0) {
+    return;
+  }
+
+  const submittedAt = new Date().toISOString();
+
+  for (const orderItemId of params.orderItemIds) {
+    await updateOrderItemSubmissionState({
+      supabaseAdmin: params.supabaseAdmin,
+      orderItemId,
+      values: {
+        supplier_order_stamp: params.orderStamp,
+        supplier_line_status: "submitted",
+        supplier_submission_status: "submitted",
+        supplier_submission_error: null,
+        supplier_submitted_at: submittedAt,
+        supplier_artwork_submission_status: "submitted",
+        supplier_artwork_submitted_at: submittedAt,
+        supplier_line_response: params.response,
+      },
+    });
+  }
+}
+
 function buildOrderLineAssignments(params: {
   mappedOrder: StrickerMappedOrder;
   responseLines: JsonRecord[];
@@ -743,6 +873,13 @@ async function submitPersonalizations(params: {
             | null;
         }>();
 
+    if (
+      storedItem?.supplier_artwork_submission_status ===
+      "submitted"
+    ) {
+      continue;
+    }
+
     const orderLineStamp =
       storedItem?.supplier_order_line_stamp ??
       freshItem.supplier_order_line_stamp;
@@ -764,13 +901,6 @@ async function submitPersonalizations(params: {
         },
       });
 
-      continue;
-    }
-
-    if (
-      storedItem?.supplier_artwork_submission_status ===
-      "submitted"
-    ) {
       continue;
     }
 
@@ -1105,6 +1235,15 @@ export async function submitPaidOrderToStricker(
 
   try {
     if (!supplierOrderStamp) {
+      const preparedOrder =
+        await prepareProductPayloadWithArtwork({
+          supabaseAdmin,
+          order,
+          mappedOrder,
+        });
+      const persistedProductPayload =
+        redactArtworkBytes(preparedOrder.payload);
+
       productEventId =
         await createSupplierEvent({
           supabaseAdmin,
@@ -1113,8 +1252,7 @@ export async function submitPaidOrderToStricker(
             order.order_items[0]?.supplier_id ??
             null,
           eventType: "product_order_submission",
-          requestPayload:
-            mappedOrder.productPayload as unknown as JsonRecord,
+          requestPayload: persistedProductPayload,
           attemptNumber,
         });
 
@@ -1123,13 +1261,13 @@ export async function submitPaidOrderToStricker(
         orderId: order.id,
         values: {
           supplier_submission_payload:
-            mappedOrder.productPayload as unknown as JsonRecord,
+            persistedProductPayload,
         },
       });
 
       const productResult =
         await submitStrickerProductOrder(
-          mappedOrder.productPayload,
+          preparedOrder.payload,
           {
             testMode: mappedOrder.testMode,
           },
@@ -1177,6 +1315,15 @@ export async function submitPaidOrderToStricker(
         supabaseAdmin,
         orderStamp: supplierOrderStamp,
         assignments,
+      });
+
+      await markEmbeddedArtworkAsSubmitted({
+        supabaseAdmin,
+        orderStamp: supplierOrderStamp,
+        orderItemIds:
+          preparedOrder.embeddedArtworkItemIds,
+        response:
+          productResult.response as unknown as JsonRecord,
       });
 
       await completeSupplierEvent({

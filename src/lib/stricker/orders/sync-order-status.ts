@@ -64,7 +64,7 @@ export async function syncSubmittedStrickerOrders() {
   const { data, error } = await admin.from("orders")
     .select("id,order_number,supplier_order_stamp,supplier_test_mode,supplier_last_status,supplier_shipping_date,supplier_tracking_number,supplier_tracking_url,supplier_last_checked_at,status,fulfillment_status,shipped_at,cancelled_at")
     .not("supplier_order_stamp", "is", null).is("deleted_at", null)
-    .or("supplier_last_status.is.null,supplier_last_status.not.in.(SENT,CANCELED),and(supplier_last_status.eq.SENT,supplier_tracking_number.is.null,supplier_tracking_url.is.null)")
+    .or("supplier_last_status.is.null,supplier_last_status.not.in.(SHIPPED,SENT,CANCELED,CANCELLED),and(supplier_last_status.in.(SHIPPED,SENT),supplier_tracking_number.is.null,supplier_tracking_url.is.null)")
     .order("supplier_last_checked_at", { ascending: true, nullsFirst: true })
     .limit(MAX_ORDERS_PER_EXECUTION)
     .returns<SubmittedOrder[]>();
@@ -116,7 +116,7 @@ export async function syncSubmittedStrickerOrders() {
         });
       }
 
-      if (status === "SENT") {
+      if (status === "SHIPPED" || status === "SENT") {
         Object.assign(values, {
           status: "shipped",
           fulfillment_status: "shipped",
@@ -126,7 +126,7 @@ export async function syncSubmittedStrickerOrders() {
         });
       }
 
-      if (status === "CANCELED") {
+      if (status === "CANCELED" || status === "CANCELLED") {
         Object.assign(values, {
           status: "cancelled",
           fulfillment_status: "cancelled",

@@ -61,33 +61,6 @@ function getRecordBoolean(
   return null;
 }
 
-function getRecordNumber(
-  record: JsonRecord,
-  key: string,
-): number | null {
-  const value = record[key];
-
-  if (
-    typeof value === "number" &&
-    Number.isFinite(value)
-  ) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const parsed = Number(
-      value
-        .replace(/\s+/g, "")
-        .replace(",", ".")
-        .replace(/[^\d.-]/g, ""),
-    );
-
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-
-  return null;
-}
-
 function normalizeCountryCode(value: string | null): string {
   const normalized = value?.trim().toUpperCase();
 
@@ -213,35 +186,14 @@ function getTableOptionColorCount(
   return count && Number.isInteger(count) && count > 0 ? count : null;
 }
 
-function getCustomizationGroup(
-  item: StrickerOrderDatabaseItem,
-): number {
-  const group = getRecordNumber(
-    item.personalization_data,
-    "group",
-  );
-
-  if (
-    group !== null &&
-    Number.isInteger(group) &&
-    group >= 1 &&
-    group <= 3
-  ) {
-    return group;
-  }
-
-  return 1;
-}
-
 function getLogoArea(
   item: StrickerOrderDatabaseItem,
 ): number {
   /*
-   * ServiceOrderV1 trabalha com o tamanho do logótipo em centímetros.
-   * O exemplo oficial da Stricker envia Width=1.5, Height=1.5 e
-   * LogoArea=2.25. Na nossa base, width/height são guardados em mm e
-   * logo_area é guardada em mm². Fazemos a conversão apenas no payload
-   * enviado ao fornecedor, sem alterar os valores persistidos na loja.
+   * A área usada nas tabelas de personalização da Stricker é expressa em
+   * cm². Na nossa base, logo_area é guardada em mm², pelo que apenas a área
+   * é convertida. LogoWidth e LogoHeight são enviados em milímetros, tal
+   * como confirmado diretamente pelo fornecedor.
    */
   if (
     item.logo_area !== null &&
@@ -269,13 +221,13 @@ function getLogoArea(
 function getLogoWidth(
   item: StrickerOrderDatabaseItem,
 ): number {
-  return Number((Number(item.logo_width_mm ?? 0) / 10).toFixed(4));
+  return Number(Number(item.logo_width_mm ?? 0).toFixed(4));
 }
 
 function getLogoHeight(
   item: StrickerOrderDatabaseItem,
 ): number {
-  return Number((Number(item.logo_height_mm ?? 0) / 10).toFixed(4));
+  return Number(Number(item.logo_height_mm ?? 0).toFixed(4));
 }
 
 function buildServiceOrderLine(
@@ -303,8 +255,6 @@ function buildServiceOrderLine(
     LogoWidth: getLogoWidth(item),
     LogoHeight: getLogoHeight(item),
 
-    Group: getCustomizationGroup(item),
-
     Appproved: getArtworkApproved(item),
 
     /*
@@ -331,9 +281,25 @@ function buildDestination(
     .trim()
     .match(/^(\d{4})[-\s]?(\d{3})$/);
 
+  const recipient =
+    address.company_name?.trim() ||
+    order.company_name?.trim() ||
+    address.contact_name?.trim() ||
+    order.customer_name.trim();
+
+  const streetAddress = [
+    address.address_line_1,
+    address.address_line_2,
+  ]
+    .map((value) => value?.trim())
+    .filter((value): value is string => Boolean(value))
+    .join(", ");
+
   return {
-    AddressLine1: address.address_line_1,
-    AddressLine2: address.address_line_2 ?? "",
+    // A documentação da Stricker define a primeira linha como destinatário
+    // e a segunda como morada. Ambas são obrigatórias.
+    AddressLine1: recipient,
+    AddressLine2: streetAddress,
 
     Postalcode:
       postalCodeParts?.[1] ?? address.postal_code,
@@ -428,6 +394,17 @@ export function validateOrderForStricker(
       field: "customer_email",
       message:
         "O e-mail do cliente está em falta.",
+    });
+  }
+
+  if (
+    !order.shipping_address?.contact_phone?.trim() &&
+    !order.customer_phone?.trim()
+  ) {
+    issues.push({
+      field: "shipping_address.contact_phone",
+      message:
+        "O telefone do contacto da morada está em falta.",
     });
   }
 
@@ -584,15 +561,14 @@ export function mapOrderToStricker(
           ? "PRINT"
           : "SIMPLE",
 
-        /*
-         * Na implementação REST efetivamente aceite pela Stricker, a linha
-         * PRINT tem de ser criada em WAITING_ART_WORK para que OrderV1
-         * devolva OrderStamp/OrderLineStamp. A arte é enviada logo de seguida
-         * por ServiceOrderV1, portanto não existe atraso funcional no nosso
-         * checkout. Este é também o fluxo já comprovado nas encomendas
-         * personalizadas submetidas com sucesso pelo projeto.
-         */
-        WaitArtWork: item.personalization_required,
+        // O checkout exige o ficheiro antes do pagamento. A Stricker confirmou
+        // que, nesse caso, a linha PRINT deve seguir com WaitArtWork=false e
+        // ServiceOrderLines no próprio OrderV1. O payload com os bytes é
+        // completado em submit-order.ts imediatamente antes do pedido.
+        WaitArtWork:
+          item.personalization_required &&
+          !item.logo_storage_path &&
+          !item.logo_url,
 
         Sample: false,
       };
@@ -616,7 +592,9 @@ export function mapOrderToStricker(
 
     relatedOrderStamp: null,
 
-    shippingDate: null,
+    shippingDate:
+      order.requested_shipping_date?.trim() ||
+      null,
 
     noShipping: order.no_shipping,
 

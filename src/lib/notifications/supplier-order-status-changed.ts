@@ -34,12 +34,15 @@ const DEFAULT_FROM_EMAIL =
 const STATUS_LABELS: Record<string, string> = {
   WAITING_ART_WORK: "A aguardar ficheiros de personalização",
   PROCESSING: "Em processamento",
+  PRODUCTION: "Em produção",
   WAITING_STOCK: "A aguardar stock",
   PROCESSED: "Processada",
   PENDING_MOCKUP_APPROVAL: "Maquete pendente de aprovação",
   INVOICED: "Faturada",
   SENT: "Expedida",
+  SHIPPED: "Expedida",
   CANCELED: "Cancelada",
+  CANCELLED: "Cancelada",
 };
 
 function escapeHtml(value: string): string {

@@ -17,10 +17,13 @@ export type StrickerOrderStatus =
   | "PROCESSING"
   | "WAITING_STOCK"
   | "PROCESSED"
+  | "PRODUCTION"
   | "PENDING_MOCKUP_APPROVAL"
   | "INVOICED"
+  | "SHIPPED"
   | "SENT"
   | "CANCELED"
+  | "CANCELLED"
   | string;
 
 export type StrickerDestinationPayload = {
@@ -53,7 +56,7 @@ export type StrickerServiceOrderLinePayload = {
   LogoWidth: number;
   LogoHeight: number;
 
-  Group: number;
+  Group?: number;
   Appproved: boolean;
 
   Files: StrickerServiceArtworkFile[];
@@ -65,6 +68,9 @@ export type StrickerProductOrderLinePayload = {
   LineType: StrickerOrderLineType;
   WaitArtWork: boolean;
   Sample: boolean;
+  ServiceOrderLines?: Array<
+    Omit<StrickerServiceOrderLinePayload, "OrderLineStamp">
+  >;
 };
 
 export type StrickerPlaceOrderPayload = {
