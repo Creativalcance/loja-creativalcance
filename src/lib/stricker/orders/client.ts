@@ -143,9 +143,24 @@ async function readJsonResponse(
   const trimmedResponse = responseText.trim();
 
   if (!response.ok) {
+    const isGatewayFailure = [502, 503, 504].includes(response.status);
+    const isHtmlResponse =
+      response.headers.get("content-type")?.toLowerCase().includes("text/html") ||
+      /^\s*(?:<!doctype\s+html|<html\b)/i.test(trimmedResponse);
+
+    if (isGatewayFailure) {
+      throw new Error(
+        `O serviço do fornecedor está temporariamente indisponível em ${method} (HTTP ${response.status}). Confirma no portal do fornecedor se a encomenda foi criada antes de a reenviar.`,
+      );
+    }
+
+    const safeDetail = isHtmlResponse
+      ? response.statusText
+      : trimmedResponse.replace(/\s+/g, " ").slice(0, 500);
+
     throw new Error(
       `Erro HTTP do fornecedor ${method}: ${response.status} ${
-        trimmedResponse || response.statusText
+        safeDetail || response.statusText
       }`,
     );
   }
