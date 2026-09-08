@@ -31,7 +31,7 @@ export default function AdminRetrySupplierSubmissionForm({
       onSubmit={(event) => {
         if (
           !window.confirm(
-            `Reenviar a encomenda ${orderNumber} ao fornecedor?`,
+            `Antes de reenviar, confirma que não existe na Stricker uma encomenda com a referência ${orderNumber}. Um erro HTTP pode ocorrer depois de o fornecedor criar a encomenda. Pretendes continuar?`,
           )
         ) {
           event.preventDefault();
