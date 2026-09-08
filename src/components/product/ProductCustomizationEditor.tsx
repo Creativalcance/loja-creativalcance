@@ -580,7 +580,6 @@ function getSafeLogoPosition(params: {
   position: LogoPosition;
   printAreaAspectRatio: number;
   logoAspectRatio: number;
-  maximumWidthPercent?: number;
 }): LogoPosition {
   const rotation = normalizeRotation(params.position.rotation);
   const rotationRadians = (rotation * Math.PI) / 180;
@@ -593,7 +592,6 @@ function getSafeLogoPosition(params: {
     100,
     widthLimit,
     heightLimit,
-    params.maximumWidthPercent ?? 100,
   );
   const safeWidth = clamp(params.position.width, Math.min(10, maximumWidth), maximumWidth);
 
@@ -659,12 +657,8 @@ function getCenteredFittedLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
   rotation: number;
-  maximumWidthPercent?: number;
 }): LogoPosition {
-  const maximumWidth = Math.min(
-    getMaximumLogoWidthPercent(params),
-    params.maximumWidthPercent ?? 100,
-  );
+  const maximumWidth = getMaximumLogoWidthPercent(params);
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: maximumWidth,
     printAreaAspectRatio: params.printAreaAspectRatio,
@@ -680,25 +674,7 @@ function getCenteredFittedLogoPosition(params: {
     },
     printAreaAspectRatio: params.printAreaAspectRatio,
     logoAspectRatio: params.logoAspectRatio,
-    maximumWidthPercent: params.maximumWidthPercent,
   });
-}
-
-function getMaximumPricedLogoWidthPercent(params: {
-  maximumAreaCm2: number | null;
-  logoAspectRatio: number;
-  printAreaWidthMm: number;
-}): number {
-  if (!params.maximumAreaCm2) return 100;
-
-  return Math.min(
-    100,
-    (Math.sqrt(
-      params.maximumAreaCm2 * 100 * Math.max(params.logoAspectRatio, 0.01),
-    ) /
-      params.printAreaWidthMm) *
-      100,
-  );
 }
 
 function getTableCodeOptionColorCount(
@@ -1178,27 +1154,10 @@ export default function ProductCustomizationEditor({
         ? { width: "92%", height: "64%" }
         : { width: "78%", height: "82%" };
 
-  const applicableAreaTiers = (selectedLocation?.price_tiers ?? []).filter(
-    (tier) =>
-      tier.area_cm2 !== null &&
-      tier.area_cm2 > 0 &&
-      (!effectivePrintColorMode ||
-        getPrintColorMode(tier) === effectivePrintColorMode),
-  );
-  const maximumPricedAreaCm2 = applicableAreaTiers.length
-    ? Math.max(...applicableAreaTiers.map((tier) => tier.area_cm2 as number))
-    : null;
-  const maximumPricedWidthPercent = getMaximumPricedLogoWidthPercent({
-    maximumAreaCm2: maximumPricedAreaCm2,
-    logoAspectRatio,
-    printAreaWidthMm: printAreaDimensions.widthMm,
-  });
-
   const safePosition = getSafeLogoPosition({
     position,
     printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
-    maximumWidthPercent: maximumPricedWidthPercent,
   });
 
   const maximumAllowedLogoWidthPercent = getSafeLogoPosition({
@@ -1208,7 +1167,6 @@ export default function ProductCustomizationEditor({
     },
     printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
-    maximumWidthPercent: maximumPricedWidthPercent,
   }).width;
 
   const logoHeightPercent = getLogoHeightPercent({
@@ -1382,7 +1340,6 @@ export default function ProductCustomizationEditor({
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }, [selectedLocation?.id]);
@@ -1393,10 +1350,9 @@ export default function ProductCustomizationEditor({
         position: current,
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
-  }, [editorAreaAspectRatio, logoAspectRatio, maximumPricedWidthPercent]);
+  }, [editorAreaAspectRatio, logoAspectRatio]);
 
   useEffect(() => {
     return () => {
@@ -1449,13 +1405,6 @@ export default function ProductCustomizationEditor({
           printAreaAspectRatio,
           logoAspectRatio: nextLogoAspectRatio,
         });
-        const nextMaximumPricedWidthPercent =
-          getMaximumPricedLogoWidthPercent({
-            maximumAreaCm2: maximumPricedAreaCm2,
-            logoAspectRatio: nextLogoAspectRatio,
-            printAreaWidthMm: printAreaDimensions.widthMm,
-          });
-
         setLogoAspectRatio(nextLogoAspectRatio);
         setDetectedLogoColors(detectLogoColors(image));
         setSelectedPantoneColors(
@@ -1469,7 +1418,6 @@ export default function ProductCustomizationEditor({
             printAreaAspectRatio: editorAreaAspectRatio,
             logoAspectRatio: nextLogoAspectRatio,
             rotation,
-            maximumWidthPercent: nextMaximumPricedWidthPercent,
           }),
         );
 
@@ -1498,7 +1446,6 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1532,7 +1479,6 @@ export default function ProductCustomizationEditor({
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1543,7 +1489,6 @@ export default function ProductCustomizationEditor({
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
         rotation: safePosition.rotation,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1566,7 +1511,6 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
@@ -1625,7 +1569,6 @@ export default function ProductCustomizationEditor({
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
-        maximumWidthPercent: maximumPricedWidthPercent,
       }),
     );
   }
