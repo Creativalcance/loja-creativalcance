@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSiteLocale } from "@/lib/i18n/config";
+import { sendNewsletterWelcomeEmail } from "@/lib/newsletter/welcome-email";
 
 export type NewsletterActionState = { success: boolean; message: string };
 
@@ -30,23 +31,39 @@ export async function subscribeNewsletterAction(
   }
 
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase.from("newsletter_subscribers").upsert(
+  const consentedAt = new Date().toISOString();
+  const { data: subscriber, error } = await supabase.from("newsletter_subscribers").upsert(
     {
       name,
       email,
       locale,
       status: "active",
       source: "website_footer",
-      consented_at: new Date().toISOString(),
+      consented_at: consentedAt,
       unsubscribed_at: null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "email" },
-  );
+  ).select("id,welcome_email_status").single<{ id: string; welcome_email_status: string }>();
 
   if (error) {
     console.error("Newsletter subscription error", { code: error.code });
     return { success: false, message: "Não foi possível concluir a subscrição. Tente novamente." };
+  }
+
+  try {
+    await sendNewsletterWelcomeEmail({
+      subscriberId: subscriber.id,
+      consentedAt,
+      name,
+      email,
+      locale,
+    });
+  } catch (emailError) {
+    console.error("Newsletter welcome email error", {
+      subscriberId: subscriber.id,
+      message: emailError instanceof Error ? emailError.message : "Unknown error",
+    });
   }
 
   revalidatePath("/admin/newsletter");

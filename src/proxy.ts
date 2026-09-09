@@ -10,6 +10,17 @@ export async function proxy(request: NextRequest) {
   const applicationPath = localizedPath
     ? originalPath.replace(new RegExp(`^/${firstSegment}(?=/|$)`), "") || "/"
     : originalPath;
+  const isAdminPath = applicationPath.startsWith("/admin") || applicationPath.startsWith("/api/admin");
+  const isCustomerPath = applicationPath.startsWith("/area-cliente");
+  const isCheckoutPath = applicationPath === "/checkout" || applicationPath.startsWith("/checkout/");
+  const isAuthPath =
+    applicationPath.startsWith("/auth/") ||
+    applicationPath === "/login" ||
+    applicationPath === "/logout" ||
+    applicationPath === "/registo" ||
+    applicationPath === "/recuperar-password" ||
+    applicationPath === "/nova-password";
+  const needsSessionHandling = isAdminPath || isCustomerPath || isCheckoutPath || isAuthPath;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-site-locale", locale);
 
@@ -26,16 +37,22 @@ export async function proxy(request: NextRequest) {
       nextResponse = NextResponse.next({ request: { headers: requestHeaders } });
     }
 
-    nextResponse.cookies.set("site-locale", locale, {
-      path: "/",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 365,
-    });
+    if (request.cookies.get("site-locale")?.value !== locale) {
+      nextResponse.cookies.set("site-locale", locale, {
+        path: "/",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
 
     return nextResponse;
   }
 
   let response = createResponse();
+
+  if (!needsSessionHandling) {
+    return response;
+  }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -69,10 +86,8 @@ export async function proxy(request: NextRequest) {
 
   const { data: claimsData } = await supabase.auth.getClaims();
   const path = applicationPath;
-  const isAdminPath = path.startsWith("/admin") || path.startsWith("/api/admin");
-  const isCustomerPath = path.startsWith("/area-cliente");
 
-  if (isCustomerPath || path === "/checkout" || path.startsWith("/checkout/")) {
+  if (isCustomerPath || isCheckoutPath) {
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
   }
 
