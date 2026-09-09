@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
-import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
+import NewsletterPlacement from "@/components/newsletter/NewsletterPlacement";
 import { getCurrentLocale } from "@/lib/i18n/server";
 
 type PublicLayoutProps = {
@@ -14,7 +14,7 @@ export default async function PublicLayout({ children }: PublicLayoutProps) {
     <>
       <SiteHeader />
       {children}
-      <NewsletterSignup locale={locale} />
+      <NewsletterPlacement locale={locale} />
       <SiteFooter />
     </>
   );
