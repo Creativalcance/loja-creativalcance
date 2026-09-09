@@ -64,28 +64,43 @@ type CategoryCard = {
   imageUrl: string;
   href: string;
   icon: LucideIcon;
+  layoutClassName: string;
+  imageSizes: string;
+  imagePositionClassName?: string;
 };
 
 const categoryCards: CategoryCard[] = [
   {
-    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/92590_set.jpg",
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93669_amb.jpg",
     href: "/categorias/Escrit%C3%B3rio",
     icon: Gift,
+    layoutClassName: "lg:col-span-7",
+    imageSizes: "(min-width: 1280px) 720px, (min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
+    imagePositionClassName: "object-center",
   },
   {
-    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93674_set.jpg",
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93673_amb.jpg",
     href: "/categorias/Escrit%C3%B3rio",
     icon: Building2,
+    layoutClassName: "lg:col-span-5",
+    imageSizes: "(min-width: 1280px) 520px, (min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
+    imagePositionClassName: "object-center",
   },
   {
-    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/11182_113-a.jpg",
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/30139_amb.jpg",
     href: "/categorias/T%C3%AAxtil",
     icon: Shirt,
+    layoutClassName: "lg:col-span-5",
+    imageSizes: "(min-width: 1280px) 520px, (min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
+    imagePositionClassName: "object-center",
   },
   {
-    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/92581_set.jpg",
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/92824_amb.jpg",
     href: "/categorias/Compras",
     icon: Sparkles,
+    layoutClassName: "lg:col-span-7",
+    imageSizes: "(min-width: 1280px) 720px, (min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
+    imagePositionClassName: "object-center",
   },
 ];
 
@@ -184,7 +199,7 @@ export default async function HomePage() {
               </Link>
             </div>
 
-            <div className="mt-9 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-12 lg:gap-6">
               {categoryCards.map((category, index) => {
                 const [title, description] = messages.categoryCards[index];
                 const Icon = category.icon;
@@ -194,27 +209,33 @@ export default async function HomePage() {
                     key={category.href + index}
                     href={localizePath(category.href, locale)}
                     aria-label={`${messages.explore} ${title}`}
-                    className="group overflow-hidden rounded-[1.75rem] border border-[#162334]/10 bg-white shadow-[0_18px_50px_rgba(22,35,52,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_65px_rgba(22,35,52,0.14)]"
+                    className={`group relative isolate min-h-[27rem] overflow-hidden rounded-[2rem] bg-[#162334] shadow-[0_18px_50px_rgba(22,35,52,0.12)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(22,35,52,0.22)] md:min-h-[30rem] ${category.layoutClassName}`}
                   >
-                    <div className="relative aspect-[4/3] overflow-hidden bg-white">
-                      <Image
-                        src={category.imageUrl}
-                        alt=""
-                        fill
-                        sizes="(min-width: 1280px) 290px, (min-width: 768px) 50vw, 100vw"
-                        className="object-contain p-5 transition duration-500 group-hover:scale-[1.04]"
-                      />
-                      <span className="absolute left-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#162334] text-white shadow-lg">
-                        <Icon className="h-5 w-5" aria-hidden="true" />
-                      </span>
-                    </div>
+                    <Image
+                      src={category.imageUrl}
+                      alt=""
+                      fill
+                      priority={index === 0}
+                      sizes={category.imageSizes}
+                      className={`-z-20 object-cover transition duration-700 ease-out group-hover:scale-[1.045] ${category.imagePositionClassName ?? "object-center"}`}
+                    />
+                    <div
+                      aria-hidden="true"
+                      className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(16,27,42,0.04)_20%,rgba(16,27,42,0.38)_58%,rgba(16,27,42,0.96)_100%)] transition duration-500 group-hover:bg-[linear-gradient(180deg,rgba(16,27,42,0.02)_15%,rgba(16,27,42,0.32)_54%,rgba(16,27,42,0.97)_100%)]"
+                    />
 
-                    <div className="border-t border-[#162334]/8 p-6">
-                      <h3 className="text-xl font-semibold tracking-tight">{title}</h3>
-                      <p className="mt-3 min-h-18 text-sm leading-6 text-[#162334]/60">
+                    <span className="absolute left-6 top-6 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/25 bg-[#162334]/75 text-white shadow-lg backdrop-blur-md md:left-7 md:top-7">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+
+                    <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-8">
+                      <h3 className="max-w-xl text-2xl font-semibold tracking-[-0.025em] md:text-3xl">
+                        {title}
+                      </h3>
+                      <p className="mt-3 max-w-xl text-sm leading-6 text-white/75 md:text-base md:leading-7">
                         {description}
                       </p>
-                      <span className="mt-5 inline-flex items-center text-sm font-semibold text-[#e85f00]">
+                      <span className="mt-5 inline-flex items-center rounded-full bg-[#ff6a00] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_30px_rgba(255,106,0,0.28)] transition duration-300 group-hover:bg-[#ff7a1a]">
                         {messages.seeProducts}
                         <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" aria-hidden="true" />
                       </span>
