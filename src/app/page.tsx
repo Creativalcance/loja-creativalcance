@@ -14,6 +14,7 @@ import type { LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import SiteFooter from "@/components/layout/SiteFooter";
 import SiteHeader from "@/components/layout/SiteHeader";
+import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 import SmartMerchSearchForm from "@/components/smart-merch/SmartMerchSearchForm";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerLanguage, localizePath, type SiteLocale } from "@/lib/i18n/config";
@@ -885,6 +886,7 @@ export default async function HomePage() {
           </div>
         </section>
       </main>
+      <NewsletterSignup locale={locale} />
       <SiteFooter />
     </>
   );
