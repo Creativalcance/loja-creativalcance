@@ -2,14 +2,28 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
+  Backpack,
+  Baby,
+  Badge,
   Building2,
+  CalendarDays,
   CheckCircle2,
+  CircleDot,
+  Cpu,
+  CupSoda,
+  Dumbbell,
   Gift,
+  House,
+  KeyRound,
   LayoutGrid,
+  Package,
   Palette,
+  PenLine,
   Shirt,
   ShoppingCart,
   Sparkles,
+  TreePine,
+  Umbrella,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
@@ -69,6 +83,10 @@ type CategoryCard = {
   imagePositionClassName?: string;
 };
 
+type AdditionalCategoryCard = CategoryCard & {
+  label: Record<SiteLocale, string>;
+};
+
 const categoryCards: CategoryCard[] = [
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93669_amb.jpg",
@@ -104,11 +122,150 @@ const categoryCards: CategoryCard[] = [
   },
 ];
 
+const additionalCategoryCards: AdditionalCategoryCard[] = [
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/96191_103.jpg",
+    href: "/categorias/Agendas",
+    icon: CalendarDays,
+    layoutClassName: "lg:col-span-5",
+    imageSizes: "(min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Agendas", en: "Diaries & planners", fr: "Agendas" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93873_set.jpg",
+    href: "/categorias/Copos%2C%20Garrafas%20e%20Canecas",
+    icon: CupSoda,
+    layoutClassName: "lg:col-span-7",
+    imageSizes: "(min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Copos, garrafas e canecas", en: "Drinkware", fr: "Verres, bouteilles et mugs" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/94945_set.jpg",
+    href: "/categorias/Casa",
+    icon: House,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Casa", en: "Home", fr: "Maison" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/35869_100.jpg",
+    href: "/categorias/Crian%C3%A7a",
+    icon: Baby,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Criança", en: "Kids", fr: "Enfants" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/94035_set.jpg",
+    href: "/categorias/Desporto%20e%20ar%20livre",
+    icon: Dumbbell,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Desporto e ar livre", en: "Sports & outdoors", fr: "Sports et plein air" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/92667a_set.jpg",
+    href: "/categorias/Mochilas%2C%20Malas%20e%20Pastas",
+    icon: Backpack,
+    layoutClassName: "lg:col-span-7",
+    imageSizes: "(min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Mochilas, malas e pastas", en: "Backpacks, bags & briefcases", fr: "Sacs à dos, sacs et porte-documents" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/97222_set.jpg",
+    href: "/categorias/Tecnologia",
+    icon: Cpu,
+    layoutClassName: "lg:col-span-5",
+    imageSizes: "(min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Tecnologia", en: "Technology", fr: "Technologie" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/11100_108.jpg",
+    href: "/categorias/Escrita",
+    icon: PenLine,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Escrita", en: "Writing", fr: "Écriture" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93668_set.jpg",
+    href: "/categorias/Kits",
+    icon: Package,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Kits", en: "Kits", fr: "Kits" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/95132_set.jpg",
+    href: "/categorias/Pessoal%20e%20viagem",
+    icon: Badge,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Pessoal e viagem", en: "Personal & travel", fr: "Personnel et voyage" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/99568_105.jpg",
+    href: "/categorias/Sol%20e%20chuva",
+    icon: Umbrella,
+    layoutClassName: "lg:col-span-5",
+    imageSizes: "(min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Sol e chuva", en: "Sun & rain", fr: "Soleil et pluie" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/99316_105.jpg",
+    href: "/categorias/Xmas",
+    icon: TreePine,
+    layoutClassName: "lg:col-span-7",
+    imageSizes: "(min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Natal", en: "Christmas", fr: "Noël" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93089_amb.jpg",
+    href: "/categorias/Porta-chaves%20e%20lanyards",
+    icon: KeyRound,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Porta-chaves e lanyards", en: "Keyrings & lanyards", fr: "Porte-clés et lanyards" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/73129_set.jpg",
+    href: "/categorias/Button%20P%27In",
+    icon: CircleDot,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Pins personalizados", en: "Custom pins", fr: "Badges personnalisés" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/73390_340-b.jpg",
+    href: "/categorias/DOM%27ING",
+    icon: CircleDot,
+    layoutClassName: "lg:col-span-4",
+    imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
+    label: { pt: "Doming", en: "Doming", fr: "Doming" },
+  },
+  {
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/70006_set.jpg",
+    href: "/categorias/Mostru%C3%A1rios",
+    icon: LayoutGrid,
+    layoutClassName: "lg:col-span-12",
+    imageSizes: "(min-width: 1024px) 100vw, (min-width: 768px) 50vw, 100vw",
+    imagePositionClassName: "object-center",
+    label: { pt: "Mostruários", en: "Showcases", fr: "Présentoirs" },
+  },
+];
+
+const additionalCategoriesCopy: Record<SiteLocale, { eyebrow: string; title: string }> = {
+  pt: { eyebrow: "Mais para descobrir", title: "Todas as categorias, para todas as ideias." },
+  en: { eyebrow: "More to discover", title: "Every category, for every idea." },
+  fr: { eyebrow: "Encore plus à découvrir", title: "Toutes les catégories, pour toutes vos idées." },
+};
+
 const buyingStepIcons = [LayoutGrid, Palette, ShoppingCart, CheckCircle2] as const;
 
 export default async function HomePage() {
   const locale = await getCurrentLocale();
   const messages = getMessages(locale).home;
+  const additionalCopy = additionalCategoriesCopy[locale];
   const steps = messages.steps.map(([title, description], index) => ({
     title,
     description,
@@ -243,6 +400,66 @@ export default async function HomePage() {
                   </Link>
                 );
               })}
+            </div>
+
+            <div className="mt-16 border-t border-[#162334]/10 pt-12 lg:mt-20 lg:pt-16">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#ff6a00]">
+                {additionalCopy.eyebrow}
+              </p>
+              <h2 className="mt-3 max-w-3xl text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">
+                {additionalCopy.title}
+              </h2>
+
+              <div className="mt-9 grid gap-5 md:grid-cols-2 lg:grid-cols-12 lg:gap-6">
+                {additionalCategoryCards.map((category) => {
+                  const title = category.label[locale];
+                  const Icon = category.icon;
+
+                  return (
+                    <Link
+                      key={category.href}
+                      href={localizePath(category.href, locale)}
+                      aria-label={[messages.explore, title].join(" ")}
+                      className={[
+                        "group relative isolate min-h-[20rem] overflow-hidden rounded-[1.75rem] bg-[#162334] shadow-[0_16px_45px_rgba(22,35,52,0.10)] transition duration-500 hover:-translate-y-1 hover:shadow-[0_24px_60px_rgba(22,35,52,0.20)] md:min-h-[22rem]",
+                        category.layoutClassName,
+                      ].join(" ")}
+                    >
+                      <Image
+                        src={category.imageUrl}
+                        alt=""
+                        fill
+                        sizes={category.imageSizes}
+                        className={[
+                          "-z-20 object-cover transition duration-700 ease-out group-hover:scale-[1.045]",
+                          category.imagePositionClassName ?? "object-center",
+                        ].join(" ")}
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(16,27,42,0.02)_16%,rgba(16,27,42,0.20)_48%,rgba(16,27,42,0.94)_100%)]"
+                      />
+
+                      <span className="absolute left-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/25 bg-[#162334]/75 text-white shadow-lg backdrop-blur-md md:left-6 md:top-6">
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </span>
+
+                      <div className="absolute inset-x-0 bottom-0 p-6 text-white md:p-7">
+                        <h3 className="max-w-2xl text-xl font-semibold tracking-[-0.02em] md:text-2xl">
+                          {title}
+                        </h3>
+                        <span className="mt-4 inline-flex items-center text-sm font-semibold text-[#ff8a38]">
+                          {messages.seeProducts}
+                          <ArrowRight
+                            className="ml-2 h-4 w-4 transition group-hover:translate-x-1"
+                            aria-hidden="true"
+                          />
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </section>
