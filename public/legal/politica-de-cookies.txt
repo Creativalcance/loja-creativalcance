@@ -1,0 +1,257 @@
+1. Objeto e âmbito
+A presente Política de Cookies explica a utilização de cookies e de tecnologias semelhantes no website 360-
+merchandising.com, explorado pela CRIATIVALCANCE, UNIPESSOAL LDA, no âmbito da marca 360
+Merchandising.
+Esta Política deve ser lida em conjunto com a Política de Privacidade e com os Termos e Condições da 360
+Merchandising. Aplica-se aos utilizadores do website, incluindo visitantes, clientes registados e pessoas que
+utilizem o processo de compra, personalização, pagamento ou outras funcionalidades digitais.
+
+
+2. O que são cookies e tecnologias semelhantes
+Cookies são pequenos ficheiros de informação que um website pode armazenar no equipamento terminal do
+utilizador, como computador, tablet ou smartphone, através do navegador. Permitem, por exemplo, manter
+uma sessão iniciada, recordar preferências, conservar um carrinho de compras, medir a utilização do website
+ou avaliar o desempenho de campanhas.
+A 360 Merchandising pode também utilizar tecnologias semelhantes a cookies, como armazenamento local
+do navegador (localStorage), sessionStorage, identificadores técnicos, pixels, tags, SDKs ou mecanismos
+equivalentes. Para efeitos desta Política, a referência a «cookies» inclui, quando adequado, estas
+tecnologias.
+
+
+3. Quem é responsável
+O responsável pela utilização de cookies próprios e pela configuração das tecnologias integradas no website
+é:
+
+ Entidade                                               CRIATIVALCANCE, UNIPESSOAL LDA
+
+ NIPC / NIF                                             518143350
+
+ Morada                                                 Avenida Fernão de Magalhães, N.º 481, 2.º Andar -
+                                                        Sala D, 3000-177 Coimbra, Portugal
+
+ Telefone                                               +351 913 784 204
+
+ Email                                                  info@360-merchandising.com
+
+
+4. Fundamento legal e consentimento
+A utilização de cookies e tecnologias semelhantes observa o Regulamento (UE) 2016/679 (RGPD), a Lei n.º
+41/2004, de 18 de agosto, na redação aplicável, e demais legislação relevante em matéria de privacidade e
+comunicações eletrónicas.
+Os cookies estritamente necessários ao funcionamento de um serviço expressamente solicitado pelo
+utilizador podem ser utilizados sem consentimento prévio quando se enquadrem nas exceções legalmente
+previstas. Os cookies de analítica, publicidade, remarketing, personalização não essencial e outras
+tecnologias semelhantes são utilizados mediante consentimento quando este seja legalmente exigido.
+O consentimento deve ser livre, específico, informado e inequívoco. A recusa de cookies não essenciais não
+impede a utilização das funcionalidades essenciais do website. O utilizador pode retirar ou alterar o
+consentimento a qualquer momento, com a mesma facilidade com que o concedeu, através do mecanismo
+de gestão de preferências disponibilizado no website.
+
+
+
+
+
+
+
+5. Tipos de cookies utilizados
+5.1. Cookies estritamente necessários
+São essenciais para o funcionamento técnico do website e para funcionalidades solicitadas pelo utilizador.
+Podem ser necessários, designadamente, para autenticação, segurança, gestão da sessão, carrinho de
+compras, checkout, prevenção de fraude e conservação das preferências de consentimento.
+
+5.2. Cookies funcionais
+Permitem recordar opções ou melhorar funcionalidades, como preferências de utilização, idioma ou
+determinados estados da interface. Quando não sejam estritamente necessários, serão sujeitos ao regime de
+consentimento aplicável.
+
+5.3. Cookies de analítica e desempenho
+Permitem compreender como o website é utilizado, medir visitas e sessões, identificar padrões de
+navegação, avaliar desempenho técnico e melhorar a experiência. A 360 Merchandising utiliza Google
+Analytics 4 (GA4).
+
+5.4. Cookies de publicidade e remarketing
+Permitem medir campanhas, atribuir conversões, limitar ou otimizar anúncios e criar públicos para
+remarketing ou publicidade personalizada. A 360 Merchandising utiliza Google Ads e Meta Ads/Meta Pixel
+para estas finalidades, de acordo com as preferências de consentimento aplicáveis.
+
+
+6. Cookies próprios e de terceiros
+Os cookies próprios são definidos pelo domínio 360-merchandising.com. Os cookies de terceiros são
+definidos ou lidos por serviços externos integrados no website. Alguns serviços podem combinar cookies
+próprios, cookies de terceiros e armazenamento local.
+A utilização de uma tecnologia de terceiro não significa que esse terceiro tenha acesso indiscriminado aos
+dados da 360 Merchandising. O tratamento depende da integração técnica, das finalidades configuradas e
+dos termos aplicáveis a cada serviço.
+
+
+7. Tecnologias e fornecedores utilizados
+De acordo com a configuração conhecida do website, são utilizados ou integrados os seguintes serviços:
+  • Supabase — autenticação, sessão, base de dados e armazenamento relacionado com a área de cliente e
+    funcionalidades da aplicação;
+  • Stripe — processamento de pagamentos, autenticação e prevenção de fraude;
+  • Google Analytics 4 (GA4) — análise estatística e medição de utilização;
+  • Google Tag Manager — gestão e ativação técnica de tags; o próprio GTM é um gestor de tags e os
+    cookies dependem das tags nele configuradas;
+  • Google Ads — medição de conversões, publicidade e remarketing;
+  • Meta Pixel / Meta Ads — medição de campanhas, criação de públicos e publicidade/remarketing;
+  • cookies próprios da 360 Merchandising — incluindo sessão, carrinho e outras funcionalidades essenciais
+    ou funcionais do website.
+
+
+
+
+
+
+
+8. Tabela indicativa de cookies e armazenamento
+A tabela seguinte apresenta os principais cookies e mecanismos de armazenamento associados à
+configuração conhecida do website. Os nomes técnicos e prazos podem variar em função de atualizações
+dos fornecedores, configuração do navegador, país, consentimento e forma de integração.
+
+ Cookie /                 Fornecedor            Categoria      Finalidade                Prazo indicativo        Tipo
+ tecnologia
+
+ Cookie/estado do         360 Merchandising     Necessário /   Conservar o               Até 30 dias, conforme   Próprio
+ carrinho                                       funcional      conteúdo do carrinho      configuração.
+                                                               e permitir retomar a
+                                                               compra.
+
+ Sessão/autenticação      Supabase              Necessário     Manter a sessão           Sessão ou conforme      Armazenamento local
+ Supabase                                                      autenticada, renovar      duração de              / cookie, conforme
+                                                               tokens e assegurar a      autenticação            integração
+                                                               área reservada.           configurada.
+
+ Preferências de          360 Merchandising /   Necessário     Registar as escolhas      Conforme                Próprio
+ consentimento            gestor de                            do utilizador e evitar    configuração do
+                          consentimento                        solicitar                 gestor; tipicamente
+                                                               consentimento em          até 12 meses.
+                                                               cada visita.
+
+ __stripe_mid             Stripe                Necessário /   Prevenção de fraude       Até 1 ano.              Terceiro / integração
+                                                segurança      e avaliação de risco                              Stripe
+                                                               em pagamentos.
+
+ __stripe_sid             Stripe                Necessário /   Prevenção de fraude       Cerca de 30 minutos.    Terceiro / integração
+                                                segurança      durante a sessão de                               Stripe
+                                                               pagamento.
+
+ m e outros               Stripe                Necessário /   Prevenção de fraude,      Sessão ou conforme      Cookie /
+ identificadores Stripe                         segurança      autenticação e            configuração do         armazenamento do
+                                                               segurança do              serviço.                navegador
+                                                               pagamento.
+
+ _ga                      Google Analytics      Analítica      Distinguir utilizadores   Até 2 anos por          Próprio
+                                                               de forma pseudónima       defeito.
+                                                               para medição
+                                                               estatística.
+
+ _ga_<ID>                 Google Analytics      Analítica      Manter o estado da        Até 2 anos por          Próprio
+                                                               sessão e informação       defeito.
+                                                               de medição
+                                                               associada ao fluxo
+                                                               GA4.
+
+ _gcl_* (ex.: _gcl_aw)    Google Ads / Google   Publicidade    Guardar informação        Variável; depende da    Próprio
+                          Tag                                  de cliques em             configuração e janela
+                                                               anúncios e apoiar         de conversão.
+                                                               medição de
+                                                               conversões.
+
+ _fbp                     Meta                  Publicidade    Apoiar medição,           Conforme                Próprio / tecnologia
+                                                               atribuição, criação de    configuração da         Meta
+                                                               públicos e entrega de     Meta; tipicamente até
+                                                               publicidade.              cerca de 90 dias.
+
+ _fbc                     Meta                  Publicidade    Associar cliques          Conforme                Próprio / tecnologia
+                                                               provenientes de           configuração da         Meta
+                                                               anúncios da Meta e        Meta; tipicamente até
+                                                               apoiar atribuição de      cerca de 90 dias.
+                                                               conversões.
+
+    Nota: o Google Tag Manager não define necessariamente cookies por si só; permite executar e gerir tags
+    que podem criar ou ler cookies. A lista operacional deve ser revista sempre que sejam adicionadas,
+    removidas ou reconfiguradas tags.
+
+
+
+
+
+9. Google Tag Manager e Consent Mode
+A 360 Merchandising utiliza Google Tag Manager para gerir integrações de medição e marketing. A
+configuração deve respeitar as preferências de consentimento do utilizador, impedindo, quando legalmente
+exigido, o armazenamento ou leitura de cookies de analítica e publicidade antes da autorização.
+Quando utilizado o Google Consent Mode, os estados de consentimento podem controlar categorias como
+armazenamento analítico, dados de publicidade e personalização de anúncios. A recusa de publicidade
+personalizada deve impedir a utilização das funcionalidades correspondentes, de acordo com a configuração
+técnica aplicável.
+
+
+10. Como gerir ou retirar o consentimento
+O utilizador pode aceitar, rejeitar ou configurar os cookies não essenciais através do mecanismo de
+consentimento apresentado no website. As preferências podem ser alteradas posteriormente através da
+opção de gestão de cookies disponibilizada no website.
+A retirada do consentimento não afeta a licitude do tratamento realizado antes dessa retirada. Depois da
+alteração de preferências, algumas tecnologias podem deixar de ser ativadas em novas páginas ou sessões;
+cookies anteriormente armazenados podem ter de ser eliminados pelo navegador, consoante a tecnologia
+utilizada.
+A 360 Merchandising recomenda que o mecanismo de preferências permita, de forma clara, pelo menos:
+aceitar todos os cookies, rejeitar cookies não essenciais e escolher por categoria.
+
+
+11. Configuração através do navegador
+Os navegadores permitem visualizar, bloquear ou eliminar cookies. O procedimento varia de acordo com o
+navegador e dispositivo. O bloqueio de cookies estritamente necessários pode comprometer funcionalidades
+como login, carrinho, checkout ou pagamento.
+A gestão através do navegador não substitui necessariamente o mecanismo de consentimento do website e
+pode não controlar todas as tecnologias semelhantes, como armazenamento local, pixels ou identificadores
+mantidos por serviços externos.
+
+
+12. Transferências internacionais e terceiros
+Alguns fornecedores integrados no website podem tratar dados em países fora do Espaço Económico
+Europeu. Quando tais operações estejam sujeitas ao RGPD, aplicam-se os mecanismos de transferência
+internacional previstos na legislação e descritos com maior detalhe na Política de Privacidade.
+Os fornecedores externos podem atualizar as suas próprias tecnologias, cookies, períodos de conservação e
+finalidades. A 360 Merchandising procura manter a sua configuração e documentação coerentes com essas
+alterações.
+
+
+13. Atualização da lista de cookies
+A lista de cookies constante desta Política representa a configuração conhecida na data de atualização. A
+natureza dinâmica de serviços como Google Analytics, Google Ads, Meta, Stripe, Supabase e gestores de
+tags pode originar alterações técnicas sem modificação material das finalidades descritas.
+Sempre que sejam implementados novos fornecedores, novas tags ou novas finalidades, a 360
+Merchandising deverá atualizar a configuração do mecanismo de consentimento e, quando necessário, esta
+Política de Cookies antes de ativar tecnologias não essenciais.
+
+
+
+
+
+
+14. Alterações à Política de Cookies
+A CRIATIVALCANCE, UNIPESSOAL LDA pode alterar esta Política para refletir modificações legislativas,
+regulamentares, tecnológicas ou operacionais. A versão atualizada será publicada no website com indicação
+da data de revisão.
+
+
+15. Contactos
+Para questões relacionadas com cookies, privacidade ou gestão de preferências, poderá contactar:
+  • CRIATIVALCANCE, UNIPESSOAL LDA
+  • Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal
+  • Telefone: +351 913 784 204
+  • Email: info@360-merchandising.com
+  • Website: 360-merchandising.com
+
+15.1. Informação adicional sobre serviços de terceiros
+Google — políticas e tecnologias de cookies: policies.google.com
+Stripe — informação sobre cookies e privacidade: stripe.com/privacy
+Meta — informação sobre cookies: facebook.com/privacy/policies/cookies
+CNPD — Comissão Nacional de Proteção de Dados: cnpd.pt
+
+
+
+
+
+
+

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import GoogleAnalyticsTag from "@/components/analytics/GoogleAnalyticsTag";
+import CookieConsentManager from "@/components/privacy/CookieConsentManager";
 import { absoluteUrl, getSiteUrl } from "@/lib/seo/site";
 import { SITE_LOCALES } from "@/lib/i18n/config";
 import { localizePath, type SiteLocale } from "@/lib/i18n/config";
@@ -17,6 +17,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: { default: t.title, template: "%s | 360 Merchandising" }, description: t.description,
     metadataBase: new URL(getSiteUrl()), applicationName: "360 Merchandising", keywords: t.keywords,
+    icons: {
+      icon: [{ url: "/brand/favicon.png", type: "image/png", sizes: "192x192" }],
+      shortcut: "/brand/favicon.png",
+      apple: [{ url: "/brand/favicon.png", type: "image/png", sizes: "192x192" }],
+    },
     authors: [{ name: "360 Merchandising", url: localizePath("/autores/360-merchandising", locale) }], creator: "360 Merchandising", publisher: "360 Merchandising",
     openGraph: { type: "website", locale: SITE_LOCALES[locale].htmlLang.replace("-", "_"), siteName: "360 Merchandising", title: t.ogTitle, description: t.ogDescription, images: [{ url: "/brand/360-merchandising.png", width: 2000, height: 452, alt: "360 Merchandising" }] },
     twitter: { card: "summary_large_image", title: "360 Merchandising", description: t.twitter, images: ["/brand/360-merchandising.png"] },
@@ -69,7 +74,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang={SITE_LOCALES[locale].htmlLang}>
       <body>
-        <GoogleAnalyticsTag />
+        <CookieConsentManager locale={locale} />
         {children}
         <script
           type="application/ld+json"

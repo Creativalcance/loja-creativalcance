@@ -3,6 +3,7 @@ import {
   BadgeEuro,
   BarChart3,
   Building2,
+  Mail,
   FileText,
   Bell,
   LogOut,
@@ -58,6 +59,13 @@ const adminModules: AdminModule[] = [
       "Consultar clientes, contactos e moradas, exportar a base de dados e gerir contas de Administração.",
     href: "/admin/utilizadores",
     icon: Building2,
+  },
+  {
+    title: "Newsletter",
+    description:
+      "Consultar e exportar os contactos que consentiram receber comunicações da 360 Merchandising.",
+    href: "/admin/newsletter",
+    icon: Mail,
   },
   {
     title: "Encomendas",

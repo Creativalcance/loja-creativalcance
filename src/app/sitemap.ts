@@ -213,6 +213,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.5,
     },
+    {
+      url: absoluteUrl("/contactos"),
+      changeFrequency: "yearly",
+      priority: 0.5,
+    },
+    ...[
+      "/termos-e-condicoes",
+      "/politica-de-privacidade",
+      "/politica-de-cookies",
+      "/reembolsos-e-devolucoes",
+    ].map((pathname) => ({
+      url: absoluteUrl(pathname),
+      changeFrequency: "yearly" as const,
+      priority: 0.35,
+    })),
   ];
 
   try {

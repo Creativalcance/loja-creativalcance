@@ -1,0 +1,408 @@
+1. Declaração de Privacidade e Âmbito
+A 360 Merchandising é uma marca detida e explorada pela CRIATIVALCANCE, UNIPESSOAL LDA. A
+proteção da privacidade e dos dados pessoais dos seus clientes, potenciais clientes, utilizadores, contactos
+comerciais, fornecedores e demais interlocutores constitui uma prioridade na organização dos seus serviços.
+A presente Política de Privacidade explica de forma transparente quais os dados pessoais tratados pela 360
+Merchandising, como são recolhidos, para que finalidades são utilizados, quais os fundamentos jurídicos
+aplicáveis, durante quanto tempo são conservados, com quem podem ser partilhados e quais os direitos dos
+respetivos titulares.
+Esta Política aplica-se ao website 360-merchandising.com e às interações realizadas através da área de
+cliente, formulários, pedidos de orçamento, encomendas, email, telefone, WhatsApp, redes sociais,
+campanhas, concursos, avaliações, recomendações e demais canais comerciais utilizados pela 360
+Merchandising, incluindo relações B2C e B2B.
+A 360 Merchandising aceita encomendas destinadas a diferentes países. Sempre que o tratamento de
+dados pessoais esteja sujeito ao Regulamento (UE) 2016/679 — Regulamento Geral sobre a Proteção de
+Dados («RGPD») — e à legislação nacional aplicável, esses diplomas serão observados.
+A simples utilização do website não substitui os consentimentos específicos legalmente exigidos. Quando
+um tratamento depender de consentimento, este será solicitado de forma livre, específica, informada e
+inequívoca, podendo ser retirado nos termos descritos nesta Política.
+
+
+2. Responsável pelo Tratamento de Dados
+A entidade responsável pelo tratamento dos dados pessoais realizados no âmbito da marca 360
+Merchandising é:
+
+ Entidade                                                 CRIATIVALCANCE, UNIPESSOAL LDA
+
+ NIPC / NIF                                               518143350
+
+ Morada                                                   Avenida Fernão de Magalhães, N.º 481, 2.º Andar -
+                                                          Sala D, 3000-177 Coimbra, Portugal
+
+ Telefone                                                 +351 913 784 204
+
+ Email                                                    info@360-merchandising.com
+
+ Website                                                  360-merchandising.com
+A CRIATIVALCANCE, UNIPESSOAL LDA não designou, à data da presente versão, um Encarregado de
+Proteção de Dados. As questões relativas à privacidade e ao exercício de direitos devem ser dirigidas para o
+endereço de email indicado acima.
+
+
+3. Dados Pessoais, Titulares e Categorias de Dados
+3.1. O que são dados pessoais?
+Nos termos do RGPD, dados pessoais são qualquer informação relativa a uma pessoa singular identificada
+ou identificável. Uma pessoa pode ser identificável direta ou indiretamente, designadamente através do
+nome, número de identificação, dados de localização, identificadores eletrónicos ou outros elementos
+relativos à sua identidade.
+
+
+
+
+
+3.2. Quem são os titulares dos dados?
+A presente Política aplica-se, entre outros, a clientes e potenciais clientes, utilizadores do website,
+representantes e colaboradores de clientes empresariais, destinatários de encomendas, participantes em
+concursos, subscritores de comunicações, pessoas que contactem o apoio ao cliente, utilizadores que
+publiquem avaliações ou comentários e contactos fornecidos através de funcionalidades de recomendação.
+
+3.3. Como recolhemos dados pessoais?
+Os dados podem ser recolhidos diretamente do titular, designadamente quando este:
+  • cria ou utiliza uma conta de cliente;
+  • efetua uma encomenda ou solicita um orçamento;
+  • carrega um logótipo, imagem, ficheiro, documento ou outro conteúdo para personalização;
+  • utiliza o editor ou personalizador de produtos e aprova um design ou mockup;
+  • contacta a 360 Merchandising por email, telefone, WhatsApp, redes sociais ou formulário;
+  • subscreve newsletter ou outras comunicações comerciais;
+  • participa em concursos, campanhas ou ações promocionais;
+  • publica uma avaliação, comentário ou outro conteúdo;
+  • utiliza a funcionalidade de recomendação ou «referir um amigo»;
+  • interage com o website, cookies, ferramentas analíticas ou tecnologias publicitárias.
+Podem ainda ser recebidos dados de terceiros envolvidos na execução de encomendas, pagamentos,
+expedição, suporte técnico, prevenção de fraude, publicidade e outras operações necessárias à prestação
+dos serviços.
+
+3.4. Que categorias de dados tratamos?
+Consoante a interação e quando aplicável, podem ser tratados os seguintes dados:
+  • dados de identificação e contacto: nome, email, telefone, morada e país;
+  • dados fiscais e empresariais: NIF, denominação da empresa, dados de faturação e outros elementos
+    necessários à emissão de documentos comerciais;
+  • dados de conta e autenticação: identificadores de conta e credenciais necessárias ao acesso à área
+    reservada;
+  • dados de encomenda: produtos adquiridos, quantidades, variantes, personalizações, observações,
+    estado da encomenda, histórico de compras e comunicações associadas;
+  • dados de faturação e entrega: moradas, destinatário, dados necessários ao transporte e, quando
+    aplicável, informação exigida por autoridades fiscais ou aduaneiras;
+  • dados relativos à personalização: logótipos, imagens, textos, ficheiros, documentos, designs, mockups e
+    respetivas aprovações;
+  • dados de apoio ao cliente: conteúdo de emails, mensagens, chamadas, pedidos, reclamações e
+    respetivo acompanhamento;
+  • dados de marketing: preferências de comunicação, subscrições, consentimentos, interações com emails,
+    campanhas, publicidade e carrinhos abandonados;
+  • dados públicos: nome ou designação apresentada pelo utilizador, conteúdo de avaliações, comentários e
+    respetiva data de publicação;
+  • dados técnicos e de utilização: endereço IP, identificadores de dispositivo, navegador, sistema operativo,
+    páginas visitadas, origem da visita, eventos de navegação e outros dados associados a cookies ou
+    tecnologias semelhantes;
+  • dados de pagamento de natureza não sensível recebidos do prestador de pagamentos, como estado do
+    pagamento, montante e referência da transação.
+
+
+
+
+
+
+3.5. Ficheiros, logótipos, imagens e personalizações
+A 360 Merchandising permite o carregamento e conservação de ficheiros destinados à personalização de
+produtos. Esses conteúdos podem, em determinadas circunstâncias, conter dados pessoais do próprio
+cliente ou de terceiros.
+O utilizador é responsável por assegurar que dispõe de legitimidade para fornecer, utilizar e mandar
+reproduzir os conteúdos submetidos, incluindo quando estes contenham nomes, fotografias, logótipos,
+marcas, dados de terceiros ou outra informação protegida. A 360 Merchandising não solicita, como regra,
+categorias especiais de dados pessoais e recomenda que não sejam incluídas nesses ficheiros informações
+sensíveis que não sejam estritamente necessárias.
+Os mockups e personalizações podem ser conservados na área de cliente e no histórico da encomenda, na
+medida necessária à execução, prova, repetição ou assistência relativa à encomenda e de acordo com os
+prazos de conservação previstos nesta Política.
+
+3.6. Dados de terceiros fornecidos pelo utilizador
+Sempre que o utilizador forneça dados de outra pessoa — por exemplo, um destinatário de encomenda ou
+um contacto indicado através da funcionalidade «referir um amigo» — deverá assegurar que está autorizado
+a fazê-lo e que a pessoa em causa foi devidamente informada quando tal seja exigível.
+Os dados recebidos através de uma recomendação serão utilizados para gerir a indicação ou convite e não
+serão utilizados para comunicações comerciais continuadas sem um fundamento jurídico adequado.
+
+
+4. Finalidades e Fundamentos Jurídicos do Tratamento
+A 360 Merchandising trata dados pessoais apenas quando existe uma finalidade determinada e um
+fundamento jurídico adequado. Em função do contexto, poderão aplicar-se os seguintes fundamentos:
+
+4.1. Execução de contrato e diligências pré-contratuais
+Este fundamento é utilizado, designadamente, para:
+  • criação e gestão de conta de cliente;
+  • resposta a pedidos de informação, contacto e orçamento;
+  • processamento, gestão e acompanhamento de encomendas;
+  • gestão das opções de personalização, ficheiros, mockups e respetivas aprovações;
+  • faturação, cobrança e gestão do estado do pagamento;
+  • produção, preparação, expedição e entrega de produtos;
+  • apoio ao cliente, gestão de reclamações e assistência pós-venda;
+  • gestão de devoluções, cancelamentos, correções ou outras operações relacionadas com o contrato.
+
+4.2. Cumprimento de obrigações legais
+Os dados serão tratados quando necessário para cumprir obrigações fiscais, contabilísticas, comerciais,
+aduaneiras, de defesa do consumidor, cooperação com autoridades ou outras obrigações legais aplicáveis.
+
+4.3. Consentimento
+O consentimento poderá ser utilizado, quando legalmente exigido, para o envio de determinadas
+comunicações de marketing, utilização de cookies ou tecnologias publicitárias não essenciais, participação
+em campanhas específicas e outras finalidades que dependam de uma manifestação de vontade do titular.
+O consentimento pode ser retirado a qualquer momento, sem comprometer a licitude do tratamento
+realizado antes da sua retirada.
+
+
+
+
+4.4. Interesse legítimo
+A 360 Merchandising poderá tratar dados com base no seu interesse legítimo, desde que, após ponderação,
+os interesses, direitos e liberdades fundamentais do titular não prevaleçam. Este fundamento poderá
+abranger:
+  • melhoria da qualidade, segurança, funcionamento e desempenho do website e dos serviços;
+  • prevenção e deteção de fraude, abuso, utilização indevida ou incidentes de segurança;
+  • gestão de contactos comerciais B2B e relação com clientes existentes, quando legalmente admissível;
+  • análise estatística e melhoria da experiência do utilizador;
+  • defesa, exercício ou demonstração de direitos em processos judiciais ou extrajudiciais;
+  • recuperação de processos de compra iniciados, incluindo carrinhos abandonados, quando legalmente
+    permitido e respeitadas as regras aplicáveis às comunicações eletrónicas.
+
+
+5. Marketing, Comunicações e Publicidade
+A 360 Merchandising pode utilizar dados de contacto e informação relativa à relação comercial para enviar
+newsletters, novidades, campanhas, ofertas, informações sobre produtos, comunicações promocionais e
+outras mensagens de marketing, sempre de acordo com a legislação aplicável.
+O envio de comunicações promocionais poderá basear-se em consentimento ou, quando a lei o permita, em
+outro fundamento jurídico adequado. Cada comunicação de marketing enviada por email deverá
+disponibilizar um meio simples de cancelamento da subscrição («unsubscribe»).
+A 360 Merchandising utiliza ou poderá utilizar mecanismos de publicidade e remarketing, incluindo Google
+Ads e Meta Ads/Meta Pixel, para medir campanhas, criar públicos, limitar ou otimizar a apresentação de
+anúncios e compreender o desempenho das ações de marketing. Quando estas tecnologias dependam de
+cookies ou outros identificadores não essenciais, serão ativadas de acordo com as preferências de
+consentimento do utilizador, sempre que legalmente exigido.
+Podem ainda ser enviadas comunicações automáticas relacionadas com processos de compra, incluindo
+mensagens sobre carrinhos abandonados, na medida permitida pela legislação aplicável e respeitando as
+preferências do utilizador.
+
+5.1. Concursos e ações promocionais
+Quando o utilizador participa num concurso, passatempo ou ação promocional, os dados são tratados para
+gerir a participação, verificar elegibilidade, contactar participantes ou vencedores, entregar prémios e cumprir
+eventuais obrigações legais. Regras adicionais poderão constar do regulamento específico de cada
+iniciativa.
+
+5.2. Avaliações e comentários públicos
+As avaliações, comentários ou conteúdos publicados em áreas públicas do website podem ficar visíveis a
+outros utilizadores e, consoante a configuração técnica, ser indexados por motores de pesquisa. O utilizador
+não deverá publicar dados pessoais de terceiros ou informação que não pretenda tornar pública.
+
+5.3. Chamadas telefónicas
+A 360 Merchandising presta apoio ao cliente por telefone e pode, em determinadas situações, proceder à
+gravação de chamadas. Quando exista gravação, o interlocutor será informado de forma adequada,
+incluindo quanto à finalidade da gravação. Consoante o contexto, a gravação poderá destinar-se à prova de
+comunicações ou transações, controlo de qualidade, formação, segurança ou defesa de direitos, com
+fundamento jurídico adequado à finalidade concreta.
+
+
+
+
+As gravações, quando existentes, serão conservadas apenas durante o período necessário e legalmente
+admissível, em função da respetiva finalidade.
+
+
+6. Pagamentos
+Os pagamentos efetuados no website são processados através de prestadores especializados. A 360
+Merchandising utiliza a Stripe para o processamento de pagamentos eletrónicos.
+A 360 Merchandising não armazena os dados completos dos cartões de pagamento. Esses dados são
+introduzidos e tratados no contexto do serviço do prestador de pagamentos. A 360 Merchandising poderá
+receber informação necessária à gestão da transação, como o estado do pagamento, o montante, a moeda,
+referências de transação e informação necessária à reconciliação, prevenção de fraude ou reembolso.
+O prestador de pagamentos pode atuar como responsável autónomo ou subcontratante relativamente a
+determinadas operações, de acordo com a natureza do tratamento e os seus próprios termos e políticas.
+
+
+7. Partilha de Dados com Terceiros
+A 360 Merchandising não vende dados pessoais. Os dados poderão, contudo, ser comunicados ou
+disponibilizados a terceiros quando tal seja necessário à prestação dos serviços, ao funcionamento do
+website, ao cumprimento de obrigações legais ou à prossecução de finalidades legítimas.
+Entre os destinatários ou categorias de destinatários podem encontrar-se:
+  • Stripe, para processamento de pagamentos e operações associadas;
+  • Supabase, para serviços tecnológicos de base de dados, autenticação, armazenamento e infraestrutura
+    aplicacional;
+  • Vercel, para alojamento, disponibilização e infraestrutura técnica do website;
+  • Google, incluindo Google Analytics, Google Tag Manager e Google Ads, para medição, gestão de tags,
+    análise, publicidade e remarketing, de acordo com as preferências aplicáveis;
+  • Meta, quando sejam utilizados Meta Ads, Meta Pixel ou serviços de comunicação como WhatsApp, de
+    acordo com o contexto e as preferências aplicáveis;
+  • fornecedores de produtos, serviços de personalização, produção, preparação de encomendas, expedição
+    e demais parceiros operacionais necessários à execução da encomenda;
+  • transportadoras, operadores logísticos e respetivos parceiros, sendo a seleção do operador de entrega
+    efetuada no âmbito da cadeia de fornecimento aplicável à encomenda;
+  • prestadores de serviços de tecnologia, suporte, segurança, prevenção de fraude, contabilidade, auditoria,
+    consultoria jurídica ou outros serviços profissionais;
+  • autoridades fiscais, aduaneiras, judiciais, policiais, reguladoras ou administrativas, quando exista
+    obrigação legal ou pedido legítimo.
+Para execução de encomendas personalizadas e respetiva entrega, poderão ser comunicados, quando
+necessários, o nome do cliente ou destinatário, email, morada de entrega, informação da encomenda,
+ficheiros ou logótipos de personalização, mockups e outros elementos indispensáveis à produção, validação,
+expedição e entrega.
+Sempre que um terceiro trate dados por conta da CRIATIVALCANCE, UNIPESSOAL LDA, serão adotadas
+as medidas contratuais e organizativas adequadas para assegurar que o tratamento é realizado de acordo
+com as instruções aplicáveis e com a legislação de proteção de dados.
+
+
+
+
+
+
+
+8. Transferências Internacionais de Dados
+Alguns prestadores tecnológicos, plataformas digitais ou parceiros envolvidos nos serviços podem operar
+fora de Portugal ou do Espaço Económico Europeu («EEE»), ou recorrer a infraestruturas distribuídas
+internacionalmente.
+Sempre que uma transferência internacional de dados pessoais esteja sujeita ao RGPD e tenha como
+destino um país que não beneficie de uma decisão de adequação aplicável, a CRIATIVALCANCE,
+UNIPESSOAL LDA procurará assegurar a utilização de um mecanismo de transferência reconhecido pela
+legislação, como cláusulas contratuais-tipo aprovadas pela Comissão Europeia, medidas suplementares
+adequadas ou outro fundamento legal aplicável.
+A realização de entregas internacionais pode igualmente exigir a comunicação de dados a operadores
+logísticos, parceiros locais e autoridades aduaneiras ou fiscais dos países envolvidos, quando tal seja
+necessário à execução da encomenda ou ao cumprimento de obrigações legais.
+
+
+9. Conservação dos Dados Pessoais
+Os dados pessoais são conservados apenas durante o período necessário às finalidades que determinaram
+a sua recolha, sem prejuízo de prazos mais longos impostos por lei ou necessários ao exercício ou defesa
+de direitos.
+
+ Categoria / finalidade                                    Critério de conservação
+
+ Dados fiscais, contabilísticos e documentação comercial   Pelo prazo legalmente exigido, podendo atingir 10 anos
+                                                           quando aplicável às obrigações contabilísticas, fiscais ou
+                                                           de escrituração.
+
+ Conta de cliente                                          Enquanto a conta se mantiver ativa e, após o seu
+                                                           encerramento, durante o período necessário ao
+                                                           cumprimento de obrigações legais e à defesa de direitos.
+
+ Encomendas, faturação, entrega e apoio pós-venda          Durante a relação contratual e posteriormente pelo
+                                                           tempo necessário ao cumprimento de obrigações legais,
+                                                           gestão de reclamações, garantias e defesa de direitos.
+
+ Ficheiros, designs e mockups de personalização            Enquanto forem necessários à execução, histórico, apoio
+                                                           ou repetição de encomendas e, quando conservados na
+                                                           área de cliente, enquanto tal conservação for necessária
+                                                           e legítima, sem prejuízo de pedidos de eliminação
+                                                           legalmente admissíveis.
+
+ Marketing e newsletter                                    Até à retirada do consentimento, oposição ou
+                                                           cancelamento da subscrição, sem prejuízo da
+                                                           conservação mínima necessária para demonstrar
+                                                           preferências e impedir contactos não desejados.
+
+ Avaliações e comentários                                  Enquanto se mantiverem publicados ou até pedido de
+                                                           remoção, salvo fundamento legítimo para conservação.
+
+ Chamadas gravadas                                         Pelo período necessário e legalmente admissível em
+                                                           função da finalidade concreta, a comunicar quando
+                                                           aplicável.
+
+
+
+
+
+
+
+ Categoria / finalidade                                   Critério de conservação
+
+ Dados técnicos, cookies e analytics                      De acordo com a duração dos identificadores,
+                                                          configurações de consentimento e prazos definidos pelos
+                                                          respetivos serviços e pela configuração do website.
+
+Uma vez atingido o prazo de conservação aplicável, os dados serão eliminados, anonimizados de forma
+irreversível ou conservados apenas quando exista fundamento legal que o justifique.
+
+
+10. Segurança dos Dados
+A 360 Merchandising adota medidas técnicas e organizativas adequadas ao risco para proteger os dados
+pessoais contra destruição, perda, alteração, divulgação ou acesso não autorizados, acidentais ou ilícitos.
+As medidas podem incluir, de acordo com a natureza do sistema e dos dados:
+  • utilização de ligações seguras e encriptação em trânsito;
+  • mecanismos de autenticação e controlo de acessos;
+  • gestão de permissões segundo princípios de necessidade de acesso;
+  • monitorização, registo e medidas de segurança aplicacional e de infraestrutura;
+  • cópias de segurança e mecanismos de continuidade adequados;
+  • seleção de prestadores com garantias apropriadas de segurança e proteção de dados;
+  • procedimentos de resposta a incidentes e avaliação de vulnerabilidades.
+Nenhum sistema de informação é absolutamente imune a riscos. Por essa razão, a 360 Merchandising revê
+e ajusta as suas medidas de segurança em função da evolução tecnológica, da natureza dos dados e dos
+riscos identificados.
+O utilizador deve também proteger as suas credenciais de acesso, utilizar palavras-passe adequadas e
+informar a 360 Merchandising caso suspeite de utilização não autorizada da sua conta.
+
+
+11. Direitos dos Titulares dos Dados
+Nos termos da legislação aplicável e verificadas as respetivas condições, o titular dos dados poderá exercer
+os seguintes direitos:
+ Direito de acesso: obter confirmação sobre o tratamento e aceder aos seus dados pessoais e informação
+  relevante sobre esse tratamento.
+ Direito de retificação: solicitar a correção de dados inexatos ou o completamento de dados incompletos.
+ Direito ao apagamento: solicitar a eliminação dos dados quando se verifiquem os requisitos legais e não
+  exista fundamento que imponha ou legitime a sua conservação.
+ Direito à limitação do tratamento: solicitar que o tratamento seja limitado nas situações previstas na lei.
+ Direito à portabilidade: receber, quando aplicável, os dados fornecidos num formato estruturado, de uso
+  corrente e leitura automática, ou solicitar a sua transmissão a outro responsável.
+ Direito de oposição: opor-se a determinados tratamentos baseados em interesse legítimo e, a qualquer
+  momento, ao tratamento para marketing direto.
+ Direito de retirar o consentimento: retirar o consentimento a qualquer momento relativamente aos
+  tratamentos que nele se baseiem, sem afetar a licitude do tratamento anterior.
+ Direito de reclamar: apresentar reclamação junto da autoridade de controlo competente, designadamente
+  a Comissão Nacional de Proteção de Dados («CNPD»), sem prejuízo de outros meios de tutela.
+
+
+
+O exercício de direitos deve ser efetuado através de info@360-merchandising.com ou por escrito para a
+morada indicada nesta Política. Para proteger os dados do titular, a 360 Merchandising poderá solicitar
+informação adicional razoavelmente necessária para confirmar a identidade do requerente.
+Os pedidos serão tratados dentro dos prazos legalmente aplicáveis. Em determinadas situações, um direito
+poderá ser limitado ou recusado quando exista uma obrigação legal, necessidade de conservação, proteção
+de direitos de terceiros ou outra exceção prevista na legislação.
+
+
+12. Cookies, Analytics e Tecnologias Semelhantes
+O website utiliza cookies e tecnologias semelhantes para assegurar o seu funcionamento, manter sessões,
+proteger a segurança, guardar preferências, medir utilização e desempenho e, quando autorizado, apoiar
+atividades de publicidade e remarketing.
+Podem ser utilizadas, entre outras, as seguintes categorias e tecnologias:
+  • cookies e armazenamento estritamente necessários ao funcionamento do website, sessão, autenticação,
+    carrinho e segurança;
+  • tecnologias associadas ao Supabase necessárias à autenticação, sessão e funcionamento da área de
+    cliente;
+  • tecnologias associadas à Stripe necessárias ao processamento seguro de pagamentos e prevenção de
+    fraude;
+  • Google Analytics 4 (GA4), para análise estatística e medição de utilização;
+  • Google Tag Manager, para gestão técnica de tags e integrações;
+  • Google Ads, para medição de conversões, publicidade e remarketing;
+  • Meta Pixel e Meta Ads, para medição, criação de públicos e publicidade, quando implementados e
+    legalmente autorizados.
+Os cookies e tecnologias que não sejam estritamente necessários serão utilizados de acordo com as
+escolhas do utilizador e com os requisitos legais aplicáveis. O utilizador pode alterar as suas preferências
+através do mecanismo de gestão de consentimento disponibilizado no website e pode ainda gerir cookies
+através das definições do navegador, embora a desativação de certos elementos possa afetar
+funcionalidades.
+
+
+13. Contactos, Reclamações e Autoridade de Controlo
+Para questões relacionadas com privacidade, tratamento de dados pessoais ou exercício de direitos, poderá
+contactar:
+  • Email: info@360-merchandising.com
+  • Telefone: +351 913 784 204
+  • Morada: CRIATIVALCANCE, UNIPESSOAL LDA, Avenida Fernão de Magalhães, N.º 481, 2.º Andar -
+    Sala D, 3000-177 Coimbra, Portugal.
+O titular tem igualmente o direito de apresentar reclamação junto da Comissão Nacional de Proteção de
+Dados (CNPD) ou de outra autoridade de controlo competente, nos termos da legislação aplicável.
+
+
+14. Alterações à Política de Privacidade
+A CRIATIVALCANCE, UNIPESSOAL LDA poderá rever ou atualizar esta Política de Privacidade sempre que
+necessário, designadamente em resultado de alterações legislativas, regulamentares, tecnológicas,
+organizativas ou dos serviços disponibilizados pela 360 Merchandising. A versão atualizada será publicada
+no website com indicação da data de revisão e, quando as alterações sejam materialmente relevantes,
+poderão ser utilizados meios adicionais de informação aos utilizadores.
+

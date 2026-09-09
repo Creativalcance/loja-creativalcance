@@ -4,6 +4,7 @@ import { ArrowUpRight, Mail, Sparkles } from "lucide-react";
 import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import CookiePreferencesButton from "@/components/privacy/CookiePreferencesButton";
 
 function getFooterGroups(locale: SiteLocale) {
   const messages = getMessages(locale).footer;
@@ -39,6 +40,16 @@ function getFooterGroups(locale: SiteLocale) {
       { label: messages.links.cart, href: "/carrinho" },
     ],
   },
+  {
+    title: locale === "en" ? "Legal" : locale === "fr" ? "Informations légales" : "Informação legal",
+    links: [
+      { label: locale === "en" ? "Terms and Conditions" : locale === "fr" ? "Conditions Générales" : "Termos e Condições", href: "/termos-e-condicoes" },
+      { label: locale === "en" ? "Privacy Policy" : locale === "fr" ? "Politique de Confidentialité" : "Política de Privacidade", href: "/politica-de-privacidade" },
+      { label: locale === "en" ? "Cookie Policy" : locale === "fr" ? "Politique de Cookies" : "Política de Cookies", href: "/politica-de-cookies" },
+      { label: locale === "en" ? "Refunds and Returns" : locale === "fr" ? "Remboursements et Retours" : "Reembolsos e Devoluções", href: "/reembolsos-e-devolucoes" },
+      { label: "Contactos", href: "/contactos" },
+    ],
+  },
   ].map((group) => ({
     ...group,
     links: group.links.map((link) => ({
@@ -55,7 +66,7 @@ export default async function SiteFooter() {
 
   return (
     <footer className="border-t border-white/10 bg-[#101a28] text-white">
-      <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 py-14 lg:grid-cols-[1.4fr_1fr_1fr] lg:py-16">
+      <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 py-14 md:grid-cols-2 lg:grid-cols-[1.35fr_1fr_1fr_1fr] lg:py-16">
         <div className="max-w-md">
           <Link href={localizePath("/", locale)} aria-label={`360 Merchandising — ${getMessages(locale).header.home}`}>
             <Image
@@ -105,9 +116,10 @@ export default async function SiteFooter() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 py-6 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} 360 Merchandising. {messages.rights}</p>
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-            <Link href={localizePath("/contacto", locale)} className="inline-flex items-center gap-1.5 hover:text-white">
+            <Link href={localizePath("/contactos", locale)} className="inline-flex items-center gap-1.5 hover:text-white">
               <Mail className="h-3.5 w-3.5" /> {messages.commercialSupport}
             </Link>
+            <CookiePreferencesButton label={locale === "en" ? "Cookie preferences" : locale === "fr" ? "Préférences de cookies" : "Preferências de cookies"} />
             <a
               href="https://www.livroreclamacoes.pt/Inicio/"
               target="_blank"
