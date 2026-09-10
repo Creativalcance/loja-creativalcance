@@ -156,7 +156,7 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     label: { pt: "Criança", en: "Kids", fr: "Enfants" },
   },
   {
-    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/94035_set.jpg",
+    imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/99970_103.jpg",
     href: "/categorias/Desporto%20e%20ar%20livre",
     icon: Dumbbell,
     layoutClassName: "lg:col-span-4",
