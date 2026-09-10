@@ -111,6 +111,13 @@ const PRODUCT_SELECT = `
   product_stocks (variant_id, warehouse_code, available_quantity)
 `;
 
+const MAX_CANDIDATE_PRODUCTS = 180;
+const PRODUCT_DETAIL_BATCH_SIZE = 40;
+
+type CandidateProductId = {
+  id: string;
+};
+
 async function attachCustomizationOptions(products: CandidateProduct[]): Promise<CandidateProduct[]> {
   if (products.length === 0) return products;
   const supabase = createSupabaseAdminClient();
@@ -185,43 +192,105 @@ function buildDatabaseSearchFilter(terms: string[]): string {
     .join(",");
 }
 
+function buildFullTextSearchQuery(terms: string[]): string {
+  return terms.map((term) => `'${term}':*`).join(" | ");
+}
+
+function mergeCandidateIds(
+  primary: CandidateProductId[],
+  secondary: CandidateProductId[],
+): string[] {
+  return Array.from(
+    new Set([...primary, ...secondary].map((product) => product.id)),
+  ).slice(0, MAX_CANDIDATE_PRODUCTS);
+}
+
+async function loadCandidateDetails(ids: string[]): Promise<CandidateProduct[]> {
+  if (ids.length === 0) return [];
+
+  const supabase = createSupabaseAdminClient();
+  const productsById = new Map<string, CandidateProduct>();
+
+  for (let index = 0; index < ids.length; index += PRODUCT_DETAIL_BATCH_SIZE) {
+    const batchIds = ids.slice(index, index + PRODUCT_DETAIL_BATCH_SIZE);
+    const { data, error } = await supabase
+      .from("products")
+      .select(PRODUCT_SELECT)
+      .in("id", batchIds);
+
+    if (error) {
+      throw new Error(`SMART_CATALOG_DETAILS_QUERY_FAILED:${error.message}`);
+    }
+
+    for (const product of (data ?? []) as unknown as CandidateProduct[]) {
+      productsById.set(product.id, product);
+    }
+  }
+
+  return ids.flatMap((id) => {
+    const product = productsById.get(id);
+    return product ? [product] : [];
+  });
+}
+
 async function loadCandidates(query: SmartQuery): Promise<CandidateProduct[]> {
   const supabase = createSupabaseAdminClient();
   const terms = getSearchTerms(query);
 
-  const createQuery = () =>
+  const createIdQuery = () =>
     supabase
       .from("products")
-      .select(PRODUCT_SELECT)
+      .select("id")
       .eq("status", "active")
       .eq("is_active", true)
       .eq("is_purchasable", true)
       .not("slug", "is", null)
       .order("is_purchasable", { ascending: false })
       .order("is_featured", { ascending: false })
-      .limit(700);
+      .limit(MAX_CANDIDATE_PRODUCTS);
 
-  const filteredQuery = createQuery();
-  const filteredResult =
-    terms.length > 0
-      ? await filteredQuery.or(buildDatabaseSearchFilter(terms))
-      : await filteredQuery;
-
-  if (filteredResult.error) {
-    throw new Error(`SMART_CATALOG_QUERY_FAILED:${filteredResult.error.message}`);
+  if (terms.length === 0) {
+    const result = await createIdQuery();
+    if (result.error) {
+      throw new Error(`SMART_CATALOG_QUERY_FAILED:${result.error.message}`);
+    }
+    return loadCandidateDetails((result.data ?? []).map((product) => product.id));
   }
 
-  if ((filteredResult.data ?? []).length > 0 || terms.length === 0) {
-    return (filteredResult.data ?? []) as unknown as CandidateProduct[];
+  const [fullTextResult, compatibleFilterResult] = await Promise.all([
+    createIdQuery().textSearch(
+      "search_vector",
+      buildFullTextSearchQuery(terms),
+      { config: "portuguese" },
+    ),
+    createIdQuery().or(buildDatabaseSearchFilter(terms)),
+  ]);
+
+  if (fullTextResult.error) {
+    throw new Error(`SMART_CATALOG_SEARCH_QUERY_FAILED:${fullTextResult.error.message}`);
+  }
+  if (compatibleFilterResult.error) {
+    throw new Error(`SMART_CATALOG_QUERY_FAILED:${compatibleFilterResult.error.message}`);
   }
 
-  const fallbackResult = await createQuery();
+  const filteredIds = mergeCandidateIds(
+    (fullTextResult.data ?? []) as CandidateProductId[],
+    (compatibleFilterResult.data ?? []) as CandidateProductId[],
+  );
+
+  if (filteredIds.length > 0) {
+    return loadCandidateDetails(filteredIds);
+  }
+
+  const fallbackResult = await createIdQuery();
 
   if (fallbackResult.error) {
     throw new Error(`SMART_CATALOG_QUERY_FAILED:${fallbackResult.error.message}`);
   }
 
-  return (fallbackResult.data ?? []) as unknown as CandidateProduct[];
+  return loadCandidateDetails(
+    ((fallbackResult.data ?? []) as CandidateProductId[]).map((product) => product.id),
+  );
 }
 
 function getTextValues(value: unknown): string[] {
@@ -377,7 +446,7 @@ function buildResult(product: CandidateProduct, query: SmartQuery, delivery: Del
       : null;
   if (withinBudget === false) return null;
 
-  const personalizationRequested = /personali|log[oó]tipo|impress[aã]o|grava[cç][aã]o/i.test(query.originalText);
+  const personalizationRequested = isPersonalizationRequested(query);
   const tableCodeOptions = (product.product_customization_options ?? [])
     .filter((option) => option.is_active && option.table_code_option)
     .map((option) => option.table_code_option as string);
@@ -470,6 +539,10 @@ function buildResult(product: CandidateProduct, query: SmartQuery, delivery: Del
   };
 }
 
+function isPersonalizationRequested(query: SmartQuery): boolean {
+  return /personali|log[oó]tipo|impress[aã]o|grava[cç][aã]o/i.test(query.originalText);
+}
+
 function sortResults(results: SmartMerchResult[], query: SmartQuery): SmartMerchResult[] {
   return [...results].sort((a, b) => {
     if (query.sort === "lowest_price") return (a.unitPrice ?? Number.POSITIVE_INFINITY) - (b.unitPrice ?? Number.POSITIVE_INFINITY);
@@ -485,8 +558,11 @@ function sortResults(results: SmartMerchResult[], query: SmartQuery): SmartMerch
 
 export async function searchSmartMerchProducts(query: SmartQuery): Promise<SmartMerchSearchResponse> {
   const supabase = createSupabaseAdminClient();
+  const personalizationRequested = isPersonalizationRequested(query);
   const [{ data: slaData, error: slaError }, { data: settingData, error: settingError }] = await Promise.all([
-    supabase.from("supplier_printing_slas").select("table_code_option,warehouse_code,quantity_min,quantity_max,production_days,is_available"),
+    personalizationRequested
+      ? supabase.from("supplier_printing_slas").select("table_code_option,warehouse_code,quantity_min,quantity_max,production_days,is_available")
+      : Promise.resolve({ data: [], error: null }),
     supabase.from("supplier_fulfillment_settings").select("warehouse_code,preparation_business_days,transport_business_days").eq("is_active", true),
   ]);
   if (slaError) throw new Error(`SMART_DELIVERY_SLA_QUERY_FAILED:${slaError.message}`);
@@ -495,7 +571,10 @@ export async function searchSmartMerchProducts(query: SmartQuery): Promise<Smart
     slas: (slaData ?? []) as DeliverySla[],
     settings: new Map((settingData ?? []).map((setting) => [setting.warehouse_code as "PT" | "CZ", setting as FulfillmentSetting])),
   };
-  const candidates = await attachCustomizationOptions(await loadCandidates(query));
+  const loadedCandidates = await loadCandidates(query);
+  const candidates = personalizationRequested
+    ? await attachCustomizationOptions(loadedCandidates)
+    : loadedCandidates;
   const results = sortResults(
     candidates.flatMap((product) => {
       const result = buildResult(product, query, delivery);
