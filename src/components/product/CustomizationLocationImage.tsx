@@ -468,7 +468,7 @@ function CustomizationLocationImageContent({
     updatePrintArea(event.currentTarget);
   }
 
-  function handleArtworkPointerDown(event: PointerEvent<HTMLDivElement>) {
+  function handleArtworkPointerDown(event: PointerEvent<SVGSVGElement>) {
     if (!onArtworkPositionChange || !printAreaRef.current) return;
 
     const rect = printAreaRef.current.getBoundingClientRect();
@@ -482,7 +482,7 @@ function CustomizationLocationImageContent({
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function handleArtworkPointerMove(event: PointerEvent<HTMLDivElement>) {
+  function handleArtworkPointerMove(event: PointerEvent<SVGSVGElement>) {
     const drag = artworkDragRef.current;
     if (
       !onArtworkPositionChange ||
@@ -505,7 +505,7 @@ function CustomizationLocationImageContent({
     });
   }
 
-  function handleArtworkPointerUp(event: PointerEvent<HTMLDivElement>) {
+  function handleArtworkPointerUp(event: PointerEvent<SVGSVGElement>) {
     if (artworkDragRef.current?.pointerId === event.pointerId) {
       artworkDragRef.current = null;
     }
@@ -536,7 +536,7 @@ function CustomizationLocationImageContent({
           }}
         />
 
-        {artworkUrl && printArea ? (
+        {(artworkUrl || textArtwork?.content.trim()) && printArea ? (
           <div
             ref={printAreaRef}
             aria-label="Área de personalização definida pelo fornecedor"
@@ -546,68 +546,52 @@ function CustomizationLocationImageContent({
               top: `${printArea.top}%`,
               width: `${printArea.width}%`,
               height: `${printArea.height}%`,
-              containerType: "size",
             }}
           >
-            <div
+            <svg
+              viewBox={`0 0 ${Math.max(printAreaAspectRatio, 0.01) * 100} 100`}
+              preserveAspectRatio="none"
               role={onArtworkPositionChange ? "button" : undefined}
               tabIndex={onArtworkPositionChange ? 0 : undefined}
               onPointerDown={handleArtworkPointerDown}
               onPointerMove={handleArtworkPointerMove}
               onPointerUp={handleArtworkPointerUp}
               onPointerCancel={handleArtworkPointerUp}
-              className={`absolute z-10 opacity-100 ${
-                onArtworkPositionChange
+              className={`absolute inset-0 h-full w-full select-none ${
+                artworkUrl && onArtworkPositionChange
                   ? "cursor-grab touch-none active:cursor-grabbing"
                   : "pointer-events-none"
               }`}
-              style={{
-                left: `${artworkCenterX}%`,
-                top: `${artworkCenterY}%`,
-                width: `${safeArtworkPosition.width}%`,
-                height: `${artworkHeight}%`,
-                transform: `translate(-50%, -50%) rotate(${safeArtworkPosition.rotation}deg)`,
-                transformOrigin: "center center",
-              }}
             >
-              <img
-                src={artworkUrl}
-                alt="Pré-visualização da imagem carregada no produto"
-                draggable={false}
-                className="h-full w-full select-none object-contain opacity-100"
-              />
-            </div>
-          </div>
-        ) : null}
+              {artworkUrl ? (
+                <image
+                  href={artworkUrl}
+                  x={-(safeArtworkPosition.width * printAreaAspectRatio) / 2}
+                  y={-artworkHeight / 2}
+                  width={safeArtworkPosition.width * printAreaAspectRatio}
+                  height={artworkHeight}
+                  preserveAspectRatio="none"
+                  transform={`translate(${artworkCenterX * printAreaAspectRatio} ${artworkCenterY}) rotate(${safeArtworkPosition.rotation})`}
+                />
+              ) : null}
 
-        {textArtwork?.content.trim() && printArea ? (
-          <div
-            aria-label="Texto aplicado na área de personalização"
-            className="pointer-events-none absolute z-20 overflow-hidden"
-            style={{
-              left: `${printArea.left}%`,
-              top: `${printArea.top}%`,
-              width: `${printArea.width}%`,
-              height: `${printArea.height}%`,
-              containerType: "size",
-            }}
-          >
-            <span
-              className="absolute block whitespace-nowrap leading-none"
-              style={{
-                left: `${textArtwork.x}%`,
-                top: `${textArtwork.y}%`,
-                color: textArtwork.color,
-                fontFamily: `"${textArtwork.fontFamily}", sans-serif`,
-                fontSize: `${textArtwork.fontSize}cqh`,
-                fontWeight: textArtwork.fontWeight,
-                fontStyle: textArtwork.fontStyle,
-                transform: `translate(-50%, -50%) rotate(${textArtwork.rotation}deg)`,
-                transformOrigin: "center center",
-              }}
-            >
-              {textArtwork.content}
-            </span>
+              {textArtwork?.content.trim() ? (
+                <text
+                  x={textArtwork.x * printAreaAspectRatio}
+                  y={textArtwork.y}
+                  fill={textArtwork.color}
+                  fontFamily={`"${textArtwork.fontFamily}", sans-serif`}
+                  fontSize={textArtwork.fontSize}
+                  fontWeight={textArtwork.fontWeight}
+                  fontStyle={textArtwork.fontStyle}
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  transform={`rotate(${textArtwork.rotation} ${textArtwork.x * printAreaAspectRatio} ${textArtwork.y})`}
+                >
+                  {textArtwork.content}
+                </text>
+              ) : null}
+            </svg>
           </div>
         ) : null}
       </div>

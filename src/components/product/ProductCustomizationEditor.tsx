@@ -816,7 +816,9 @@ function getSafeLogoPosition(params: {
       params.printAreaAspectRatio * sine + heightRatio * cosine,
       0.0001,
     );
-  const maximumWidth = Math.min(
+  // O editor pode ampliar a arte até preencher qualquer um dos dois eixos.
+  // A dimensão que ultrapassar a área é recortada apenas pela máscara final.
+  const maximumWidth = Math.max(
     widthLimit,
     heightLimit,
   );
@@ -876,12 +878,36 @@ function getMaximumLogoWidthPercent(params: {
   }).width;
 }
 
+function getContainedLogoWidthPercent(params: {
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+  rotation: number;
+}): number {
+  const rotation = normalizeRotation(params.rotation);
+  const radians = (rotation * Math.PI) / 180;
+  const cosine = Math.abs(Math.cos(radians));
+  const sine = Math.abs(Math.sin(radians));
+  const widthLimit =
+    100 / Math.max(cosine + sine / params.logoAspectRatio, 0.0001);
+  const heightLimit =
+    100 /
+    Math.max(
+      params.printAreaAspectRatio * sine +
+        (params.printAreaAspectRatio / params.logoAspectRatio) * cosine,
+      0.0001,
+    );
+
+  return Math.min(widthLimit, heightLimit);
+}
+
 function getCenteredFittedLogoPosition(params: {
   printAreaAspectRatio: number;
   logoAspectRatio: number;
   rotation: number;
 }): LogoPosition {
-  const maximumWidth = getMaximumLogoWidthPercent(params);
+  // O carregamento inicial mostra a imagem completa. Depois, o utilizador
+  // pode ampliá-la livremente até preencher o outro eixo da área.
+  const maximumWidth = getContainedLogoWidthPercent(params);
   const logoHeight = getLogoHeightPercent({
     logoWidthPercent: maximumWidth,
     printAreaAspectRatio: params.printAreaAspectRatio,
