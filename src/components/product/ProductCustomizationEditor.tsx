@@ -20,6 +20,7 @@ import {
   Plus,
   RotateCcw,
   Ruler,
+  Type,
   Upload,
   X,
 } from "lucide-react";
@@ -128,6 +129,59 @@ type LogoPosition = {
   y: number;
   width: number;
   rotation: number;
+};
+
+type TextLayer = {
+  content: string;
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: "400" | "700";
+  fontStyle: "normal" | "italic";
+  color: string;
+  x: number;
+  y: number;
+  rotation: number;
+};
+
+const TEXT_FONT_OPTIONS = [
+  "Arial",
+  "Comic Sans MS",
+  "Courier New",
+  "Georgia",
+  "Trebuchet MS",
+  "Verdana",
+  "Times New Roman",
+] as const;
+
+const initialTextLayer: TextLayer = {
+  content: "",
+  fontFamily: "Arial",
+  fontSize: 24,
+  fontWeight: "400",
+  fontStyle: "normal",
+  color: "#111827",
+  x: 50,
+  y: 50,
+  rotation: 0,
+};
+
+const TEXT_EDITOR_COPY: Record<SiteLocale, {
+  title: string;
+  help: string;
+  placeholder: string;
+  font: string;
+  size: string;
+  bold: string;
+  italic: string;
+  color: string;
+  fit: string;
+  horizontal: string;
+  vertical: string;
+  rotation: string;
+}> = {
+  pt: { title: "Adicionar texto", help: "O texto ficará dentro da área máxima de impressão.", placeholder: "Escreve o texto", font: "Fonte", size: "Tamanho", bold: "Negrito", italic: "Itálico", color: "Cor", fit: "Ajustar texto à área", horizontal: "Posição horizontal", vertical: "Posição vertical", rotation: "Rotação do texto" },
+  en: { title: "Add text", help: "The text will remain inside the maximum print area.", placeholder: "Enter text", font: "Font", size: "Size", bold: "Bold", italic: "Italic", color: "Colour", fit: "Fit text to area", horizontal: "Horizontal position", vertical: "Vertical position", rotation: "Text rotation" },
+  fr: { title: "Ajouter du texte", help: "Le texte restera dans la zone maximale d’impression.", placeholder: "Saisir le texte", font: "Police", size: "Taille", bold: "Gras", italic: "Italique", color: "Couleur", fit: "Ajuster le texte à la zone", horizontal: "Position horizontale", vertical: "Position verticale", rotation: "Rotation du texte" },
 };
 
 type PrintAreaDimensions = {
@@ -500,7 +554,9 @@ function createTightLogoPreview(image: HTMLImageElement): {
     for (let x = 0; x < width; x += 1) {
       const alpha = pixels[(y * width + x) * 4 + 3];
 
-      if (alpha <= 12) continue;
+      // Ignora também halos praticamente invisíveis que, em muitos PNG,
+      // ocupam o canvas inteiro e impediam o ajuste ao conteúdo real.
+      if (alpha <= 28) continue;
 
       left = Math.min(left, x);
       top = Math.min(top, y);
@@ -563,6 +619,148 @@ function createTightLogoPreview(image: HTMLImageElement): {
     url: croppedCanvas.toDataURL("image/png"),
     aspectRatio: cropWidth / Math.max(cropHeight, 1),
   };
+}
+
+function getTextLayerMetrics(params: {
+  layer: TextLayer;
+  printAreaAspectRatio: number;
+}): { width: number; height: number } {
+  if (!params.layer.content.trim()) return { width: 0, height: 0 };
+
+  if (typeof document === "undefined") {
+    return {
+      width:
+        (params.layer.content.length * params.layer.fontSize * 0.58) /
+        Math.max(params.printAreaAspectRatio, 0.01),
+      height: params.layer.fontSize * 1.2,
+    };
+  }
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  const referenceFontSize = 100;
+
+  if (!context) return { width: 0, height: params.layer.fontSize * 1.2 };
+
+  context.font = `${params.layer.fontStyle} ${params.layer.fontWeight} ${referenceFontSize}px "${params.layer.fontFamily}"`;
+  const measuredWidth = context.measureText(params.layer.content).width;
+  const height = params.layer.fontSize * 1.2;
+  const width =
+    ((measuredWidth / referenceFontSize) * params.layer.fontSize) /
+    Math.max(params.printAreaAspectRatio, 0.01);
+
+  return { width, height };
+}
+
+function getSafeTextLayer(params: {
+  layer: TextLayer;
+  printAreaAspectRatio: number;
+}): TextLayer {
+  const rotation = normalizeRotation(params.layer.rotation);
+  let fontSize = clamp(params.layer.fontSize, 4, 90);
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const metrics = getTextLayerMetrics({
+      layer: { ...params.layer, fontSize },
+      printAreaAspectRatio: params.printAreaAspectRatio,
+    });
+    const radians = (rotation * Math.PI) / 180;
+    const cosine = Math.abs(Math.cos(radians));
+    const sine = Math.abs(Math.sin(radians));
+    const rotatedWidth = metrics.width * cosine + metrics.height * sine;
+    const rotatedHeight = metrics.width * sine + metrics.height * cosine;
+
+    if (rotatedWidth <= 100 && rotatedHeight <= 100) {
+      return {
+        ...params.layer,
+        fontSize,
+        rotation,
+        x: clamp(params.layer.x, rotatedWidth / 2, 100 - rotatedWidth / 2),
+        y: clamp(params.layer.y, rotatedHeight / 2, 100 - rotatedHeight / 2),
+      };
+    }
+
+    fontSize *= Math.min(100 / Math.max(rotatedWidth, 0.01), 100 / Math.max(rotatedHeight, 0.01));
+  }
+
+  return { ...params.layer, fontSize: Math.max(4, fontSize), rotation, x: 50, y: 50 };
+}
+
+async function loadCanvasImage(url: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Não foi possível preparar a imagem para a arte final."));
+    image.src = url;
+  });
+}
+
+async function createComposedArtworkFile(params: {
+  artworkUrl: string | null;
+  logoPosition: LogoPosition;
+  logoAspectRatio: number;
+  textLayer: TextLayer;
+  printAreaDimensions: PrintAreaDimensions;
+}): Promise<File | null> {
+  const hasArtwork = Boolean(params.artworkUrl);
+  const hasText = Boolean(params.textLayer.content.trim());
+  if (!hasArtwork && !hasText) return null;
+
+  const dpi = 300;
+  const canvas = document.createElement("canvas");
+  const requestedWidth = Math.max(1, Math.round((params.printAreaDimensions.widthMm / 25.4) * dpi));
+  const requestedHeight = Math.max(1, Math.round((params.printAreaDimensions.heightMm / 25.4) * dpi));
+  const exportScale = Math.min(1, 2400 / Math.max(requestedWidth, requestedHeight));
+  canvas.width = Math.max(1, Math.round(requestedWidth * exportScale));
+  canvas.height = Math.max(1, Math.round(requestedHeight * exportScale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Não foi possível gerar a arte final.");
+
+  if (params.artworkUrl) {
+    const image = await loadCanvasImage(params.artworkUrl);
+    const width = (params.logoPosition.width / 100) * canvas.width;
+    const height = width / Math.max(params.logoAspectRatio, 0.01);
+    const left = ((params.logoPosition.x + params.logoPosition.width / 2) / 100) * canvas.width;
+    const topPercent =
+      params.logoPosition.y +
+      getLogoHeightPercent({
+        logoWidthPercent: params.logoPosition.width,
+        printAreaAspectRatio:
+          params.printAreaDimensions.widthMm / params.printAreaDimensions.heightMm,
+        logoAspectRatio: params.logoAspectRatio,
+      }) /
+        2;
+    const top = (topPercent / 100) * canvas.height;
+
+    context.save();
+    context.translate(left, top);
+    context.rotate((params.logoPosition.rotation * Math.PI) / 180);
+    context.drawImage(image, -width / 2, -height / 2, width, height);
+    context.restore();
+  }
+
+  if (hasText) {
+    const layer = getSafeTextLayer({
+      layer: params.textLayer,
+      printAreaAspectRatio:
+        params.printAreaDimensions.widthMm / params.printAreaDimensions.heightMm,
+    });
+    const fontPixels = (layer.fontSize / 100) * canvas.height;
+    context.save();
+    context.translate((layer.x / 100) * canvas.width, (layer.y / 100) * canvas.height);
+    context.rotate((layer.rotation * Math.PI) / 180);
+    context.font = `${layer.fontStyle} ${layer.fontWeight} ${fontPixels}px "${layer.fontFamily}"`;
+    context.fillStyle = layer.color;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(layer.content, 0, 0);
+    context.restore();
+  }
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("Não foi possível exportar a arte final.");
+
+  return new File([blob], "arte-final-personalizacao.png", { type: "image/png" });
 }
 
 function getLogoHeightPercent(params: {
@@ -975,6 +1173,7 @@ export default function ProductCustomizationEditor({
 }: ProductCustomizationEditorProps) {
   const router = useRouter();
   const copy = getEditorCopy(locale);
+  const textCopy = TEXT_EDITOR_COPY[locale];
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const formatPrice = (value: number, currency = "EUR") =>
     formatPriceValue(value, currency, intlLocale);
@@ -1071,6 +1270,7 @@ export default function ProductCustomizationEditor({
   const [detectedPrintAreaAspectRatio, setDetectedPrintAreaAspectRatio] =
     useState<number | null>(null);
   const [position, setPosition] = useState<LogoPosition>(initialPosition);
+  const [textLayer, setTextLayer] = useState<TextLayer>(initialTextLayer);
   const [showPriceTable, setShowPriceTable] = useState(false);
   const [showProductionTimes, setShowProductionTimes] = useState(false);
   const [needsDesignHelp, setNeedsDesignHelp] = useState(false);
@@ -1141,33 +1341,52 @@ export default function ProductCustomizationEditor({
 
   const printAreaAspectRatio =
     printAreaDimensions.widthMm / printAreaDimensions.heightMm;
-  const editorAreaAspectRatio =
-    printAreaAspectRatio < 0.8
-      ? 0.58
-      : printAreaAspectRatio > 1.25
-        ? 1.55
-        : 1;
+  // A área do editor tem de preservar a proporção física recebida do
+  // fornecedor. O limite visual anterior (1.55) fazia uma área 160 × 50
+  // comportar-se como uma área quase quadrada e bloqueava o zoom cedo demais.
+  const editorAreaAspectRatio = printAreaAspectRatio;
   const editorPrintAreaStyle =
     printAreaAspectRatio < 0.8
-      ? { width: "48%", height: "88%" }
-      : printAreaAspectRatio > 1.25
-        ? { width: "92%", height: "64%" }
-        : { width: "78%", height: "82%" };
+      ? { height: "88%", aspectRatio: String(printAreaAspectRatio) }
+      : { width: "92%", aspectRatio: String(printAreaAspectRatio) };
 
-  const safePosition = getSafeLogoPosition({
+  const geometrySafePosition = getSafeLogoPosition({
     position,
     printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
   });
 
-  const maximumAllowedLogoWidthPercent = getSafeLogoPosition({
+  const geometricMaximumLogoWidthPercent = getSafeLogoPosition({
     position: {
-      ...safePosition,
+      ...geometrySafePosition,
       width: 100,
     },
     printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
   }).width;
+  const geometricMaximumLogoHeightPercent = getLogoHeightPercent({
+    logoWidthPercent: geometricMaximumLogoWidthPercent,
+    printAreaAspectRatio,
+    logoAspectRatio,
+  });
+  const geometricMaximumAreaCm2 =
+    ((geometricMaximumLogoWidthPercent / 100) * printAreaDimensions.widthMm *
+      (geometricMaximumLogoHeightPercent / 100) * printAreaDimensions.heightMm) /
+    100;
+  const supplierAreaLimitCm2 = Number(selectedLocation?.max_area_cm2 ?? 0);
+  const areaScale =
+    supplierAreaLimitCm2 > 0 && geometricMaximumAreaCm2 > supplierAreaLimitCm2
+      ? Math.sqrt(supplierAreaLimitCm2 / geometricMaximumAreaCm2)
+      : 1;
+  const maximumAllowedLogoWidthPercent = geometricMaximumLogoWidthPercent * areaScale;
+  const safePosition = getSafeLogoPosition({
+    position: {
+      ...position,
+      width: Math.min(position.width, maximumAllowedLogoWidthPercent),
+    },
+    printAreaAspectRatio: editorAreaAspectRatio,
+    logoAspectRatio,
+  });
 
   const logoHeightPercent = getLogoHeightPercent({
     logoWidthPercent: safePosition.width,
@@ -1175,13 +1394,36 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
   });
 
-  const logoWidthMm = roundMoney(
-    (safePosition.width / 100) * printAreaDimensions.widthMm,
-  );
-
-  const logoHeightMm = roundMoney(
-    logoWidthMm / Math.max(logoAspectRatio, 0.01),
-  );
+  const logoBounds = (() => {
+    if (!logoPreviewUrl) return null;
+    const radians = (safePosition.rotation * Math.PI) / 180;
+    const rotatedWidth =
+      safePosition.width * Math.abs(Math.cos(radians)) +
+      logoHeightPercent * Math.abs(Math.sin(radians));
+    const rotatedHeight =
+      safePosition.width * Math.abs(Math.sin(radians)) +
+      logoHeightPercent * Math.abs(Math.cos(radians));
+    const centerX = safePosition.x + safePosition.width / 2;
+    const centerY = safePosition.y + logoHeightPercent / 2;
+    return { left: centerX - rotatedWidth / 2, right: centerX + rotatedWidth / 2, top: centerY - rotatedHeight / 2, bottom: centerY + rotatedHeight / 2 };
+  })();
+  const textBounds = (() => {
+    if (!textLayer.content.trim()) return null;
+    const metrics = getTextLayerMetrics({ layer: textLayer, printAreaAspectRatio });
+    const radians = (textLayer.rotation * Math.PI) / 180;
+    const rotatedWidth = metrics.width * Math.abs(Math.cos(radians)) + metrics.height * Math.abs(Math.sin(radians));
+    const rotatedHeight = metrics.width * Math.abs(Math.sin(radians)) + metrics.height * Math.abs(Math.cos(radians));
+    return { left: textLayer.x - rotatedWidth / 2, right: textLayer.x + rotatedWidth / 2, top: textLayer.y - rotatedHeight / 2, bottom: textLayer.y + rotatedHeight / 2 };
+  })();
+  const artworkBounds = [logoBounds, textBounds].filter((value): value is NonNullable<typeof value> => Boolean(value));
+  const occupiedWidthPercent = artworkBounds.length
+    ? Math.max(...artworkBounds.map((item) => item.right)) - Math.min(...artworkBounds.map((item) => item.left))
+    : 0;
+  const occupiedHeightPercent = artworkBounds.length
+    ? Math.max(...artworkBounds.map((item) => item.bottom)) - Math.min(...artworkBounds.map((item) => item.top))
+    : 0;
+  const logoWidthMm = roundMoney((occupiedWidthPercent / 100) * printAreaDimensions.widthMm);
+  const logoHeightMm = roundMoney((occupiedHeightPercent / 100) * printAreaDimensions.heightMm);
 
   const previewBaseImage = getPreferredPreviewImage({
     selectedLocation,
@@ -1345,14 +1587,26 @@ export default function ProductCustomizationEditor({
   }, [selectedLocation?.id]);
 
   useEffect(() => {
-    setPosition((current) =>
-      getSafeLogoPosition({
-        position: current,
+    setPosition((current) => {
+      const width = Math.min(current.width, maximumAllowedLogoWidthPercent);
+      const height = getLogoHeightPercent({
+        logoWidthPercent: width,
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
-      }),
-    );
-  }, [editorAreaAspectRatio, logoAspectRatio]);
+      });
+
+      return getSafeLogoPosition({
+        position: {
+          ...current,
+          x: (100 - width) / 2,
+          y: (100 - height) / 2,
+          width,
+        },
+        printAreaAspectRatio: editorAreaAspectRatio,
+        logoAspectRatio,
+      });
+    });
+  }, [editorAreaAspectRatio, logoAspectRatio, maximumAllowedLogoWidthPercent]);
 
   useEffect(() => {
     return () => {
@@ -1442,7 +1696,10 @@ export default function ProductCustomizationEditor({
       getSafeLogoPosition({
         position: {
           ...current,
-          [key]: value,
+          [key]:
+            key === "width"
+              ? Math.min(value, maximumAllowedLogoWidthPercent)
+              : value,
         },
         printAreaAspectRatio: editorAreaAspectRatio,
         logoAspectRatio,
@@ -1474,21 +1731,45 @@ export default function ProductCustomizationEditor({
       logoAspectRatio,
     });
 
-    setPosition(
-      getCenteredFittedLogoPosition({
-        printAreaAspectRatio: editorAreaAspectRatio,
-        logoAspectRatio,
-        rotation,
-      }),
+    const fittedPosition = getCenteredFittedLogoPosition({
+      printAreaAspectRatio: editorAreaAspectRatio,
+      logoAspectRatio,
+      rotation,
+    });
+    const width = Math.min(
+      fittedPosition.width,
+      maximumAllowedLogoWidthPercent,
     );
+    const height = getLogoHeightPercent({
+      logoWidthPercent: width,
+      printAreaAspectRatio: editorAreaAspectRatio,
+      logoAspectRatio,
+    });
+
+    setPosition({
+      ...fittedPosition,
+      x: (100 - width) / 2,
+      y: (100 - height) / 2,
+      width,
+    });
   }
 
   function fitLogoToArea() {
+    const fittedHeight = getLogoHeightPercent({
+      logoWidthPercent: maximumAllowedLogoWidthPercent,
+      printAreaAspectRatio,
+      logoAspectRatio,
+    });
     setPosition(
-      getCenteredFittedLogoPosition({
-        printAreaAspectRatio: editorAreaAspectRatio,
+      getSafeLogoPosition({
+        position: {
+          x: (100 - maximumAllowedLogoWidthPercent) / 2,
+          y: (100 - fittedHeight) / 2,
+          width: maximumAllowedLogoWidthPercent,
+          rotation: safePosition.rotation,
+        },
+        printAreaAspectRatio,
         logoAspectRatio,
-        rotation: safePosition.rotation,
       }),
     );
   }
@@ -1521,6 +1802,26 @@ export default function ProductCustomizationEditor({
 
   function enlargeLogo() {
     updatePosition("width", safePosition.width + 8);
+  }
+
+  function updateTextLayer(patch: Partial<TextLayer>) {
+    setTextLayer((current) =>
+      getSafeTextLayer({
+        layer: { ...current, ...patch },
+        printAreaAspectRatio,
+      }),
+    );
+  }
+
+  function fitTextToArea() {
+    if (!textLayer.content.trim()) return;
+
+    setTextLayer(
+      getSafeTextLayer({
+        layer: { ...textLayer, x: 50, y: 50, fontSize: 90 },
+        printAreaAspectRatio,
+      }),
+    );
   }
 
   function handleLogoPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -1607,6 +1908,11 @@ export default function ProductCustomizationEditor({
     setSaveMessage(null);
 
     startSavingDraft(async () => {
+      if (logoFile && !displayedLogoPreviewUrl && textLayer.content.trim()) {
+        setSaveMessage("Para combinar texto com este ficheiro, usa PNG, JPG, WEBP ou SVG pré-visualizável.");
+        return;
+      }
+
       const formData = new FormData();
 
       if (initialDraftId) {
@@ -1693,9 +1999,28 @@ export default function ProductCustomizationEditor({
       );
 
       formData.set("supplierId", supplierId ?? "");
+      formData.set("textLayer", JSON.stringify(textLayer));
 
-      if (logoFile) {
-        formData.set("logoFile", logoFile);
+      try {
+        const composedArtwork = await createComposedArtworkFile({
+          artworkUrl: displayedLogoPreviewUrl,
+          logoPosition: safePosition,
+          logoAspectRatio,
+          textLayer,
+          printAreaDimensions,
+        });
+
+        if (composedArtwork) {
+          formData.set("logoFile", composedArtwork);
+          formData.set("hasComposedArtwork", "true");
+          if (logoFile) formData.set("originalLogoFile", logoFile);
+        } else if (logoFile) {
+          formData.set("logoFile", logoFile);
+          formData.set("hasComposedArtwork", "false");
+        }
+      } catch (error) {
+        setSaveMessage(error instanceof Error ? error.message : "Não foi possível preparar a arte final.");
+        return;
       }
 
       const result = await saveCustomizationDraftAction(formData);
@@ -1847,8 +2172,9 @@ export default function ProductCustomizationEditor({
                   artworkUrl={displayedLogoPreviewUrl}
                   artworkPosition={safePosition}
                   printAreaGeometry={selectedLocation?.print_area_geometry}
-                  printAreaAspectRatio={editorAreaAspectRatio}
+                  printAreaAspectRatio={printAreaAspectRatio}
                   artworkAspectRatio={logoAspectRatio}
+                  textArtwork={textLayer}
                   onPrintAreaAspectRatioDetected={
                     setDetectedPrintAreaAspectRatio
                   }
@@ -2006,7 +2332,7 @@ export default function ProductCustomizationEditor({
 
           </aside>
 
-            {logoPreviewUrl ? (
+            {selectedLocation ? (
               <div className="rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm sm:p-5 xl:order-4 xl:col-span-2">
                 <div className="flex items-center justify-between gap-4">
                   <p className="text-sm font-semibold text-neutral-950">
@@ -2032,9 +2358,9 @@ export default function ProductCustomizationEditor({
                     ref={printAreaRef}
                     aria-label={`${copy.printArea} ${printAreaDimensions.widthMm} × ${printAreaDimensions.heightMm} mm`}
                     className="relative shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
-                    style={editorPrintAreaStyle}
+                    style={{ ...editorPrintAreaStyle, containerType: "size" }}
                   >
-                    <div
+                    {logoPreviewUrl ? <div
                       role="button"
                       tabIndex={0}
                       onPointerDown={handleLogoPointerDown}
@@ -2057,7 +2383,25 @@ export default function ProductCustomizationEditor({
                         draggable={false}
                         className="h-full w-full select-none object-contain"
                       />
-                    </div>
+                    </div> : null}
+                    {textLayer.content.trim() ? (
+                      <span
+                        className="pointer-events-none absolute block whitespace-nowrap leading-none"
+                        style={{
+                          left: `${textLayer.x}%`,
+                          top: `${textLayer.y}%`,
+                          color: textLayer.color,
+                          fontFamily: `"${textLayer.fontFamily}", sans-serif`,
+                          fontSize: `${textLayer.fontSize}cqh`,
+                          fontWeight: textLayer.fontWeight,
+                          fontStyle: textLayer.fontStyle,
+                          transform: `translate(-50%, -50%) rotate(${textLayer.rotation}deg)`,
+                          transformOrigin: "center center",
+                        }}
+                      >
+                        {textLayer.content}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
@@ -2187,6 +2531,80 @@ export default function ProductCustomizationEditor({
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="border-t border-neutral-200 pt-4">
+                      <div className="flex items-center gap-2">
+                        <Type className="h-4 w-4 text-neutral-500" />
+                        <p className="text-sm font-semibold text-neutral-950">{textCopy.title}</p>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-neutral-500">{textCopy.help}</p>
+
+                      <input
+                        type="text"
+                        value={textLayer.content}
+                        maxLength={120}
+                        onChange={(event) => updateTextLayer({ content: event.target.value })}
+                        placeholder={textCopy.placeholder}
+                        className="mt-3 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-neutral-950 outline-none transition focus:border-neutral-950"
+                      />
+
+                      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
+                        <label>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">{textCopy.font}</span>
+                          <select
+                            value={textLayer.fontFamily}
+                            onChange={(event) => updateTextLayer({ fontFamily: event.target.value })}
+                            className="mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm"
+                          >
+                            {TEXT_FONT_OPTIONS.map((font) => <option key={font} value={font}>{font}</option>)}
+                          </select>
+                        </label>
+                        <label>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500">{textCopy.color}</span>
+                          <input
+                            type="color"
+                            value={textLayer.color}
+                            onChange={(event) => updateTextLayer({ color: event.target.value })}
+                            className="mt-1 h-10 w-12 cursor-pointer rounded-xl border border-neutral-200 bg-white p-1"
+                          />
+                        </label>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          aria-pressed={textLayer.fontWeight === "700"}
+                          onClick={() => updateTextLayer({ fontWeight: textLayer.fontWeight === "700" ? "400" : "700" })}
+                          className={`rounded-xl border px-3 py-2 text-xs font-bold ${textLayer.fontWeight === "700" ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700"}`}
+                        >{textCopy.bold}</button>
+                        <button
+                          type="button"
+                          aria-pressed={textLayer.fontStyle === "italic"}
+                          onClick={() => updateTextLayer({ fontStyle: textLayer.fontStyle === "italic" ? "normal" : "italic" })}
+                          className={`rounded-xl border px-3 py-2 text-xs italic ${textLayer.fontStyle === "italic" ? "border-neutral-950 bg-neutral-950 text-white" : "border-neutral-200 bg-white text-neutral-700"}`}
+                        >{textCopy.italic}</button>
+                      </div>
+
+                      <label className="mt-4 block">
+                        <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500"><span>{textCopy.size}</span><span>{Math.round(textLayer.fontSize)}%</span></span>
+                        <input type="range" min="4" max="90" step="1" value={textLayer.fontSize} onChange={(event) => updateTextLayer({ fontSize: Number(event.target.value) })} className="mt-2 w-full" />
+                      </label>
+                      <label className="mt-3 block">
+                        <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500"><span>{textCopy.horizontal}</span><span>{Math.round(textLayer.x)}%</span></span>
+                        <input type="range" min="0" max="100" value={textLayer.x} onChange={(event) => updateTextLayer({ x: Number(event.target.value) })} className="mt-2 w-full" />
+                      </label>
+                      <label className="mt-3 block">
+                        <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500"><span>{textCopy.vertical}</span><span>{Math.round(textLayer.y)}%</span></span>
+                        <input type="range" min="0" max="100" value={textLayer.y} onChange={(event) => updateTextLayer({ y: Number(event.target.value) })} className="mt-2 w-full" />
+                      </label>
+                      <label className="mt-3 block">
+                        <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500"><span>{textCopy.rotation}</span><span>{Math.round(textLayer.rotation)}º</span></span>
+                        <input type="range" min="0" max="359" value={textLayer.rotation} onChange={(event) => updateTextLayer({ rotation: Number(event.target.value) })} className="mt-2 w-full" />
+                      </label>
+                      <button type="button" onClick={fitTextToArea} disabled={!textLayer.content.trim()} className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 disabled:opacity-40">
+                        <Maximize2 className="mr-1.5 h-4 w-4" />{textCopy.fit}
+                      </button>
                     </div>
 
                 {printColorOptions.length > 0 ? (

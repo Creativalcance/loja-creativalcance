@@ -75,6 +75,7 @@ type ExistingDraftRecord = {
   variant_id: string | null;
   quantity: number;
   logo_storage_path: string | null;
+  personalization_data: Record<string, unknown> | null;
   status: string;
 };
 
@@ -182,8 +183,8 @@ function sanitizeFileName(fileName: string): string {
   return `${safeName || "logo"}${extension}`;
 }
 
-function getFileFromFormData(formData: FormData): File | null {
-  const value = formData.get("logoFile");
+function getFileFromFormData(formData: FormData, key = "logoFile"): File | null {
+  const value = formData.get(key);
 
   if (!(value instanceof File) || value.size === 0) {
     return null;
@@ -527,6 +528,7 @@ export async function saveCustomizationDraftAction(
   formData: FormData,
 ): Promise<SaveCustomizationDraftResult> {
   let newlyUploadedStoragePath: string | null = null;
+  let newlyUploadedSourcePath: string | null = null;
 
   try {
     const draftId = getOptionalString(formData, "draftId");
@@ -617,7 +619,10 @@ export async function saveCustomizationDraftAction(
       "printColorMode",
     );
     const printColorsRaw = getOptionalString(formData, "printColors");
+    const textLayerRaw = getOptionalString(formData, "textLayer");
+    const hasComposedArtwork = getBoolean(formData, "hasComposedArtwork");
     let printColors: Array<{ code: string; hex: string }> = [];
+    let textLayer: Record<string, unknown> | null = null;
 
     if (printColorsRaw) {
       try {
@@ -651,6 +656,17 @@ export async function saveCustomizationDraftAction(
           draftId: null,
           redirectUrl: null,
         };
+      }
+    }
+
+    if (textLayerRaw) {
+      try {
+        const parsedTextLayer: unknown = JSON.parse(textLayerRaw);
+        if (parsedTextLayer && typeof parsedTextLayer === "object" && !Array.isArray(parsedTextLayer)) {
+          textLayer = parsedTextLayer as Record<string, unknown>;
+        }
+      } catch {
+        throw new Error("Configuração de texto inválida.");
       }
     }
 
@@ -937,6 +953,7 @@ export async function saveCustomizationDraftAction(
               variant_id,
               quantity,
               logo_storage_path,
+              personalization_data,
               status
             `,
           )
@@ -996,9 +1013,18 @@ export async function saveCustomizationDraftAction(
     }
 
     const logoFile = getFileFromFormData(formData);
+    const originalLogoFile = getFileFromFormData(formData, "originalLogoFile");
 
     let logoStoragePath =
       existingDraft?.logo_storage_path ?? null;
+    let sourceArtworkStoragePath =
+      typeof existingDraft?.personalization_data?.sourceArtworkStoragePath === "string"
+        ? existingDraft.personalization_data.sourceArtworkStoragePath
+        : null;
+    const existingSourceArtworkFileName =
+      typeof existingDraft?.personalization_data?.sourceArtworkFileName === "string"
+        ? existingDraft.personalization_data.sourceArtworkFileName
+        : null;
 
     let logoFileName: string | null = null;
     let logoMimeType: string | null = null;
@@ -1035,6 +1061,30 @@ export async function saveCustomizationDraftAction(
       newlyUploadedStoragePath = logoStoragePath;
       logoFileName = logoFile.name;
       logoMimeType = logoFile.type;
+    }
+
+    if (originalLogoFile) {
+      validateFile(originalLogoFile);
+      const sourceFileName = sanitizeFileName(originalLogoFile.name);
+      const nextSourcePath = [
+        identity.userId ?? `session-${identity.sessionId}`,
+        product.id,
+        crypto.randomUUID(),
+        `original-${sourceFileName}`,
+      ].join("/");
+      const { error: sourceUploadError } = await supabaseAdmin.storage
+        .from(ARTWORK_BUCKET)
+        .upload(nextSourcePath, originalLogoFile, {
+          contentType: originalLogoFile.type,
+          upsert: false,
+          cacheControl: "3600",
+        });
+      if (sourceUploadError) {
+        if (newlyUploadedStoragePath) await supabaseAdmin.storage.from(ARTWORK_BUCKET).remove([newlyUploadedStoragePath]);
+        return { success: false, message: `Não foi possível guardar o ficheiro original: ${sourceUploadError.message}`, draftId: null, redirectUrl: null };
+      }
+      sourceArtworkStoragePath = nextSourcePath;
+      newlyUploadedSourcePath = nextSourcePath;
     }
 
     const productUnitPrice = selectedPrice.finalPrice;
@@ -1130,6 +1180,12 @@ export async function saveCustomizationDraftAction(
         notes,
         printColorMode,
         printColors,
+        editorVersion: 2,
+        hasComposedArtwork,
+        textLayer,
+        sourceArtworkStoragePath,
+        sourceArtworkFileName:
+          originalLogoFile?.name ?? existingSourceArtworkFileName,
         pricing: {
           priceTableId: confirmedCustomizationPrice.priceTableId,
           supplierPersonalizationUnitPrice:
@@ -1165,10 +1221,15 @@ export async function saveCustomizationDraftAction(
           .single<{ id: string }>();
 
       if (updateError || !updatedDraft) {
-        if (newlyUploadedStoragePath) {
+        const failedUploadPaths = [
+          newlyUploadedStoragePath,
+          newlyUploadedSourcePath,
+        ].filter((path): path is string => Boolean(path));
+
+        if (failedUploadPaths.length > 0) {
           await supabaseAdmin.storage
             .from(ARTWORK_BUCKET)
-            .remove([newlyUploadedStoragePath]);
+            .remove(failedUploadPaths);
         }
 
         return {
@@ -1201,10 +1262,15 @@ export async function saveCustomizationDraftAction(
           .single<{ id: string }>();
 
       if (createError || !createdDraft) {
-        if (newlyUploadedStoragePath) {
+        const failedUploadPaths = [
+          newlyUploadedStoragePath,
+          newlyUploadedSourcePath,
+        ].filter((path): path is string => Boolean(path));
+
+        if (failedUploadPaths.length > 0) {
           await supabaseAdmin.storage
             .from(ARTWORK_BUCKET)
-            .remove([newlyUploadedStoragePath]);
+            .remove(failedUploadPaths);
         }
 
         return {
@@ -1266,13 +1332,18 @@ export async function saveCustomizationDraftAction(
       redirectUrl: "/checkout",
     };
   } catch (error) {
-    if (newlyUploadedStoragePath) {
+    const failedUploadPaths = [
+      newlyUploadedStoragePath,
+      newlyUploadedSourcePath,
+    ].filter((path): path is string => Boolean(path));
+
+    if (failedUploadPaths.length > 0) {
       try {
         const supabaseAdmin = createSupabaseAdminClient();
 
         await supabaseAdmin.storage
           .from(ARTWORK_BUCKET)
-          .remove([newlyUploadedStoragePath]);
+          .remove(failedUploadPaths);
       } catch {
         // Mantém o erro principal.
       }

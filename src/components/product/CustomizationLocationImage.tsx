@@ -31,6 +31,17 @@ type CustomizationLocationImageProps = {
   } | null;
   printAreaAspectRatio?: number;
   artworkAspectRatio?: number;
+  textArtwork?: {
+    content: string;
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: "400" | "700";
+    fontStyle: "normal" | "italic";
+    color: string;
+    x: number;
+    y: number;
+    rotation: number;
+  } | null;
   onPrintAreaAspectRatioDetected?: (aspectRatio: number) => void;
 };
 
@@ -320,6 +331,7 @@ export default function CustomizationLocationImage({
   printAreaGeometry = null,
   printAreaAspectRatio = 1,
   artworkAspectRatio = 1,
+  textArtwork = null,
   onPrintAreaAspectRatioDetected,
 }: CustomizationLocationImageProps) {
   const imageUrls = useMemo(() => getValidUrls(urls), [urls]);
@@ -346,6 +358,7 @@ export default function CustomizationLocationImage({
       printAreaGeometry={printAreaGeometry}
       printAreaAspectRatio={printAreaAspectRatio}
       artworkAspectRatio={artworkAspectRatio}
+      textArtwork={textArtwork}
       onPrintAreaAspectRatioDetected={onPrintAreaAspectRatioDetected}
     />
   );
@@ -374,6 +387,7 @@ function CustomizationLocationImageContent({
   printAreaGeometry,
   printAreaAspectRatio,
   artworkAspectRatio,
+  textArtwork,
   onPrintAreaAspectRatioDetected,
 }: {
   imageUrls: string[];
@@ -384,6 +398,7 @@ function CustomizationLocationImageContent({
   printAreaGeometry: CustomizationLocationImageProps["printAreaGeometry"];
   printAreaAspectRatio: number;
   artworkAspectRatio: number;
+  textArtwork: CustomizationLocationImageProps["textArtwork"];
   onPrintAreaAspectRatioDetected?: (aspectRatio: number) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -471,6 +486,7 @@ function CustomizationLocationImageContent({
               top: `${printArea.top}%`,
               width: `${printArea.width}%`,
               height: `${printArea.height}%`,
+              containerType: "size",
             }}
           >
             <div
@@ -491,6 +507,37 @@ function CustomizationLocationImageContent({
                 className="h-full w-full select-none object-contain opacity-100"
               />
             </div>
+          </div>
+        ) : null}
+
+        {textArtwork?.content.trim() && printArea ? (
+          <div
+            aria-label="Texto aplicado na área de personalização"
+            className="pointer-events-none absolute z-20 overflow-hidden"
+            style={{
+              left: `${printArea.left}%`,
+              top: `${printArea.top}%`,
+              width: `${printArea.width}%`,
+              height: `${printArea.height}%`,
+              containerType: "size",
+            }}
+          >
+            <span
+              className="absolute block whitespace-nowrap leading-none"
+              style={{
+                left: `${textArtwork.x}%`,
+                top: `${textArtwork.y}%`,
+                color: textArtwork.color,
+                fontFamily: `"${textArtwork.fontFamily}", sans-serif`,
+                fontSize: `${textArtwork.fontSize}cqh`,
+                fontWeight: textArtwork.fontWeight,
+                fontStyle: textArtwork.fontStyle,
+                transform: `translate(-50%, -50%) rotate(${textArtwork.rotation}deg)`,
+                transformOrigin: "center center",
+              }}
+            >
+              {textArtwork.content}
+            </span>
           </div>
         ) : null}
       </div>

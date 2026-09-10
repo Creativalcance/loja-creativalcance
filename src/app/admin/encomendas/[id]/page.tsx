@@ -37,6 +37,38 @@ export const dynamic = "force-dynamic";
 
 type JsonRecord = Record<string, unknown>;
 
+function getTextArtwork(data: JsonRecord): {
+  content: string;
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: "400" | "700";
+  fontStyle: "normal" | "italic";
+  color: string;
+  x: number;
+  y: number;
+  rotation: number;
+} | null {
+  const value = data.textLayer;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const layer = value as JsonRecord;
+  if (typeof layer.content !== "string" || !layer.content.trim()) return null;
+  return {
+    content: layer.content,
+    fontFamily: typeof layer.fontFamily === "string" ? layer.fontFamily : "Arial",
+    fontSize: Number(layer.fontSize ?? 24),
+    fontWeight: layer.fontWeight === "700" ? "700" : "400",
+    fontStyle: layer.fontStyle === "italic" ? "italic" : "normal",
+    color: typeof layer.color === "string" ? layer.color : "#111827",
+    x: Number(layer.x ?? 50),
+    y: Number(layer.y ?? 50),
+    rotation: Number(layer.rotation ?? 0),
+  };
+}
+
+function hasComposedArtwork(data: JsonRecord): boolean {
+  return data.hasComposedArtwork === true || data.hasComposedArtwork === "true";
+}
+
 type AdminOrderDetailPageProps = {
   params: Promise<{
     id: string;
@@ -1804,10 +1836,10 @@ const supabaseAdmin = createSupabaseAdminClient();
                                 urls={[item.technical_preview_url]}
                                 artworkUrl={item.logoPreviewUrl}
                                 artworkPosition={{
-                                  x: Number(item.logo_position_x ?? 20),
-                                  y: Number(item.logo_position_y ?? 35),
-                                  width: Number(item.logo_scale ?? 60),
-                                  rotation: Number(item.logo_rotation ?? 0),
+                                  x: hasComposedArtwork(item.personalization_data) ? 0 : Number(item.logo_position_x ?? 20),
+                                  y: hasComposedArtwork(item.personalization_data) ? 0 : Number(item.logo_position_y ?? 35),
+                                  width: hasComposedArtwork(item.personalization_data) ? 100 : Number(item.logo_scale ?? 60),
+                                  rotation: hasComposedArtwork(item.personalization_data) ? 0 : Number(item.logo_rotation ?? 0),
                                 }}
                                 printAreaAspectRatio={
                                   item.printing_width_mm &&
@@ -1817,12 +1849,15 @@ const supabaseAdmin = createSupabaseAdminClient();
                                     : 1
                                 }
                                 artworkAspectRatio={
-                                  item.logo_width_mm &&
+                                  hasComposedArtwork(item.personalization_data) && item.printing_width_mm && item.printing_height_mm
+                                    ? Number(item.printing_width_mm) / Number(item.printing_height_mm)
+                                    : item.logo_width_mm &&
                                   item.logo_height_mm
                                     ? Number(item.logo_width_mm) /
                                       Number(item.logo_height_mm)
                                     : 1
                                 }
+                                textArtwork={hasComposedArtwork(item.personalization_data) ? null : getTextArtwork(item.personalization_data)}
                                 alt={`Maquete personalizada de ${item.product_name}`}
                                 className="max-h-56 w-full object-contain p-4"
                               />
