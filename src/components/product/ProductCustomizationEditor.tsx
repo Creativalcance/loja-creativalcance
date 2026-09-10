@@ -1735,6 +1735,19 @@ export default function ProductCustomizationEditor({
     );
   }
 
+  function updateArtworkPositionFromProduct(position: {
+    x: number;
+    y: number;
+  }) {
+    setPosition((current) =>
+      getSafeLogoPosition({
+        position: { ...current, ...position },
+        printAreaAspectRatio: editorAreaAspectRatio,
+        logoAspectRatio,
+      }),
+    );
+  }
+
   function updateQuantity(value: number) {
     const safeQuantity = Math.max(minimumQuantity, Math.floor(value));
     setQuantity(safeQuantity);
@@ -2203,6 +2216,7 @@ export default function ProductCustomizationEditor({
                   printAreaAspectRatio={printAreaAspectRatio}
                   artworkAspectRatio={logoAspectRatio}
                   textArtwork={textLayer}
+                  onArtworkPositionChange={updateArtworkPositionFromProduct}
                   onPrintAreaAspectRatioDetected={
                     setDetectedPrintAreaAspectRatio
                   }

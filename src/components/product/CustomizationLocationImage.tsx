@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type PointerEvent,
   type SyntheticEvent,
 } from "react";
 import { ImageIcon } from "lucide-react";
@@ -42,6 +43,7 @@ type CustomizationLocationImageProps = {
     y: number;
     rotation: number;
   } | null;
+  onArtworkPositionChange?: (position: { x: number; y: number }) => void;
   onPrintAreaAspectRatioDetected?: (aspectRatio: number) => void;
 };
 
@@ -332,6 +334,7 @@ export default function CustomizationLocationImage({
   printAreaAspectRatio = 1,
   artworkAspectRatio = 1,
   textArtwork = null,
+  onArtworkPositionChange,
   onPrintAreaAspectRatioDetected,
 }: CustomizationLocationImageProps) {
   const imageUrls = useMemo(() => getValidUrls(urls), [urls]);
@@ -359,6 +362,7 @@ export default function CustomizationLocationImage({
       printAreaAspectRatio={printAreaAspectRatio}
       artworkAspectRatio={artworkAspectRatio}
       textArtwork={textArtwork}
+      onArtworkPositionChange={onArtworkPositionChange}
       onPrintAreaAspectRatioDetected={onPrintAreaAspectRatioDetected}
     />
   );
@@ -388,6 +392,7 @@ function CustomizationLocationImageContent({
   printAreaAspectRatio,
   artworkAspectRatio,
   textArtwork,
+  onArtworkPositionChange,
   onPrintAreaAspectRatioDetected,
 }: {
   imageUrls: string[];
@@ -399,11 +404,20 @@ function CustomizationLocationImageContent({
   printAreaAspectRatio: number;
   artworkAspectRatio: number;
   textArtwork: CustomizationLocationImageProps["textArtwork"];
+  onArtworkPositionChange: CustomizationLocationImageProps["onArtworkPositionChange"];
   onPrintAreaAspectRatioDetected?: (aspectRatio: number) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [printArea, setPrintArea] = useState<DetectedPrintArea | null>(null);
+  const [detectedPrintAreaAspectRatio, setDetectedPrintAreaAspectRatio] =
+    useState<number | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const printAreaRef = useRef<HTMLDivElement | null>(null);
+  const artworkDragRef = useRef<{
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+  } | null>(null);
 
   const activeUrl = imageUrls[activeIndex] ?? null;
   const safeArtworkPosition = artworkPosition ?? {
@@ -412,9 +426,17 @@ function CustomizationLocationImageContent({
     width: 60,
     rotation: 0,
   };
-  const artworkHeight =
+  const sourceArtworkHeight =
     (safeArtworkPosition.width * printAreaAspectRatio) /
     Math.max(artworkAspectRatio, 0.01);
+  const renderedPrintAreaAspectRatio =
+    detectedPrintAreaAspectRatio ?? printAreaAspectRatio;
+  const artworkHeight =
+    (safeArtworkPosition.width * renderedPrintAreaAspectRatio) /
+    Math.max(artworkAspectRatio, 0.01);
+  const artworkCenterX =
+    safeArtworkPosition.x + safeArtworkPosition.width / 2;
+  const artworkCenterY = safeArtworkPosition.y + sourceArtworkHeight / 2;
 
   const updatePrintArea = useCallback((image: HTMLImageElement) => {
     if (!image.complete || !image.naturalWidth || !image.naturalHeight) {
@@ -434,7 +456,9 @@ function CustomizationLocationImageContent({
     const detectedHeight = (detectedArea.height / 100) * image.naturalHeight;
 
     if (detectedWidth > 0 && detectedHeight > 0) {
-      onPrintAreaAspectRatioDetected?.(detectedWidth / detectedHeight);
+      const aspectRatio = detectedWidth / detectedHeight;
+      setDetectedPrintAreaAspectRatio(aspectRatio);
+      onPrintAreaAspectRatioDetected?.(aspectRatio);
     }
   }, [
     onPrintAreaAspectRatioDetected,
@@ -450,6 +474,49 @@ function CustomizationLocationImageContent({
 
   function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
     updatePrintArea(event.currentTarget);
+  }
+
+  function handleArtworkPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (!onArtworkPositionChange || !printAreaRef.current) return;
+
+    const rect = printAreaRef.current.getBoundingClientRect();
+    const centerX = rect.left + (artworkCenterX / 100) * rect.width;
+    const centerY = rect.top + (artworkCenterY / 100) * rect.height;
+    artworkDragRef.current = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - centerX,
+      offsetY: event.clientY - centerY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleArtworkPointerMove(event: PointerEvent<HTMLDivElement>) {
+    const drag = artworkDragRef.current;
+    if (
+      !onArtworkPositionChange ||
+      !printAreaRef.current ||
+      !drag ||
+      drag.pointerId !== event.pointerId
+    ) {
+      return;
+    }
+
+    const rect = printAreaRef.current.getBoundingClientRect();
+    const centerX =
+      ((event.clientX - rect.left - drag.offsetX) / rect.width) * 100;
+    const centerY =
+      ((event.clientY - rect.top - drag.offsetY) / rect.height) * 100;
+
+    onArtworkPositionChange({
+      x: centerX - safeArtworkPosition.width / 2,
+      y: centerY - sourceArtworkHeight / 2,
+    });
+  }
+
+  function handleArtworkPointerUp(event: PointerEvent<HTMLDivElement>) {
+    if (artworkDragRef.current?.pointerId === event.pointerId) {
+      artworkDragRef.current = null;
+    }
   }
 
   if (!activeUrl) {
@@ -473,14 +540,16 @@ function CustomizationLocationImageContent({
           onLoad={handleLoad}
           onError={() => {
             setPrintArea(null);
+            setDetectedPrintAreaAspectRatio(null);
             setActiveIndex((currentIndex) => currentIndex + 1);
           }}
         />
 
         {artworkUrl && printArea ? (
           <div
+            ref={printAreaRef}
             aria-label="Área de personalização definida pelo fornecedor"
-            className="pointer-events-none absolute z-10 overflow-hidden"
+            className="absolute z-10 overflow-hidden"
             style={{
               left: `${printArea.left}%`,
               top: `${printArea.top}%`,
@@ -490,10 +559,20 @@ function CustomizationLocationImageContent({
             }}
           >
             <div
-              className="absolute z-10 opacity-100"
+              role={onArtworkPositionChange ? "button" : undefined}
+              tabIndex={onArtworkPositionChange ? 0 : undefined}
+              onPointerDown={handleArtworkPointerDown}
+              onPointerMove={handleArtworkPointerMove}
+              onPointerUp={handleArtworkPointerUp}
+              onPointerCancel={handleArtworkPointerUp}
+              className={`absolute z-10 opacity-100 ${
+                onArtworkPositionChange
+                  ? "cursor-grab touch-none active:cursor-grabbing"
+                  : "pointer-events-none"
+              }`}
               style={{
-                left: `${safeArtworkPosition.x + safeArtworkPosition.width / 2}%`,
-                top: `${safeArtworkPosition.y + artworkHeight / 2}%`,
+                left: `${artworkCenterX}%`,
+                top: `${artworkCenterY}%`,
                 width: `${safeArtworkPosition.width}%`,
                 height: `${artworkHeight}%`,
                 transform: `translate(-50%, -50%) rotate(${safeArtworkPosition.rotation}deg)`,
