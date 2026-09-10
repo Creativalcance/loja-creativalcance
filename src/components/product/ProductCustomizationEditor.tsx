@@ -774,6 +774,30 @@ function getLogoHeightPercent(params: {
   );
 }
 
+function getRotatedLogoSizePercent(params: {
+  logoWidthPercent: number;
+  printAreaAspectRatio: number;
+  logoAspectRatio: number;
+  rotation: number;
+}): { width: number; height: number } {
+  const radians = (normalizeRotation(params.rotation) * Math.PI) / 180;
+  const cosine = Math.abs(Math.cos(radians));
+  const sine = Math.abs(Math.sin(radians));
+  const logoHeightPercent = getLogoHeightPercent(params);
+
+  // Width and height use different percentage scales in a non-square area.
+  // Convert through the physical aspect ratio before calculating the rotated
+  // bounding box, otherwise a 90º logo in a 40 × 5 area is capped far too soon.
+  return {
+    width:
+      params.logoWidthPercent * cosine +
+      (logoHeightPercent / params.printAreaAspectRatio) * sine,
+    height:
+      params.logoWidthPercent * params.printAreaAspectRatio * sine +
+      logoHeightPercent * cosine,
+  };
+}
+
 function getSafeLogoPosition(params: {
   position: LogoPosition;
   printAreaAspectRatio: number;
@@ -784,10 +808,15 @@ function getSafeLogoPosition(params: {
   const cosine = Math.abs(Math.cos(rotationRadians));
   const sine = Math.abs(Math.sin(rotationRadians));
   const heightRatio = params.printAreaAspectRatio / params.logoAspectRatio;
-  const widthLimit = 100 / Math.max(cosine + heightRatio * sine, 0.0001);
-  const heightLimit = 100 / Math.max(sine + heightRatio * cosine, 0.0001);
+  const widthLimit =
+    100 / Math.max(cosine + sine / params.logoAspectRatio, 0.0001);
+  const heightLimit =
+    100 /
+    Math.max(
+      params.printAreaAspectRatio * sine + heightRatio * cosine,
+      0.0001,
+    );
   const maximumWidth = Math.min(
-    100,
     widthLimit,
     heightLimit,
   );
@@ -799,22 +828,28 @@ function getSafeLogoPosition(params: {
     logoAspectRatio: params.logoAspectRatio,
   });
 
-  const rotatedWidth = safeWidth * cosine + logoHeight * sine;
-  const rotatedHeight = safeWidth * sine + logoHeight * cosine;
-  const horizontalRotationOffset = Math.max(0, (rotatedWidth - safeWidth) / 2);
-  const verticalRotationOffset = Math.max(0, (rotatedHeight - logoHeight) / 2);
+  const rotatedSize = getRotatedLogoSizePercent({
+    logoWidthPercent: safeWidth,
+    printAreaAspectRatio: params.printAreaAspectRatio,
+    logoAspectRatio: params.logoAspectRatio,
+    rotation,
+  });
+  const centerX = params.position.x + safeWidth / 2;
+  const centerY = params.position.y + logoHeight / 2;
+  const safeCenterX = clamp(
+    centerX,
+    rotatedSize.width / 2,
+    100 - rotatedSize.width / 2,
+  );
+  const safeCenterY = clamp(
+    centerY,
+    rotatedSize.height / 2,
+    100 - rotatedSize.height / 2,
+  );
 
   return {
-    x: clamp(
-      params.position.x,
-      horizontalRotationOffset,
-      Math.max(horizontalRotationOffset, 100 - safeWidth - horizontalRotationOffset),
-    ),
-    y: clamp(
-      params.position.y,
-      verticalRotationOffset,
-      Math.max(verticalRotationOffset, 100 - logoHeight - verticalRotationOffset),
-    ),
+    x: safeCenterX - safeWidth / 2,
+    y: safeCenterY - logoHeight / 2,
     width: safeWidth,
     rotation,
   };
@@ -1393,19 +1428,26 @@ export default function ProductCustomizationEditor({
     printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
   });
+  const rotatedLogoSize = getRotatedLogoSizePercent({
+    logoWidthPercent: safePosition.width,
+    printAreaAspectRatio: editorAreaAspectRatio,
+    logoAspectRatio,
+    rotation: safePosition.rotation,
+  });
+  const horizontalPositionMin =
+    rotatedLogoSize.width / 2 - safePosition.width / 2;
+  const horizontalPositionMax =
+    100 - rotatedLogoSize.width / 2 - safePosition.width / 2;
+  const verticalPositionMin =
+    rotatedLogoSize.height / 2 - logoHeightPercent / 2;
+  const verticalPositionMax =
+    100 - rotatedLogoSize.height / 2 - logoHeightPercent / 2;
 
   const logoBounds = (() => {
     if (!logoPreviewUrl) return null;
-    const radians = (safePosition.rotation * Math.PI) / 180;
-    const rotatedWidth =
-      safePosition.width * Math.abs(Math.cos(radians)) +
-      logoHeightPercent * Math.abs(Math.sin(radians));
-    const rotatedHeight =
-      safePosition.width * Math.abs(Math.sin(radians)) +
-      logoHeightPercent * Math.abs(Math.cos(radians));
     const centerX = safePosition.x + safePosition.width / 2;
     const centerY = safePosition.y + logoHeightPercent / 2;
-    return { left: centerX - rotatedWidth / 2, right: centerX + rotatedWidth / 2, top: centerY - rotatedHeight / 2, bottom: centerY + rotatedHeight / 2 };
+    return { left: centerX - rotatedLogoSize.width / 2, right: centerX + rotatedLogoSize.width / 2, top: centerY - rotatedLogoSize.height / 2, bottom: centerY + rotatedLogoSize.height / 2 };
   })();
   const textBounds = (() => {
     if (!textLayer.content.trim()) return null;
@@ -2455,8 +2497,8 @@ export default function ProductCustomizationEditor({
 
                       <input
                         type="range"
-                        min="0"
-                        max={Math.max(0, 100 - safePosition.width)}
+                        min={horizontalPositionMin}
+                        max={horizontalPositionMax}
                         value={safePosition.x}
                         onChange={(event) =>
                           updatePosition("x", Number(event.target.value))
@@ -2473,8 +2515,8 @@ export default function ProductCustomizationEditor({
 
                       <input
                         type="range"
-                        min="0"
-                        max={Math.max(0, 100 - logoHeightPercent)}
+                        min={verticalPositionMin}
+                        max={verticalPositionMax}
                         value={safePosition.y}
                         onChange={(event) =>
                           updatePosition("y", Number(event.target.value))
