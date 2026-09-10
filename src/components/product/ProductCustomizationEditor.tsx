@@ -880,7 +880,10 @@ function getMaximumLogoWidthPercent(params: {
   rotation: number;
 }): number {
   return getSafeLogoPosition({
-    position: { x: 0, y: 0, width: 100, rotation: params.rotation },
+    // A largura lógica pode ultrapassar 100% antes da rotação. Por exemplo,
+    // numa área vertical 120 × 25, um logótipo horizontal rodado 90º precisa
+    // de vários múltiplos da largura curta para ocupar o comprimento útil.
+    position: { x: 0, y: 0, width: 10_000, rotation: params.rotation },
     printAreaAspectRatio: params.printAreaAspectRatio,
     logoAspectRatio: params.logoAspectRatio,
   }).width;
@@ -1391,29 +1394,12 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
   });
 
-  const geometricMaximumLogoWidthPercent = getSafeLogoPosition({
-    position: {
-      ...geometrySafePosition,
-      width: 100,
-    },
+  const geometricMaximumLogoWidthPercent = getMaximumLogoWidthPercent({
     printAreaAspectRatio: editorAreaAspectRatio,
     logoAspectRatio,
-  }).width;
-  const geometricMaximumLogoHeightPercent = getLogoHeightPercent({
-    logoWidthPercent: geometricMaximumLogoWidthPercent,
-    printAreaAspectRatio,
-    logoAspectRatio,
+    rotation: geometrySafePosition.rotation,
   });
-  const geometricMaximumAreaCm2 =
-    ((geometricMaximumLogoWidthPercent / 100) * printAreaDimensions.widthMm *
-      (geometricMaximumLogoHeightPercent / 100) * printAreaDimensions.heightMm) /
-    100;
-  const supplierAreaLimitCm2 = Number(selectedLocation?.max_area_cm2 ?? 0);
-  const areaScale =
-    supplierAreaLimitCm2 > 0 && geometricMaximumAreaCm2 > supplierAreaLimitCm2
-      ? Math.sqrt(supplierAreaLimitCm2 / geometricMaximumAreaCm2)
-      : 1;
-  const maximumAllowedLogoWidthPercent = geometricMaximumLogoWidthPercent * areaScale;
+  const maximumAllowedLogoWidthPercent = geometricMaximumLogoWidthPercent;
   const safePosition = getSafeLogoPosition({
     position: {
       ...position,
