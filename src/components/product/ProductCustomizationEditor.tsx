@@ -828,28 +828,15 @@ function getSafeLogoPosition(params: {
     logoAspectRatio: params.logoAspectRatio,
   });
 
-  const rotatedSize = getRotatedLogoSizePercent({
-    logoWidthPercent: safeWidth,
-    printAreaAspectRatio: params.printAreaAspectRatio,
-    logoAspectRatio: params.logoAspectRatio,
-    rotation,
-  });
-  const centerX = params.position.x + safeWidth / 2;
-  const centerY = params.position.y + logoHeight / 2;
-  const safeCenterX = clamp(
-    centerX,
-    rotatedSize.width / 2,
-    100 - rotatedSize.width / 2,
-  );
-  const safeCenterY = clamp(
-    centerY,
-    rotatedSize.height / 2,
-    100 - rotatedSize.height / 2,
-  );
+  const centerX = clamp(params.position.x + safeWidth / 2, 0, 100);
+  const centerY = clamp(params.position.y + logoHeight / 2, 0, 100);
 
   return {
-    x: safeCenterX - safeWidth / 2,
-    y: safeCenterY - logoHeight / 2,
+    // Mantemos apenas o centro da arte dentro da área. As extremidades podem
+    // ultrapassá-la no editor; a máscara do produto e o canvas de exportação
+    // mostram exatamente a parte que será impressa.
+    x: centerX - safeWidth / 2,
+    y: centerY - logoHeight / 2,
     width: safeWidth,
     rotation,
   };
@@ -1420,20 +1407,19 @@ export default function ProductCustomizationEditor({
     logoAspectRatio,
     rotation: safePosition.rotation,
   });
-  const horizontalPositionMin =
-    rotatedLogoSize.width / 2 - safePosition.width / 2;
-  const horizontalPositionMax =
-    100 - rotatedLogoSize.width / 2 - safePosition.width / 2;
-  const verticalPositionMin =
-    rotatedLogoSize.height / 2 - logoHeightPercent / 2;
-  const verticalPositionMax =
-    100 - rotatedLogoSize.height / 2 - logoHeightPercent / 2;
+  const logoCenterX = safePosition.x + safePosition.width / 2;
+  const logoCenterY = safePosition.y + logoHeightPercent / 2;
 
   const logoBounds = (() => {
     if (!logoPreviewUrl) return null;
     const centerX = safePosition.x + safePosition.width / 2;
     const centerY = safePosition.y + logoHeightPercent / 2;
-    return { left: centerX - rotatedLogoSize.width / 2, right: centerX + rotatedLogoSize.width / 2, top: centerY - rotatedLogoSize.height / 2, bottom: centerY + rotatedLogoSize.height / 2 };
+    return {
+      left: Math.max(0, centerX - rotatedLogoSize.width / 2),
+      right: Math.min(100, centerX + rotatedLogoSize.width / 2),
+      top: Math.max(0, centerY - rotatedLogoSize.height / 2),
+      bottom: Math.min(100, centerY + rotatedLogoSize.height / 2),
+    };
   })();
   const textBounds = (() => {
     if (!textLayer.content.trim()) return null;
@@ -2399,7 +2385,7 @@ export default function ProductCustomizationEditor({
                   <div
                     ref={printAreaRef}
                     aria-label={`${copy.printArea} ${printAreaDimensions.widthMm} × ${printAreaDimensions.heightMm} mm`}
-                    className="relative shrink-0 overflow-hidden rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
+                    className="relative shrink-0 overflow-visible rounded-xl border-2 border-dashed border-emerald-500 bg-[linear-gradient(45deg,#f4f4f5_25%,transparent_25%),linear-gradient(-45deg,#f4f4f5_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f4f4f5_75%),linear-gradient(-45deg,transparent_75%,#f4f4f5_75%)] bg-[length:18px_18px] bg-[position:0_0,0_9px,9px_-9px,-9px_0px]"
                     style={{ ...editorPrintAreaStyle, containerType: "size" }}
                   >
                     {logoPreviewUrl ? <div
@@ -2492,16 +2478,19 @@ export default function ProductCustomizationEditor({
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                         {copy.horizontal}
-                        <span>{Math.round(safePosition.x)}%</span>
+                        <span>{Math.round(logoCenterX)}%</span>
                       </span>
 
                       <input
                         type="range"
-                        min={horizontalPositionMin}
-                        max={horizontalPositionMax}
-                        value={safePosition.x}
+                        min="0"
+                        max="100"
+                        value={logoCenterX}
                         onChange={(event) =>
-                          updatePosition("x", Number(event.target.value))
+                          updatePosition(
+                            "x",
+                            Number(event.target.value) - safePosition.width / 2,
+                          )
                         }
                         className="mt-3 w-full"
                       />
@@ -2510,16 +2499,19 @@ export default function ProductCustomizationEditor({
                     <label className="block">
                       <span className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">
                         {copy.vertical}
-                        <span>{Math.round(safePosition.y)}%</span>
+                        <span>{Math.round(logoCenterY)}%</span>
                       </span>
 
                       <input
                         type="range"
-                        min={verticalPositionMin}
-                        max={verticalPositionMax}
-                        value={safePosition.y}
+                        min="0"
+                        max="100"
+                        value={logoCenterY}
                         onChange={(event) =>
-                          updatePosition("y", Number(event.target.value))
+                          updatePosition(
+                            "y",
+                            Number(event.target.value) - logoHeightPercent / 2,
+                          )
                         }
                         className="mt-3 w-full"
                       />

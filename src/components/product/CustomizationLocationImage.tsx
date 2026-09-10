@@ -409,8 +409,6 @@ function CustomizationLocationImageContent({
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [printArea, setPrintArea] = useState<DetectedPrintArea | null>(null);
-  const [detectedPrintAreaAspectRatio, setDetectedPrintAreaAspectRatio] =
-    useState<number | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
   const printAreaRef = useRef<HTMLDivElement | null>(null);
   const artworkDragRef = useRef<{
@@ -426,17 +424,12 @@ function CustomizationLocationImageContent({
     width: 60,
     rotation: 0,
   };
-  const sourceArtworkHeight =
-    (safeArtworkPosition.width * printAreaAspectRatio) /
-    Math.max(artworkAspectRatio, 0.01);
-  const renderedPrintAreaAspectRatio =
-    detectedPrintAreaAspectRatio ?? printAreaAspectRatio;
   const artworkHeight =
-    (safeArtworkPosition.width * renderedPrintAreaAspectRatio) /
+    (safeArtworkPosition.width * printAreaAspectRatio) /
     Math.max(artworkAspectRatio, 0.01);
   const artworkCenterX =
     safeArtworkPosition.x + safeArtworkPosition.width / 2;
-  const artworkCenterY = safeArtworkPosition.y + sourceArtworkHeight / 2;
+  const artworkCenterY = safeArtworkPosition.y + artworkHeight / 2;
 
   const updatePrintArea = useCallback((image: HTMLImageElement) => {
     if (!image.complete || !image.naturalWidth || !image.naturalHeight) {
@@ -457,7 +450,6 @@ function CustomizationLocationImageContent({
 
     if (detectedWidth > 0 && detectedHeight > 0) {
       const aspectRatio = detectedWidth / detectedHeight;
-      setDetectedPrintAreaAspectRatio(aspectRatio);
       onPrintAreaAspectRatioDetected?.(aspectRatio);
     }
   }, [
@@ -509,7 +501,7 @@ function CustomizationLocationImageContent({
 
     onArtworkPositionChange({
       x: centerX - safeArtworkPosition.width / 2,
-      y: centerY - sourceArtworkHeight / 2,
+      y: centerY - artworkHeight / 2,
     });
   }
 
@@ -540,7 +532,6 @@ function CustomizationLocationImageContent({
           onLoad={handleLoad}
           onError={() => {
             setPrintArea(null);
-            setDetectedPrintAreaAspectRatio(null);
             setActiveIndex((currentIndex) => currentIndex + 1);
           }}
         />
