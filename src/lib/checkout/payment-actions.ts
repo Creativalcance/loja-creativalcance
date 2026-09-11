@@ -1,5 +1,6 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
@@ -111,14 +112,6 @@ type Cart = {
   metadata: JsonRecord;
   customer_addresses: ShippingAddress | null;
   cart_items: CartItem[] | null;
-};
-
-type ExistingOrder = {
-  id: string;
-  order_number: string;
-  status: string;
-  payment_status: string;
-  stripe_checkout_session_id: string | null;
 };
 
 type CreatedOrder = {
@@ -714,190 +707,10 @@ export async function createPaymentCheckoutSessionAction(
       };
     }
 
-    const { error: cartUpdateError } = await supabaseAdmin
-      .from("carts")
-      .update({
-        subtotal: productsTotal,
-        personalization_total: personalizationTotal,
-        setup_total: setupTotal,
-        shipping_total: shippingTotal,
-        discount_total: discountTotal,
-        tax_rate: tax.rate,
-        tax_region: tax.region,
-        tax_total: taxTotal,
-        grand_total: grandTotal,
-        checkout_step: "payment",
-        payment_started_at: new Date().toISOString(),
-      })
-      .eq("id", cart.id)
-      .eq("status", "active");
-
-    if (cartUpdateError) {
-      return {
-        success: false,
-        message:
-          cartUpdateError.message ??
-          "Não foi possível atualizar os totais do carrinho.",
-      };
-    }
-
-    const { data: existingOrderData } = await supabaseAdmin
-      .from("orders")
-      .select(
-        `
-          id,
-          order_number,
-          status,
-          payment_status,
-          stripe_checkout_session_id
-        `,
-      )
-      .eq("source_cart_id", cart.id)
-      .maybeSingle<ExistingOrder>();
-
-    let order: CreatedOrder;
+    const orderId = crypto.randomUUID();
+    const orderNumber = createOrderNumber(orderId);
     const strickerOrderTestMode = getStrickerConfig().orderTestMode;
-
-    if (existingOrderData) {
-      if (existingOrderData.payment_status === "paid") {
-        return {
-          success: false,
-          message: "Esta encomenda já se encontra paga.",
-        };
-      }
-
-      const { data: updatedOrder, error: updateOrderError } =
-        await supabaseAdmin
-          .from("orders")
-          .update({
-            user_id: user.id,
-            customer_email: cart.customer_email,
-            customer_name: cart.customer_name,
-            customer_phone: cart.customer_phone,
-            company_name: cart.company_name,
-            company_tax_id: cart.company_tax_id,
-            status: "pending_payment",
-            payment_status: "pending",
-            fulfillment_status: "unfulfilled",
-            deleted_at: null,
-            deleted_by: null,
-            cancelled_at: null,
-            currency: cart.currency,
-            subtotal: productsTotal,
-            personalization_total: personalizationTotal,
-            setup_total: setupTotal,
-            shipping_total: shippingTotal,
-            discount_total: discountTotal,
-            tax_total: taxTotal,
-            grand_total: grandTotal,
-            shipping_address_id: cart.shipping_address_id,
-            customer_notes: cart.customer_notes,
-            source_cart_id: cart.id,
-            supplier_submission_status: "not_submitted",
-            supplier_test_mode: strickerOrderTestMode,
-            shipping_method: cart.shipping_method_name,
-            shipping_carrier: cart.shipping_provider,
-            requested_shipping_date: cart.requested_delivery_date,
-            no_shipping: cart.shipping_method !== "store_transport",
-            internal_reference: cart.internal_reference,
-            metadata: {
-              source: "checkout",
-              cartId: cart.id,
-              taxRate: tax.rate,
-              taxRegion: tax.region,
-              taxRegionLabel: tax.label,
-            },
-          })
-          .eq("id", existingOrderData.id)
-          .select("id, order_number")
-          .single<CreatedOrder>();
-
-      if (updateOrderError || !updatedOrder) {
-        return {
-          success: false,
-          message:
-            updateOrderError?.message ??
-            "Não foi possível atualizar a encomenda.",
-        };
-      }
-
-      order = updatedOrder;
-
-      const { error: deleteItemsError } = await supabaseAdmin
-        .from("order_items")
-        .delete()
-        .eq("order_id", order.id);
-
-      if (deleteItemsError) {
-        return {
-          success: false,
-          message:
-            "Não foi possível atualizar as linhas da encomenda.",
-        };
-      }
-    } else {
-      const orderId = crypto.randomUUID();
-      const orderNumber = createOrderNumber(orderId);
-
-      const { data: createdOrder, error: createOrderError } =
-        await supabaseAdmin
-          .from("orders")
-          .insert({
-            id: orderId,
-            user_id: user.id,
-            order_number: orderNumber,
-            customer_email: cart.customer_email,
-            customer_name: cart.customer_name,
-            customer_phone: cart.customer_phone,
-            company_name: cart.company_name,
-            company_tax_id: cart.company_tax_id,
-            status: "pending_payment",
-            payment_status: "pending",
-            fulfillment_status: "unfulfilled",
-            currency: cart.currency,
-            subtotal: productsTotal,
-            personalization_total: personalizationTotal,
-            setup_total: setupTotal,
-            shipping_total: shippingTotal,
-            discount_total: discountTotal,
-            tax_total: taxTotal,
-            grand_total: grandTotal,
-            shipping_address_id: cart.shipping_address_id,
-            customer_notes: cart.customer_notes,
-            source_cart_id: cart.id,
-            invoice_status: "pending",
-            supplier_submission_status: "not_submitted",
-            supplier_test_mode: strickerOrderTestMode,
-            shipping_method: cart.shipping_method_name,
-            shipping_carrier: cart.shipping_provider,
-            requested_shipping_date: cart.requested_delivery_date,
-            no_shipping: cart.shipping_method !== "store_transport",
-            internal_reference: cart.internal_reference,
-            metadata: {
-              source: "checkout",
-              cartId: cart.id,
-              taxRate: tax.rate,
-              taxRegion: tax.region,
-              taxRegionLabel: tax.label,
-            },
-          })
-          .select("id, order_number")
-          .single<CreatedOrder>();
-
-      if (createOrderError || !createdOrder) {
-        return {
-          success: false,
-          message:
-            createOrderError?.message ??
-            "Não foi possível criar a encomenda.",
-        };
-      }
-
-      order = createdOrder;
-    }
-
     const orderItemsPayload = cartItems.map((item) => ({
-      order_id: order.id,
       source_cart_item_id: item.id,
       product_id: item.product_id,
       variant_id: item.variant_id,
@@ -953,14 +766,73 @@ export async function createPaymentCheckoutSessionAction(
       supplier_submission_status: "not_submitted",
     }));
 
-    const { error: orderItemsError } = await supabaseAdmin
-      .from("order_items")
-      .insert(orderItemsPayload);
+    const orderPayload = {
+      id: orderId,
+      user_id: user.id,
+      order_number: orderNumber,
+      customer_email: cart.customer_email,
+      customer_name: cart.customer_name,
+      customer_phone: cart.customer_phone,
+      company_name: cart.company_name,
+      company_tax_id: cart.company_tax_id,
+      currency: cart.currency,
+      subtotal: productsTotal,
+      personalization_total: personalizationTotal,
+      setup_total: setupTotal,
+      shipping_total: shippingTotal,
+      discount_total: discountTotal,
+      tax_total: taxTotal,
+      grand_total: grandTotal,
+      shipping_address_id: cart.shipping_address_id,
+      customer_notes: cart.customer_notes,
+      source_cart_id: cart.id,
+      invoice_status: "pending",
+      supplier_test_mode: strickerOrderTestMode,
+      shipping_method: cart.shipping_method_name,
+      shipping_carrier: cart.shipping_provider,
+      requested_shipping_date: cart.requested_delivery_date,
+      no_shipping: cart.shipping_method !== "store_transport",
+      internal_reference: cart.internal_reference,
+      metadata: {
+        source: "checkout",
+        cartId: cart.id,
+        taxRate: tax.rate,
+        taxRegion: tax.region,
+        taxRegionLabel: tax.label,
+      },
+    };
 
-    if (orderItemsError) {
+    const { data: preparedOrderData, error: prepareOrderError } =
+      await supabaseAdmin.rpc("prepare_checkout_order", {
+        p_cart_id: cart.id,
+        p_user_id: user.id,
+        p_cart: {
+          subtotal: productsTotal,
+          personalization_total: personalizationTotal,
+          setup_total: setupTotal,
+          shipping_total: shippingTotal,
+          discount_total: discountTotal,
+          tax_rate: tax.rate,
+          tax_region: tax.region,
+          tax_total: taxTotal,
+          grand_total: grandTotal,
+        },
+        p_order: orderPayload,
+        p_items: orderItemsPayload,
+      });
+
+    const order = Array.isArray(preparedOrderData)
+      ? (preparedOrderData[0] as CreatedOrder | undefined)
+      : undefined;
+
+    if (prepareOrderError || !order) {
       return {
         success: false,
-        message: orderItemsError.message,
+        message:
+          prepareOrderError?.message === "checkout_order_already_paid"
+            ? "Esta encomenda já se encontra paga."
+            : prepareOrderError?.message ??
+              "Não foi possível preparar a encomenda.",
       };
     }
 
@@ -982,26 +854,36 @@ export async function createPaymentCheckoutSessionAction(
       userId: user.id,
     };
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      mode: "payment",
-      customer_email: cart.customer_email,
-      line_items: lineItems,
-      success_url:
-        `${siteUrl}${localizePath("/checkout/sucesso", locale)}` +
-        "?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url:
-        `${siteUrl}${localizePath("/checkout/cancelado", locale)}` +
-        `?order_id=${encodeURIComponent(order.id)}`,
-      locale,
-      billing_address_collection: "auto",
-      phone_number_collection: {
-        enabled: true,
-      },
-      metadata: commonMetadata,
-      payment_intent_data: {
+    const stripeIdempotencyKey = `checkout:${order.id}:${createHash("sha256")
+      .update(JSON.stringify(lineItems))
+      .digest("hex")
+      .slice(0, 32)}`;
+
+    const checkoutSession = await stripe.checkout.sessions.create(
+      {
+        mode: "payment",
+        customer_email: cart.customer_email,
+        line_items: lineItems,
+        success_url:
+          `${siteUrl}${localizePath("/checkout/sucesso", locale)}` +
+          "?session_id={CHECKOUT_SESSION_ID}",
+        cancel_url:
+          `${siteUrl}${localizePath("/checkout/cancelado", locale)}` +
+          `?order_id=${encodeURIComponent(order.id)}`,
+        locale,
+        billing_address_collection: "auto",
+        phone_number_collection: {
+          enabled: true,
+        },
         metadata: commonMetadata,
+        payment_intent_data: {
+          metadata: commonMetadata,
+        },
       },
-    });
+      {
+        idempotencyKey: stripeIdempotencyKey,
+      },
+    );
 
     if (!checkoutSession.url) {
       return {
@@ -1016,79 +898,58 @@ export async function createPaymentCheckoutSessionAction(
         ? checkoutSession.payment_intent
         : checkoutSession.payment_intent?.id ?? null;
 
-    const { error: paymentError } = await supabaseAdmin
-      .from("payments")
-      .insert({
-        order_id: order.id,
-        provider: "stripe",
-        provider_payment_id: paymentIntentId,
-        provider_checkout_session_id: checkoutSession.id,
-        provider_payment_intent_id: paymentIntentId,
-        status: "pending",
-        amount: grandTotal,
-        amount_received: 0,
-        amount_refunded: 0,
-        currency: cart.currency,
-        raw_payload:
-          checkoutSession as unknown as Record<string, unknown>,
-        metadata: commonMetadata,
-      });
+    const paymentPayload = {
+      order_id: order.id,
+      provider: "stripe",
+      provider_payment_id: paymentIntentId,
+      provider_checkout_session_id: checkoutSession.id,
+      provider_payment_intent_id: paymentIntentId,
+      status: "pending",
+      amount: grandTotal,
+      amount_received: 0,
+      amount_refunded: 0,
+      currency: cart.currency,
+      raw_payload:
+        checkoutSession as unknown as Record<string, unknown>,
+      metadata: commonMetadata,
+    };
 
-    if (paymentError) {
+    const checkoutSessionPayload = {
+      cart_id: cart.id,
+      order_id: order.id,
+      user_id: user.id,
+      provider: "stripe",
+      provider_session_id: checkoutSession.id,
+      provider_payment_intent_id: paymentIntentId,
+      status: "open",
+      amount_total: grandTotal,
+      currency: cart.currency,
+      checkout_url: checkoutSession.url,
+      expires_at: checkoutSession.expires_at
+        ? new Date(checkoutSession.expires_at * 1000).toISOString()
+        : null,
+      raw_payload:
+        checkoutSession as unknown as Record<string, unknown>,
+      metadata: commonMetadata,
+    };
+
+    const { error: recordPaymentError } = await supabaseAdmin.rpc(
+      "record_checkout_payment",
+      {
+        p_order_id: order.id,
+        p_cart_id: cart.id,
+        p_user_id: user.id,
+        p_payment: paymentPayload,
+        p_checkout_session: checkoutSessionPayload,
+      },
+    );
+
+    if (recordPaymentError) {
       return {
         success: false,
         message:
-          paymentError.message ??
-          "Não foi possível preparar o registo do pagamento.",
-      };
-    }
-
-    const { error: checkoutSessionError } = await supabaseAdmin
-      .from("checkout_sessions")
-      .insert({
-        cart_id: cart.id,
-        order_id: order.id,
-        user_id: user.id,
-        provider: "stripe",
-        provider_session_id: checkoutSession.id,
-        provider_payment_intent_id: paymentIntentId,
-        status: "open",
-        amount_total: grandTotal,
-        currency: cart.currency,
-        checkout_url: checkoutSession.url,
-        expires_at: checkoutSession.expires_at
-          ? new Date(
-              checkoutSession.expires_at * 1000,
-            ).toISOString()
-          : null,
-        raw_payload:
-          checkoutSession as unknown as Record<string, unknown>,
-        metadata: commonMetadata,
-      });
-
-    if (checkoutSessionError) {
-      return {
-        success: false,
-        message:
-          checkoutSessionError.message ??
-          "Não foi possível guardar a sessão de pagamento.",
-      };
-    }
-
-    const { error: orderStripeUpdateError } = await supabaseAdmin
-      .from("orders")
-      .update({
-        stripe_checkout_session_id: checkoutSession.id,
-        stripe_payment_intent_id: paymentIntentId,
-      })
-      .eq("id", order.id);
-
-    if (orderStripeUpdateError) {
-      return {
-        success: false,
-        message:
-          orderStripeUpdateError.message ??
-          "Não foi possível associar o pagamento à encomenda.",
+          recordPaymentError.message ??
+          "Não foi possível guardar os dados do pagamento.",
       };
     }
 
