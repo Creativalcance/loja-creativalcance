@@ -11,14 +11,34 @@ type SiteHeaderProps = {
   context?: "store" | "customer";
 };
 
-export default async function SiteHeader({ context = "store" }: SiteHeaderProps) {
+export default async function SiteHeader({
+  context = "store",
+}: SiteHeaderProps) {
   const locale = await getCurrentLocale();
   const messages = getMessages(locale).header;
+  const freeShippingMessage =
+    locale === "en"
+      ? "Free shipping on orders of €50 or more"
+      : locale === "fr"
+        ? "Livraison gratuite dès 50 € d’achat"
+        : "Portes grátis em encomendas de valor igual ou superior a 50 €";
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#162334]/10 bg-white/90 shadow-[0_1px_0_rgba(22,35,52,0.04)] backdrop-blur-xl">
+      {context === "store" ? (
+        <Link
+          href={localizePath("/carrinho", locale)}
+          className="block bg-[#e85f00] px-4 py-2 text-center text-xs font-semibold text-white transition hover:bg-[#d95600] sm:text-sm"
+        >
+          {freeShippingMessage}
+        </Link>
+      ) : null}
       <div className="mx-auto flex h-[4.75rem] max-w-7xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6">
-        <Link href={localizePath("/", locale)} className="group shrink-0" aria-label={`360 Merchandising — ${messages.home}`}>
+        <Link
+          href={localizePath("/", locale)}
+          className="group shrink-0"
+          aria-label={`360 Merchandising — ${messages.home}`}
+        >
           <Image
             src="/brand/360-merchandising.png"
             alt="360 Merchandising"
@@ -29,20 +49,41 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
           />
         </Link>
 
-        <nav className="hidden items-center gap-7 text-sm font-medium text-[#162334]/70 lg:flex" aria-label={locale === "en" ? "Main navigation" : locale === "fr" ? "Navigation principale" : "Navegação principal"}>
-          <Link href={localizePath("/smart-merch", locale)} className="inline-flex items-center gap-1.5 text-[#e85f00] transition hover:text-[#ff6a00]">
+        <nav
+          className="hidden items-center gap-7 text-sm font-medium text-[#162334]/70 lg:flex"
+          aria-label={
+            locale === "en"
+              ? "Main navigation"
+              : locale === "fr"
+                ? "Navigation principale"
+                : "Navegação principal"
+          }
+        >
+          <Link
+            href={localizePath("/smart-merch", locale)}
+            className="inline-flex items-center gap-1.5 text-[#e85f00] transition hover:text-[#ff6a00]"
+          >
             <Sparkles className="h-4 w-4" />
             Smart Merch
           </Link>
-          <Link href={localizePath("/categorias", locale)} className="transition hover:text-[#162334]">
+          <Link
+            href={localizePath("/categorias", locale)}
+            className="transition hover:text-[#162334]"
+          >
             {messages.categories}
           </Link>
 
-          <Link href={localizePath("/blog", locale)} className="transition hover:text-[#162334]">
+          <Link
+            href={localizePath("/blog", locale)}
+            className="transition hover:text-[#162334]"
+          >
             {messages.guides}
           </Link>
 
-          <Link href={localizePath("/ajuda", locale)} className="transition hover:text-[#162334]">
+          <Link
+            href={localizePath("/ajuda", locale)}
+            className="transition hover:text-[#162334]"
+          >
             {messages.help}
           </Link>
         </nav>
@@ -56,7 +97,10 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
             {messages.search}
           </Link>
 
-          <LanguageSwitcher locale={locale} label="Language / Langue / Idioma" />
+          <LanguageSwitcher
+            locale={locale}
+            label="Language / Langue / Idioma"
+          />
 
           <Link
             href={localizePath("/carrinho", locale)}
@@ -67,7 +111,6 @@ export default async function SiteHeader({ context = "store" }: SiteHeaderProps)
           </Link>
 
           <HeaderAccountLink context={context} locale={locale} />
-
         </div>
       </div>
     </header>

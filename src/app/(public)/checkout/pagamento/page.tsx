@@ -14,6 +14,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import {
+  calculateEligibleOrderTotal,
+  calculateShippingTotal,
+} from "@/lib/checkout/shipping-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +74,11 @@ type Cart = {
   cart_items: CartItem[] | null;
 };
 
-function formatPrice(value: number, currency: string, intlLocale: string): string {
+function formatPrice(
+  value: number,
+  currency: string,
+  intlLocale: string,
+): string {
   return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
@@ -140,13 +148,71 @@ function determineTaxRate(address: ShippingAddress): number {
 export default async function CheckoutPaymentPage() {
   const locale = await getCurrentLocale();
   const intlLocale = SITE_LOCALES[locale].intlLocale;
-  const text = locale === "en" ? {
-    back: "Back to shipping", destination: "Destination", shipping: "Shipping", complete: "Complete", payment: "Payment", reviewPayment: "Review and payment", step: "Step 3 of 3", title: "Review and pay", intro: "Confirm all details before proceeding to secure payment.", method: "Selected shipping method", requestedDate: "Preferred date:", orderTotal: "Order total", units: "units", personalization: "Personalization", products: "Products", setupExtras: "Setup and extras", vat: "VAT", payTotal: "Total to pay",
-  } : locale === "fr" ? {
-    back: "Retour à l’expédition", destination: "Destination", shipping: "Expédition", complete: "Terminé", payment: "Paiement", reviewPayment: "Vérification et paiement", step: "Étape 3 sur 3", title: "Vérifier et payer", intro: "Confirmez toutes les informations avant de passer au paiement sécurisé.", method: "Mode d’expédition sélectionné", requestedDate: "Date souhaitée :", orderTotal: "Total de la commande", units: "unités", personalization: "Personnalisation", products: "Produits", setupExtras: "Préparation et options", vat: "TVA", payTotal: "Total à payer",
-  } : {
-    back: "Voltar à expedição", destination: "Destino", shipping: "Expedição", complete: "Concluído", payment: "Pagamento", reviewPayment: "Revisão e pagamento", step: "Passo 3 de 3", title: "Rever e pagar", intro: "Confirma todos os dados antes de avançar para o pagamento seguro.", method: "Método de expedição selecionado", requestedDate: "Data pretendida:", orderTotal: "Total da encomenda", units: "un.", personalization: "Personalização", products: "Produtos", setupExtras: "Preparação e extras", vat: "IVA", payTotal: "Total a pagar",
-  };
+  const text =
+    locale === "en"
+      ? {
+          back: "Back to shipping",
+          destination: "Destination",
+          shipping: "Shipping",
+          complete: "Complete",
+          payment: "Payment",
+          reviewPayment: "Review and payment",
+          step: "Step 3 of 3",
+          title: "Review and pay",
+          intro: "Confirm all details before proceeding to secure payment.",
+          method: "Selected shipping method",
+          requestedDate: "Preferred date:",
+          orderTotal: "Order total",
+          units: "units",
+          personalization: "Personalization",
+          products: "Products",
+          setupExtras: "Setup and extras",
+          vat: "VAT",
+          payTotal: "Total to pay",
+        }
+      : locale === "fr"
+        ? {
+            back: "Retour à l’expédition",
+            destination: "Destination",
+            shipping: "Expédition",
+            complete: "Terminé",
+            payment: "Paiement",
+            reviewPayment: "Vérification et paiement",
+            step: "Étape 3 sur 3",
+            title: "Vérifier et payer",
+            intro:
+              "Confirmez toutes les informations avant de passer au paiement sécurisé.",
+            method: "Mode d’expédition sélectionné",
+            requestedDate: "Date souhaitée :",
+            orderTotal: "Total de la commande",
+            units: "unités",
+            personalization: "Personnalisation",
+            products: "Produits",
+            setupExtras: "Préparation et options",
+            vat: "TVA",
+            payTotal: "Total à payer",
+          }
+        : {
+            back: "Voltar à expedição",
+            destination: "Destino",
+            shipping: "Expedição",
+            complete: "Concluído",
+            payment: "Pagamento",
+            reviewPayment: "Revisão e pagamento",
+            step: "Passo 3 de 3",
+            title: "Rever e pagar",
+            intro:
+              "Confirma todos os dados antes de avançar para o pagamento seguro.",
+            method: "Método de expedição selecionado",
+            requestedDate: "Data pretendida:",
+            orderTotal: "Total da encomenda",
+            units: "un.",
+            personalization: "Personalização",
+            products: "Produtos",
+            setupExtras: "Preparação e extras",
+            vat: "IVA",
+            payTotal: "Total a pagar",
+          };
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -244,27 +310,26 @@ export default async function CheckoutPaymentPage() {
   );
 
   const personalizationTotal = items.reduce(
-    (total, item) =>
-      total + Number(item.personalization_total ?? 0),
+    (total, item) => total + Number(item.personalization_total ?? 0),
     0,
   );
 
   const preparationTotal = items.reduce(
     (total, item) =>
-      total +
-      Number(item.setup_cost ?? 0) +
-      Number(item.extras_total ?? 0),
+      total + Number(item.setup_cost ?? 0) + Number(item.extras_total ?? 0),
     0,
   );
 
-  const taxableTotal = Math.max(
-    0,
-    productsTotal +
-      personalizationTotal +
-      preparationTotal +
-      Number(cart.shipping_total ?? 0) -
-      Number(cart.discount_total ?? 0),
-  );
+  const eligibleOrderTotal = calculateEligibleOrderTotal({
+    productsTotal,
+    personalizationTotal,
+    setupAndExtrasTotal: preparationTotal,
+    discountTotal: Number(cart.discount_total ?? 0),
+  });
+
+  const shippingTotal = calculateShippingTotal(eligibleOrderTotal);
+
+  const taxableTotal = Math.max(0, eligibleOrderTotal + shippingTotal);
 
   const taxRate = determineTaxRate(address);
   const taxTotal = Number((taxableTotal * taxRate).toFixed(2));
@@ -330,9 +395,7 @@ export default async function CheckoutPaymentPage() {
               {text.title}
             </h1>
 
-            <p className="mt-4 leading-7 text-neutral-600">
-              {text.intro}
-            </p>
+            <p className="mt-4 leading-7 text-neutral-600">{text.intro}</p>
 
             <div className="mt-8 space-y-5">
               <div className="rounded-3xl bg-neutral-50 p-5">
@@ -347,9 +410,7 @@ export default async function CheckoutPaymentPage() {
                   {address.company_name ?? address.contact_name}
                   <br />
                   {address.address_line_1}
-                  {address.address_line_2
-                    ? `, ${address.address_line_2}`
-                    : ""}
+                  {address.address_line_2 ? `, ${address.address_line_2}` : ""}
                   <br />
                   {address.postal_code} {address.city}
                   {address.district ? ` · ${address.district}` : ""}
@@ -367,17 +428,14 @@ export default async function CheckoutPaymentPage() {
                 </div>
 
                 <p className="mt-4 text-sm text-neutral-600">
-                  {cart.shipping_method_name ??
-                    text.method}
+                  {cart.shipping_method_name ?? text.method}
                 </p>
 
                 {cart.requested_delivery_date ? (
                   <p className="mt-2 text-sm text-neutral-600">
                     {text.requestedDate}{" "}
                     {new Intl.DateTimeFormat(intlLocale).format(
-                      new Date(
-                        `${cart.requested_delivery_date}T12:00:00`,
-                      ),
+                      new Date(`${cart.requested_delivery_date}T12:00:00`),
                     )}
                   </p>
                 ) : null}
@@ -463,12 +521,20 @@ export default async function CheckoutPaymentPage() {
               <div className="flex justify-between gap-4">
                 <span>{text.shipping}</span>
                 <span className="font-semibold text-neutral-950">
-                  {formatPrice(cart.shipping_total, currency, intlLocale)}
+                  {shippingTotal === 0
+                    ? locale === "en"
+                      ? "Free"
+                      : locale === "fr"
+                        ? "Gratuit"
+                        : "Grátis"
+                    : formatPrice(shippingTotal, currency, intlLocale)}
                 </span>
               </div>
 
               <div className="flex justify-between gap-4">
-                <span>{text.vat} ({Math.round(taxRate * 100)}%)</span>
+                <span>
+                  {text.vat} ({Math.round(taxRate * 100)}%)
+                </span>
                 <span className="font-semibold text-neutral-950">
                   {formatPrice(taxTotal, currency, intlLocale)}
                 </span>

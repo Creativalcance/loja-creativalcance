@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteLocale, localizePath } from "@/lib/i18n/config";
+import { calculateShippingTotal } from "@/lib/checkout/shipping-pricing";
 
 export type CheckoutShippingActionState = {
   success: boolean;
@@ -39,9 +40,7 @@ type ShippingCalculation = {
   shippingTotal: number;
 };
 
-const ALLOWED_SHIPPING_METHODS = new Set<ShippingMethod>([
-  "store_transport",
-]);
+const ALLOWED_SHIPPING_METHODS = new Set<ShippingMethod>(["store_transport"]);
 
 function getRequiredString(formData: FormData, key: string): string {
   const value = String(formData.get(key) ?? "").trim();
@@ -53,10 +52,7 @@ function getRequiredString(formData: FormData, key: string): string {
   return value;
 }
 
-function getOptionalString(
-  formData: FormData,
-  key: string,
-): string | null {
+function getOptionalString(formData: FormData, key: string): string | null {
   const value = String(formData.get(key) ?? "").trim();
 
   return value.length > 0 ? value : null;
@@ -103,15 +99,9 @@ function getMinimumDeliveryDate(): string {
     day: "2-digit",
   }).formatToParts(new Date());
 
-  const year = Number(
-    todayParts.find((part) => part.type === "year")?.value,
-  );
-  const month = Number(
-    todayParts.find((part) => part.type === "month")?.value,
-  );
-  const day = Number(
-    todayParts.find((part) => part.type === "day")?.value,
-  );
+  const year = Number(todayParts.find((part) => part.type === "year")?.value);
+  const month = Number(todayParts.find((part) => part.type === "month")?.value);
+  const day = Number(todayParts.find((part) => part.type === "day")?.value);
 
   const date = new Date(Date.UTC(year, month - 1, day, 12));
   let businessDaysAdded = 0;
@@ -143,20 +133,6 @@ function calculateShipping(params: {
   method: ShippingMethod;
   merchandiseTotal: number;
 }): ShippingCalculation {
-  /*
-   * Valor provisório até a integração definitiva com as tabelas
-   * de transporte do fornecedor ou com uma transportadora.
-   *
-   * A regra fica centralizada nesta função para poder ser
-   * substituída sem alterar o formulário ou o checkout.
-   */
-  const shippingTotal =
-    params.merchandiseTotal >= 500
-      ? 0
-      : params.merchandiseTotal >= 250
-        ? 5.9
-        : 8.9;
-
   return {
     method: "store_transport",
     methodName: "Transporte disponibilizado pela loja",
@@ -164,7 +140,7 @@ function calculateShipping(params: {
     originCountryCode: "PT",
     estimatedDaysMin: 1,
     estimatedDaysMax: 3,
-    shippingTotal,
+    shippingTotal: calculateShippingTotal(params.merchandiseTotal),
   };
 }
 
@@ -191,15 +167,9 @@ export async function saveCheckoutShippingAction(
       "acceptsDeliveryAfterDate",
     );
 
-    const internalReference = getOptionalString(
-      formData,
-      "internalReference",
-    );
+    const internalReference = getOptionalString(formData, "internalReference");
 
-    const shippingNotes = getOptionalString(
-      formData,
-      "shippingNotes",
-    );
+    const shippingNotes = getOptionalString(formData, "shippingNotes");
 
     if (!requestedShippingMethod) {
       return {
@@ -220,10 +190,7 @@ export async function saveCheckoutShippingAction(
 
     const minimumDeliveryDate = getMinimumDeliveryDate();
 
-    if (
-      requestedDeliveryDate &&
-      requestedDeliveryDate < minimumDeliveryDate
-    ) {
+    if (requestedDeliveryDate && requestedDeliveryDate < minimumDeliveryDate) {
       return {
         success: false,
         message:
@@ -270,16 +237,14 @@ export async function saveCheckoutShippingAction(
       if (cartError || !cart) {
         return {
           success: false,
-          message:
-            "O carrinho não foi encontrado ou já não está disponível.",
+          message: "O carrinho não foi encontrado ou já não está disponível.",
         };
       }
 
       if (!cart.shipping_address_id) {
         return {
           success: false,
-          message:
-            "Define primeiro a morada de destino da encomenda.",
+          message: "Define primeiro a morada de destino da encomenda.",
         };
       }
 
@@ -325,16 +290,11 @@ export async function saveCheckoutShippingAction(
           shipping_method: shipping.method,
           shipping_method_name: shipping.methodName,
           shipping_provider: shipping.provider,
-          shipping_origin_country_code:
-            shipping.originCountryCode,
-          shipping_estimated_days_min:
-            shipping.estimatedDaysMin,
-          shipping_estimated_days_max:
-            shipping.estimatedDaysMax,
-          requested_delivery_date:
-            requestedDeliveryDate,
-          accepts_delivery_after_date:
-            acceptsDeliveryAfterDate,
+          shipping_origin_country_code: shipping.originCountryCode,
+          shipping_estimated_days_min: shipping.estimatedDaysMin,
+          shipping_estimated_days_max: shipping.estimatedDaysMax,
+          requested_delivery_date: requestedDeliveryDate,
+          accepts_delivery_after_date: acceptsDeliveryAfterDate,
           internal_reference: internalReference,
           shipping_notes: shippingNotes,
           shipping_total: shipping.shippingTotal,
@@ -348,8 +308,7 @@ export async function saveCheckoutShippingAction(
               ...currentCheckoutMetadata,
               shippingCompleted: true,
               shippingCompletedAt: completedAt,
-              shippingPricingStatus:
-                "provisional",
+              shippingPricingStatus: "free_over_50",
             },
           },
         })
@@ -360,8 +319,7 @@ export async function saveCheckoutShippingAction(
         return {
           success: false,
           message:
-            updateError.message ??
-            "Não foi possível guardar a expedição.",
+            updateError.message ?? "Não foi possível guardar a expedição.",
         };
       }
 
