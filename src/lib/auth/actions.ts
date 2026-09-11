@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { authActionMessages } from "@/lib/i18n/account";
 import { getSiteLocale, localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { notifyAccountWelcome } from "@/lib/notifications/customer-email";
 
 export type AuthActionState = {
   success: boolean;
@@ -162,6 +163,7 @@ export async function registerAction(
         emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(localizePath("/area-cliente", locale))}`,
         data: {
           full_name: fullName,
+          locale,
         },
       },
     });
@@ -178,6 +180,15 @@ export async function registerAction(
         success: false,
         message: messages.createFailed,
       };
+    }
+
+    if (data.session && data.user.email) {
+      await notifyAccountWelcome({
+        userId: data.user.id,
+        email: data.user.email,
+        name: fullName,
+        locale,
+      });
     }
 
   } catch (error) {

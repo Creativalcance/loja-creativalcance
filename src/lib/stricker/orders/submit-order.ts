@@ -1,5 +1,9 @@
 import path from "node:path";
 import { notifyStrickerOrderSubmitted } from "@/lib/notifications/stricker-order-submitted";
+import {
+  notifyOrderStatusChanged,
+  notifyOrderTrackingAvailable,
+} from "@/lib/notifications/customer-email";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   extractStrickerLineSku,
@@ -551,6 +555,15 @@ async function markOrderAsFailed(params: {
       source: "stricker_submission",
       error: params.message,
     },
+  });
+
+  await notifyOrderStatusChanged({
+    orderId: params.order.id,
+    previousStatus: params.order.status,
+    newStatus:
+      params.order.status === "paid"
+        ? "failed"
+        : params.order.status,
   });
 }
 
@@ -1455,6 +1468,16 @@ export async function submitPaidOrderToStricker(
           personalizationResult.errors,
       },
     });
+
+    await notifyOrderStatusChanged({
+      orderId: order.id,
+      previousStatus: order.status,
+      newStatus:
+        finalSubmissionStatus === "submitted"
+          ? "sent_to_supplier"
+          : "processing",
+    });
+    await notifyOrderTrackingAvailable(order.id);
 
     if (finalSubmissionStatus === "submitted") {
       try {
