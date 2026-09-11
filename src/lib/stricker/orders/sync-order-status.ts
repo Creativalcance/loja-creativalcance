@@ -1,5 +1,9 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { notifySupplierOrderStatusChanged } from "@/lib/notifications/supplier-order-status-changed";
+import {
+  notifyOrderStatusChanged,
+  notifyOrderTrackingAvailable,
+} from "@/lib/notifications/customer-email";
 import { extractStrickerOrderStatus, extractStrickerShippingDate, extractStrickerTrackingNumber, extractStrickerTrackingUrl, getStrickerOrderDetails } from "@/lib/stricker/orders/client";
 
 const MAX_ORDERS_PER_EXECUTION = 50;
@@ -166,6 +170,30 @@ export async function syncSubmittedStrickerOrders() {
               cause instanceof Error
                 ? cause.message
                 : "Erro desconhecido na notificação.",
+          });
+        }
+
+        try {
+          const hasNewTracking = Boolean(
+            (trackingNumber && trackingNumber !== normalizeText(order.supplier_tracking_number)) ||
+            (trackingUrl && trackingUrl !== normalizeText(order.supplier_tracking_url)),
+          );
+          if (hasNewTracking) {
+            await notifyOrderTrackingAvailable(order.id);
+          } else {
+            await notifyOrderStatusChanged({
+              orderId: order.id,
+              previousStatus: normalizeText(order.supplier_last_status)?.toUpperCase() ?? null,
+              newStatus: status,
+            });
+          }
+        } catch (cause) {
+          notificationFailures.push({
+            orderId: order.id,
+            message:
+              cause instanceof Error
+                ? `Cliente: ${cause.message}`
+                : "Erro desconhecido na notificação ao cliente.",
           });
         }
       }

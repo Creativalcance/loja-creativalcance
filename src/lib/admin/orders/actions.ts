@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import {
+  notifyOrderStatusChanged,
+  notifyOrderTrackingAvailable,
+} from "@/lib/notifications/customer-email";
 
 export type AdminOrderActionState = {
   success: boolean;
@@ -445,6 +449,16 @@ export async function updateOrderTrackingAction(
       },
     });
 
+    if (trackingNumber || trackingUrl) {
+      await notifyOrderTrackingAvailable(order.id);
+    } else {
+      await notifyOrderStatusChanged({
+        orderId: order.id,
+        previousStatus: order.status,
+        newStatus: nextOrderStatus,
+      });
+    }
+
     revalidateOrderPaths(order.id);
 
     return {
@@ -821,6 +835,18 @@ export async function updateOrderStatusAction(
         newFulfillmentStatus:
           fulfillmentStatus,
       },
+    });
+
+    await notifyOrderStatusChanged({
+      orderId: order.id,
+      previousStatus:
+        order.status !== status
+          ? order.status
+          : order.fulfillment_status,
+      newStatus:
+        order.status !== status
+          ? status
+          : fulfillmentStatus,
     });
 
     revalidateOrderPaths(order.id);

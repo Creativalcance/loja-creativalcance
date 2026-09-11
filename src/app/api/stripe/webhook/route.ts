@@ -3,6 +3,10 @@ import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { submitPaidOrderToStricker } from "@/lib/stricker/orders/submit-order";
+import {
+  notifyOrderConfirmed,
+  notifyOrderStatusChanged,
+} from "@/lib/notifications/customer-email";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -565,6 +569,7 @@ async function markCheckoutPaid(
         currency: session.currency?.toUpperCase() ?? null,
       },
     });
+    await notifyOrderConfirmed(order.id);
   }
 
   return {
@@ -705,6 +710,7 @@ async function markPaymentIntentPaid(
           paymentIntent.currency?.toUpperCase() ?? null,
       },
     });
+    await notifyOrderConfirmed(order.id);
   }
 
   return {
@@ -834,7 +840,6 @@ async function submitOrderAfterPayment(
           updatedOrder?.supplier_submission_error ?? null,
       },
     });
-
     if (isSuccessful) {
       return {
         success: true,
@@ -899,7 +904,6 @@ async function submitOrderAfterPayment(
         error: errorMessage,
       },
     });
-
     return {
       success: false,
       status: "failed",
@@ -1035,6 +1039,11 @@ async function markCheckoutFailed(params: {
         checkoutStatus: params.status,
       },
     });
+    await notifyOrderStatusChanged({
+      orderId: order.id,
+      previousStatus: order.status,
+      newStatus: nextOrderStatus,
+    });
   }
 
   return {
@@ -1140,6 +1149,11 @@ async function markPaymentIntentFailed(params: {
           params.paymentIntent.last_payment_error
             ?.message ?? null,
       },
+    });
+    await notifyOrderStatusChanged({
+      orderId: order.id,
+      previousStatus: order.status,
+      newStatus: nextOrderStatus,
     });
   }
 
