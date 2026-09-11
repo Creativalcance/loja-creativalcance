@@ -6,8 +6,17 @@ import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getSiteLocale, localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
+import {
+  getSiteLocale,
+  localizePath,
+  SITE_LOCALES,
+  type SiteLocale,
+} from "@/lib/i18n/config";
 import { getStrickerConfig } from "@/lib/stricker/config";
+import {
+  calculateEligibleOrderTotal,
+  calculateShippingTotal,
+} from "@/lib/checkout/shipping-pricing";
 import {
   getCustomizationServiceCodeHints,
   resolveCustomizationServiceCode,
@@ -149,9 +158,7 @@ function normalizeText(value: string | null): string {
   );
 }
 
-function determinePortugueseTax(params: {
-  address: ShippingAddress;
-}): {
+function determinePortugueseTax(params: { address: ShippingAddress }): {
   rate: number;
   region: "continental" | "madeira" | "acores";
   label: string;
@@ -231,10 +238,7 @@ function createOrderNumber(orderId: string): string {
     String(now.getUTCDate()).padStart(2, "0"),
   ].join("");
 
-  const referencePart = orderId
-    .replace(/-/g, "")
-    .slice(0, 8)
-    .toUpperCase();
+  const referencePart = orderId.replace(/-/g, "").slice(0, 8).toUpperCase();
 
   return `LC-${datePart}-${referencePart}`;
 }
@@ -267,8 +271,7 @@ function getSiteUrl(): string {
     return normalizedConfiguredUrl;
   }
 
-  const vercelProductionUrl =
-    process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  const vercelProductionUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
 
   if (vercelProductionUrl) {
     return normalizeSiteUrl(vercelProductionUrl);
@@ -298,11 +301,36 @@ function buildStripeLineItems(params: {
 }): StripeLineItem[] {
   const currency = params.currency.toLowerCase();
   const intlLocale = SITE_LOCALES[params.locale].intlLocale;
-  const text = params.locale === "en"
-    ? { units: "units", location: "Location", technique: "Technique", shipping: "Shipping", shippingDescription: "Order shipping", tax: "VAT", taxDescription: "Value added tax" }
-    : params.locale === "fr"
-      ? { units: "unités", location: "Emplacement", technique: "Technique", shipping: "Expédition", shippingDescription: "Transport de la commande", tax: "TVA", taxDescription: "Taxe sur la valeur ajoutée" }
-      : { units: "unidades", location: "Local", technique: "Técnica", shipping: "Expedição", shippingDescription: "Transporte da encomenda", tax: "IVA", taxDescription: "Imposto sobre o valor acrescentado" };
+  const text =
+    params.locale === "en"
+      ? {
+          units: "units",
+          location: "Location",
+          technique: "Technique",
+          shipping: "Shipping",
+          shippingDescription: "Order shipping",
+          tax: "VAT",
+          taxDescription: "Value added tax",
+        }
+      : params.locale === "fr"
+        ? {
+            units: "unités",
+            location: "Emplacement",
+            technique: "Technique",
+            shipping: "Expédition",
+            shippingDescription: "Transport de la commande",
+            tax: "TVA",
+            taxDescription: "Taxe sur la valeur ajoutée",
+          }
+        : {
+            units: "unidades",
+            location: "Local",
+            technique: "Técnica",
+            shipping: "Expedição",
+            shippingDescription: "Transporte da encomenda",
+            tax: "IVA",
+            taxDescription: "Imposto sobre o valor acrescentado",
+          };
 
   const lineItems: StripeLineItem[] = params.cartItems.map((item) => {
     const descriptionParts = [
@@ -498,8 +526,7 @@ export async function createPaymentCheckoutSessionAction(
     if (cartError || !cartData) {
       return {
         success: false,
-        message:
-          "O carrinho não foi encontrado ou já não está disponível.",
+        message: "O carrinho não foi encontrado ou já não está disponível.",
       };
     }
 
@@ -542,8 +569,7 @@ export async function createPaymentCheckoutSessionAction(
     if (availabilityError) {
       return {
         success: false,
-        message:
-          "Não foi possível confirmar a disponibilidade dos artigos.",
+        message: "Não foi possível confirmar a disponibilidade dos artigos.",
       };
     }
 
@@ -552,8 +578,7 @@ export async function createPaymentCheckoutSessionAction(
     );
 
     const unavailableItem = cartItems.find(
-      (item) =>
-        !item.product_id || !purchasableProductIds.has(item.product_id),
+      (item) => !item.product_id || !purchasableProductIds.has(item.product_id),
     );
 
     if (unavailableItem) {
@@ -623,8 +648,7 @@ export async function createPaymentCheckoutSessionAction(
 
       cartItems = cartItems.map((item) => ({
         ...item,
-        service_code:
-          resolvedServiceCodes.get(item.id) ?? item.service_code,
+        service_code: resolvedServiceCodes.get(item.id) ?? item.service_code,
       }));
     }
 
@@ -650,16 +674,12 @@ export async function createPaymentCheckoutSessionAction(
     }
 
     const productsTotal = roundMoney(
-      cartItems.reduce(
-        (total, item) => total + Number(item.subtotal ?? 0),
-        0,
-      ),
+      cartItems.reduce((total, item) => total + Number(item.subtotal ?? 0), 0),
     );
 
     const personalizationTotal = roundMoney(
       cartItems.reduce(
-        (total, item) =>
-          total + Number(item.personalization_total ?? 0),
+        (total, item) => total + Number(item.personalization_total ?? 0),
         0,
       ),
     );
@@ -667,30 +687,26 @@ export async function createPaymentCheckoutSessionAction(
     const setupTotal = roundMoney(
       cartItems.reduce(
         (total, item) =>
-          total +
-          Number(item.setup_cost ?? 0) +
-          Number(item.extras_total ?? 0),
+          total + Number(item.setup_cost ?? 0) + Number(item.extras_total ?? 0),
         0,
       ),
     );
 
-    const shippingTotal = roundMoney(
-      Number(cart.shipping_total ?? 0),
-    );
+    const discountTotal = roundMoney(Number(cart.discount_total ?? 0));
 
-    const discountTotal = roundMoney(
-      Number(cart.discount_total ?? 0),
-    );
+    const eligibleOrderTotal = calculateEligibleOrderTotal({
+      productsTotal,
+      personalizationTotal,
+      setupAndExtrasTotal: setupTotal,
+      discountTotal,
+    });
+
+    // Recalcular no servidor antes da cobrança evita portes desatualizados
+    // quando os artigos mudam depois do passo de expedição.
+    const shippingTotal = calculateShippingTotal(eligibleOrderTotal);
 
     const taxableTotal = roundMoney(
-      Math.max(
-        0,
-        productsTotal +
-          personalizationTotal +
-          setupTotal +
-          shippingTotal -
-          discountTotal,
-      ),
+      Math.max(0, eligibleOrderTotal + shippingTotal),
     );
 
     const tax = determinePortugueseTax({
@@ -726,21 +742,16 @@ export async function createPaymentCheckoutSessionAction(
       personalization_total: item.personalization_total,
       total: item.total,
       personalization_required: item.personalization_required,
-      personalization_technique_id:
-        item.personalization_technique_id,
+      personalization_technique_id: item.personalization_technique_id,
       personalization_notes: item.personalization_notes,
       personalization_data: item.personalization_data ?? {},
       supplier_payload: {},
       customization_draft_id: item.customization_draft_id,
       customization_location_id: item.customization_location_id,
-      customization_component_name:
-        item.customization_component_name,
-      customization_location_name:
-        item.customization_location_name,
-      customization_technique_name:
-        item.customization_technique_name,
-      supplier_product_reference:
-        item.supplier_product_reference,
+      customization_component_name: item.customization_component_name,
+      customization_location_name: item.customization_location_name,
+      customization_technique_name: item.customization_technique_name,
+      supplier_product_reference: item.supplier_product_reference,
       supplier_sku: item.supplier_sku,
       service_code: item.service_code,
       table_code: item.table_code,
@@ -832,8 +843,8 @@ export async function createPaymentCheckoutSessionAction(
         message:
           prepareOrderError?.message === "checkout_order_already_paid"
             ? "Esta encomenda já se encontra paga."
-            : prepareOrderError?.message ??
-              "Não foi possível preparar a encomenda.",
+            : (prepareOrderError?.message ??
+              "Não foi possível preparar a encomenda."),
       };
     }
 
@@ -889,15 +900,14 @@ export async function createPaymentCheckoutSessionAction(
     if (!checkoutSession.url) {
       return {
         success: false,
-        message:
-          "A Stripe não devolveu um endereço válido para pagamento.",
+        message: "A Stripe não devolveu um endereço válido para pagamento.",
       };
     }
 
     const paymentIntentId =
       typeof checkoutSession.payment_intent === "string"
         ? checkoutSession.payment_intent
-        : checkoutSession.payment_intent?.id ?? null;
+        : (checkoutSession.payment_intent?.id ?? null);
 
     const paymentPayload = {
       order_id: order.id,
@@ -910,8 +920,7 @@ export async function createPaymentCheckoutSessionAction(
       amount_received: 0,
       amount_refunded: 0,
       currency: cart.currency,
-      raw_payload:
-        checkoutSession as unknown as Record<string, unknown>,
+      raw_payload: checkoutSession as unknown as Record<string, unknown>,
       metadata: commonMetadata,
     };
 
@@ -929,8 +938,7 @@ export async function createPaymentCheckoutSessionAction(
       expires_at: checkoutSession.expires_at
         ? new Date(checkoutSession.expires_at * 1000).toISOString()
         : null,
-      raw_payload:
-        checkoutSession as unknown as Record<string, unknown>,
+      raw_payload: checkoutSession as unknown as Record<string, unknown>,
       metadata: commonMetadata,
     };
 

@@ -7,6 +7,10 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import {
+  calculateAmountUntilFreeShipping,
+  calculateEligibleOrderTotal,
+} from "@/lib/checkout/shipping-pricing";
 
 type CartItem = {
   id: string;
@@ -37,7 +41,11 @@ type Cart = {
 
 const CART_SESSION_COOKIE = "loja_creativ_cart_session";
 
-function formatPrice(value: number, currency: string, intlLocale: string): string {
+function formatPrice(
+  value: number,
+  currency: string,
+  intlLocale: string,
+): string {
   return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
@@ -107,6 +115,14 @@ export default async function CartPage() {
 
   const items = cart?.cart_items ?? [];
   const currency = cart?.currency ?? "EUR";
+  const eligibleOrderTotal = calculateEligibleOrderTotal({
+    productsTotal: Number(cart?.subtotal ?? 0),
+    personalizationTotal: Number(cart?.personalization_total ?? 0),
+    setupAndExtrasTotal: Number(cart?.setup_total ?? 0),
+    discountTotal: Number(cart?.discount_total ?? 0),
+  });
+  const amountUntilFreeShipping =
+    calculateAmountUntilFreeShipping(eligibleOrderTotal);
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
@@ -128,9 +144,7 @@ export default async function CartPage() {
             {labels.cart.title}
           </h1>
 
-          <p className="mt-4 max-w-3xl text-neutral-600">
-            {labels.cart.intro}
-          </p>
+          <p className="mt-4 max-w-3xl text-neutral-600">{labels.cart.intro}</p>
         </div>
 
         {items.length > 0 ? (
@@ -176,7 +190,11 @@ export default async function CartPage() {
                       <p className="mt-2">
                         {labels.common.personalization}:{" "}
                         <span className="font-semibold text-neutral-950">
-                          {formatPrice(item.personalization_total, currency, intlLocale)}
+                          {formatPrice(
+                            item.personalization_total,
+                            currency,
+                            intlLocale,
+                          )}
                         </span>
                       </p>
 
@@ -209,6 +227,26 @@ export default async function CartPage() {
                 {labels.cart.summary}
               </h2>
 
+              <div
+                className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${amountUntilFreeShipping === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-900"}`}
+              >
+                <p className="font-semibold">
+                  {amountUntilFreeShipping === 0
+                    ? labels.cart.freeShippingUnlocked
+                    : labels.cart.freeShippingRemaining.replace(
+                        "{amount}",
+                        formatPrice(
+                          amountUntilFreeShipping,
+                          currency,
+                          intlLocale,
+                        ),
+                      )}
+                </p>
+                <p className="mt-1 text-xs opacity-80">
+                  {labels.cart.freeShipping}
+                </p>
+              </div>
+
               <div className="mt-6 space-y-3 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
                   <span>{labels.common.products}</span>
@@ -220,7 +258,11 @@ export default async function CartPage() {
                 <div className="flex justify-between gap-4">
                   <span>{labels.common.personalization}</span>
                   <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.personalization_total ?? 0, currency, intlLocale)}
+                    {formatPrice(
+                      cart?.personalization_total ?? 0,
+                      currency,
+                      intlLocale,
+                    )}
                   </span>
                 </div>
 
@@ -244,22 +286,26 @@ export default async function CartPage() {
                       {labels.common.total}
                     </span>
                     <span className="font-semibold text-neutral-950">
-                      {formatPrice(cart?.grand_total ?? 0, currency, intlLocale)}
+                      {formatPrice(
+                        cart?.grand_total ?? 0,
+                        currency,
+                        intlLocale,
+                      )}
                     </span>
                   </div>
                 </div>
               </div>
 
               <Link
-  href={localizePath("/checkout", locale)}
-  className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
->
-  {labels.cart.checkout}
-</Link>
+                href={localizePath("/checkout", locale)}
+                className="mt-6 inline-flex w-full items-center justify-center rounded-2xl bg-neutral-950 px-6 py-4 text-sm font-semibold text-white transition hover:bg-neutral-800"
+              >
+                {labels.cart.checkout}
+              </Link>
 
               <p className="mt-4 text-xs leading-5 text-neutral-500">
-  {labels.cart.secure}
-</p>
+                {labels.cart.secure}
+              </p>
             </aside>
           </div>
         ) : (
@@ -270,9 +316,7 @@ export default async function CartPage() {
               {labels.cart.empty}
             </h2>
 
-            <p className="mt-3 text-neutral-600">
-              {labels.cart.emptyText}
-            </p>
+            <p className="mt-3 text-neutral-600">{labels.cart.emptyText}</p>
 
             <Link
               href={localizePath("/pesquisa", locale)}
