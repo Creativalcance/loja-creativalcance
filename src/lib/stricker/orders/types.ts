@@ -191,6 +191,7 @@ export type StrickerOrderDatabaseItem = {
   product_id: string | null;
   variant_id: string | null;
   supplier_id: string | null;
+  fulfillment_route: "supplier_api" | "internal_360";
 
   product_sku: string;
   product_name: string;

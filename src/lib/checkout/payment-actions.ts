@@ -34,6 +34,7 @@ type CartItem = {
   product_id: string | null;
   variant_id: string | null;
   supplier_id: string | null;
+  fulfillment_route: "supplier_api" | "internal_360";
   product_sku: string;
   product_name: string;
   quantity: number;
@@ -473,6 +474,7 @@ export async function createPaymentCheckoutSessionAction(
             product_id,
             variant_id,
             supplier_id,
+            fulfillment_route,
             product_sku,
             product_name,
             quantity,
@@ -731,6 +733,7 @@ export async function createPaymentCheckoutSessionAction(
       product_id: item.product_id,
       variant_id: item.variant_id,
       supplier_id: item.supplier_id,
+      fulfillment_route: item.fulfillment_route,
       product_sku: item.product_sku,
       product_name: item.product_name,
       quantity: item.quantity,
