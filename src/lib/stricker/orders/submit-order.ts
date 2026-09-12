@@ -304,6 +304,7 @@ async function fetchOrderForSubmission(params: {
           product_id,
           variant_id,
           supplier_id,
+          fulfillment_route,
           product_sku,
           product_name,
           quantity,
@@ -372,9 +373,16 @@ async function fetchOrderForSubmission(params: {
     ? rawOrder.shipping_address[0] ?? null
     : rawOrder.shipping_address ?? null;
 
+  // Never allow internally fulfilled lines to reach the Stricker mapper. The
+  // route is snapshotted at checkout, so later catalogue edits cannot reroute
+  // an already paid order.
+  const supplierItems = (rawOrder.order_items ?? []).filter(
+    (item) => item.fulfillment_route === "supplier_api",
+  );
+
   const orderItemsWithServiceCodes = await resolveSupplierServiceCodes({
     supabaseAdmin: params.supabaseAdmin,
-    items: rawOrder.order_items ?? [],
+    items: supplierItems,
   });
   const orderItems = await constrainArtworkToSupplierPriceTable({
     supabaseAdmin: params.supabaseAdmin,

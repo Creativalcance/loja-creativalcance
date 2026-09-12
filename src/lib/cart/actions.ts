@@ -27,6 +27,7 @@ export type RemoveCartItemActionState = {
 type ProductForCart = {
   id: string;
   supplier_id: string | null;
+  fulfillment_route: "supplier_api" | "internal_360";
   sku: string;
   name: string;
   min_order_quantity: number;
@@ -600,6 +601,7 @@ export async function addToCartAction(
           `
             id,
             supplier_id,
+            fulfillment_route,
             sku,
             name,
             min_order_quantity,
@@ -990,6 +992,8 @@ export async function addToCartAction(
         supplier_id:
           customizationDraft?.supplier_id ??
           product.supplier_id,
+
+        fulfillment_route: product.fulfillment_route,
 
         product_sku:
           variant?.sku ?? product.sku,

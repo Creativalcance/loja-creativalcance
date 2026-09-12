@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { submitPaidOrderToStricker } from "@/lib/stricker/orders/submit-order";
+import { processPaidOrderFulfillment } from "@/lib/fulfillment/process-paid-order";
 import {
   notifyOrderConfirmed,
   notifyOrderStatusChanged,
@@ -782,15 +782,45 @@ async function submitOrderAfterPayment(
     previousStatus,
     newStatus: previousStatus,
     notes:
-      "Pagamento validado. Iniciada a submissão automática da encomenda ao fornecedor.",
+      "Pagamento validado. Iniciado o encaminhamento dos artigos da encomenda.",
     metadata: {
       source: "stripe_webhook",
-      action: "supplier_submission_started",
+      action: "fulfillment_started",
     },
   });
 
   try {
-    await submitPaidOrderToStricker(orderId);
+    const fulfillment = await processPaidOrderFulfillment(orderId);
+
+    if (!fulfillment.hasSupplier) {
+      await supabaseAdmin.from("orders").update({
+        status: "processing",
+        supplier_submission_status: "not_submitted",
+        supplier_submission_error: null,
+        updated_at: new Date().toISOString(),
+      }).eq("id", orderId);
+
+      await createOrderHistoryEntry({
+        orderId,
+        previousStatus,
+        newStatus: "processing",
+        notes: fulfillment.success
+          ? "Encomenda encaminhada para processamento interno pela 360 Merchandising."
+          : "A encomenda ficou registada para processamento interno, mas a notificação requer nova tentativa.",
+        metadata: {
+          source: "stripe_webhook",
+          action: "internal_fulfillment_created",
+          internalErrors: fulfillment.internalErrors,
+        },
+      });
+      return {
+        success: fulfillment.success,
+        status: fulfillment.success ? "submitted" : "failed",
+        message: fulfillment.success
+          ? "Encomenda encaminhada para processamento interno."
+          : fulfillment.internalErrors.join(" | "),
+      };
+    }
 
     const { data: updatedOrder } = await supabaseAdmin
       .from("orders")
@@ -827,7 +857,9 @@ async function submitOrderAfterPayment(
           ? "sent_to_supplier"
           : previousStatus),
       notes: isSuccessful
-        ? "Encomenda submetida automaticamente ao fornecedor."
+        ? fulfillment.hasInternal
+          ? "Artigos externos submetidos ao fornecedor e artigos próprios encaminhados para a 360 Merchandising."
+          : "Encomenda submetida automaticamente ao fornecedor."
         : isPartial
           ? "Encomenda submetida parcialmente ao fornecedor."
           : "A submissão ao fornecedor terminou com um estado não conclusivo.",
@@ -838,9 +870,11 @@ async function submitOrderAfterPayment(
           finalSubmissionStatus,
         supplierSubmissionError:
           updatedOrder?.supplier_submission_error ?? null,
+        hasInternalFulfillment: fulfillment.hasInternal,
+        internalErrors: fulfillment.internalErrors,
       },
     });
-    if (isSuccessful) {
+    if (isSuccessful && fulfillment.internalErrors.length === 0) {
       return {
         success: true,
         status: "submitted",
@@ -890,6 +924,7 @@ async function submitOrderAfterPayment(
         updated_at: new Date().toISOString(),
       })
       .eq("order_id", orderId)
+      .eq("fulfillment_route", "supplier_api")
       .neq("supplier_submission_status", "submitted");
 
     await createOrderHistoryEntry({
