@@ -5,6 +5,7 @@ import {
   Building2,
   Mail,
   FileText,
+  FolderTree,
   Bell,
   LogOut,
   PackageSearch,
@@ -45,6 +46,13 @@ const adminModules: AdminModule[] = [
       "Gerir catálogo, produtos, variantes, imagens, preços, stocks e destaques.",
     href: "/admin/produtos",
     icon: PackageSearch,
+  },
+  {
+    title: "Categorias",
+    description:
+      "Criar e organizar categorias próprias da 360 separadamente dos produtos.",
+    href: "/admin/categorias",
+    icon: FolderTree,
   },
   {
     title: "Gestão de preços",

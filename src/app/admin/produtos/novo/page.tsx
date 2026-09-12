@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createManualCategoryAction, createManualProductAction } from "../actions";
+import { createManualProductAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 type Category = { id: string; name: string; catalog_source: string };
@@ -18,6 +18,7 @@ export default async function NewManualProductPage() {
     <Link href="/admin/produtos" className="inline-flex items-center text-sm font-medium text-neutral-600"><ArrowLeft className="mr-2 h-4 w-4"/>Voltar aos produtos</Link>
     <h1 className="mt-8 text-3xl font-semibold">Novo produto 360</h1>
     <p className="mt-3 text-neutral-600">Fica fora da sincronização do fornecedor e, depois do pagamento, é encaminhado para a equipa 360.</p>
+    <p className="mt-3 text-sm text-neutral-500">Precisas de uma categoria nova? <Link href="/admin/categorias" className="font-semibold text-neutral-950 underline">Gerir categorias</Link></p>
     <form action={createManualProductAction} className="mt-8 grid gap-6 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm md:grid-cols-2">
       <label className={label}>Nome<input className={input} name="name" required minLength={2}/></label>
       <label className={label}>SKU 360<input className={input} name="sku" required placeholder="360-PROD-001"/></label>
@@ -37,13 +38,6 @@ export default async function NewManualProductPage() {
       <label className={label}>Descrição SEO<textarea className={input} name="seoDescription" rows={2}/></label>
       <label className="flex items-center gap-3 text-sm font-semibold"><input type="checkbox" name="featured"/>Apresentar em destaque</label>
       <div className="md:col-span-2 flex justify-end"><button className="rounded-2xl bg-orange-600 px-6 py-3 font-semibold text-white">Criar produto</button></div>
-    </form>
-    <form action={createManualCategoryAction} className="mt-8 grid gap-5 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm md:grid-cols-2">
-      <div className="md:col-span-2"><h2 className="text-xl font-semibold">Criar categoria 360</h2><p className="mt-2 text-sm text-neutral-500">Depois de criada, atualiza a página para a selecionar no produto.</p></div>
-      <label className={label}>Nome<input className={input} name="categoryName" required/></label>
-      <label className={label}>URL amigável<input className={input} name="categorySlug" placeholder="Gerada automaticamente"/></label>
-      <label className={label + " md:col-span-2"}>Descrição<textarea className={input} name="categoryDescription" rows={3}/></label>
-      <div className="md:col-span-2 flex justify-end"><button className="rounded-2xl border border-neutral-900 px-6 py-3 font-semibold">Criar categoria</button></div>
     </form>
   </section></main>;
 }
