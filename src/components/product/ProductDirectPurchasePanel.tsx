@@ -831,6 +831,10 @@ export default function ProductDirectPurchasePanel({
     };
   });
 
+  const [simpleProductQuantity, setSimpleProductQuantity] = useState(
+    customizationDraft?.quantity ?? minimumQuantity,
+  );
+
   const [
     activeCustomizationDraft,
     setActiveCustomizationDraft,
@@ -933,15 +937,12 @@ export default function ProductDirectPurchasePanel({
   const lowestPrice =
     getLowestPrice(activePrices);
 
-  const selectedQuantity =
-    selectedVariant &&
-    quantitiesByVariant[selectedVariant.id]
-      ? quantitiesByVariant[
-          selectedVariant.id
-        ]
-      : selectedStock.orderable > 0
-        ? minimumQuantity
-        : 0;
+  const selectedQuantity = selectedVariant
+    ? quantitiesByVariant[selectedVariant.id] ||
+      (selectedStock.orderable > 0 ? minimumQuantity : 0)
+    : selectedStock.orderable > 0
+      ? simpleProductQuantity
+      : 0;
 
   const pricing = useMemo(
     () =>
@@ -1043,9 +1044,9 @@ export default function ProductDirectPurchasePanel({
     productHighResolutionImageUrl;
 
   const canProceed =
-    Boolean(selectedVariant?.id) &&
     selectedStock.orderable > 0 &&
-    selectedQuantity >= minimumQuantity;
+    selectedQuantity >= minimumQuantity &&
+    selectedQuantity <= selectedStock.orderable;
 
   function selectColorGroup(
     group: ColorGroup,
@@ -1790,6 +1791,7 @@ export default function ProductDirectPurchasePanel({
                   value={selectedQuantity}
                   onChange={(event) => {
                     if (!selectedVariant) {
+                      setSimpleProductQuantity(Number(event.target.value));
                       return;
                     }
 
@@ -1971,32 +1973,19 @@ export default function ProductDirectPurchasePanel({
               </div>
             ) : null}
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {isCustomizable &&
-              canProceed ? (
+            <div className={`grid gap-3 ${isCustomizable ? "sm:grid-cols-2" : ""}`}>
+              {isCustomizable ? (
                 <button
                   type="submit"
-                  formAction={
-                    startCustomizationAction
-                  }
-                  disabled={
-                    isStartingCustomization
-                  }
+                  formAction={startCustomizationAction}
+                  disabled={isStartingCustomization || !canProceed}
                   className="inline-flex w-full items-center justify-center rounded-2xl border border-neutral-950 bg-white px-6 py-4 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isStartingCustomization
                     ? panelText.preparing
                     : panelText.continuePersonalization}
                 </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex w-full cursor-not-allowed items-center justify-center rounded-2xl border border-neutral-200 bg-neutral-100 px-6 py-4 text-sm font-semibold text-neutral-400"
-                >
-                  {panelText.continuePersonalization}
-                </button>
-              )}
+              ) : null}
 
               <button
                 type="submit"
