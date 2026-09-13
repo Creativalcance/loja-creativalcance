@@ -3,20 +3,19 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteLocale, localizePath } from "@/lib/i18n/config";
 import { notifyAccountWelcome } from "@/lib/notifications/customer-email";
-
-function safeNext(value: string | null): string {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/area-cliente";
-}
+import { claimGuestShopping } from "@/lib/cart/claim-guest";
+import { safeReturnPath } from "@/lib/auth/return-path";
 
 export async function GET(request: NextRequest) {
   const locale = getSiteLocale(request.headers.get("x-site-locale"));
   const code = request.nextUrl.searchParams.get("code");
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type") as EmailOtpType | null;
-  const next = safeNext(request.nextUrl.searchParams.get("next"));
+  const next = safeReturnPath(request.nextUrl.searchParams.get("next")) ?? localizePath("/area-cliente", locale);
   const supabase = await createSupabaseServerClient();
 
   async function redirectAfterConfirmation() {
+    await claimGuestShopping();
     const { data: { user } } = await supabase.auth.getUser();
     if (user?.email) {
       try {

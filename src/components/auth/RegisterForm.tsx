@@ -11,7 +11,7 @@ const initialState: AuthActionState = {
   message: "",
 };
 
-export default function RegisterForm({ locale }: { locale: SiteLocale }) {
+export default function RegisterForm({ locale, nextPath }: { locale: SiteLocale; nextPath?: string }) {
   const t = authCopy[locale];
   const [state, formAction, isPending] = useActionState(
     registerAction,
@@ -21,6 +21,7 @@ export default function RegisterForm({ locale }: { locale: SiteLocale }) {
   return (
     <form action={formAction} className="mt-8 space-y-5">
       <input type="hidden" name="locale" value={locale} />
+      {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
       <div>
         <label
           htmlFor="fullName"
@@ -130,7 +131,7 @@ export default function RegisterForm({ locale }: { locale: SiteLocale }) {
       <p className="text-center text-sm text-neutral-600">
         {t.hasAccount}{" "}
         <Link
-          href={localizePath("/login", locale)}
+          href={`${localizePath("/login", locale)}${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
           className="font-semibold text-neutral-950 underline-offset-4 hover:underline"
         >
           {t.signIn}

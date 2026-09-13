@@ -671,7 +671,7 @@ export default async function ProductDetailPage({
       Boolean(user?.id) && draftData?.user_id === user?.id;
 
     const belongsToSession =
-      Boolean(sessionId) && draftData?.session_id === sessionId;
+      Boolean(sessionId) && draftData?.user_id === null && draftData?.session_id === sessionId;
 
     if (
       draftData &&
