@@ -1,3 +1,4 @@
+import { STATUS_LABELS } from "@/lib/customer/order-status";
 import { createHash } from "node:crypto";
 import type { SiteLocale } from "@/lib/i18n/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -52,52 +53,6 @@ type ResendResponse = { id?: string; message?: string; name?: string };
 const DEFAULT_FROM_EMAIL = "360 Merchandising <info@360-merchandising.com>";
 const MAX_DELIVERY_ATTEMPTS = 5;
 
-const STATUS_LABELS: Record<SiteLocale, Record<string, string>> = {
-  pt: {
-    pending_payment: "A aguardar pagamento", paid: "Pagamento confirmado",
-    processing: "Em preparação", sent_to_supplier: "Em processamento",
-    supplier_confirmed: "Confirmada", in_production: "Em produção",
-    shipped: "Expedida", delivered: "Entregue", cancelled: "Cancelada",
-    refunded: "Reembolsada", failed: "Necessita de atenção",
-    unfulfilled: "Em preparação", partially_fulfilled: "Parcialmente preparada",
-    fulfilled: "Preparada",
-    WAITING_ART_WORK: "A aguardar elementos de personalização",
-    PROCESSING: "Em processamento", PRODUCTION: "Em produção",
-    WAITING_STOCK: "A aguardar disponibilidade", PROCESSED: "Preparada",
-    PENDING_MOCKUP_APPROVAL: "Maquete pendente de aprovação",
-    INVOICED: "Faturada", SENT: "Expedida", SHIPPED: "Expedida",
-    CANCELED: "Cancelada", CANCELLED: "Cancelada",
-  },
-  en: {
-    pending_payment: "Awaiting payment", paid: "Payment confirmed",
-    processing: "Being prepared", sent_to_supplier: "Processing",
-    supplier_confirmed: "Confirmed", in_production: "In production",
-    shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled",
-    refunded: "Refunded", failed: "Needs attention",
-    unfulfilled: "Being prepared", partially_fulfilled: "Partially prepared",
-    fulfilled: "Prepared",
-    WAITING_ART_WORK: "Awaiting customisation files", PROCESSING: "Processing",
-    PRODUCTION: "In production", WAITING_STOCK: "Awaiting availability",
-    PROCESSED: "Prepared", PENDING_MOCKUP_APPROVAL: "Proof awaiting approval",
-    INVOICED: "Invoiced", SENT: "Shipped", SHIPPED: "Shipped",
-    CANCELED: "Cancelled", CANCELLED: "Cancelled",
-  },
-  fr: {
-    pending_payment: "En attente de paiement", paid: "Paiement confirmé",
-    processing: "En préparation", sent_to_supplier: "En cours de traitement",
-    supplier_confirmed: "Confirmée", in_production: "En production",
-    shipped: "Expédiée", delivered: "Livrée", cancelled: "Annulée",
-    refunded: "Remboursée", failed: "Nécessite votre attention",
-    unfulfilled: "En préparation", partially_fulfilled: "Partiellement préparée",
-    fulfilled: "Préparée",
-    WAITING_ART_WORK: "En attente des éléments de personnalisation",
-    PROCESSING: "En cours de traitement", PRODUCTION: "En production",
-    WAITING_STOCK: "En attente de disponibilité", PROCESSED: "Préparée",
-    PENDING_MOCKUP_APPROVAL: "Maquette en attente d’approbation",
-    INVOICED: "Facturée", SENT: "Expédiée", SHIPPED: "Expédiée",
-    CANCELED: "Annulée", CANCELLED: "Annulée",
-  },
-};
 
 function escapeHtml(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;")
@@ -171,7 +126,8 @@ function renderEmail(notification: EmailNotification): { subject: string; html: 
   const locale = notification.locale;
   const name = asString(p.customerName) || asString(p.name);
   const orderNumber = asString(p.orderNumber);
-  const orderUrl = localPath(locale, "/area-cliente/encomendas");
+  const orderId = asString(p.orderId);
+  const orderUrl = localPath(locale, `/area-cliente/encomendas${/^[0-9a-f-]{36}$/i.test(orderId) ? `/${orderId}` : ""}`);
 
   if (notification.event_type === "account_welcome") {
     const copy = locale === "en" ? { subject: "Welcome to 360 Merchandising", eyebrow: "ACCOUNT CONFIRMED", heading: `Welcome${name ? `, ${name}` : ""}!`, intro: "Your account has been confirmed successfully.", body: "You can now manage your details, follow orders and access your purchase history in your customer area.", button: "Go to my account" }

@@ -1,3 +1,5 @@
+import { customerStatus } from "@/lib/customer/order-status";
+import { orderCopy } from "@/lib/customer/order-copy";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -53,13 +55,6 @@ function formatPrice(value: number, currency: string, locale: SiteLocale): strin
     style: "currency",
     currency,
   }).format(value);
-}
-
-function getOrderStatusLabel(status: string, locale: SiteLocale): string {
-  const all = { pt: { pending_payment: "A aguardar pagamento", paid: "Pago", processing: "Em processamento", sent_to_supplier: "Enviado ao fornecedor", supplier_confirmed: "Confirmado pelo fornecedor", in_production: "Em produção", shipped: "Expedido", delivered: "Entregue", cancelled: "Cancelado", refunded: "Reembolsado", failed: "Falhou" }, en: { pending_payment: "Awaiting payment", paid: "Paid", processing: "Processing", sent_to_supplier: "Sent to supplier", supplier_confirmed: "Confirmed by supplier", in_production: "In production", shipped: "Shipped", delivered: "Delivered", cancelled: "Cancelled", refunded: "Refunded", failed: "Failed" }, fr: { pending_payment: "En attente de paiement", paid: "Payé", processing: "En traitement", sent_to_supplier: "Envoyé au fournisseur", supplier_confirmed: "Confirmé par le fournisseur", in_production: "En production", shipped: "Expédié", delivered: "Livré", cancelled: "Annulé", refunded: "Remboursé", failed: "Échec" } };
-  const labels: Record<string, string> = all[locale];
-
-  return labels[status] ?? status;
 }
 
 function getQuoteStatusLabel(status: string, locale: SiteLocale): string {
@@ -240,7 +235,7 @@ export default async function CustomerAreaPage() {
                       <div className="flex items-start justify-between gap-4">
                         <div>
                           <p className="font-semibold text-neutral-950">
-                            {order.order_number}
+                            <Link href={localizePath(`/area-cliente/encomendas/${order.id}`, locale)} className="underline-offset-4 hover:underline">{order.order_number} · {orderCopy[locale].details}</Link>
                           </p>
 
                           <p className="mt-1 text-sm text-neutral-500">
@@ -248,7 +243,7 @@ export default async function CustomerAreaPage() {
                           </p>
 
                           <p className="mt-2 text-sm text-neutral-600">
-                            {getOrderStatusLabel(order.status, locale)}
+                            {customerStatus(order.status, locale)}
                           </p>
                         </div>
 

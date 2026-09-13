@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { customerStatus } from "@/lib/customer/order-status";
+import { orderCopy } from "@/lib/customer/order-copy";
 import SiteHeader from "@/components/layout/SiteHeader";
 import CustomerDashboardLink from "@/components/customer/CustomerDashboardLink";
 import { assertCustomerAccess } from "@/lib/auth/assert-customer";
@@ -36,7 +39,7 @@ export default async function CustomerOrdersPage() {
   const locale = await getCurrentLocale(); const t = customerCopy[locale];
   const { user, supabase } = await assertCustomerAccess(localizePath("/area-cliente/encomendas", locale));
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("orders")
     .select(
       "id, order_number, status, payment_status, fulfillment_status, grand_total, currency, created_at",
@@ -46,6 +49,7 @@ export default async function CustomerOrdersPage() {
     .order("created_at", { ascending: false })
     .returns<Order[]>();
 
+  if (error) throw new Error("Não foi possível consultar as encomendas.");
   const orders = data ?? [];
 
   return (
@@ -74,7 +78,7 @@ export default async function CustomerOrdersPage() {
                   <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
                     <div>
                       <p className="text-xl font-semibold text-neutral-950">
-                        {order.order_number}
+                        <Link href={localizePath(`/area-cliente/encomendas/${order.id}`, locale)} className="underline-offset-4 hover:underline">{order.order_number} · {orderCopy[locale].details}</Link>
                       </p>
 
                       <p className="mt-2 text-sm text-neutral-500">
@@ -82,8 +86,8 @@ export default async function CustomerOrdersPage() {
                       </p>
 
                       <p className="mt-2 text-sm text-neutral-600">
-                        {t.status}: {order.status} · {t.payment}:{" "}
-                        {order.payment_status}
+                        {t.status}: {customerStatus(order.status, locale)} · {t.payment}:{" "}
+                        {customerStatus(order.payment_status, locale)}
                       </p>
                     </div>
 
