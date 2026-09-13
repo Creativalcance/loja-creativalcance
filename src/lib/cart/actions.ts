@@ -538,7 +538,7 @@ function draftBelongsToIdentity(params: {
   }
 
   return (
-    params.draft.session_id === params.sessionId
+    params.draft.user_id === null && params.draft.session_id === params.sessionId
   );
 }
 

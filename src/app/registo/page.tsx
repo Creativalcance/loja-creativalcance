@@ -1,8 +1,10 @@
 import RegisterForm from "@/components/auth/RegisterForm";
 import { getCurrentLocale } from "@/lib/i18n/server";
 import { authCopy } from "@/lib/i18n/account";
+import { safeReturnPath } from "@/lib/auth/return-path";
 
-export default async function RegisterPage() {
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
+  const nextPath = safeReturnPath((await searchParams).next);
   const locale = await getCurrentLocale(); const t = authCopy[locale];
   return (
     <main className="flex min-h-screen items-center justify-center bg-neutral-50 px-6 py-12">
@@ -19,7 +21,7 @@ export default async function RegisterPage() {
           {t.registerIntro}
         </p>
 
-        <RegisterForm locale={locale} />
+        <RegisterForm locale={locale} nextPath={nextPath} />
       </section>
     </main>
   );

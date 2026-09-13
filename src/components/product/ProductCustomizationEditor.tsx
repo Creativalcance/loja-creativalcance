@@ -1,4 +1,5 @@
 "use client";
+import { ShoppingResume, snapshotImage, useShoppingLoginSnapshot } from "@/lib/cart/login-snapshot";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1206,7 +1207,23 @@ function findProductPriceTier(params: {
   return fallbackPrice ?? sortedPrices[0] ?? null;
 }
 
-export default function ProductCustomizationEditor({
+type EditorResume = {
+  quantity: number; quantityInput: string; selectedGroupId: string | null;
+  selectedLocationId: string | null; logoFile: File | null; logoPreviewUrl: string | null;
+  logoFileName: string | null; detectedLogoColors: string[];
+  selectedPantoneColors: Array<PantoneColor | null>; logoAspectRatio: number;
+  detectedPrintAreaAspectRatio: number | null;
+  position: LogoPosition; textLayer: TextLayer; needsDesignHelp: boolean;
+  extraProof: boolean; nominative: boolean; internalReference: string; notes: string;
+  selectedPrintColorMode: PrintColorMode | null;
+};
+
+export default function ProductCustomizationEditor(props: ProductCustomizationEditorProps) {
+  return <ShoppingResume<EditorResume>>{(resume) => <CustomizationEditor {...props} resume={resume} />}</ShoppingResume>;
+}
+
+function CustomizationEditor({
+  resume,
   locale = "pt",
   productId,
   supplierId,
@@ -1221,7 +1238,7 @@ export default function ProductCustomizationEditor({
   initialLocationId,
   initialQuantity = 1,
   minimumQuantity,
-}: ProductCustomizationEditorProps) {
+}: ProductCustomizationEditorProps & { resume?: EditorResume }) {
   const router = useRouter();
   const copy = getEditorCopy(locale);
   const textCopy = TEXT_EDITOR_COPY[locale];
@@ -1251,8 +1268,8 @@ export default function ProductCustomizationEditor({
     minimumQuantity,
     Math.floor(initialQuantity),
   );
-  const [quantity, setQuantity] = useState(initialSafeQuantity);
-  const [quantityInput, setQuantityInput] = useState(String(initialSafeQuantity));
+  const [quantity, setQuantity] = useState(resume?.quantity ?? initialSafeQuantity);
+  const [quantityInput, setQuantityInput] = useState(resume?.quantityInput ?? String(initialSafeQuantity));
 
   const locationGroups = useMemo(
     () =>
@@ -1280,7 +1297,7 @@ export default function ProductCustomizationEditor({
   }, [initialLocationId, locationGroups]);
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
-    initialGroupId,
+    resume?.selectedGroupId ?? initialGroupId,
   );
 
   const selectedGroup = useMemo(
@@ -1292,7 +1309,7 @@ export default function ProductCustomizationEditor({
   );
 
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
-    selectedGroup?.options[0]?.id ?? null,
+    resume?.selectedLocationId ?? selectedGroup?.options[0]?.id ?? null,
   );
 
   const selectedLocation = useMemo(
@@ -1305,30 +1322,30 @@ export default function ProductCustomizationEditor({
     [selectedGroup, selectedLocationId],
   );
 
-  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoFileName, setLogoFileName] = useState<string | null>(null);
-  const [detectedLogoColors, setDetectedLogoColors] = useState<string[]>([]);
+  const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(resume?.logoPreviewUrl ?? null);
+  const [logoFile, setLogoFile] = useState<File | null>(resume?.logoFile ?? null);
+  const [logoFileName, setLogoFileName] = useState<string | null>(resume?.logoFileName ?? null);
+  const [detectedLogoColors, setDetectedLogoColors] = useState<string[]>(resume?.detectedLogoColors ?? []);
   const [selectedPantoneColors, setSelectedPantoneColors] = useState<
     Array<PantoneColor | null>
-  >([]);
+  >(resume?.selectedPantoneColors ?? []);
   const [activePrintColorIndex, setActivePrintColorIndex] = useState(0);
   const [recoloredLogoPreviewUrl, setRecoloredLogoPreviewUrl] = useState<
     string | null
   >(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [logoAspectRatio, setLogoAspectRatio] = useState(3);
+  const [logoAspectRatio, setLogoAspectRatio] = useState(resume?.logoAspectRatio ?? 3);
   const [detectedPrintAreaAspectRatio, setDetectedPrintAreaAspectRatio] =
-    useState<number | null>(null);
-  const [position, setPosition] = useState<LogoPosition>(initialPosition);
-  const [textLayer, setTextLayer] = useState<TextLayer>(initialTextLayer);
+    useState<number | null>(resume?.detectedPrintAreaAspectRatio ?? null);
+  const [position, setPosition] = useState<LogoPosition>(resume?.position ?? initialPosition);
+  const [textLayer, setTextLayer] = useState<TextLayer>(resume?.textLayer ?? initialTextLayer);
   const [showPriceTable, setShowPriceTable] = useState(false);
   const [showProductionTimes, setShowProductionTimes] = useState(false);
-  const [needsDesignHelp, setNeedsDesignHelp] = useState(false);
-  const [extraProof, setExtraProof] = useState(false);
-  const [nominative, setNominative] = useState(false);
-  const [internalReference, setInternalReference] = useState("");
-  const [notes, setNotes] = useState("");
+  const [needsDesignHelp, setNeedsDesignHelp] = useState(resume?.needsDesignHelp ?? false);
+  const [extraProof, setExtraProof] = useState(resume?.extraProof ?? false);
+  const [nominative, setNominative] = useState(resume?.nominative ?? false);
+  const [internalReference, setInternalReference] = useState(resume?.internalReference ?? "");
+  const [notes, setNotes] = useState(resume?.notes ?? "");
 
   const printColorOptions = useMemo(
     () => getPrintColorOptions(selectedLocation?.price_tiers ?? []).map((option) => ({
@@ -1340,7 +1357,13 @@ export default function ProductCustomizationEditor({
     [copy.allImageColours, copy.colourPlural, copy.colourSingular, selectedLocation?.price_tiers],
   );
   const [selectedPrintColorMode, setSelectedPrintColorMode] =
-    useState<PrintColorMode | null>(null);
+    useState<PrintColorMode | null>(resume?.selectedPrintColorMode ?? null);
+  useShoppingLoginSnapshot(async (): Promise<EditorResume> => ({
+    quantity, quantityInput, selectedGroupId, selectedLocationId, logoFile, logoFileName,
+    logoPreviewUrl: await snapshotImage(logoPreviewUrl),
+    detectedLogoColors, selectedPantoneColors, logoAspectRatio, detectedPrintAreaAspectRatio, position, textLayer,
+    needsDesignHelp, extraProof, nominative, internalReference, notes, selectedPrintColorMode,
+  }));
   const effectivePrintColorMode =
     selectedPrintColorMode &&
     printColorOptions.some((option) => option.mode === selectedPrintColorMode)
@@ -1557,6 +1580,16 @@ export default function ProductCustomizationEditor({
     selectedLocation?.technique ?? null,
   );
 
+  // Compare dependencies instead of resetting recovered input on mount (also in Strict Mode).
+  const locationResetKey = selectedGroup?.id;
+  const colorsResetKey = `${effectivePrintColorMode}:${requiredPrintColorCount}`;
+  const positionResetKey = selectedLocation?.id;
+  const centerResetKey = `${editorAreaAspectRatio}:${logoAspectRatio}:${maximumAllowedLogoWidthPercent}`;
+  const previousLocation = useRef(resume ? locationResetKey : Symbol());
+  const previousColors = useRef(resume ? colorsResetKey : Symbol());
+  const previousPosition = useRef(resume ? positionResetKey : Symbol());
+  const previousCenter = useRef(resume ? centerResetKey : Symbol());
+
   useEffect(() => {
     if (
       selectedGroupId &&
@@ -1569,10 +1602,14 @@ export default function ProductCustomizationEditor({
   }, [locationGroups, selectedGroupId]);
 
   useEffect(() => {
+    if (previousLocation.current === locationResetKey) return;
+    previousLocation.current = locationResetKey;
     setSelectedLocationId(selectedGroup?.options[0]?.id ?? null);
-  }, [selectedGroup?.id, selectedGroup?.options]);
+  }, [locationResetKey, selectedGroup?.id, selectedGroup?.options]);
 
   useEffect(() => {
+    if (previousColors.current === colorsResetKey) return;
+    previousColors.current = colorsResetKey;
     setSelectedPantoneColors(
       requiredPrintColorCount > 0
         ? Array.from({ length: requiredPrintColorCount }, () => null)
@@ -1580,7 +1617,7 @@ export default function ProductCustomizationEditor({
     );
     setActivePrintColorIndex(0);
     setRecoloredLogoPreviewUrl(null);
-  }, [effectivePrintColorMode, requiredPrintColorCount]);
+  }, [colorsResetKey, effectivePrintColorMode, requiredPrintColorCount]);
 
   useEffect(() => {
     if (
@@ -1612,6 +1649,8 @@ export default function ProductCustomizationEditor({
   ]);
 
   useEffect(() => {
+    if (previousPosition.current === positionResetKey) return;
+    previousPosition.current = positionResetKey;
     const rotation = getSuggestedRotation({
       printAreaAspectRatio,
       logoAspectRatio,
@@ -1624,9 +1663,11 @@ export default function ProductCustomizationEditor({
         rotation,
       }),
     );
-  }, [selectedLocation?.id]);
+  }, [positionResetKey, selectedLocation?.id, printAreaAspectRatio, editorAreaAspectRatio, logoAspectRatio]);
 
   useEffect(() => {
+    if (previousCenter.current === centerResetKey) return;
+    previousCenter.current = centerResetKey;
     setPosition((current) => {
       const width = Math.min(current.width, maximumAllowedLogoWidthPercent);
       const height = getLogoHeightPercent({
@@ -1646,7 +1687,7 @@ export default function ProductCustomizationEditor({
         logoAspectRatio,
       });
     });
-  }, [editorAreaAspectRatio, logoAspectRatio, maximumAllowedLogoWidthPercent]);
+  }, [centerResetKey, editorAreaAspectRatio, logoAspectRatio, maximumAllowedLogoWidthPercent]);
 
   useEffect(() => {
     return () => {

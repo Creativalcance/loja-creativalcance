@@ -143,7 +143,7 @@ export async function saveCheckoutDestinationAction(
     } = await supabase.auth.getUser();
 
     if (!user) {
-      redirectUrl = localizePath("/login", locale);
+      redirectUrl = `${localizePath("/login", locale)}?next=${encodeURIComponent(localizePath("/checkout", locale))}`;
     } else {
       const supabaseAdmin = createSupabaseAdminClient();
 

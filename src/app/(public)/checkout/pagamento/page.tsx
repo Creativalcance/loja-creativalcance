@@ -220,7 +220,7 @@ export default async function CheckoutPaymentPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect(localizePath("/login", locale));
+    redirect(`${localizePath("/login", locale)}?next=${encodeURIComponent(localizePath("/checkout/pagamento", locale))}`);
   }
 
   const supabaseAdmin = createSupabaseAdminClient();

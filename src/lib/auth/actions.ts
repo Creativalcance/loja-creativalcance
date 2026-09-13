@@ -5,6 +5,8 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { authActionMessages } from "@/lib/i18n/account";
 import { getSiteLocale, localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { notifyAccountWelcome } from "@/lib/notifications/customer-email";
+import { safeReturnPath, canReturnTo } from "@/lib/auth/return-path";
+import { claimGuestShopping } from "@/lib/cart/claim-guest";
 
 export type AuthActionState = {
   success: boolean;
@@ -15,47 +17,12 @@ type ProfileRole = {
   role: string;
 };
 
-function getSafeRedirectPath(value: FormDataEntryValue | null): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed.startsWith("/")) {
-    return null;
-  }
-
-  if (trimmed.startsWith("//")) {
-    return null;
-  }
-
-  if (trimmed.includes("://")) {
-    return null;
-  }
-
-  return trimmed || null;
-}
-
 function getDefaultRedirectPath(role: string | null | undefined, locale: SiteLocale): string {
   if (role === "admin") {
     return "/admin";
   }
 
   return localizePath("/area-cliente", locale);
-}
-
-function canUseRequestedPath(role: string | null | undefined, path: string): boolean {
-  const normalizedPath = path.replace(/^\/(?:en|fr)(?=\/|$)/, "") || "/";
-  if (normalizedPath.startsWith("/admin") || normalizedPath.startsWith("/area-comercial")) {
-    return role === "admin";
-  }
-
-  if (normalizedPath.startsWith("/area-cliente")) {
-    return role === "customer";
-  }
-
-  return true;
 }
 
 export async function loginAction(
@@ -66,7 +33,7 @@ export async function loginAction(
   const password = String(formData.get("password") || "");
   const locale = getSiteLocale(String(formData.get("locale") || "pt"));
   const messages = authActionMessages(locale);
-  const requestedNextPath = getSafeRedirectPath(formData.get("next"));
+  const requestedNextPath = safeReturnPath(formData.get("next"));
   let destinationPath = requestedNextPath;
 
   if (!email || !password) {
@@ -103,7 +70,8 @@ export async function loginAction(
         return { success: false, message: messages.inactive };
       }
 
-      if (!destinationPath || !canUseRequestedPath(profile.role, destinationPath)) {
+      await claimGuestShopping();
+      if (!destinationPath || !canReturnTo(profile.role, destinationPath)) {
         destinationPath = getDefaultRedirectPath(profile.role, locale);
       }
     }
@@ -125,6 +93,7 @@ export async function registerAction(
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
+  const nextPath = safeReturnPath(formData.get("next"));
   const locale = getSiteLocale(String(formData.get("locale") || "pt"));
   const messages = authActionMessages(locale);
 
@@ -160,7 +129,7 @@ export async function registerAction(
       email,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(localizePath("/area-cliente", locale))}`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(nextPath ?? localizePath("/area-cliente", locale))}`,
         data: {
           full_name: fullName,
           locale,
@@ -183,6 +152,7 @@ export async function registerAction(
     }
 
     if (data.session && data.user.email) {
+      await claimGuestShopping();
       await notifyAccountWelcome({
         userId: data.user.id,
         email: data.user.email,
@@ -198,5 +168,5 @@ export async function registerAction(
     };
   }
 
-  redirect(`${localizePath("/login", locale)}?registo=sucesso`);
+  redirect(`${localizePath("/login", locale)}?registo=sucesso${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`);
 }

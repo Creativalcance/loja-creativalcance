@@ -1,4 +1,5 @@
 "use client";
+import { ShoppingResume, useShoppingLoginSnapshot } from "@/lib/cart/login-snapshot";
 
 import Link from "next/link";
 import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
@@ -611,7 +612,20 @@ function formatProductText(value: string | null): string | null {
   return formatted.length > 0 ? formatted : null;
 }
 
-export default function ProductDirectPurchasePanel({
+type PurchaseResume = {
+  selectedColorGroupKey: string | null;
+  selectedVariantId: string | null;
+  quantitiesByVariant: Record<string, number>;
+  simpleProductQuantity: number;
+  activeCustomizationDraft: ProductPurchaseCustomizationDraft | null;
+};
+
+export default function ProductDirectPurchasePanel(props: ProductDirectPurchasePanelProps) {
+  return <ShoppingResume<PurchaseResume>>{(resume) => <PurchasePanel {...props} resume={resume} />}</ShoppingResume>;
+}
+
+function PurchasePanel({
+  resume,
   locale = "pt",
   productId,
   productSlug,
@@ -633,7 +647,7 @@ export default function ProductDirectPurchasePanel({
   stocks,
   futureStocks,
   customizationDraft,
-}: ProductDirectPurchasePanelProps) {
+}: ProductDirectPurchasePanelProps & { resume?: PurchaseResume }) {
   const labels = getMessages(locale);
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const panelText =
@@ -807,20 +821,21 @@ export default function ProductDirectPurchasePanel({
     selectedColorGroupKey,
     setSelectedColorGroupKey,
   ] = useState<string | null>(
-    initialColorGroupKey,
+    resume?.selectedColorGroupKey ?? initialColorGroupKey,
   );
 
   const [
     selectedVariantId,
     setSelectedVariantId,
   ] = useState<string | null>(
-    initialVariantId,
+    resume?.selectedVariantId ?? initialVariantId,
   );
 
   const [
     quantitiesByVariant,
     setQuantitiesByVariant,
   ] = useState<Record<string, number>>(() => {
+    if (resume) return resume.quantitiesByVariant;
     if (!customizationDraft?.variant_id) {
       return {};
     }
@@ -832,7 +847,7 @@ export default function ProductDirectPurchasePanel({
   });
 
   const [simpleProductQuantity, setSimpleProductQuantity] = useState(
-    customizationDraft?.quantity ?? minimumQuantity,
+    resume?.simpleProductQuantity ?? customizationDraft?.quantity ?? minimumQuantity,
   );
 
   const [
@@ -840,8 +855,11 @@ export default function ProductDirectPurchasePanel({
     setActiveCustomizationDraft,
   ] =
     useState<ProductPurchaseCustomizationDraft | null>(
-      customizationDraft,
+      resume ? resume.activeCustomizationDraft : customizationDraft,
     );
+
+  useShoppingLoginSnapshot({ selectedColorGroupKey, selectedVariantId, quantitiesByVariant,
+    simpleProductQuantity, activeCustomizationDraft });
 
   const [
     cartState,

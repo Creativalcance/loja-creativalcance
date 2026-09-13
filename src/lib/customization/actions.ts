@@ -251,7 +251,7 @@ function draftBelongsToIdentity(params: {
     return true;
   }
 
-  return params.draft.session_id === params.sessionId;
+  return params.draft.user_id === null && params.draft.session_id === params.sessionId;
 }
 
 function findProductPrice(params: {

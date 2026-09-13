@@ -106,7 +106,7 @@ export function LoginForm({
       <p className="text-center text-sm text-neutral-600">
         {t.noAccount}{" "}
         <Link
-          href={localizePath("/registo", locale)}
+          href={`${localizePath("/registo", locale)}${nextPath ? `?next=${encodeURIComponent(nextPath)}` : ""}`}
           className="font-semibold text-neutral-950 underline-offset-4 hover:underline"
         >
           {t.createAccount}

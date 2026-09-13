@@ -6,6 +6,8 @@ import { Store, UserRound } from "lucide-react";
 import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { usePathname, useRouter } from "next/navigation";
+import { preserveShoppingBeforeLogin } from "@/lib/cart/login-snapshot";
 
 type HeaderAccountLinkProps = {
   context: "store" | "customer";
@@ -16,6 +18,9 @@ type AccountState = "guest" | "customer" | "admin";
 
 export default function HeaderAccountLink({ context, locale }: HeaderAccountLinkProps) {
   const messages = getMessages(locale).header;
+  const pathname = usePathname();
+  const router = useRouter();
+  const [loginError, setLoginError] = useState(false);
   const [account, setAccount] = useState<AccountState>("guest");
 
   useEffect(() => {
@@ -78,7 +83,7 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
       ? "/admin"
       : account === "customer"
         ? localizePath("/area-cliente", locale)
-        : localizePath("/login", locale);
+        : `${localizePath("/login", locale)}?next=${encodeURIComponent(pathname)}`;
   const label = isCustomerContext
     ? messages.store
     : account === "admin"
@@ -91,10 +96,20 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
   return (
     <Link
       href={href}
+      onClick={async (event) => {
+        if (account !== "guest" || isCustomerContext) return;
+        event.preventDefault();
+        try {
+          await preserveShoppingBeforeLogin();
+          router.push(`${localizePath("/login", locale)}?next=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`);
+        } catch {
+          setLoginError(true);
+        }
+      }}
       className="inline-flex items-center rounded-full bg-[#162334] px-4 py-2 text-sm font-semibold !text-white transition hover:bg-[#24364d]"
     >
       <Icon className="mr-2 h-4 w-4 !text-white" aria-hidden="true" />
-      <span className="!text-white">{label}</span>
+      <span className="!text-white">{loginError ? ({ pt: "Não foi possível guardar. Tenta novamente.", en: "Could not save. Try again.", fr: "Enregistrement impossible. Réessayez." })[locale] : label}</span>
     </Link>
   );
 }

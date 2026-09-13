@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
 import { authCopy } from "@/lib/i18n/account";
+import { safeReturnPath, canReturnTo } from "@/lib/auth/return-path";
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -12,29 +13,9 @@ type LoginPageProps = {
   }>;
 };
 
-function getSafeNextPath(value: string | undefined): string | undefined {
-  if (!value) {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-
-  if (!trimmed.startsWith("/")) {
-    return undefined;
-  }
-
-  if (trimmed.startsWith("//")) {
-    return undefined;
-  }
-
-  if (trimmed.includes("://")) {
-    return undefined;
-  }
-
-  return trimmed;
-}
-
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const resolvedSearchParams = await searchParams;
+  const nextPath = safeReturnPath(resolvedSearchParams?.next);
   const locale = await getCurrentLocale();
   const t = authCopy[locale];
   const supabase = await createSupabaseServerClient();
@@ -42,11 +23,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   if (user) {
     const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
-    if (profile?.is_active !== false) redirect(profile?.role === "admin" ? "/admin" : localizePath("/area-cliente", locale));
+    if (profile && profile.is_active !== false) {
+      const destination = nextPath && canReturnTo(profile.role, nextPath)
+        ? nextPath : profile.role === "admin" ? "/admin" : localizePath("/area-cliente", locale);
+      redirect(`/auth/resume?next=${encodeURIComponent(destination)}`);
+    }
     await supabase.auth.signOut();
   }
-  const resolvedSearchParams = await searchParams;
-  const nextPath = getSafeNextPath(resolvedSearchParams?.next);
   const registrationSucceeded = resolvedSearchParams?.registo === "sucesso";
 
   return (
