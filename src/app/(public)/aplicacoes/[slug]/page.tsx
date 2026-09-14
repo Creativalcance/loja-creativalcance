@@ -68,7 +68,7 @@ export default async function ApplicationPage({ params }: ApplicationPageProps) 
     return notFound();
   }
 
-  const products = await getLandingProducts(config.productQueries, 12);
+  const products = await getLandingProducts(config.productQueries, locale, 12);
   const path = localizePath(`/aplicacoes/${config.slug}`, locale);
   const structuredData = buildCollectionStructuredData({
     name: config.h1,

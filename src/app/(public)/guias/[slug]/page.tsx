@@ -68,7 +68,7 @@ export default async function GuideDetailPage({ params }: GuidePageProps) {
     return notFound();
   }
 
-  const products = await getLandingProducts(config.productQueries, 8);
+  const products = await getLandingProducts(config.productQueries, locale, 8);
   const path = localizePath(`/guias/${config.slug}`, locale);
   const structuredData = buildEditorialStructuredData({
     name: config.h1,

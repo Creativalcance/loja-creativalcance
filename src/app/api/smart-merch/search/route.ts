@@ -1,3 +1,4 @@
+import { getCurrentLocale } from "@/lib/i18n/server";
 import { NextResponse } from "next/server";
 import { interpretSmartQuery } from "@/lib/smart-merch/interpret-smart-query";
 import { searchSmartMerchProducts } from "@/lib/smart-merch/search-products";
@@ -14,7 +15,7 @@ export async function POST(request: Request) {
 
     const body = smartMerchRequestSchema.parse(await request.json());
     const query = await interpretSmartQuery(body);
-    const response = await searchSmartMerchProducts(query);
+    const response = await searchSmartMerchProducts(query, await getCurrentLocale());
 
     return NextResponse.json(response, {
       headers: { "Cache-Control": "no-store" },

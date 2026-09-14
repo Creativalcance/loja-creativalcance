@@ -86,7 +86,7 @@ export default async function SmartMerchPage({ searchParams }: SmartMerchPagePro
 
   try {
     const interpretedQuery = await interpretSmartQuery({ request, quantity, budget, deadline, sort });
-    response = await searchSmartMerchProducts(interpretedQuery);
+    response = await searchSmartMerchProducts(interpretedQuery, locale);
   } catch (error) {
     searchError = error;
   }

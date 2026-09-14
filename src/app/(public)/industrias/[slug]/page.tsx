@@ -65,7 +65,7 @@ export default async function IndustryPage({ params }: IndustryPageProps) {
     return notFound();
   }
 
-  const products = await getLandingProducts(config.productQueries, 12);
+  const products = await getLandingProducts(config.productQueries, locale, 12);
   const path = localizePath(`/industrias/${config.slug}`, locale);
   const structuredData = buildCollectionStructuredData({
     name: config.h1,

@@ -67,7 +67,7 @@ export default async function SelectionDetailPage({
     return notFound();
   }
 
-  const products = await getCommercialLandingProducts(config.productQueries, {
+  const products = await getCommercialLandingProducts(config.productQueries, locale, {
     requireCustomizable: true,
     limit: 12,
   });

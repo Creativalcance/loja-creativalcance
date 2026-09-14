@@ -1,3 +1,5 @@
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizeSmartMerchResponse } from "@/lib/i18n/product-presentation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildRecommendationReasons, calculateMatchScore } from "@/lib/smart-merch/match-score";
 import {
@@ -556,7 +558,7 @@ function sortResults(results: SmartMerchResult[], query: SmartQuery): SmartMerch
   });
 }
 
-export async function searchSmartMerchProducts(query: SmartQuery): Promise<SmartMerchSearchResponse> {
+export async function searchSmartMerchProducts(query: SmartQuery, locale: SiteLocale): Promise<SmartMerchSearchResponse> {
   const supabase = createSupabaseAdminClient();
   const personalizationRequested = isPersonalizationRequested(query);
   const [{ data: slaData, error: slaError }, { data: settingData, error: settingError }] = await Promise.all([
@@ -583,7 +585,7 @@ export async function searchSmartMerchProducts(query: SmartQuery): Promise<Smart
     query,
   ).slice(0, 48);
 
-  return {
+  return localizeSmartMerchResponse({
     query,
     results,
     calculatedUnitBudget:
@@ -598,5 +600,5 @@ export async function searchSmartMerchProducts(query: SmartQuery): Promise<Smart
     earliestAvailableDate: results.length > 0
       ? results.map((result) => result.estimatedDeliveryDate).sort()[0]
       : null,
-  };
+  }, locale);
 }
