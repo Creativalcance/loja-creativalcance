@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
     if (profile && profile.is_active !== false) {
       const destination = nextPath && canReturnTo(profile.role, nextPath)
-        ? nextPath : profile.role === "admin" ? "/admin" : localizePath("/area-cliente", locale);
+        ? nextPath : profile.role === "admin" ? "/admin" : localizePath(profile.role === "sales" ? "/area-comercial" : "/area-cliente", locale);
       redirect(`/auth/resume?next=${encodeURIComponent(destination)}`);
     }
     await supabase.auth.signOut();

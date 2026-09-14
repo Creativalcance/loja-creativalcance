@@ -1,3 +1,4 @@
+import { observeSalesRefund } from '@/lib/sales/reconcile';
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createStripeServerClient } from "@/lib/stripe/server";
@@ -1274,6 +1275,10 @@ export async function POST(request: Request) {
     }
 
     switch (event.type) {
+      case "charge.refunded": {
+        await observeSalesRefund(event.data.object,new Date(event.created*1000).toISOString());
+        break;
+      }
       case "checkout.session.completed": {
         const session = event.data.object;
 

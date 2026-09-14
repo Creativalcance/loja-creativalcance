@@ -230,11 +230,12 @@ test('the existing cron requires its secret before any recovery and invokes only
     '@/lib/notifications/customer-email': { retryPendingCustomerEmails: async () => { calls.push('customer'); return { sent: 1 }; } },
     '@/lib/notifications/internal-order': { retryPendingInternalOrderEmails: async () => { calls.push('internal'); return { sent: 1 }; } },
     '@/lib/newsletter/welcome-email': { retryPendingNewsletterWelcomeEmails: async () => { calls.push('newsletter'); return { sent: 1 }; } },
+    '@/lib/sales/email': { retrySalesEmails: async () => { calls.push('sales'); return {sent: 1}; } },
   }, { process: { env: { CRON_SECRET: 'test-secret' } } });
   assert.equal((await route.GET({ headers: new Headers() })).status, 401); assert.equal(calls.length, 0);
   assert.equal((await route.GET({ headers: new Headers({ authorization: 'Bearer wrong' }) })).status, 401);
   assert.equal((await route.GET({ headers: new Headers({ authorization: 'Bearer test-secret' }) })).status, 200);
-  assert.deepEqual(calls, ['customer', 'internal', 'newsletter']);
+  assert.deepEqual(calls, ['customer', 'internal', 'newsletter', 'sales']);
 });
 
 test('repeated genuine status transitions have distinct events while retries keep the same event', async () => {

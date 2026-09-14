@@ -1,5 +1,6 @@
 "use server";
 
+import { activateSalesAccount } from "@/lib/sales/access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { AuthActionState } from "@/lib/auth/actions";
 import { authActionMessages } from "@/lib/i18n/account";
@@ -23,5 +24,6 @@ export async function updatePasswordAction(_state: AuthActionState, formData: Fo
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { success: false, message: messages.expired };
   const { error } = await supabase.auth.updateUser({ password });
+  if (!error) await activateSalesAccount(user.id);
   return error ? { success: false, message: messages.updateFailed } : { success: true, message: messages.updateSuccess };
 }

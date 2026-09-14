@@ -26,6 +26,7 @@ type AdminModule = {
 };
 
 const adminModules: AdminModule[] = [
+  { title: "Rede Comercial", description: "Gerir comerciais por país, carteiras de clientes, comissões e pagamentos.", href: "/admin/rede-comercial", icon: Building2 },
   {
     title: "Dashboard semanal",
     description:

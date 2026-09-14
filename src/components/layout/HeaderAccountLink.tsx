@@ -14,7 +14,7 @@ type HeaderAccountLinkProps = {
   locale: SiteLocale;
 };
 
-type AccountState = "guest" | "customer" | "admin";
+type AccountState = "guest" | "customer" | "admin" | "sales";
 
 export default function HeaderAccountLink({ context, locale }: HeaderAccountLinkProps) {
   const messages = getMessages(locale).header;
@@ -43,7 +43,7 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
         .maybeSingle<{ role: string }>();
 
       if (active) {
-        setAccount(profile?.role === "admin" ? "admin" : "customer");
+        setAccount(profile?.role === "admin" ? "admin" : profile?.role === "sales" ? "sales" : "customer");
       }
     }
 
@@ -81,14 +81,14 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
     ? localizePath("/", locale)
     : account === "admin"
       ? "/admin"
-      : account === "customer"
+      : account === "sales" ? localizePath("/area-comercial", locale) : account === "customer"
         ? localizePath("/area-cliente", locale)
         : `${localizePath("/login", locale)}?next=${encodeURIComponent(pathname)}`;
   const label = isCustomerContext
     ? messages.store
     : account === "admin"
       ? messages.admin
-      : account === "customer"
+      : account === "sales" || account === "customer"
         ? messages.account
         : messages.signIn;
   const Icon = isCustomerContext ? Store : UserRound;

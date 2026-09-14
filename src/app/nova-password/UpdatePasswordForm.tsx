@@ -84,7 +84,7 @@ export default function UpdatePasswordForm({ locale }: { locale: SiteLocale }) {
 
       {state.success ? (
         <p className="text-center text-sm">
-          <Link href={localizePath("/area-cliente", locale)} className="font-semibold underline">
+          <Link href={localizePath("/login", locale)} className="font-semibold underline">
             {t.continue}
           </Link>
         </p>
