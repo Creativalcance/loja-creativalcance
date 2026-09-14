@@ -11,11 +11,11 @@ export const metadata: Metadata = {
 
 export default async function ContactsPage() {
   const locale = await getCurrentLocale();
-  const copy = locale === "en"
+  const copy = (locale === "es" ? ({ eyebrow: "Contactos", title: "Estamos aqu\u00ED para ayudarte", intro: "Habla con nuestro equipo sobre productos, personalizaci\u00F3n, pedidos o un proyecto a medida.", address: "Direcci\u00F3n", phone: "Tel\u00E9fono", email: "Correo electr\u00F3nico", quote: "Solicitar un presupuesto a medida" }) : locale === "de" ? ({ eyebrow: "Kontakt", title: "Wir sind f\u00FCr Sie da", intro: "Sprechen Sie mit unserem Team \u00FCber Produkte, Personalisierung, Bestellungen oder ein individuelles Projekt.", address: "Adresse", phone: "Telefon", email: "E-Mail", quote: "Individuelles Angebot anfordern" }) : locale === "it" ? ({ eyebrow: "Contatti", title: "Siamo qui per aiutarti", intro: "Parla con il nostro team di prodotti, personalizzazione, ordini o un progetto su misura.", address: "Indirizzo", phone: "Telefono", email: "E-mail", quote: "Richiedi un preventivo su misura" }) : locale === "en"
     ? { eyebrow: "Contacts", title: "We are here to help", intro: "Talk to our team about products, customisation, orders or a tailored project.", address: "Address", phone: "Phone", email: "Email", quote: "Request a tailored quote" }
     : locale === "fr"
       ? { eyebrow: "Contacts", title: "Nous sommes à votre écoute", intro: "Contactez notre équipe pour toute question sur les produits, la personnalisation, les commandes ou un projet sur mesure.", address: "Adresse", phone: "Téléphone", email: "E-mail", quote: "Demander un devis personnalisé" }
-      : { eyebrow: "Contactos", title: "Estamos aqui para ajudar", intro: "Fale com a nossa equipa sobre produtos, personalização, encomendas ou um projeto à medida.", address: "Morada", phone: "Telefone", email: "Email", quote: "Pedir orçamento personalizado" };
+      : { eyebrow: "Contactos", title: "Estamos aqui para ajudar", intro: "Fale com a nossa equipa sobre produtos, personalização, encomendas ou um projeto à medida.", address: "Morada", phone: "Telefone", email: "Email", quote: "Pedir orçamento personalizado" });
 
   const cards = [
     { icon: MapPin, label: copy.address, content: <>360 Merchandising<br />Avenida Fernão de Magalhães, N.º 481<br />2.º Andar - Sala D<br />3000-177 Coimbra</> },

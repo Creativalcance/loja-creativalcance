@@ -30,6 +30,9 @@ export const STRICKER_AUTOMATIC_SYNC_JOBS = [
   "products",
   "products-en",
   "products-fr",
+  "products-es",
+  "products-de",
+  "products-it",
   "optionals",
   "prices",
   "customization-tables",
@@ -303,6 +306,12 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       return syncRestProducts({ lang: "EN" });
     case "products-fr":
       return syncRestProducts({ lang: "FR" });
+    case "products-es":
+      return syncRestProducts({ lang: "ES" });
+    case "products-de":
+      return syncRestProducts({ lang: "DE" });
+    case "products-it":
+      return syncRestProducts({ lang: "IT" });
     case "optionals":
       return syncNextOptionalsBatch();
     case "prices":

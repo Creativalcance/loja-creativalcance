@@ -20,7 +20,34 @@ export function buildCategorySeoContent(
   categoryName: string,
   locale: SiteLocale = "pt",
 ): CategorySeoContent {
-  if (locale === "en") {
+  if (locale === 'es') {
+    return {
+        title: `Productos personalizables: ${categoryName}`,
+        description: truncateSeoText(`Explora productos personalizables de ${categoryName} para empresas, campa\u00F1as, eventos y equipos. Compara productos, precios por cantidad, stock y opciones de personalizaci\u00F3n.`),
+        intro: `Explora productos de ${categoryName} para empresas, campa\u00F1as, eventos, equipos y clientes. Compara materiales, precios por cantidad, stock y personalizaci\u00F3n disponible.`,
+        guideTitle: `C\u00F3mo elegir productos de ${categoryName}`,
+        guideText: "Empieza por el objetivo, p\u00FAblico, cantidad y presupuesto. Despu\u00E9s compara materiales, dimensiones, stock y t\u00E9cnicas de personalizaci\u00F3n para elegir la soluci\u00F3n adecuada al uso previsto.",
+    };
+}
+if (locale === 'de') {
+    return {
+        title: `Personalisierbare Produkte: ${categoryName}`,
+        description: truncateSeoText(`Entdecken Sie personalisierbare Produkte der Kategorie ${categoryName} f\u00FCr Unternehmen, Kampagnen, Veranstaltungen und Teams. Vergleichen Sie Produkte, Mengenpreise, Bestand und Personalisierungsoptionen.`),
+        intro: `Entdecken Sie Produkte der Kategorie ${categoryName} f\u00FCr Unternehmen, Kampagnen, Veranstaltungen, Teams und Kunden. Vergleichen Sie Materialien, Mengenpreise, Bestand und verf\u00FCgbare Personalisierung.`,
+        guideTitle: `So w\u00E4hlen Sie Produkte der Kategorie ${categoryName}`,
+        guideText: "Beginnen Sie mit Ziel, Zielgruppe, Menge und Budget. Vergleichen Sie dann Materialien, Ma\u00DFe, Bestand und Personalisierungstechniken, um die passende L\u00F6sung f\u00FCr den Verwendungszweck zu w\u00E4hlen.",
+    };
+}
+if (locale === 'it') {
+    return {
+        title: `Prodotti personalizzabili: ${categoryName}`,
+        description: truncateSeoText(`Esplora prodotti personalizzabili di ${categoryName} per aziende, campagne, eventi e team. Confronta prodotti, prezzi per quantit\u00E0, disponibilit\u00E0 e opzioni di personalizzazione.`),
+        intro: `Esplora prodotti di ${categoryName} per aziende, campagne, eventi, team e clienti. Confronta materiali, prezzi per quantit\u00E0, disponibilit\u00E0 e personalizzazione disponibile.`,
+        guideTitle: `Come scegliere prodotti di ${categoryName}`,
+        guideText: "Inizia da obiettivo, pubblico, quantit\u00E0 e budget. Poi confronta materiali, dimensioni, disponibilit\u00E0 e tecniche di personalizzazione per scegliere la soluzione adatta all'uso previsto.",
+    };
+}
+if (locale === "en") {
     return {
       title: `Customisable ${categoryName} products`,
       description: truncateSeoText(
@@ -131,7 +158,16 @@ export function buildSubcategoryDescription(
   subcategoryName: string,
   locale: SiteLocale = "pt",
 ): string {
-  if (locale === "en") {
+  if (locale === 'es') {
+    return truncateSeoText(`Explora ${subcategoryName} en la categor\u00EDa ${categoryName}. Compara productos personalizables, precios por cantidad, stock y opciones de personalizaci\u00F3n para empresas y eventos.`);
+}
+if (locale === 'de') {
+    return truncateSeoText(`Entdecken Sie ${subcategoryName} in der Kategorie ${categoryName}. Vergleichen Sie personalisierbare Produkte, Mengenpreise, Bestand und Personalisierungsoptionen f\u00FCr Unternehmen und Veranstaltungen.`);
+}
+if (locale === 'it') {
+    return truncateSeoText(`Esplora ${subcategoryName} nella categoria ${categoryName}. Confronta prodotti personalizzabili, prezzi per quantit\u00E0, disponibilit\u00E0 e opzioni di personalizzazione per aziende ed eventi.`);
+}
+if (locale === "en") {
     return truncateSeoText(
       `Explore ${subcategoryName} in the ${categoryName} category. Compare customisable products, volume pricing, stock and customisation options for companies and events.`,
     );

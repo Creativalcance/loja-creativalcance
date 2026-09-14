@@ -24,6 +24,27 @@ export const SITE_LOCALES = {
     strickerLanguage: "FR" as StrickerLanguage,
     pathPrefix: "/fr",
   },
+  es: {
+    label: "Español",
+    htmlLang: "es-ES",
+    intlLocale: "es-ES",
+    strickerLanguage: "ES" as StrickerLanguage,
+    pathPrefix: "/es",
+  },
+  de: {
+    label: "Deutsch",
+    htmlLang: "de-DE",
+    intlLocale: "de-DE",
+    strickerLanguage: "DE" as StrickerLanguage,
+    pathPrefix: "/de",
+  },
+  it: {
+    label: "Italiano",
+    htmlLang: "it-IT",
+    intlLocale: "it-IT",
+    strickerLanguage: "IT" as StrickerLanguage,
+    pathPrefix: "/it",
+  },
 } as const;
 
 export type SiteLocale = keyof typeof SITE_LOCALES;
@@ -45,7 +66,7 @@ export function getStrickerLanguage(locale: SiteLocale): StrickerLanguage {
 
 export function localizePath(path: string, locale: SiteLocale): string {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const pathWithoutLocale = normalizedPath.replace(/^\/(?:en|fr)(?=\/|$)/, "") || "/";
+  const pathWithoutLocale = normalizedPath.replace(/^\/(?:en|fr|es|de|it)(?=\/|$)/, "") || "/";
   const prefix = SITE_LOCALES[locale].pathPrefix;
 
   return pathWithoutLocale === "/"

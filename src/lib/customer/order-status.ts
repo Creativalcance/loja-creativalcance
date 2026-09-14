@@ -48,9 +48,59 @@ export const STATUS_LABELS: Record<SiteLocale, Record<string, string>> = {
     INVOICED: "Facturée", SENT: "Expédiée", SHIPPED: "Expédiée",
     CANCELED: "Annulée", CANCELLED: "Annulée",
   },
+
+es: {
+    pending: "Pendiente de pago", succeeded: "Pago confirmado", partially_refunded: "Reembolso parcial", approved: "Aprobado", rejected: "Necesita revisi\u00F3n",
+    pending_payment: "Pendiente de pago", paid: "Pago confirmado",
+    processing: "En preparaci\u00F3n", sent_to_supplier: "En proceso",
+    supplier_confirmed: "Confirmado", in_production: "En producci\u00F3n",
+    shipped: "Enviado", delivered: "Entregado", cancelled: "Cancelado",
+    refunded: "Reembolsado", failed: "Requiere atenci\u00F3n",
+    unfulfilled: "En preparaci\u00F3n", partially_fulfilled: "Preparaci\u00F3n parcial",
+    fulfilled: "Preparado",
+    WAITING_ART_WORK: "Pendiente de archivos de personalizaci\u00F3n", PROCESSING: "En proceso",
+    PRODUCTION: "En producci\u00F3n", WAITING_STOCK: "Pendiente de disponibilidad",
+    PROCESSED: "Preparado", PENDING_MOCKUP_APPROVAL: "Prueba pendiente de aprobaci\u00F3n",
+    INVOICED: "Facturado", SENT: "Enviado", SHIPPED: "Enviado",
+    CANCELED: "Cancelado", CANCELLED: "Cancelado",
+},
+de: {
+    pending: "Zahlung ausstehend", succeeded: "Zahlung best\u00E4tigt", partially_refunded: "Teilweise erstattet", approved: "Freigegeben", rejected: "\u00DCberarbeitung erforderlich",
+    pending_payment: "Zahlung ausstehend", paid: "Zahlung best\u00E4tigt",
+    processing: "Wird vorbereitet", sent_to_supplier: "In Bearbeitung",
+    supplier_confirmed: "Best\u00E4tigt", in_production: "In Produktion",
+    shipped: "Versendet", delivered: "Zugestellt", cancelled: "Storniert",
+    refunded: "Erstattet", failed: "Kl\u00E4rung erforderlich",
+    unfulfilled: "Wird vorbereitet", partially_fulfilled: "Teilweise vorbereitet",
+    fulfilled: "Vorbereitet",
+    WAITING_ART_WORK: "Personalisierungsdateien ausstehend", PROCESSING: "In Bearbeitung",
+    PRODUCTION: "In Produktion", WAITING_STOCK: "Verf\u00FCgbarkeit ausstehend",
+    PROCESSED: "Vorbereitet", PENDING_MOCKUP_APPROVAL: "Korrekturabzug wartet auf Freigabe",
+    INVOICED: "Rechnung gestellt", SENT: "Versendet", SHIPPED: "Versendet",
+    CANCELED: "Storniert", CANCELLED: "Storniert",
+},
+it: {
+    pending: "In attesa di pagamento", succeeded: "Pagamento confermato", partially_refunded: "Rimborsato parzialmente", approved: "Approvato", rejected: "Revisione necessaria",
+    pending_payment: "In attesa di pagamento", paid: "Pagamento confermato",
+    processing: "In preparazione", sent_to_supplier: "In elaborazione",
+    supplier_confirmed: "Confermato", in_production: "In produzione",
+    shipped: "Spedito", delivered: "Consegnato", cancelled: "Annullato",
+    refunded: "Rimborsato", failed: "Richiede attenzione",
+    unfulfilled: "In preparazione", partially_fulfilled: "Preparato parzialmente",
+    fulfilled: "Preparato",
+    WAITING_ART_WORK: "In attesa dei file di personalizzazione", PROCESSING: "In elaborazione",
+    PRODUCTION: "In produzione", WAITING_STOCK: "In attesa di disponibilit\u00E0",
+    PROCESSED: "Preparato", PENDING_MOCKUP_APPROVAL: "Prova in attesa di approvazione",
+    INVOICED: "Fatturato", SENT: "Spedito", SHIPPED: "Spedito",
+    CANCELED: "Annullato", CANCELLED: "Annullato",
+},
 };
 
 
 export function customerStatus(status: string, locale: SiteLocale): string {
-  return STATUS_LABELS[locale][status] ?? ({pt:"Em atualização",en:"Being updated",fr:"En cours de mise à jour"})[locale];
+  return STATUS_LABELS[locale][status] ?? ({pt:"Em atualização",en:"Being updated",fr:"En cours de mise à jour",
+es: "En actualizaci\u00F3n",
+de: "Wird aktualisiert",
+it: "In aggiornamento",
+})[locale];
 }

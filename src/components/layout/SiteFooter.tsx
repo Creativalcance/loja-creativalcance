@@ -41,12 +41,12 @@ function getFooterGroups(locale: SiteLocale) {
     ],
   },
   {
-    title: locale === "en" ? "Legal" : locale === "fr" ? "Informations légales" : "Informação legal",
+    title: (locale === "es" ? ("Informaci\u00F3n legal") : locale === "de" ? ("Rechtliches") : locale === "it" ? ("Informazioni legali") : locale === "en" ? "Legal" : locale === "fr" ? "Informations légales" : "Informação legal"),
     links: [
-      { label: locale === "en" ? "Terms and Conditions" : locale === "fr" ? "Conditions Générales" : "Termos e Condições", href: "/termos-e-condicoes" },
-      { label: locale === "en" ? "Privacy Policy" : locale === "fr" ? "Politique de Confidentialité" : "Política de Privacidade", href: "/politica-de-privacidade" },
-      { label: locale === "en" ? "Cookie Policy" : locale === "fr" ? "Politique de Cookies" : "Política de Cookies", href: "/politica-de-cookies" },
-      { label: locale === "en" ? "Refunds and Returns" : locale === "fr" ? "Remboursements et Retours" : "Reembolsos e Devoluções", href: "/reembolsos-e-devolucoes" },
+      { label: (locale === "es" ? ("T\u00E9rminos y condiciones") : locale === "de" ? ("Allgemeine Gesch\u00E4ftsbedingungen") : locale === "it" ? ("Termini e condizioni") : locale === "en" ? "Terms and Conditions" : locale === "fr" ? "Conditions Générales" : "Termos e Condições"), href: "/termos-e-condicoes" },
+      { label: (locale === "es" ? ("Pol\u00EDtica de privacidad") : locale === "de" ? ("Datenschutzerkl\u00E4rung") : locale === "it" ? ("Informativa sulla privacy") : locale === "en" ? "Privacy Policy" : locale === "fr" ? "Politique de Confidentialité" : "Política de Privacidade"), href: "/politica-de-privacidade" },
+      { label: (locale === "es" ? ("Pol\u00EDtica de cookies") : locale === "de" ? ("Cookie-Richtlinie") : locale === "it" ? ("Informativa sui cookie") : locale === "en" ? "Cookie Policy" : locale === "fr" ? "Politique de Cookies" : "Política de Cookies"), href: "/politica-de-cookies" },
+      { label: (locale === "es" ? ("Reembolsos y devoluciones") : locale === "de" ? ("R\u00FCckerstattungen und R\u00FCcksendungen") : locale === "it" ? ("Rimborsi e resi") : locale === "en" ? "Refunds and Returns" : locale === "fr" ? "Remboursements et Retours" : "Reembolsos e Devoluções"), href: "/reembolsos-e-devolucoes" },
       { label: "Contactos", href: "/contactos" },
     ],
   },
@@ -119,7 +119,7 @@ export default async function SiteFooter() {
             <Link href={localizePath("/contactos", locale)} className="inline-flex items-center gap-1.5 hover:text-white">
               <Mail className="h-3.5 w-3.5" /> {messages.commercialSupport}
             </Link>
-            <CookiePreferencesButton label={locale === "en" ? "Cookie preferences" : locale === "fr" ? "Préférences de cookies" : "Preferências de cookies"} />
+            <CookiePreferencesButton label={(locale === "es" ? ("Preferencias de cookies") : locale === "de" ? ("Cookie-Einstellungen") : locale === "it" ? ("Preferenze cookie") : locale === "en" ? "Cookie preferences" : locale === "fr" ? "Préférences de cookies" : "Preferências de cookies")} />
             <a
               href="https://www.livroreclamacoes.pt/Inicio/"
               target="_blank"

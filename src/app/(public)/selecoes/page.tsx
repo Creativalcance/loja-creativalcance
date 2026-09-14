@@ -28,6 +28,25 @@ const copy = {
     criteria: "Critères visibles", criteriaText: "Chaque sélection présente ses critères et sa méthodologie. Prix, stock et personnalisation restent liés aux données réelles de chaque produit.", methodology: "Méthodologie éditoriale", view: "Voir les critères et options", limits: "Ce que ces pages ne font pas",
     limitations: ["Elles n’inventent ni avis ni évaluations.", "Elles n’attribuent aucun score sans données vérifiables.", "Elles ne garantissent ni stock futur ni délai universel.", "Elles ne remplacent pas la configuration finale du produit."],
   },
+
+es: {
+    title: "Selecciones 360: los mejores productos promocionales seg\u00FAn el contexto", description: "Selecciones para comparar productos promocionales seg\u00FAn su uso, con criterios expl\u00EDcitos y sin clasificaciones artificiales.", ogDescription: "Compara opciones para empresas, eventos, congresos, equipos, sostenibilidad y tecnolog\u00EDa con una metodolog\u00EDa transparente.",
+    back: "\u2190 Volver al inicio", eyebrow: "Selecciones editoriales transparentes", heading: "Selecciones 360: qu\u00E9 significa \u00ABmejor\u00BB en cada contexto", intro: "En merchandising, \u00ABmejor\u00BB depende del objetivo. Estas p\u00E1ginas organizan opciones del cat\u00E1logo activo por contexto y explican los criterios utilizados, sin convertir una recomendaci\u00F3n en una promesa universal.",
+    criteria: "Criterios visibles", criteriaText: "Cada selecci\u00F3n indica sus criterios, explica la metodolog\u00EDa y vincula el precio, el stock y la personalizaci\u00F3n a los datos reales de cada producto.", methodology: "Metodolog\u00EDa editorial", view: "Ver criterios y opciones", limits: "Qu\u00E9 no hacen estas p\u00E1ginas",
+    limitations: ["No inventan puntuaciones ni opiniones.", "No asignan puntuaciones sin datos verificables.", "No garantizan stock futuro ni un plazo universal.", "No sustituyen la configuraci\u00F3n final del producto."],
+},
+de: {
+    title: "360-Auswahl: die besten Werbeartikel f\u00FCr jeden Kontext", description: "Auswahlseiten zum Vergleich von Werbeartikeln nach Einsatzbereich, mit klaren Kriterien und ohne k\u00FCnstliche Ranglisten.", ogDescription: "Vergleichen Sie Optionen f\u00FCr Unternehmen, Veranstaltungen, Konferenzen, Teams, Nachhaltigkeit und Technologie mit transparenter Methodik.",
+    back: "\u2190 Zur Startseite", eyebrow: "Transparente redaktionelle Auswahl", heading: "360-Auswahl: Was \u201Eam besten\u201C im jeweiligen Kontext bedeutet", intro: "Beim Merchandising h\u00E4ngt \u201Eam besten\u201C vom Ziel ab. Diese Seiten ordnen Optionen aus dem aktiven Katalog nach Kontext und erl\u00E4utern die Kriterien, ohne eine Empfehlung zum allgemeing\u00FCltigen Versprechen zu machen.",
+    criteria: "Sichtbare Kriterien", criteriaText: "Jede Auswahl nennt ihre Kriterien, erl\u00E4utert die Methodik und verkn\u00FCpft Preis, Bestand und Personalisierung mit den tats\u00E4chlichen Produktdaten.", methodology: "Redaktionelle Methodik", view: "Kriterien und Optionen ansehen", limits: "Was diese Seiten nicht leisten",
+    limitations: ["Sie erfinden keine Bewertungen oder Rezensionen.", "Sie vergeben keine Punktzahlen ohne \u00FCberpr\u00FCfbare Daten.", "Sie garantieren weder k\u00FCnftigen Bestand noch eine allgemeine Lieferfrist.", "Sie ersetzen nicht die abschlie\u00DFende Produktkonfiguration."],
+},
+it: {
+    title: "Selezioni 360: i migliori prodotti promozionali per ogni contesto", description: "Selezioni per confrontare prodotti promozionali in base all'uso, con criteri espliciti e senza classifiche artificiali.", ogDescription: "Confronta opzioni per aziende, eventi, congressi, team, sostenibilit\u00E0 e tecnologia con una metodologia trasparente.",
+    back: "\u2190 Torna alla pagina iniziale", eyebrow: "Selezioni editoriali trasparenti", heading: "Selezioni 360: cosa significa \u00ABmigliore\u00BB in ogni contesto", intro: "Nel merchandising, \u00ABmigliore\u00BB dipende dall'obiettivo. Queste pagine organizzano le opzioni del catalogo attivo per contesto e spiegano i criteri usati, senza trasformare una raccomandazione in una promessa universale.",
+    criteria: "Criteri visibili", criteriaText: "Ogni selezione indica i propri criteri, spiega la metodologia e collega prezzo, disponibilit\u00E0 e personalizzazione ai dati reali di ogni prodotto.", methodology: "Metodologia editoriale", view: "Vedi criteri e opzioni", limits: "Cosa non fanno queste pagine",
+    limitations: ["Non inventano valutazioni o recensioni.", "Non assegnano punteggi senza dati verificabili.", "Non garantiscono disponibilit\u00E0 futura n\u00E9 una scadenza universale.", "Non sostituiscono la configurazione finale del prodotto."],
+},
 } satisfies Record<SiteLocale, { title: string; description: string; ogDescription: string; back: string; eyebrow: string; heading: string; intro: string; criteria: string; criteriaText: string; methodology: string; view: string; limits: string; limitations: string[] }>;
 
 export async function generateMetadata(): Promise<Metadata> {

@@ -63,7 +63,25 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
   });
   const categoryName = category.localizedName;
   const subcategoryName = subcategory.localizedName;
-  const copy = locale === "en"
+  const copy = (locale === "es" ? ({
+    back: `Volver a ${categoryName}`, label: "Subcategor\u00EDa",
+    title: `Productos personalizables: ${subcategoryName}`, search: "Buscar en el cat\u00E1logo",
+    productCount: (count: number) => `${count.toLocaleString("es-ES")} producto${count === 1 ? "" : "s"}`,
+    loadError: "No se han podido cargar los productos de esta subcategor\u00EDa. Int\u00E9ntalo de nuevo.",
+    emptyTitle: "No hay productos disponibles", emptyText: "Explora la categor\u00EDa principal o busca en el cat\u00E1logo.",
+}) : locale === "de" ? ({
+    back: `Zur\u00FCck zu ${categoryName}`, label: "Unterkategorie",
+    title: `Personalisierbare Produkte: ${subcategoryName}`, search: "Katalog durchsuchen",
+    productCount: (count: number) => `${count.toLocaleString("de-DE")} Produkt${count === 1 ? "" : "e"}`,
+    loadError: "Die Produkte dieser Unterkategorie konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
+    emptyTitle: "Keine Produkte verf\u00FCgbar", emptyText: "Erkunden Sie die Hauptkategorie oder durchsuchen Sie den Katalog.",
+}) : locale === "it" ? ({
+    back: `Torna a ${categoryName}`, label: "Sottocategoria",
+    title: `Prodotti personalizzabili: ${subcategoryName}`, search: "Cerca nel catalogo",
+    productCount: (count: number) => `${count.toLocaleString("it-IT")} prodott${count === 1 ? "o" : "i"}`,
+    loadError: "Impossibile caricare i prodotti di questa sottocategoria. Riprova.",
+    emptyTitle: "Nessun prodotto disponibile", emptyText: "Esplora la categoria principale o cerca nel catalogo.",
+}) : locale === "en"
     ? {
         back: `Back to ${categoryName}`, label: "Subcategory",
         title: `Customisable ${subcategoryName} products`, search: "Search the catalogue",
@@ -85,7 +103,7 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
           productCount: (count: number) => `${count.toLocaleString("pt-PT")} produto${count === 1 ? "" : "s"} apresentado${count === 1 ? "" : "s"}`,
           loadError: "Não foi possível carregar os produtos desta subcategoria. Tenta novamente.",
           emptyTitle: "Sem produtos disponíveis", emptyText: "Explore a categoria principal ou utilize a pesquisa do catálogo.",
-        };
+        });
   const supabase = await createSupabaseServerClient();
 
   const { data, error } = await supabase
@@ -239,11 +257,11 @@ export async function generateMetadata({
   const subcategoryName = subcategory.localizedName;
   const path = localizePath(`/categorias/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`, locale);
   const description = buildSubcategoryDescription(categoryName, subcategoryName, locale);
-  const title = locale === "en"
+  const title = (locale === "es" ? (`Productos personalizables: ${subcategoryName}`) : locale === "de" ? (`Personalisierbare Produkte: ${subcategoryName}`) : locale === "it" ? (`Prodotti personalizzabili: ${subcategoryName}`) : locale === "en"
     ? `Customisable ${subcategoryName} products`
     : locale === "fr"
       ? `Produits ${subcategoryName} personnalisables`
-      : `Produtos de ${subcategoryName} personalizáveis`;
+      : `Produtos de ${subcategoryName} personalizáveis`);
 
   return {
     title,
@@ -251,7 +269,7 @@ export async function generateMetadata({
     alternates: { canonical: path },
     openGraph: {
       type: "website",
-      locale: locale === "en" ? "en_GB" : locale === "fr" ? "fr_FR" : "pt_PT",
+      locale: (locale === "es" ? ("es_ES") : locale === "de" ? ("de_DE") : locale === "it" ? ("it_IT") : locale === "en" ? "en_GB" : locale === "fr" ? "fr_FR" : "pt_PT"),
       title,
       description,
       url: path,

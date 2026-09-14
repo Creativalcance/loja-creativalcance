@@ -26,7 +26,7 @@ export async function generateMetadata({
   const config = getGuide(slug, locale);
 
   if (!config) {
-    return { title: locale === "en" ? "Guide not found" : locale === "fr" ? "Guide introuvable" : "Guia não encontrado", robots: { index: false } };
+    return { title: (locale === "es" ? ("Gu\u00EDa no encontrada") : locale === "de" ? ("Ratgeber nicht gefunden") : locale === "it" ? ("Guida non trovata") : locale === "en" ? "Guide not found" : locale === "fr" ? "Guide introuvable" : "Guia não encontrado"), robots: { index: false } };
   }
 
   const path = localizePath(`/guias/${config.slug}`, locale);
@@ -75,7 +75,7 @@ export default async function GuideDetailPage({ params }: GuidePageProps) {
     description: config.description,
     path,
     breadcrumbParentPath: localizePath("/guias", locale),
-    breadcrumbParentLabel: locale === "en" ? "Guides" : locale === "fr" ? "Guides" : "Guias",
+    breadcrumbParentLabel: (locale === "es" ? ("Gu\u00EDas") : locale === "de" ? ("Ratgeber") : locale === "it" ? ("Guide") : locale === "en" ? "Guides" : locale === "fr" ? "Guides" : "Guias"),
     breadcrumbLabel: config.h1,
     article: true,
   });

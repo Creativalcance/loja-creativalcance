@@ -72,7 +72,7 @@ export default async function IndustryPage({ params }: IndustryPageProps) {
     description: config.description,
     path,
     breadcrumbParentPath: localizePath("/industrias", locale),
-    breadcrumbParentLabel: locale === "en" ? "Industries" : locale === "fr" ? "Secteurs" : "Indústrias",
+    breadcrumbParentLabel: (locale === "es" ? ("Sectores") : locale === "de" ? ("Branchen") : locale === "it" ? ("Settori") : locale === "en" ? "Industries" : locale === "fr" ? "Secteurs" : "Indústrias"),
     breadcrumbLabel: config.h1,
   });
 

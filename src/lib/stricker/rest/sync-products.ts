@@ -780,9 +780,21 @@ export async function syncRestProducts(params: {
       },
     );
 
+    // Do not label a fallback/error response as the requested translation.
+    const responseLanguage = payload.Language?.trim().toUpperCase();
+    if (responseLanguage && responseLanguage !== params.lang) {
+      throw new Error(
+        `Idioma inesperado no catálogo: pedido ${params.lang}, recebido ${responseLanguage}.`,
+      );
+    }
+
     const records = Array.isArray(payload.Products)
       ? (payload.Products as StrickerProductRecord[])
       : [];
+
+    if (records.length === 0) {
+      throw new Error("O fornecedor devolveu um catálogo de produtos vazio.");
+    }
 
     const isCanonicalLanguage = params.lang === "PT";
     const changedCoreRecords = isCanonicalLanguage
@@ -834,6 +846,13 @@ export async function syncRestProducts(params: {
           })
         : 0;
 
+    const catalogReferences = new Set(catalogProducts.map((product) => product.external_id));
+    const productsMissingCanonicalRecord = new Set(
+      records
+        .map(getProductReference)
+        .filter((reference): reference is string => Boolean(reference && !catalogReferences.has(reference))),
+    ).size;
+
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     if (isCanonicalLanguage && importedProducts.length > 0) {
@@ -859,10 +878,10 @@ export async function syncRestProducts(params: {
     await finishDatasetImport({
       supabaseAdmin,
       datasetImportId,
-      status: "success",
+      status: productsMissingCanonicalRecord > 0 ? "partial_success" : "success",
       recordsReceived: records.length,
-      recordsImported: importedProducts.length,
-      recordsFailed: 0,
+      recordsImported: isCanonicalLanguage ? importedProducts.length : productTranslationsImported,
+      recordsFailed: productsMissingCanonicalRecord,
       rawPayload: {
         Count: payload.Count ?? records.length,
         Currency: payload.Currency ?? null,
@@ -872,11 +891,12 @@ export async function syncRestProducts(params: {
         recordsUnchanged: records.length - changedCoreRecords.length,
         translationsUnchanged:
           catalogProducts.length - changedTranslationRecords.length,
-        productsMissingCanonicalRecord:
-          records.length - catalogProducts.length,
+        productsMissingCanonicalRecord,
         sample: records.slice(0, 5),
       },
-      errors: [],
+      errors: productsMissingCanonicalRecord > 0
+        ? [`${productsMissingCanonicalRecord} referência(s) sem produto base; sincronize primeiro o catálogo PT.`]
+        : [],
     });
 
     return {

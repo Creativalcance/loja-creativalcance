@@ -75,7 +75,7 @@ export default async function ApplicationPage({ params }: ApplicationPageProps) 
     description: config.description,
     path,
     breadcrumbParentPath: localizePath("/aplicacoes", locale),
-    breadcrumbParentLabel: locale === "en" ? "Applications" : locale === "fr" ? "Applications" : "Aplicações",
+    breadcrumbParentLabel: (locale === "es" ? ("Aplicaciones") : locale === "de" ? ("Einsatzbereiche") : locale === "it" ? ("Applicazioni") : locale === "en" ? "Applications" : locale === "fr" ? "Applications" : "Aplicações"),
     breadcrumbLabel: config.h1,
   });
 

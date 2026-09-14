@@ -5,7 +5,7 @@ import { type SiteLocale } from "@/lib/i18n/config";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 
 function shouldShowNewsletter(pathname: string): boolean {
-  const path = pathname.replace(/^\/(?:en|fr)(?=\/|$)/, "") || "/";
+  const path = pathname.replace(/^\/(?:en|fr|es|de|it)(?=\/|$)/, "") || "/";
 
   if (path === "/checkout" || path.startsWith("/checkout/")) {
     return false;

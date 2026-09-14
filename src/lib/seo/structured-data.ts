@@ -1,3 +1,4 @@
+import { getSiteLocale, SITE_LOCALES } from "@/lib/i18n/config";
 import { absoluteUrl, SITE_NAME } from "@/lib/seo/site";
 
 type ProductPriceForSchema = {
@@ -17,7 +18,7 @@ type ProductStructuredDataInput = {
   subcategoryName?: string | null;
   totalStock: number;
   prices: ProductPriceForSchema[];
-  locale?: "pt" | "en" | "fr";
+  locale?: "pt" | "en" | "fr" | "es" | "de" | "it";
 };
 
 type BreadcrumbItem = {
@@ -66,19 +67,12 @@ function buildBreadcrumbList(items: BreadcrumbItem[]) {
   };
 }
 
-function getStructuredDataLocale(path: string): {
-  language: "pt-PT" | "en-GB" | "fr-FR";
-  homePath: "/" | "/en" | "/fr";
-} {
-  if (/^\/en(?:\/|$)/.test(path)) {
-    return { language: "en-GB", homePath: "/en" };
-  }
-
-  if (/^\/fr(?:\/|$)/.test(path)) {
-    return { language: "fr-FR", homePath: "/fr" };
-  }
-
-  return { language: "pt-PT", homePath: "/" };
+function getStructuredDataLocale(path: string) {
+  const locale = getSiteLocale(path.split("/").filter(Boolean)[0]);
+  return {
+    language: SITE_LOCALES[locale].htmlLang,
+    homePath: SITE_LOCALES[locale].pathPrefix || "/",
+  };
 }
 
 export function buildProductStructuredData(
@@ -86,8 +80,8 @@ export function buildProductStructuredData(
 ): Record<string, unknown> {
   const localeCode = input.locale ?? "pt";
   const prefix = localeCode === "pt" ? "" : `/${localeCode}`;
-  const language = localeCode === "en" ? "en-GB" : localeCode === "fr" ? "fr-FR" : "pt-PT";
-  const labels = localeCode === "en" ? { categories: "Categories" } : localeCode === "fr" ? { categories: "Catégories" } : { categories: "Categorias" };
+  const language = SITE_LOCALES[localeCode].htmlLang;
+  const labels = (localeCode === "es" ? ({ categories: "Categor\u00EDas" }) : localeCode === "de" ? ({ categories: "Kategorien" }) : localeCode === "it" ? ({ categories: "Categorie" }) : localeCode === "en" ? { categories: "Categories" } : localeCode === "fr" ? { categories: "Catégories" } : { categories: "Categorias" });
   const productPath = `${prefix}/produto/${encodeURIComponent(input.slug)}`;
   const productUrl = absoluteUrl(productPath);
   const categoryName = input.categoryName?.trim() || null;
@@ -281,11 +275,11 @@ export function buildAuthorStructuredData(path = "/autores/360-merchandising"): 
   const authorUrl = absoluteUrl(path);
   const locale = getStructuredDataLocale(path);
   const prefix = locale.homePath === "/" ? "" : locale.homePath;
-  const labels = locale.language === "en-GB"
+  const labels = (locale.language === "es-ES" ? ({ title: "autor editorial", breadcrumb: "Autor editorial", description: "Perfil editorial responsable de las gu\u00EDas, p\u00E1ginas t\u00E9cnicas y orientaciones de compra publicadas por 360 Merchandising." }) : locale.language === "de-DE" ? ({ title: "Redaktion", breadcrumb: "Redaktion", description: "Redaktionelles Profil, verantwortlich f\u00FCr die von 360 Merchandising ver\u00F6ffentlichten Ratgeber, technischen Seiten und Kaufberatung." }) : locale.language === "it-IT" ? ({ title: "autore editoriale", breadcrumb: "Autore editoriale", description: "Profilo editoriale responsabile delle guide, pagine tecniche e indicazioni all'acquisto pubblicate da 360 Merchandising." }) : locale.language === "en-GB"
     ? { title: "editorial author", breadcrumb: "Editorial author", description: "Editorial profile responsible for the guides, technical pages and purchase guidance published by 360 Merchandising." }
     : locale.language === "fr-FR"
       ? { title: "auteur éditorial", breadcrumb: "Auteur éditorial", description: "Profil éditorial responsable des guides, pages techniques et contenus d’aide à l’achat publiés par 360 Merchandising." }
-      : { title: "autor editorial", breadcrumb: "Autor editorial", description: "Perfil editorial responsável pelos guias, páginas técnicas e conteúdos de apoio à compra publicados pela 360 Merchandising." };
+      : { title: "autor editorial", breadcrumb: "Autor editorial", description: "Perfil editorial responsável pelos guias, páginas técnicas e conteúdos de apoio à compra publicados pela 360 Merchandising." });
 
   return {
     "@context": "https://schema.org",
@@ -339,11 +333,11 @@ export function buildSelectionStructuredData(
   const pageUrl = absoluteUrl(input.path);
   const locale = getStructuredDataLocale(input.path);
   const prefix = locale.homePath === "/" ? "" : locale.homePath;
-  const labels = locale.language === "en-GB"
+  const labels = (locale.language === "es-ES" ? ({ products: "productos relacionados", selections: "Selecciones 360" }) : locale.language === "de-DE" ? ({ products: "verwandte Produkte", selections: "360-Auswahl" }) : locale.language === "it-IT" ? ({ products: "prodotti correlati", selections: "Selezioni 360" }) : locale.language === "en-GB"
     ? { products: "related products", selections: "360 Selections" }
     : locale.language === "fr-FR"
       ? { products: "produits associés", selections: "Sélections 360" }
-      : { products: "produtos relacionados", selections: "Seleções 360" };
+      : { products: "produtos relacionados", selections: "Seleções 360" });
   const itemList = {
     "@type": "ItemList",
     "@id": `${pageUrl}#itemlist`,

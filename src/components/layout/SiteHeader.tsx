@@ -17,11 +17,11 @@ export default async function SiteHeader({
   const locale = await getCurrentLocale();
   const messages = getMessages(locale).header;
   const freeShippingMessage =
-    locale === "en"
+    (locale === "es" ? ("Env\u00EDo gratis en pedidos de 50 \u20AC o m\u00E1s") : locale === "de" ? ("Kostenloser Versand ab 50 \u20AC Bestellwert") : locale === "it" ? ("Spedizione gratuita per ordini da 50 \u20AC") : locale === "en"
       ? "Free shipping on orders of €50 or more"
       : locale === "fr"
         ? "Livraison gratuite dès 50 € d’achat"
-        : "Portes grátis em encomendas de valor igual ou superior a 50 €";
+        : "Portes grátis em encomendas de valor igual ou superior a 50 €");
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#162334]/10 bg-white/90 shadow-[0_1px_0_rgba(22,35,52,0.04)] backdrop-blur-xl">
@@ -52,11 +52,11 @@ export default async function SiteHeader({
         <nav
           className="hidden items-center gap-7 text-sm font-medium text-[#162334]/70 lg:flex"
           aria-label={
-            locale === "en"
+            (locale === "es" ? ("Navegaci\u00F3n principal") : locale === "de" ? ("Hauptnavigation") : locale === "it" ? ("Navigazione principale") : locale === "en"
               ? "Main navigation"
               : locale === "fr"
                 ? "Navigation principale"
-                : "Navegação principal"
+                : "Navegação principal")
           }
         >
           <Link

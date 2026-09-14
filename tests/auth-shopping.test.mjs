@@ -18,14 +18,17 @@ function load(path, imports = {}) {
 
 const paths = load('src/lib/auth/return-path.ts');
 test('shopping return paths retain locale, draft and quantity; external/recursive redirects are rejected', () => {
-  for (const path of ['/checkout', '/en/checkout/expedicao', '/fr/produit?draft=abc', '/produto/teste/personalizar?cor=red&quantidade=100#logo']) {
+  for (const path of ['/checkout', '/en/checkout/expedicao', '/fr/produit?draft=abc', '/es/checkout?draft=abc', '/de/checkout/expedicao', '/it/produto/garrafa/personalizar?quantidade=100', '/produto/teste/personalizar?cor=red&quantidade=100#logo']) {
     assert.equal(paths.safeReturnPath(path), path);
   }
   for (const path of ['//evil.test', 'https://evil.test', '/\\evil.test', '/%5cevil.test', '/%2fexample.com', '/login?next=/login', '/auth/resume', '/en/logout', '/\nexample.com']) {
     assert.equal(paths.safeReturnPath(path), undefined);
   }
   assert.equal(paths.canReturnTo('admin', '/checkout'), true);
-  assert.equal(paths.canReturnTo('customer', '/en/admin/ordens'), false);
+  for (const locale of ['en','fr','es','de','it']) {
+    assert.equal(paths.canReturnTo('customer', `/${locale}/admin/ordens`), false);
+    assert.equal(paths.safeReturnPath(`/${locale}/login?next=/checkout`), undefined);
+  }
 });
 
 function authentication({ role = 'admin', failLogin = false, failClaim = false } = {}) {

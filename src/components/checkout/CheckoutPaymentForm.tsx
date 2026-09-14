@@ -22,13 +22,19 @@ export default function CheckoutPaymentForm({
   cartId,
   locale,
 }: CheckoutPaymentFormProps) {
-  const text = locale === "en" ? {
+  const text = (locale === "es" ? ({
+    confirm: "Confirmo los datos del pedido", detail: "He revisado los productos, cantidades, personalizaci\u00F3n, direcci\u00F3n, env\u00EDo e importe final del pedido.", protected: "Pago protegido por Stripe", protectedText: "Ser\u00E1s redirigido a la p\u00E1gina de pago seguro de Stripe. El pedido solo se confirma tras la aprobaci\u00F3n del pago.", preparing: "Preparando el pago...", pay: "Pagar pedido"
+}) : locale === "de" ? ({
+    confirm: "Ich best\u00E4tige die Bestelldaten", detail: "Ich habe Produkte, Mengen, Personalisierung, Adresse, Versand und den endg\u00FCltigen Bestellbetrag gepr\u00FCft.", protected: "Zahlung durch Stripe gesch\u00FCtzt", protectedText: "Sie werden zur sicheren Zahlungsseite von Stripe weitergeleitet. Die Bestellung wird erst nach Zahlungsfreigabe best\u00E4tigt.", preparing: "Zahlung wird vorbereitet...", pay: "Bestellung bezahlen"
+}) : locale === "it" ? ({
+    confirm: "Confermo i dati dell'ordine", detail: "Ho controllato prodotti, quantit\u00E0, personalizzazione, indirizzo, spedizione e importo finale dell'ordine.", protected: "Pagamento protetto da Stripe", protectedText: "Verrai reindirizzato alla pagina di pagamento sicuro di Stripe. L'ordine viene confermato solo dopo l'approvazione del pagamento.", preparing: "Preparazione del pagamento...", pay: "Paga l'ordine"
+}) : locale === "en" ? {
     confirm: "I confirm the order details", detail: "I have checked the products, quantities, customisation, address, shipping and final order amount.", protected: "Payment protected by Stripe", protectedText: "You will be redirected to Stripe’s secure payment page. The order is only confirmed after payment approval.", preparing: "Preparing payment...", pay: "Pay for order"
   } : locale === "fr" ? {
     confirm: "Je confirme les informations de la commande", detail: "J’ai vérifié les produits, quantités, personnalisations, adresse, transport et montant final.", protected: "Paiement protégé par Stripe", protectedText: "Vous serez redirigé vers la page de paiement sécurisée de Stripe. La commande n’est confirmée qu’après validation du paiement.", preparing: "Préparation du paiement...", pay: "Payer la commande"
   } : {
     confirm: "Confirmo os dados da encomenda", detail: "Confirmo que verifiquei os produtos, quantidades, personalizações, morada, transporte e valor final da encomenda.", protected: "Pagamento protegido pela Stripe", protectedText: "Serás encaminhado para o ambiente seguro da Stripe. A encomenda só fica validada depois da confirmação do pagamento.", preparing: "A preparar pagamento...", pay: "Pagar encomenda"
-  };
+  });
   const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [state, formAction, isPending] = useActionState(

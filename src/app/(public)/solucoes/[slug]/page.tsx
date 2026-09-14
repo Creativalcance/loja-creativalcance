@@ -29,7 +29,7 @@ export async function generateMetadata({
   const config = getCommercialPage(slug, locale);
 
   if (!config) {
-    return { title: locale === "en" ? "Solution not found" : locale === "fr" ? "Solution introuvable" : "Solução não encontrada", robots: { index: false } };
+    return { title: (locale === "es" ? ("Soluci\u00F3n no encontrada") : locale === "de" ? ("L\u00F6sung nicht gefunden") : locale === "it" ? ("Soluzione non trovata") : locale === "en" ? "Solution not found" : locale === "fr" ? "Solution introuvable" : "Solução não encontrada"), robots: { index: false } };
   }
 
   const path = localizePath(`/solucoes/${config.slug}`, locale);
@@ -82,7 +82,7 @@ export default async function CommercialSolutionPage({
     description: config.description,
     path,
     breadcrumbParentPath: localizePath("/solucoes", locale),
-    breadcrumbParentLabel: locale === "en" ? "Solutions" : locale === "fr" ? "Solutions" : "Soluções",
+    breadcrumbParentLabel: (locale === "es" ? ("Soluciones") : locale === "de" ? ("L\u00F6sungen") : locale === "it" ? ("Soluzioni") : locale === "en" ? "Solutions" : locale === "fr" ? "Solutions" : "Soluções"),
     breadcrumbLabel: config.h1,
   });
 

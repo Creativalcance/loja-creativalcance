@@ -31,7 +31,40 @@ function getSiteUrl(): string {
 }
 
 function buildWelcomeEmail(params: WelcomeEmailParams) {
-  const copy = params.locale === "en"
+  const copy = (params.locale === "es" ? ({
+    lang: "es",
+    preview: "Te damos la bienvenida a 360 Merchandising",
+    subject: "Te damos la bienvenida a la newsletter de 360 Merchandising",
+    eyebrow: "SUSCRIPCI\u00D3N CONFIRMADA",
+    heading: `\u00A1Te damos la bienvenida, ${params.name}!`,
+    intro: "Gracias por unirte a 360 Merchandising.",
+    body: "Recibir\u00E1s novedades seleccionadas, inspiraci\u00F3n y oportunidades \u00FAtiles para que tu marca llegue m\u00E1s lejos.",
+    button: "Explorar el cat\u00E1logo",
+    reason: "Has recibido este correo porque te has suscrito a la newsletter de 360 Merchandising.",
+    unsubscribe: "Para dejar de recibir nuestros correos, responde a este mensaje y solicita la baja.",
+}) : params.locale === "de" ? ({
+    lang: "de",
+    preview: "Willkommen bei 360 Merchandising",
+    subject: "Willkommen beim Newsletter von 360 Merchandising",
+    eyebrow: "ANMELDUNG BEST\u00C4TIGT",
+    heading: `Willkommen, ${params.name}!`,
+    intro: "Vielen Dank, dass Sie bei 360 Merchandising dabei sind.",
+    body: "Sie erhalten ausgew\u00E4hlte Produktneuheiten, Inspiration und n\u00FCtzliche M\u00F6glichkeiten, Ihre Marke weiterzubringen.",
+    button: "Katalog entdecken",
+    reason: "Sie erhalten diese E-Mail, weil Sie den Newsletter von 360 Merchandising abonniert haben.",
+    unsubscribe: "Wenn Sie keine weiteren E-Mails erhalten m\u00F6chten, antworten Sie auf diese Nachricht und bitten Sie um Abmeldung.",
+}) : params.locale === "it" ? ({
+    lang: "it",
+    preview: "Benvenuto in 360 Merchandising",
+    subject: "Benvenuto nella newsletter di 360 Merchandising",
+    eyebrow: "ISCRIZIONE CONFERMATA",
+    heading: `Benvenuto, ${params.name}!`,
+    intro: "Grazie per esserti unito a 360 Merchandising.",
+    body: "Riceverai novit\u00E0 selezionate, ispirazione e opportunit\u00E0 utili per far crescere il tuo marchio.",
+    button: "Esplora il catalogo",
+    reason: "Hai ricevuto questa e-mail perch\u00E9 ti sei iscritto alla newsletter di 360 Merchandising.",
+    unsubscribe: "Per non ricevere pi\u00F9 le nostre e-mail, rispondi a questo messaggio e richiedi la cancellazione.",
+}) : params.locale === "en"
     ? {
         lang: "en",
         preview: "Welcome to 360 Merchandising",
@@ -68,7 +101,7 @@ function buildWelcomeEmail(params: WelcomeEmailParams) {
           button: "Explorar o catálogo",
           reason: "Recebeu este email porque subscreveu a newsletter da 360 Merchandising.",
           unsubscribe: "Para deixar de receber os nossos emails, responda a esta mensagem e peça a remoção da subscrição.",
-        };
+        });
   const catalogueUrl = `${getSiteUrl()}${params.locale === "pt" ? "" : `/${params.locale}`}/categorias`;
   const safeName = escapeHtml(params.name);
   const safeUrl = escapeHtml(catalogueUrl);

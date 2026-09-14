@@ -267,11 +267,11 @@ export async function generateMetadata({
   if (!data) {
     return {
       title:
-        locale === "en"
+        (locale === "es" ? ("Producto no encontrado") : locale === "de" ? ("Produkt nicht gefunden") : locale === "it" ? ("Prodotto non trovato") : locale === "en"
           ? "Product not found"
           : locale === "fr"
             ? "Produit introuvable"
-            : "Produto não encontrado",
+            : "Produto não encontrado"),
       robots: { index: false, follow: false },
     };
   }

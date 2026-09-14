@@ -1,6 +1,6 @@
 import { STATUS_LABELS } from "@/lib/customer/order-status";
 import { createHash } from "node:crypto";
-import type { SiteLocale } from "@/lib/i18n/config";
+import { getSiteLocale, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type CustomerEmailEvent =
@@ -64,7 +64,7 @@ function getSiteUrl(): string {
 }
 
 function normalizeLocale(value: unknown): SiteLocale {
-  return value === "en" || value === "fr" ? value : "pt";
+  return getSiteLocale(typeof value === "string" ? value : null);
 }
 
 function localPath(locale: SiteLocale, path: string): string {
@@ -81,7 +81,7 @@ function brandedFromEmail(): string {
 
 function money(value: unknown, currency: unknown, locale: SiteLocale): string {
   const amount = Number(value ?? 0);
-  return new Intl.NumberFormat(locale === "pt" ? "pt-PT" : locale === "fr" ? "fr-FR" : "en-GB", {
+  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, {
     style: "currency", currency: typeof currency === "string" ? currency.toUpperCase() : "EUR",
   }).format(Number.isFinite(amount) ? amount : 0);
 }
@@ -96,7 +96,19 @@ function asString(value: unknown): string {
 }
 
 function smartMerch(locale: SiteLocale): { title: string; text: string; cta: string; url: string } {
-  if (locale === "en") return {
+  if (locale === 'es') return {
+    title: "\u00BFNecesitas ayuda para elegir?", text: "360 Smart Merch te ayuda a descubrir productos adecuados para tu marca y objetivo.",
+    cta: "Probar 360 Smart Merch", url: localPath(locale, "/smart-merch"),
+};
+if (locale === 'de') return {
+    title: "Ben\u00F6tigen Sie Hilfe bei der Auswahl?", text: "360 Smart Merch hilft Ihnen, passende Produkte f\u00FCr Ihre Marke und Ihr Ziel zu finden.",
+    cta: "360 Smart Merch ausprobieren", url: localPath(locale, "/smart-merch"),
+};
+if (locale === 'it') return {
+    title: "Hai bisogno di aiuto per scegliere?", text: "360 Smart Merch ti aiuta a scoprire prodotti adatti al tuo marchio e al tuo obiettivo.",
+    cta: "Prova 360 Smart Merch", url: localPath(locale, "/smart-merch"),
+};
+if (locale === "en") return {
     title: "Need help choosing?", text: "360 Smart Merch helps you discover suitable products for your brand and objective.",
     cta: "Try 360 Smart Merch", url: localPath(locale, "/smart-merch"),
   };
@@ -130,21 +142,21 @@ function renderEmail(notification: EmailNotification): { subject: string; html: 
   const orderUrl = localPath(locale, `/area-cliente/encomendas${/^[0-9a-f-]{36}$/i.test(orderId) ? `/${orderId}` : ""}`);
 
   if (notification.event_type === "account_welcome") {
-    const copy = locale === "en" ? { subject: "Welcome to 360 Merchandising", eyebrow: "ACCOUNT CONFIRMED", heading: `Welcome${name ? `, ${name}` : ""}!`, intro: "Your account has been confirmed successfully.", body: "You can now manage your details, follow orders and access your purchase history in your customer area.", button: "Go to my account" }
+    const copy = (locale === "es" ? ({ subject: "Te damos la bienvenida a 360 Merchandising", eyebrow: "CUENTA CONFIRMADA", heading: `\u00A1Te damos la bienvenida${name ? `, ${name}` : ""}!`, intro: "Tu cuenta se ha confirmado correctamente.", body: "Ya puedes gestionar tus datos, seguir pedidos y consultar tu historial de compras en el \u00E1rea de cliente.", button: "Ir a mi cuenta" }) : locale === "de" ? ({ subject: "Willkommen bei 360 Merchandising", eyebrow: "KONTO BEST\u00C4TIGT", heading: `Willkommen${name ? `, ${name}` : ""}!`, intro: "Ihr Konto wurde erfolgreich best\u00E4tigt.", body: "Sie k\u00F6nnen jetzt Ihre Angaben verwalten, Bestellungen verfolgen und Ihre Kaufhistorie im Kundenbereich einsehen.", button: "Zu meinem Konto" }) : locale === "it" ? ({ subject: "Benvenuto in 360 Merchandising", eyebrow: "ACCOUNT CONFERMATO", heading: `Benvenuto${name ? `, ${name}` : ""}!`, intro: "Il tuo account \u00E8 stato confermato correttamente.", body: "Ora puoi gestire i tuoi dati, seguire gli ordini e consultare la cronologia degli acquisti nell'area cliente.", button: "Vai al mio account" }) : locale === "en" ? { subject: "Welcome to 360 Merchandising", eyebrow: "ACCOUNT CONFIRMED", heading: `Welcome${name ? `, ${name}` : ""}!`, intro: "Your account has been confirmed successfully.", body: "You can now manage your details, follow orders and access your purchase history in your customer area.", button: "Go to my account" }
       : locale === "fr" ? { subject: "Bienvenue chez 360 Merchandising", eyebrow: "COMPTE CONFIRMÉ", heading: `Bienvenue${name ? `, ${name}` : ""} !`, intro: "Votre compte a été confirmé avec succès.", body: "Vous pouvez désormais gérer vos coordonnées, suivre vos commandes et consulter votre historique dans votre espace client.", button: "Accéder à mon compte" }
-      : { subject: "Bem-vindo à 360 Merchandising", eyebrow: "CONTA CONFIRMADA", heading: `Bem-vindo${name ? `, ${name}` : ""}!`, intro: "A sua conta foi confirmada com sucesso.", body: "Já pode gerir os seus dados, acompanhar encomendas e consultar o histórico de compras na sua área de cliente.", button: "Aceder à minha conta" };
+      : { subject: "Bem-vindo à 360 Merchandising", eyebrow: "CONTA CONFIRMADA", heading: `Bem-vindo${name ? `, ${name}` : ""}!`, intro: "A sua conta foi confirmada com sucesso.", body: "Já pode gerir os seus dados, acompanhar encomendas e consultar o histórico de compras na sua área de cliente.", button: "Aceder à minha conta" });
     const content = renderLayout({ locale, preview: copy.subject, eyebrow: copy.eyebrow, heading: copy.heading, bodyHtml: `<p style="margin:0;font-size:17px;line-height:1.7;">${escapeHtml(copy.intro)}</p><p style="margin:16px 0 0;font-size:15px;line-height:1.7;color:#536071;">${escapeHtml(copy.body)}</p>`, bodyText: `${copy.intro}\n${copy.body}`, button: { label: copy.button, url: localPath(locale, "/area-cliente") } });
     return { subject: copy.subject, ...content };
   }
 
   if (notification.event_type === "order_confirmation") {
-    const copy = locale === "en" ? { subject: `Order ${orderNumber} confirmed`, eyebrow: "ORDER CONFIRMED", heading: "Thank you for your order!", intro: `We have successfully received payment for order ${orderNumber}.`, button: "View order" }
+    const copy = (locale === "es" ? ({ subject: `Pedido ${orderNumber} confirmado`, eyebrow: "PEDIDO CONFIRMADO", heading: "\u00A1Gracias por tu pedido!", intro: `Hemos recibido correctamente el pago del pedido ${orderNumber}.`, button: "Ver pedido" }) : locale === "de" ? ({ subject: `Bestellung ${orderNumber} best\u00E4tigt`, eyebrow: "BESTELLUNG BEST\u00C4TIGT", heading: "Vielen Dank f\u00FCr Ihre Bestellung!", intro: `Wir haben die Zahlung f\u00FCr Bestellung ${orderNumber} erfolgreich erhalten.`, button: "Bestellung ansehen" }) : locale === "it" ? ({ subject: `Ordine ${orderNumber} confermato`, eyebrow: "ORDINE CONFERMATO", heading: "Grazie per il tuo ordine!", intro: `Abbiamo ricevuto correttamente il pagamento dell'ordine ${orderNumber}.`, button: "Vedi ordine" }) : locale === "en" ? { subject: `Order ${orderNumber} confirmed`, eyebrow: "ORDER CONFIRMED", heading: "Thank you for your order!", intro: `We have successfully received payment for order ${orderNumber}.`, button: "View order" }
       : locale === "fr" ? { subject: `Commande ${orderNumber} confirmée`, eyebrow: "COMMANDE CONFIRMÉE", heading: "Merci pour votre commande !", intro: `Nous avons bien reçu le paiement de la commande ${orderNumber}.`, button: "Voir la commande" }
-      : { subject: `Encomenda ${orderNumber} confirmada`, eyebrow: "ENCOMENDA CONFIRMADA", heading: "Obrigado pela sua encomenda!", intro: `Recebemos com sucesso o pagamento da encomenda ${orderNumber}.`, button: "Consultar encomenda" };
+      : { subject: `Encomenda ${orderNumber} confirmada`, eyebrow: "ENCOMENDA CONFIRMADA", heading: "Obrigado pela sua encomenda!", intro: `Recebemos com sucesso o pagamento da encomenda ${orderNumber}.`, button: "Consultar encomenda" });
     const items = Array.isArray(p.items) ? p.items as Array<Record<string, unknown>> : [];
     const itemRows = items.map((item) => `<tr><td style="padding:10px 0;border-bottom:1px solid #edf0f2;font-size:14px;">${escapeHtml(asString(item.name))} × ${Number(item.quantity) || 0}</td><td style="padding:10px 0;border-bottom:1px solid #edf0f2;text-align:right;font-size:14px;font-weight:700;">${escapeHtml(money(item.total, p.currency, locale))}</td></tr>`).join("");
     const textItems = items.map((item) => `${asString(item.name)} × ${Number(item.quantity) || 0}: ${money(item.total, p.currency, locale)}`).join("\n");
-    const totalLabel = locale === "en" ? "Total" : locale === "fr" ? "Total" : "Total";
+    const totalLabel = (locale === "es" ? ("Total") : locale === "de" ? ("Gesamtbetrag") : locale === "it" ? ("Totale") : locale === "en" ? "Total" : locale === "fr" ? "Total" : "Total");
     const content = renderLayout({ locale, preview: copy.subject, eyebrow: copy.eyebrow, heading: copy.heading, bodyHtml: `<p style="margin:0;font-size:17px;line-height:1.7;">${escapeHtml(copy.intro)}</p><table role="presentation" style="width:100%;border-collapse:collapse;margin-top:22px;">${itemRows}<tr><td style="padding-top:18px;font-size:16px;font-weight:700;">${totalLabel}</td><td style="padding-top:18px;text-align:right;font-size:18px;font-weight:700;color:#e85f00;">${escapeHtml(money(p.grandTotal, p.currency, locale))}</td></tr></table>`, bodyText: `${copy.intro}\n\n${textItems}\n${totalLabel}: ${money(p.grandTotal, p.currency, locale)}`, button: { label: copy.button, url: orderUrl } });
     return { subject: copy.subject, ...content };
   }
@@ -152,18 +164,18 @@ function renderEmail(notification: EmailNotification): { subject: string; html: 
   if (notification.event_type === "order_tracking_available") {
     const trackingNumber = asString(p.trackingNumber);
     const trackingUrl = asString(p.trackingUrl);
-    const copy = locale === "en" ? { subject: `Tracking available for order ${orderNumber}`, eyebrow: "ORDER SHIPPED", heading: "Your order is on its way", intro: `Tracking information is now available for order ${orderNumber}.`, tracking: "Tracking number", button: "Track order" }
+    const copy = (locale === "es" ? ({ subject: `Seguimiento disponible para el pedido ${orderNumber}`, eyebrow: "PEDIDO ENVIADO", heading: "Tu pedido est\u00E1 en camino", intro: `Ya est\u00E1 disponible la informaci\u00F3n de seguimiento del pedido ${orderNumber}.`, tracking: "N\u00FAmero de seguimiento", button: "Seguir pedido" }) : locale === "de" ? ({ subject: `Sendungsverfolgung f\u00FCr Bestellung ${orderNumber} verf\u00FCgbar`, eyebrow: "BESTELLUNG VERSENDET", heading: "Ihre Bestellung ist unterwegs", intro: `Die Sendungsverfolgung f\u00FCr Bestellung ${orderNumber} ist jetzt verf\u00FCgbar.`, tracking: "Sendungsnummer", button: "Bestellung verfolgen" }) : locale === "it" ? ({ subject: `Tracciamento disponibile per l'ordine ${orderNumber}`, eyebrow: "ORDINE SPEDITO", heading: "Il tuo ordine \u00E8 in viaggio", intro: `Le informazioni di tracciamento dell'ordine ${orderNumber} sono ora disponibili.`, tracking: "Numero di tracciamento", button: "Traccia ordine" }) : locale === "en" ? { subject: `Tracking available for order ${orderNumber}`, eyebrow: "ORDER SHIPPED", heading: "Your order is on its way", intro: `Tracking information is now available for order ${orderNumber}.`, tracking: "Tracking number", button: "Track order" }
       : locale === "fr" ? { subject: `Suivi disponible pour la commande ${orderNumber}`, eyebrow: "COMMANDE EXPÉDIÉE", heading: "Votre commande est en route", intro: `Les informations de suivi sont disponibles pour la commande ${orderNumber}.`, tracking: "Numéro de suivi", button: "Suivre la commande" }
-      : { subject: `Tracking disponível para a encomenda ${orderNumber}`, eyebrow: "ENCOMENDA EXPEDIDA", heading: "A sua encomenda está a caminho", intro: `Já está disponível a informação de tracking da encomenda ${orderNumber}.`, tracking: "Código de tracking", button: "Acompanhar encomenda" };
+      : { subject: `Tracking disponível para a encomenda ${orderNumber}`, eyebrow: "ENCOMENDA EXPEDIDA", heading: "A sua encomenda está a caminho", intro: `Já está disponível a informação de tracking da encomenda ${orderNumber}.`, tracking: "Código de tracking", button: "Acompanhar encomenda" });
     const destination = trackingUrl || orderUrl;
     const content = renderLayout({ locale, preview: copy.subject, eyebrow: copy.eyebrow, heading: copy.heading, bodyHtml: `<p style="margin:0;font-size:17px;line-height:1.7;">${escapeHtml(copy.intro)}</p>${trackingNumber ? `<div style="margin-top:22px;padding:16px 18px;border-radius:14px;background:#f4f6f8;"><div style="font-size:12px;color:#6b7280;">${escapeHtml(copy.tracking)}</div><div style="margin-top:5px;font-size:18px;font-weight:700;letter-spacing:.5px;">${escapeHtml(trackingNumber)}</div></div>` : ""}`, bodyText: `${copy.intro}${trackingNumber ? `\n${copy.tracking}: ${trackingNumber}` : ""}`, button: { label: copy.button, url: destination } });
     return { subject: copy.subject, ...content };
   }
 
   const newStatus = statusLabel(p.newStatus, locale);
-  const copy = locale === "en" ? { subject: `Order ${orderNumber} update`, eyebrow: "ORDER UPDATE", heading: "Your order has been updated", intro: `The current status of order ${orderNumber} is:`, button: "View order" }
+  const copy = (locale === "es" ? ({ subject: `Actualizaci\u00F3n del pedido ${orderNumber}`, eyebrow: "ACTUALIZACI\u00D3N DEL PEDIDO", heading: "Tu pedido se ha actualizado", intro: `El estado actual del pedido ${orderNumber} es:`, button: "Ver pedido" }) : locale === "de" ? ({ subject: `Aktualisierung zu Bestellung ${orderNumber}`, eyebrow: "BESTELLAKTUALISIERUNG", heading: "Ihre Bestellung wurde aktualisiert", intro: `Der aktuelle Status von Bestellung ${orderNumber} lautet:`, button: "Bestellung ansehen" }) : locale === "it" ? ({ subject: `Aggiornamento dell'ordine ${orderNumber}`, eyebrow: "AGGIORNAMENTO DELL'ORDINE", heading: "Il tuo ordine \u00E8 stato aggiornato", intro: `Lo stato attuale dell'ordine ${orderNumber} \u00E8:`, button: "Vedi ordine" }) : locale === "en" ? { subject: `Order ${orderNumber} update`, eyebrow: "ORDER UPDATE", heading: "Your order has been updated", intro: `The current status of order ${orderNumber} is:`, button: "View order" }
     : locale === "fr" ? { subject: `Mise à jour de la commande ${orderNumber}`, eyebrow: "MISE À JOUR", heading: "Votre commande a été mise à jour", intro: `Le statut actuel de la commande ${orderNumber} est :`, button: "Voir la commande" }
-    : { subject: `Atualização da encomenda ${orderNumber}`, eyebrow: "ATUALIZAÇÃO DA ENCOMENDA", heading: "A sua encomenda foi atualizada", intro: `O estado atual da encomenda ${orderNumber} é:`, button: "Consultar encomenda" };
+    : { subject: `Atualização da encomenda ${orderNumber}`, eyebrow: "ATUALIZAÇÃO DA ENCOMENDA", heading: "A sua encomenda foi atualizada", intro: `O estado atual da encomenda ${orderNumber} é:`, button: "Consultar encomenda" });
   const content = renderLayout({ locale, preview: copy.subject, eyebrow: copy.eyebrow, heading: copy.heading, bodyHtml: `<p style="margin:0;font-size:17px;line-height:1.7;">${escapeHtml(copy.intro)}</p><div style="margin-top:20px;padding:16px 18px;border-radius:14px;background:#fff4ec;color:#c94f00;font-size:18px;font-weight:700;">${escapeHtml(newStatus)}</div>`, bodyText: `${copy.intro}\n${newStatus}`, button: { label: copy.button, url: orderUrl } });
   return { subject: copy.subject, ...content };
 }

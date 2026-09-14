@@ -42,6 +42,34 @@ const copy = {
     principle: "Principe éditorial", principleHeading: "Le terme « meilleur » exige du contexte", principleText: "Nous ne l’utilisons pas comme synonyme de vainqueur absolu. Nous expliquons les critères, présentons les options associées et faisons dépendre la décision finale de votre besoin et des données du produit.",
     faq: "Questions fréquentes", others: "Autres Sélections 360", view: "Voir la sélection",
   },
+
+es: {
+    back: "\u2190 Volver a Selecciones 360", noRanking: "Sin clasificaciones artificiales", methodology: "Ver metodolog\u00EDa editorial",
+    criteria: "Criterios de selecci\u00F3n", criterion: "Criterio", products: "Productos relacionados", productsHeading: "Opciones del cat\u00E1logo activo para comparar",
+    productsText: "Esta selecci\u00F3n es un punto de partida. Antes de decidir, comprueba siempre stock, cantidad m\u00EDnima, precio, materiales, variante y personalizaci\u00F3n en la p\u00E1gina de cada producto.",
+    search: "Buscar en el cat\u00E1logo", emptyHeading: "No hay suficientes sugerencias en este momento", emptyText: "Es posible que el cat\u00E1logo no devuelva suficientes productos para esta selecci\u00F3n. Contin\u00FAa buscando o utiliza Smart Merch para ajustar los criterios.",
+    helpHeading: "\u00BFNecesitas equilibrar presupuesto, cantidad y plazo?", helpText: "Selecciones 360 te ayuda a comparar familias de productos. Para una solicitud espec\u00EDfica, utiliza Smart Merch o una p\u00E1gina comercial con filtros expl\u00EDcitos.",
+    principle: "Principio editorial", principleHeading: "La palabra \u00ABmejor\u00BB necesita contexto", principleText: "No utilizamos el t\u00E9rmino para se\u00F1alar un ganador absoluto. Explicamos los criterios, mostramos opciones relacionadas y dejamos la decisi\u00F3n final a tus necesidades concretas y a los datos del producto.",
+    faq: "Preguntas frecuentes", others: "Otras Selecciones 360", view: "Ver selecci\u00F3n",
+},
+de: {
+    back: "\u2190 Zur\u00FCck zur 360-Auswahl", noRanking: "Keine k\u00FCnstliche Rangliste", methodology: "Redaktionelle Methodik ansehen",
+    criteria: "Auswahlkriterien", criterion: "Kriterium", products: "Verwandte Produkte", productsHeading: "Optionen aus dem aktiven Katalog vergleichen",
+    productsText: "Diese Auswahl ist ein Ausgangspunkt. Pr\u00FCfen Sie vor Ihrer Entscheidung stets Bestand, Mindestmenge, Preis, Materialien, Variante und Personalisierung auf der jeweiligen Produktseite.",
+    search: "Katalog durchsuchen", emptyHeading: "Derzeit nicht gen\u00FCgend Vorschl\u00E4ge", emptyText: "Der Katalog liefert m\u00F6glicherweise nicht gen\u00FCgend Produkte f\u00FCr diese Auswahl. Suchen Sie weiter oder passen Sie Ihre Kriterien mit Smart Merch an.",
+    helpHeading: "M\u00F6chten Sie Budget, Menge und Termin aufeinander abstimmen?", helpText: "Die 360-Auswahl hilft beim Vergleich von Produktgruppen. Verwenden Sie f\u00FCr eine konkrete Anfrage Smart Merch oder eine Angebotsseite mit klaren Filtern.",
+    principle: "Redaktioneller Grundsatz", principleHeading: "Das Wort \u201Ebeste\u201C braucht Kontext", principleText: "Wir verwenden den Begriff nicht f\u00FCr einen absoluten Sieger. Wir erl\u00E4utern die Kriterien, zeigen passende Optionen und \u00FCberlassen die Entscheidung Ihren konkreten Anforderungen und den Produktdaten.",
+    faq: "H\u00E4ufige Fragen", others: "Weitere 360-Auswahlen", view: "Auswahl ansehen",
+},
+it: {
+    back: "\u2190 Torna alle Selezioni 360", noRanking: "Senza classifiche artificiali", methodology: "Vedi la metodologia editoriale",
+    criteria: "Criteri di scelta", criterion: "Criterio", products: "Prodotti correlati", productsHeading: "Opzioni del catalogo attivo da confrontare",
+    productsText: "Questa selezione \u00E8 un punto di partenza. Prima di decidere, verifica sempre disponibilit\u00E0, quantit\u00E0 minima, prezzo, materiali, variante e personalizzazione nella pagina del singolo prodotto.",
+    search: "Cerca nel catalogo", emptyHeading: "Suggerimenti insufficienti al momento", emptyText: "Il catalogo potrebbe non restituire abbastanza prodotti per questa selezione. Continua la ricerca o usa Smart Merch per modificare i criteri.",
+    helpHeading: "Devi bilanciare budget, quantit\u00E0 e scadenza?", helpText: "Le Selezioni 360 ti aiutano a confrontare famiglie di prodotti. Per una richiesta specifica, usa Smart Merch o una pagina commerciale con filtri espliciti.",
+    principle: "Principio editoriale", principleHeading: "La parola \u00ABmigliore\u00BB richiede un contesto", principleText: "Non usiamo il termine per indicare un vincitore assoluto. Spieghiamo i criteri, mostriamo opzioni correlate e lasciamo la decisione finale alle tue esigenze specifiche e ai dati del prodotto.",
+    faq: "Domande frequenti", others: "Altre Selezioni 360", view: "Vedi selezione",
+},
 } satisfies Record<SiteLocale, Record<string, string>>;
 
 export default function SelectionPage({

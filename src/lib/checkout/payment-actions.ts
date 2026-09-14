@@ -303,7 +303,31 @@ function buildStripeLineItems(params: {
   const currency = params.currency.toLowerCase();
   const intlLocale = SITE_LOCALES[params.locale].intlLocale;
   const text =
-    params.locale === "en"
+    (params.locale === "es" ? ({
+    units: "unidades",
+    location: "Ubicaci\u00F3n",
+    technique: "T\u00E9cnica",
+    shipping: "Env\u00EDo",
+    shippingDescription: "Env\u00EDo del pedido",
+    tax: "IVA",
+    taxDescription: "Impuesto sobre el valor a\u00F1adido",
+}) : params.locale === "de" ? ({
+    units: "St\u00FCck",
+    location: "Position",
+    technique: "Technik",
+    shipping: "Versand",
+    shippingDescription: "Bestellversand",
+    tax: "MwSt.",
+    taxDescription: "Mehrwertsteuer",
+}) : params.locale === "it" ? ({
+    units: "unit\u00E0",
+    location: "Posizione",
+    technique: "Tecnica",
+    shipping: "Spedizione",
+    shippingDescription: "Spedizione dell'ordine",
+    tax: "IVA",
+    taxDescription: "Imposta sul valore aggiunto",
+}) : params.locale === "en"
       ? {
           units: "units",
           location: "Location",
@@ -331,7 +355,7 @@ function buildStripeLineItems(params: {
             shippingDescription: "Transporte da encomenda",
             tax: "IVA",
             taxDescription: "Imposto sobre o valor acrescentado",
-          };
+          });
 
   const lineItems: StripeLineItem[] = params.cartItems.map((item) => {
     const descriptionParts = [
