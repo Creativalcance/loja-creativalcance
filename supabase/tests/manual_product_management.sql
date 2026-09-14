@@ -1,0 +1,80 @@
+-- Run after the migration. All fixtures, including email events, are rolled back.
+begin;
+select set_config('request.jwt.claims','{}',true);
+do $$
+declare actor uuid:=gen_random_uuid(); customer uuid:=gen_random_uuid(); category_a uuid:=gen_random_uuid(); category_b uuid:=gen_random_uuid(); p uuid; supplier_product uuid; fixture_order_id uuid; draft_id uuid; cart_id uuid; version timestamptz; payload jsonb; result jsonb; rejected boolean; audit_count integer;
+begin
+ insert into auth.users(id,email) values(actor,actor::text||'@example.invalid'),(customer,customer::text||'@example.invalid');
+ update public.profiles set role='admin',is_active=true where id=actor;
+ insert into public.categories(id,name,slug,catalog_source) values(category_a,'Manual test A',category_a::text,'manual'),(category_b,'Manual test B',category_b::text,'manual');
+ payload:=jsonb_build_object('sku','TEST-'||actor,'name','Manual test original','slug','manual-test-'||actor,'catalog_source','manual','fulfillment_route','internal_360','min_order_quantity',10,'status','active','is_active',true,'is_featured',false,'is_purchasable',true,'availability_status','in_stock_pt');
+ p:=public.create_manual_catalog_product(payload,category_a,2,100,'https://example.invalid/original.png');
+ insert into public.products(sku,name,slug,catalog_source,fulfillment_route) values('SUP-'||actor,'Supplier fixture','supplier-test-'||actor,'supplier_sync','supplier_api') returning id into supplier_product;
+ insert into public.orders(user_id,customer_email,customer_name,grand_total) values(customer,customer::text||'@example.invalid','Manual fixture',20) returning id into fixture_order_id;
+ insert into public.product_customization_drafts(product_id,user_id,personalization_data) values(p,customer,'{"test":"preserved"}') returning id into draft_id;
+ insert into public.order_items(order_id,product_id,product_sku,product_name,quantity,unit_price,total,fulfillment_route,customization_draft_id) values(fixture_order_id,p,'ORIGINAL','Original ordered name',10,2,20,'internal_360',draft_id);
+ insert into public.carts(user_id) values(customer) returning id into cart_id;
+ insert into public.cart_items(cart_id,product_id,product_sku,product_name,quantity,unit_price,total) values(cart_id,p,'ORIGINAL','Original cart name',10,2,20);
+ select updated_at into version from public.products where id=p;
+ payload:=jsonb_build_object('name','Updated manual product','sku','UPDATED-'||actor,'slug','updated-test-'||actor,'category_id',category_b,'price',3.25,'minimum',20,'stock',70,'status','active','featured',true,'image_url','https://example.invalid/updated.png','description','Updated description','short_description','Updated summary','brand','360','material','Cotton','lead_time_days',5,'seo_title','Updated SEO','seo_description','Updated SEO description');
+ -- Exercise the same database role used by the server, not the database owner.
+ execute 'set local role service_role';
+ result:=public.manage_manual_product(actor,p,'edit',version,payload);
+ assert (select name='Updated manual product' and min_order_quantity=20 and is_featured and is_purchasable and fulfillment_route='internal_360' from public.products where id=p),'Product fields not saved';
+ assert (select final_price=3.25 and manual_price=3.25 and quantity_min=20 and base_price=2 and supplier_price=2 from public.product_prices where product_id=p),'Price or original cost corrupted';
+ assert (select available_quantity=70 from public.product_stocks where product_id=p),'Stock not saved';
+ assert (select count(*)=1 from public.product_categories where product_id=p and is_primary and category_id=category_b),'Primary category not changed';
+ assert (select external_url='https://example.invalid/updated.png' from public.product_images where product_id=p and is_primary),'Image not updated';
+ assert (select unit_price=2 and product_name='Original ordered name' and customization_draft_id=draft_id from public.order_items oi where oi.order_id=fixture_order_id),'Order snapshot changed';
+ select updated_at into version from public.products where id=p;
+ rejected:=false;begin perform public.manage_manual_product(actor,p,'edit',version,payload||jsonb_build_object('category_id',gen_random_uuid()));exception when raise_exception then rejected:=true;end;assert rejected,'Invalid category accepted';
+ rejected:=false;begin perform public.manage_manual_product(actor,p,'edit',version,payload||jsonb_build_object('sku','SUP-'||actor));exception when raise_exception then rejected:=true;end;assert rejected,'Duplicate SKU accepted';
+ rejected:=false;begin perform public.manage_manual_product(actor,p,'status',version-interval '1 day','{"status":"inactive"}');exception when raise_exception then rejected:=true;end;assert rejected,'Stale version accepted';
+ rejected:=false;begin perform public.manage_manual_product(customer,p,'status',version,'{"status":"inactive"}');exception when raise_exception then rejected:=true;end;assert rejected,'Customer can modify manual product';
+ rejected:=false;begin perform public.manage_manual_product(actor,supplier_product,'delete',(select updated_at from public.products where id=supplier_product),'{}');exception when raise_exception then rejected:=true;end;assert rejected,'Supplier product can be deleted through manual action';
+ assert (select count(*)=1 from public.manual_product_changes where product_id=p),'Rejected changes left an audit/write';
+ perform public.manage_manual_product(actor,p,'edit',version,payload||'{"stock":0,"image_url":""}');
+ assert (select not is_purchasable and is_stockout from public.products where id=p),'Out of stock product purchasable';
+ assert not exists(select 1 from public.product_images where product_id=p),'Image not removed';
+ select updated_at into version from public.products where id=p;
+ perform public.manage_manual_product(actor,p,'edit',version,payload);
+ select updated_at into version from public.products where id=p;
+ perform public.manage_manual_product(actor,p,'status',version,'{"status":"inactive"}');
+ assert (select status='inactive' and not is_active and not is_purchasable from public.products where id=p),'Inactive product visible/purchasable';
+ select updated_at into version from public.products where id=p;
+ perform public.manage_manual_product(actor,p,'status',version,'{"status":"active"}');
+ assert (select is_active and is_purchasable from public.products where id=p),'Publication failed';
+ select updated_at into version from public.products where id=p;
+ perform public.manage_manual_product(actor,p,'delete',version);
+ assert (select deleted_at is not null and status='archived' and not is_active and not is_purchasable from public.products where id=p),'Delete state unsafe';
+ assert (select count(*)=1 from public.order_items where product_id=p),'Order line removed';
+ assert (select count(*)=1 from public.cart_items where product_id=p),'Cart history removed';
+ assert (select personalization_data->>'test'='preserved' from public.product_customization_drafts where id=draft_id),'Artwork lost';
+ select updated_at into version from public.products where id=p;
+ rejected:=false;begin perform public.manage_manual_product(actor,p,'status',version,'{"status":"active"}');exception when raise_exception then rejected:=true;end;assert rejected,'Deleted product published without restore';
+ perform set_config('manual_test.product_id',p::text,true);
+ perform set_config('manual_test.actor_id',actor::text,true);
+ assert not has_function_privilege('anon','public.manage_manual_product(uuid,uuid,text,timestamptz,jsonb)','execute'),'Anonymous mutation RPC';
+ assert not has_function_privilege('authenticated','public.manage_manual_product(uuid,uuid,text,timestamptz,jsonb)','execute'),'Client mutation RPC';
+ assert not has_table_privilege('authenticated','public.manual_product_changes','update'),'Audit editable by clients';
+end $$;
+reset role;
+set local role anon;
+do $$ begin
+ assert not exists(select 1 from public.products where id=current_setting('manual_test.product_id')::uuid),'Deleted product visible to storefront';
+end $$;
+reset role;
+set local role authenticated;
+do $$ begin
+ assert not exists(select 1 from public.manual_product_changes),'Non-admin can read audit';
+end $$;
+reset role;
+set local role service_role;
+do $$ declare p uuid:=current_setting('manual_test.product_id')::uuid; actor uuid:=current_setting('manual_test.actor_id')::uuid; begin
+ perform public.manage_manual_product(actor,p,'restore',(select updated_at from public.products where id=p));
+ assert (select deleted_at is null and status='draft' and not is_active and not is_purchasable from public.products where id=p),'Restore published without review';
+ assert (select count(*)=7 from public.manual_product_changes where product_id=p),'Audit trail incomplete';
+end $$;
+reset role;
+rollback;
+select 'PASS: edit, costs, stock, image, category, states, delete/restore, history, concurrency, permissions and RLS; fixtures rolled back' as result;
