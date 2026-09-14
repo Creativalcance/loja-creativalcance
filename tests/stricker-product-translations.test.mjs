@@ -119,6 +119,7 @@ test('new cron jobs use existing locking and dispatch the intended language', as
   ].map(name => [`@/lib/stricker/rest/${name}`, {}]));
   const sync = load('src/lib/stricker/automatic-sync.ts', {
     ...imports,
+    '@/lib/i18n/config': load('src/lib/i18n/config.ts'),
     'node:crypto': { randomUUID: () => 'owner-a' },
     '@/lib/supabase/admin': { createSupabaseAdminClient: () => ({ rpc: async (name, params) => { calls.push({ name, params }); return { data: true, error: null }; } }) },
     '@/lib/stricker/auth': {},

@@ -15,6 +15,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
+import { localizeProductColors } from "@/lib/i18n/colors";
 import { getLocalizedProductText } from "@/lib/i18n/catalog";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
@@ -52,6 +53,8 @@ type ProductVariant = {
   id: string;
   sku: string;
   color_name: string | null;
+  color_code: string | null;
+  color_label?: string | null;
   color_hex: string | null;
   size: string | null;
   material: string | null;
@@ -441,11 +444,11 @@ function getVariantLabel(variant: ProductVariant | null): string | null {
     return null;
   }
 
-  if (variant.color_name && variant.size) {
-    return `${variant.color_name} · ${variant.size}`;
+  if ((variant.color_label ?? variant.color_name) && variant.size) {
+    return `${variant.color_label ?? variant.color_name} · ${variant.size}`;
   }
 
-  return variant.color_name ?? variant.size ?? null;
+  return variant.color_label ?? variant.color_name ?? variant.size ?? null;
 }
 
 function buildEditorLocations(params: {
@@ -719,6 +722,7 @@ export default async function ProductPersonalizePage({
           id,
           sku,
           color_name,
+          color_code,
           color_hex,
           size,
           material,
@@ -785,7 +789,7 @@ export default async function ProductPersonalizePage({
   const primaryImage = getPrimaryImage(product);
   const productImageUrl =
     primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
-  const variants = product.product_variants ?? [];
+  const variants = await localizeProductColors(product.product_variants ?? [], product.supplier_id, locale);
 
   const requestedVariant =
     variants.find((variant) => variant.id === selectedColorId) ?? null;
@@ -874,6 +878,7 @@ export default async function ProductPersonalizePage({
     id: variant.id,
     sku: variant.sku,
     color_name: variant.color_name,
+    color_label: variant.color_label,
     color_hex: variant.color_hex,
     size: variant.size,
     image_url:

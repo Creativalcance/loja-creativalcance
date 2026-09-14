@@ -1,3 +1,4 @@
+import { getLocalizedVariantColors } from "@/lib/i18n/colors";
 import type { ProductCardProduct } from "@/components/catalog/ProductCard";
 import type { SiteLocale } from "@/lib/i18n/config";
 import { getLocalizedProductTexts } from "@/lib/i18n/catalog";
@@ -63,6 +64,7 @@ export async function localizeSmartMerchResponse(
   const translations = await getLocalizedProductTexts({
     productIds: response.results.map((result) => result.id), locale,
   });
+  const colors = await getLocalizedVariantColors(response.results.flatMap((result) => result.variantId ? [result.variantId] : []), locale);
   const copy = smartMerchCopy[locale];
   return {
     ...response,
@@ -73,6 +75,7 @@ export async function localizeSmartMerchResponse(
       return {
         ...result,
         name: text?.name || result.name,
+        variantColor: (result.variantId && colors.get(result.variantId)) || result.variantColor,
         imageAlt: text?.name || result.imageAlt,
         shortDescription: text?.shortDescription ?? text?.description ?? result.shortDescription,
         material: text?.material ?? result.material,
