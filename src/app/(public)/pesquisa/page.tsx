@@ -1,3 +1,4 @@
+import { localizeProductCards } from "@/lib/i18n/product-presentation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Search } from "lucide-react";
@@ -228,24 +229,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     products = error ? [] : ((data ?? []) as unknown as ProductCardProduct[]);
     hasProductsError = Boolean(error);
 
-    if (!error && locale !== "pt" && products.length > 0) {
-      const languages = Array.from(new Set([getStrickerLanguage(locale), "EN"]));
-      const { data: translations } = await supabase
-        .from("product_translations")
-        .select("product_id,language,name,short_description,material,type_name,subtype_name")
-        .in("product_id", products.map((product) => product.id))
-        .in("language", languages);
-      const byProduct = new Map<string, Record<string, unknown>>();
-      for (const language of [...languages].reverse()) {
-        for (const translation of translations ?? []) {
-          if (translation.language === language) byProduct.set(translation.product_id, translation);
-        }
-      }
-      products = products.map((product) => {
-        const translation = byProduct.get(product.id);
-        return translation ? { ...product, name: String(translation.name ?? product.name), short_description: (translation.short_description as string | null) ?? product.short_description, material: (translation.material as string | null) ?? product.material, type_name: (translation.type_name as string | null) ?? product.type_name, subtype_name: (translation.subtype_name as string | null) ?? product.subtype_name } : product;
-      });
-    }
+    if (!error) products = await localizeProductCards(products, locale);
   }
 
   return (

@@ -1,3 +1,5 @@
+import type { SiteLocale } from "@/lib/i18n/config";
+import { localizeProductCards } from "@/lib/i18n/product-presentation";
 import type { ProductCardProduct } from "@/components/catalog/ProductCard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -30,6 +32,7 @@ function buildLandingFilter(terms: string[]): string {
 
 export async function getLandingProducts(
   terms: string[],
+  locale: SiteLocale,
   limit = 12,
 ): Promise<ProductCardProduct[]> {
   const filter = buildLandingFilter(terms);
@@ -89,7 +92,7 @@ export async function getLandingProducts(
 
   const products = (data ?? []) as unknown as ProductCardProduct[];
 
-  return [...products].sort((a, b) => {
+  const sorted = [...products].sort((a, b) => {
     const stockA = (a.product_stocks ?? []).reduce(
       (total, stock) => total + (stock.available_quantity ?? 0),
       0,
@@ -109,6 +112,7 @@ export async function getLandingProducts(
 
     return 0;
   });
+  return localizeProductCards(sorted, locale);
 }
 
 export type CommercialLandingProductOptions = {
@@ -150,6 +154,7 @@ function isCompatibleWithTargetQuantity(
 
 export async function getCommercialLandingProducts(
   terms: string[],
+  locale: SiteLocale,
   options: CommercialLandingProductOptions = {},
 ): Promise<ProductCardProduct[]> {
   const filter = buildLandingFilter(terms);
@@ -237,7 +242,7 @@ export async function getCommercialLandingProducts(
     return true;
   });
 
-  return [...filtered]
+  const selected = [...filtered]
     .sort((a, b) => {
       const stockA = (a.product_stocks ?? []).reduce(
         (total, stock) => total + (stock.available_quantity ?? 0),
@@ -259,4 +264,5 @@ export async function getCommercialLandingProducts(
       return 0;
     })
     .slice(0, requestedLimit);
+  return localizeProductCards(selected, locale);
 }

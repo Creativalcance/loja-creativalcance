@@ -136,7 +136,7 @@ export default function ProductCard({ product, locale = "pt" }: ProductCardProps
         {imageUrl ? (
           <img
             src={imageUrl}
-            alt={primaryImage?.alt_text ?? product.name}
+            alt={locale === "pt" ? primaryImage?.alt_text ?? product.name : product.name}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (

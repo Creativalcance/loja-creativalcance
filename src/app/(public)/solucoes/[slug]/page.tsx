@@ -70,7 +70,7 @@ export default async function CommercialSolutionPage({
     return notFound();
   }
 
-  const products = await getCommercialLandingProducts(config.productQueries, {
+  const products = await getCommercialLandingProducts(config.productQueries, locale, {
     maxUnitPrice: config.productFilter?.maxUnitPrice,
     targetQuantity: config.productFilter?.targetQuantity,
     requireCustomizable: config.productFilter?.requireCustomizable,
