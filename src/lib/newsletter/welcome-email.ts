@@ -1,4 +1,5 @@
-import type { SiteLocale } from "@/lib/i18n/config";
+import { setTimeout as pause } from "node:timers/promises";
+import { getSiteLocale, type SiteLocale } from "@/lib/i18n/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const DEFAULT_FROM_EMAIL = "360 Merchandising <info@creativalcance.com>";
@@ -149,17 +150,26 @@ function buildWelcomeEmail(params: WelcomeEmailParams) {
   return { subject: copy.subject, html, text };
 }
 
-export async function sendNewsletterWelcomeEmail(params: WelcomeEmailParams): Promise<void> {
+export async function sendNewsletterWelcomeEmail(params: WelcomeEmailParams): Promise<boolean> {
   const supabase = createSupabaseAdminClient();
+  const subscriber = await supabase.from("newsletter_subscribers")
+    .select("name,email,locale,welcome_email_attempts")
+    .eq("id", params.subscriberId).eq("status", "active").eq("consented_at", params.consentedAt).maybeSingle();
+  if (subscriber.error) throw new Error(subscriber.error.message);
+  if (!subscriber.data || subscriber.data.welcome_email_attempts >= 5) return false;
+  params = { ...params, name: subscriber.data.name, email: subscriber.data.email, locale: getSiteLocale(subscriber.data.locale) };
   const claim = await supabase
     .from("newsletter_subscribers")
     .update({
       welcome_email_status: "sending",
+      welcome_email_attempts: subscriber.data.welcome_email_attempts + 1,
       welcome_email_attempted_at: new Date().toISOString(),
       welcome_email_error: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", params.subscriberId)
+    .eq("status", "active").eq("consented_at", params.consentedAt)
+    .eq("welcome_email_attempts", subscriber.data.welcome_email_attempts)
     .in("welcome_email_status", ["pending", "failed"])
     .select("id")
     .maybeSingle<{ id: string }>();
@@ -169,7 +179,7 @@ export async function sendNewsletterWelcomeEmail(params: WelcomeEmailParams): Pr
   }
 
   if (!claim.data) {
-    return;
+    return false;
   }
 
   try {
@@ -218,6 +228,7 @@ export async function sendNewsletterWelcomeEmail(params: WelcomeEmailParams): Pr
     if (saved.error) {
       throw new Error(`Email enviado, mas o estado não foi guardado: ${saved.error.message}`);
     }
+    return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido no envio do email de boas-vindas.";
     await supabase
@@ -230,4 +241,26 @@ export async function sendNewsletterWelcomeEmail(params: WelcomeEmailParams): Pr
       .eq("id", params.subscriberId);
     throw error;
   }
+}
+
+export async function retryPendingNewsletterWelcomeEmails(limit = 5): Promise<{ processed: number; sent: number; failed: number }> {
+  const supabase = createSupabaseAdminClient();
+  const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const reset = await supabase.from("newsletter_subscribers").update({ welcome_email_status: "failed", welcome_email_error: "Envio anterior interrompido; reagendado automaticamente.", updated_at: new Date().toISOString() })
+    .eq("status", "active").eq("welcome_email_status", "sending").lt("welcome_email_attempted_at", staleBefore);
+  if (reset.error) throw new Error(reset.error.message);
+  const { data, error } = await supabase.from("newsletter_subscribers")
+    .select("id,name,email,locale,consented_at").eq("status", "active").not("consented_at", "is", null)
+    .in("welcome_email_status", ["pending", "failed"]).lt("welcome_email_attempts", 5)
+    .order("created_at", { ascending: true }).limit(limit);
+  if (error) throw new Error(error.message);
+  let sent = 0; let failed = 0;
+  for (const subscriber of data ?? []) {
+    try {
+      if (await sendNewsletterWelcomeEmail({ subscriberId: subscriber.id, consentedAt: subscriber.consented_at,
+        name: subscriber.name, email: subscriber.email, locale: getSiteLocale(subscriber.locale) })) sent += 1;
+    } catch { failed += 1; }
+    await pause(600);
+  }
+  return { processed: (data ?? []).length, sent, failed };
 }
