@@ -1,5 +1,7 @@
 "use server";
 
+import { normalizeCountryCode, normalizePortuguesePostalCode } from "@/lib/markets/countries";
+import { marketText } from "@/lib/markets/i18n";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -55,7 +57,6 @@ function normalizeTaxId(value: string | null): string | null {
 
   const normalized = value
     .replace(/\s+/g, "")
-    .replace(/^PT/i, "")
     .trim();
 
   return normalized.length > 0 ? normalized : null;
@@ -242,11 +243,11 @@ export async function saveCheckoutDestinationAction(
           "shippingDistrict",
         );
 
-        const shippingCountryCode =
-          getOptionalString(
-            formData,
-            "shippingCountryCode",
-          )?.toUpperCase() ?? "PT";
+        const shippingCountryCode = normalizeCountryCode(formData.get("shippingCountryCode"));
+        if (!shippingCountryCode) return { success: false, message: marketText("invalidCountry", locale) };
+        if (shippingCountryCode === "PT" && !normalizePortuguesePostalCode(shippingPostalCode)) {
+          return { success: false, message: marketText("invalidPostal", locale) };
+        }
 
         if (makeShippingDefault) {
           await supabaseAdmin.from("customer_addresses").update({ is_default: false })

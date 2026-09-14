@@ -1,3 +1,5 @@
+import { assessCheckoutDestination } from "@/lib/markets/policy";
+import ReviewNotice from "@/components/markets/ReviewNotice";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -183,6 +185,8 @@ export default async function CheckoutShippingPage() {
   }
 
   const currency = cart.currency || "EUR";
+  const eligibility = assessCheckoutDestination(cart.customer_addresses, currency);
+  if (eligibility.status === "review") return <ReviewNotice reason={eligibility.reason} locale={locale} cartId={cart.id}/>;
 
   const productsTotal = roundMoney(
     items.reduce(

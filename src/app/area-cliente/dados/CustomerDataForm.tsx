@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, type InputHTMLAttributes } from "react";
+import CountrySelect from "@/components/markets/CountrySelect";
+import { countryName } from "@/lib/markets/countries";
 import { Building2, Check, MapPin, Plus, Trash2 } from "lucide-react";
 import { addCustomerAddressAction, deleteCustomerAddressAction, setPreferredAddressAction, updateCustomerDataAction } from "./actions";
 import type { SiteLocale } from "@/lib/i18n/config";
@@ -24,7 +26,7 @@ export default function CustomerDataForm(props: Props) {
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         <Field label={`${t.fullName} *`} name="full_name" defaultValue={props.fullName} required/><Field label={t.accountEmail} name="account_email" defaultValue={props.email} disabled/>
         <Field label={t.phone} name="phone" defaultValue={props.phone} type="tel"/><Field label={t.company} name="company_name" defaultValue={props.companyName}/>
-        <Field label={t.taxId} name="tax_id" defaultValue={props.taxId} inputMode="numeric"/><Field label={t.billingEmail} name="billing_email" defaultValue={props.billingEmail} type="email"/>
+        <Field label={t.taxId} name="tax_id" defaultValue={props.taxId}/><Field label={t.billingEmail} name="billing_email" defaultValue={props.billingEmail} type="email"/>
       </div><Feedback state={profileState}/><button disabled={profilePending} className="mt-6 rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">{profilePending ? t.saving : t.save}</button>
     </form>
     <AddressList title={t.shippingAddresses} type="shipping" addresses={props.addresses.filter((a) => a.address_type === "shipping")} locale={props.locale}/>
@@ -37,7 +39,7 @@ export default function CustomerDataForm(props: Props) {
         <Field label={t.company} name="company_name" defaultValue={props.companyName}/><Field label={t.contactEmail} name="contact_email" type="email" defaultValue={props.billingEmail || props.email}/>
         <Field label={t.contactPhone} name="contact_phone" type="tel" defaultValue={props.phone}/><Field label={t.taxId} name="tax_id" defaultValue={props.taxId}/>
         <div className="md:col-span-2"><Field label={`${t.address} *`} name="address_line_1" required/></div><div className="md:col-span-2"><Field label={t.addressExtra} name="address_line_2" placeholder={t.addressExtraExample}/></div>
-        <Field label={`${t.postalCode} *`} name="postal_code" required placeholder="0000-000"/><Field label={`${t.city} *`} name="city" required/><Field label={t.district} name="district"/><Field label={t.country} name="country" defaultValue="Portugal" disabled/>
+        <Field label={`${t.postalCode} *`} name="postal_code" required placeholder="0000-000"/><Field label={`${t.city} *`} name="city" required/><Field label={t.district} name="district"/><div><label htmlFor="country_code" className="text-sm font-medium">{t.country} *</label><CountrySelect id="country_code" name="country_code" locale={props.locale} defaultValue="PT" className={input}/></div>
       </div>
       <label className="mt-5 flex items-center gap-3 text-sm"><input type="checkbox" name="is_default" className="h-4 w-4"/>{t.makePreferred}</label>
       <Feedback state={addressState}/><button disabled={addressPending} className="mt-6 rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">{addressPending ? t.saving : t.addAddress}</button>
@@ -56,7 +58,7 @@ function AddressList({ title, type, addresses, locale }: { title: string; type: 
   return <section className="rounded-3xl border border-neutral-200 p-6"><div className="flex items-center gap-3"><MapPin className="h-5 w-5"/><h2 className="text-xl font-semibold">{title}</h2></div>
     {addresses.length ? <div className="mt-5 grid gap-4 md:grid-cols-2">{addresses.map((address) => <article key={address.id} className="rounded-2xl border border-neutral-200 p-5">
       <div className="flex items-start justify-between gap-3"><div><p className="font-semibold">{address.label || address.company_name || address.contact_name}</p>{address.is_default ? <span className="mt-2 inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><Check className="mr-1 h-3 w-3"/>{t.preferred}</span> : null}</div><form action={deleteCustomerAddressAction}><input type="hidden" name="locale" value={locale}/><input type="hidden" name="id" value={address.id}/><input type="hidden" name="address_type" value={type}/><button aria-label={t.deleteAddress} className="rounded-full p-2 text-neutral-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="h-4 w-4"/></button></form></div>
-      <p className="mt-4 text-sm leading-6 text-neutral-600">{address.contact_name}<br/>{address.address_line_1}{address.address_line_2 ? `, ${address.address_line_2}` : ""}<br/>{address.postal_code} {address.city}{address.district ? ` · ${address.district}` : ""}</p>
+      <p className="mt-4 text-sm leading-6 text-neutral-600">{address.contact_name}<br/>{address.address_line_1}{address.address_line_2 ? `, ${address.address_line_2}` : ""}<br/>{address.postal_code} {address.city}{address.district ? ` · ${address.district}` : ""}<br/>{countryName(address.country_code, locale)}</p>
       {!address.is_default ? <form action={setPreferredAddressAction} className="mt-4"><input type="hidden" name="locale" value={locale}/><input type="hidden" name="id" value={address.id}/><input type="hidden" name="address_type" value={type}/><button className="text-sm font-semibold underline underline-offset-4">{t.setPreferred}</button></form> : null}
     </article>)}</div> : <p className="mt-5 rounded-2xl bg-neutral-50 p-4 text-sm text-neutral-600">{t.noAddress}</p>}
   </section>;
