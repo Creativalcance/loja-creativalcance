@@ -1,3 +1,4 @@
+import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { DEFAULT_SITE_LOCALE, isSiteLocale } from "@/lib/i18n/config";
@@ -112,13 +113,13 @@ export async function proxy(request: NextRequest) {
       .eq("id", userId)
       .maybeSingle<{ role: string; is_active: boolean }>();
 
-    let allowed = profile?.is_active !== false &&
+    let allowed = Boolean(profile?.is_active) &&
       ((isAdminPath && profile?.role === "admin") ||
-        (isCustomerPath && profile?.role === "customer") || (isSalesPath && profile?.role === "sales"));
+        (isCustomerPath && profile?.role === "customer") || (isSalesPath && ["customer", "admin"].includes(profile?.role || "")));
 
     if (allowed && isSalesPath) {
       const { data: agent } = await supabase.from("sales_agents").select("status").eq("user_id", userId).maybeSingle();
-      allowed = Boolean(agent && ["active", "invited"].includes(agent.status));
+      allowed = hasCommercialAccess(profile, agent);
     }
 
     if (!allowed) {
@@ -129,7 +130,7 @@ export async function proxy(request: NextRequest) {
       const destination = request.nextUrl.clone();
       destination.pathname = profile?.role === "admin"
         ? "/admin"
-        : profile?.role === "sales" && !isSalesPath ? (localizedPath ? `/${locale}/area-comercial` : "/area-comercial") : localizedPath
+        : localizedPath
           ? `/${locale}`
           : "/";
       destination.search = "";

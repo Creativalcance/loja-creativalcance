@@ -2,6 +2,7 @@ import type { SiteLocale } from "@/lib/i18n/config";
 export type SalesAgent = {
   id: string;
   user_id: string | null;
+  account_kind: "new_account" | "existing_account";
   full_name: string;
   email: string;
   phone: string;

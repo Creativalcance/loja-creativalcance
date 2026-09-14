@@ -6,6 +6,7 @@ import { authActionMessages } from "@/lib/i18n/account";
 import { getSiteLocale, localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { notifyAccountWelcome } from "@/lib/notifications/customer-email";
 import { safeReturnPath, canReturnTo } from "@/lib/auth/return-path";
+import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { claimGuestShopping } from "@/lib/cart/claim-guest";
 
 export type AuthActionState = {
@@ -22,7 +23,7 @@ function getDefaultRedirectPath(role: string | null | undefined, locale: SiteLoc
     return "/admin";
   }
 
-  return localizePath(role === "sales" ? "/area-comercial" : "/area-cliente", locale);
+  return localizePath("/area-cliente", locale);
 }
 
 export async function loginAction(
@@ -70,8 +71,9 @@ export async function loginAction(
         return { success: false, message: messages.inactive };
       }
 
+      const { data: membership } = await supabase.from("sales_agents").select("status").eq("user_id", data.user.id).maybeSingle();
       await claimGuestShopping();
-      if (!destinationPath || !canReturnTo(profile.role, destinationPath)) {
+      if (!destinationPath || !canReturnTo(profile.role, destinationPath, hasCommercialAccess(profile, membership))) {
         destinationPath = getDefaultRedirectPath(profile.role, getSiteLocale(data.user.user_metadata?.preferred_locale ?? locale));
       }
     }

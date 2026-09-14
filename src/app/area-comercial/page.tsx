@@ -12,7 +12,7 @@ export default async function SalesHome({
 }: {
   searchParams: Promise<{ pagina?: string }>;
 }) {
-  const { agent } = await assertSalesAccess();
+  const { agent, role } = await assertSalesAccess();
   const locale = agent.locale;
   const t = salesCopy(locale);
   const page = Math.max(
@@ -35,7 +35,13 @@ export default async function SalesHome({
               <h1 className="mt-3 text-3xl font-semibold">{t.title}</h1>
               <p className="mt-2 text-slate-300">{agent.full_name}</p>
             </div>
-            <div className="flex gap-4 text-sm">
+            <div className="flex flex-wrap gap-3 text-sm">
+              <Link
+                href={role === "admin" ? "/admin" : path("/area-cliente")}
+                className="rounded-full border border-white/20 px-4 py-2"
+              >
+                {role === "admin" ? "Admin" : t.customerArea}
+              </Link>
               <Link
                 href={path("/")}
                 className="rounded-full border border-white/20 px-4 py-2"

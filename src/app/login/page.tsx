@@ -1,3 +1,4 @@
+import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -24,8 +25,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   if (user) {
     const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
     if (profile && profile.is_active !== false) {
-      const destination = nextPath && canReturnTo(profile.role, nextPath)
-        ? nextPath : profile.role === "admin" ? "/admin" : localizePath(profile.role === "sales" ? "/area-comercial" : "/area-cliente", locale);
+      const { data: membership } = await supabase.from("sales_agents").select("status").eq("user_id", user.id).maybeSingle();
+      const destination = nextPath && canReturnTo(profile.role, nextPath, hasCommercialAccess(profile, membership))
+        ? nextPath : profile.role === "admin" ? "/admin" : localizePath("/area-cliente", locale);
       redirect(`/auth/resume?next=${encodeURIComponent(destination)}`);
     }
     await supabase.auth.signOut();

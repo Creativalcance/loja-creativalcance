@@ -5,6 +5,7 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { SITE_LOCALES, localizePath } from "@/lib/i18n/config";
 import { agentSchema, contactSchema, moneyCents, uuid } from "./validation";
+import { findSalesAccount, canLinkSalesAccount } from "./account";
 import { assertSalesAccess } from "./access";
 import { salesCopy } from "./i18n";
 import { checkSalesRefunds } from "./reconcile";
@@ -85,20 +86,6 @@ export async function saveAgentAction(
       ...parsed.data,
       agent_id: agentId || null,
     });
-    const admin = createSupabaseAdminClient();
-    const { data: agent } = await admin
-      .from("sales_agents")
-      .select("user_id")
-      .eq("id", id)
-      .single();
-    if (agent?.user_id)
-      await admin.auth.admin.updateUserById(agent.user_id, {
-        user_metadata: {
-          preferred_locale: parsed.data.locale,
-          locale: parsed.data.locale,
-          full_name: parsed.data.full_name,
-        },
-      });
     refresh();
     return {
       success: true,
@@ -131,14 +118,62 @@ export async function inviteAgentAction(
     if (agent.status === "suspended")
       throw new Error("Reativa o comercial antes de enviar um convite.");
     if (
+      agent.status === "invited" &&
+      agent.account_kind === "new_account" &&
       agent.invitation_sent_at &&
       Date.now() - Date.parse(agent.invitation_sent_at) < 60000
     )
       throw new Error(
         "O convite já foi enviado. Aguarda um minuto antes de reenviar.",
       );
+    if (
+      str(form, "expected_email") !== agent.email ||
+      str(form, "expected_updated_at") !== agent.updated_at
+    )
+      throw new Error(
+        "A ficha mudou. Guarda os dados e confirma novamente a conta.",
+      );
+    if (str(form, "confirm_account") !== "on")
+      throw new Error("Confirma a conta indicada antes de continuar.");
+    const expected = {
+      expected_email: agent.email,
+      expected_updated_at: agent.updated_at,
+    };
     if (!agent.user_id) {
-      // createUser rejects existing email addresses; customer/admin accounts are never converted.
+      const account = await findSalesAccount(userId, agent.email);
+      if (account) {
+        if (
+          str(form, "account_mode") !== "existing" ||
+          str(form, "existing_user_id") !== account.id
+        )
+          throw new Error(
+            "Já existe uma conta com este email. Atualiza a página para confirmar a associação.",
+          );
+        if (!canLinkSalesAccount(account, agent.id))
+          throw new Error(
+            "Verifica o estado, a confirmação do email e a associação desta conta.",
+          );
+        await mutate(userId, "link_existing_account", {
+          agent_id: agent.id,
+          user_id: account.id,
+          ...expected,
+        });
+        linked = true;
+        try {
+          await retrySalesEmails(1, agent.id);
+        } catch {
+          /* The transaction retained the email for retry. */
+        }
+        refresh();
+        return {
+          success: true,
+          message:
+            "Acesso comercial ativado na conta existente. O email de acesso foi preparado e será reenviado automaticamente se necessário.",
+        };
+      }
+      if (str(form, "account_mode") !== "new")
+        throw new Error("A conta mudou. Atualiza a página antes de continuar.");
+      // Creation and association are separate confirmed operations; an email race never converts an existing identity.
       const created = await admin.auth.admin.createUser({
         email: agent.email,
         password: randomBytes(48).toString("base64url"),
@@ -151,12 +186,13 @@ export async function inviteAgentAction(
       });
       if (created.error || !created.data.user)
         throw new Error(
-          "Não foi possível criar a conta. Usa um email que ainda não tenha conta na plataforma.",
+          "Não foi possível criar a conta. Atualiza a página para verificar se o email já está registado.",
         );
       newUserId = created.data.user.id;
       await mutate(userId, "link_account", {
         agent_id: agentId,
         user_id: newUserId,
+        ...expected,
       });
       linked = true;
       const updated = await admin
@@ -170,6 +206,23 @@ export async function inviteAgentAction(
         );
       agent = updated.data;
     }
+    if (
+      agent.account_kind === "existing_account" ||
+      agent.status === "active"
+    ) {
+      await mutate(userId, "queue_access_notice", { agent_id: agent.id });
+      try {
+        await retrySalesEmails(1, agent.id);
+      } catch {
+        /* Retry is persisted. */
+      }
+      refresh();
+      return {
+        success: true,
+        message:
+          "O acesso está ativo. O email de informação está registado para envio, sem alterar a palavra-passe.",
+      };
+    }
     await sendSalesInvitation(agent);
     refresh();
     return {
@@ -177,7 +230,16 @@ export async function inviteAgentAction(
       message: "Convite enviado no idioma do comercial.",
     };
   } catch (e) {
-    if (newUserId && !linked) await admin.auth.admin.deleteUser(newUserId);
+    if (newUserId && !linked) {
+      // Never delete an account when the linking transaction may have committed.
+      const check = await admin
+        .from("sales_agents")
+        .select("id")
+        .eq("user_id", newUserId)
+        .maybeSingle();
+      if (!check.error && !check.data)
+        await admin.auth.admin.deleteUser(newUserId);
+    }
     if (agentId)
       await admin
         .from("sales_agents")

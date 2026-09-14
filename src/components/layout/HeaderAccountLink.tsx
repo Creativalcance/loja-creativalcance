@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Store, UserRound } from "lucide-react";
+import { Store, UserRound, BriefcaseBusiness } from "lucide-react";
+import { salesCopy } from "@/lib/sales/i18n";
+import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -14,20 +16,20 @@ type HeaderAccountLinkProps = {
   locale: SiteLocale;
 };
 
-type AccountState = "guest" | "customer" | "admin" | "sales";
+type AccountState = "guest" | "customer" | "admin";
 
-export default function HeaderAccountLink({ context, locale }: HeaderAccountLinkProps) {
+export default function HeaderAccountLink({
+  context,
+  locale,
+}: HeaderAccountLinkProps) {
   const messages = getMessages(locale).header;
   const pathname = usePathname();
   const router = useRouter();
   const [loginError, setLoginError] = useState(false);
   const [account, setAccount] = useState<AccountState>("guest");
 
+  const [commercial, setCommercial] = useState(false);
   useEffect(() => {
-    if (context === "customer") {
-      return;
-    }
-
     const supabase = createSupabaseBrowserClient();
     let active = true;
 
@@ -38,12 +40,24 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role,is_active")
         .eq("id", userId)
-        .maybeSingle<{ role: string }>();
+        .maybeSingle<{ role: string; is_active: boolean }>();
 
+      const { data: membership } = await supabase
+        .from("sales_agents")
+        .select("status")
+        .eq("user_id", userId)
+        .maybeSingle();
       if (active) {
-        setAccount(profile?.role === "admin" ? "admin" : profile?.role === "sales" ? "sales" : "customer");
+        setCommercial(hasCommercialAccess(profile, membership));
+        setAccount(
+          !profile?.is_active
+            ? "guest"
+            : profile.role === "admin"
+              ? "admin"
+              : "customer",
+        );
       }
     }
 
@@ -62,6 +76,7 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
 
       if (!session?.user) {
         setAccount("guest");
+        setCommercial(false);
         return;
       }
 
@@ -81,39 +96,61 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
     ? localizePath("/", locale)
     : account === "admin"
       ? "/admin"
-      : account === "sales" ? localizePath("/area-comercial", locale) : account === "customer"
+      : account === "customer"
         ? localizePath("/area-cliente", locale)
         : `${localizePath("/login", locale)}?next=${encodeURIComponent(pathname)}`;
   const label = isCustomerContext
     ? messages.store
     : account === "admin"
       ? messages.admin
-      : account === "sales" || account === "customer"
+      : account === "customer"
         ? messages.account
         : messages.signIn;
   const Icon = isCustomerContext ? Store : UserRound;
 
   return (
-    <Link
-      href={href}
-      onClick={async (event) => {
-        if (account !== "guest" || isCustomerContext) return;
-        event.preventDefault();
-        try {
-          await preserveShoppingBeforeLogin();
-          router.push(`${localizePath("/login", locale)}?next=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`);
-        } catch {
-          setLoginError(true);
-        }
-      }}
-      className="inline-flex items-center rounded-full bg-[#162334] px-4 py-2 text-sm font-semibold !text-white transition hover:bg-[#24364d]"
-    >
-      <Icon className="mr-2 h-4 w-4 !text-white" aria-hidden="true" />
-      <span className="!text-white">{loginError ? ({ pt: "Não foi possível guardar. Tenta novamente.", en: "Could not save. Try again.", fr: "Enregistrement impossible. Réessayez." ,
-es: "No se ha podido guardar. Int\u00E9ntalo de nuevo.",
-de: "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.",
-it: "Impossibile salvare. Riprova.",
-})[locale] : label}</span>
-    </Link>
+    <>
+      {commercial && (
+        <Link
+          href={localizePath("/area-comercial", locale)}
+          title={salesCopy(locale).title}
+          aria-label={salesCopy(locale).title}
+          className="inline-flex h-10 items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 text-sm font-semibold text-[#162334]"
+        >
+          <BriefcaseBusiness className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden xl:inline">{salesCopy(locale).title}</span>
+        </Link>
+      )}
+      <Link
+        href={href}
+        onClick={async (event) => {
+          if (account !== "guest" || isCustomerContext) return;
+          event.preventDefault();
+          try {
+            await preserveShoppingBeforeLogin();
+            router.push(
+              `${localizePath("/login", locale)}?next=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`,
+            );
+          } catch {
+            setLoginError(true);
+          }
+        }}
+        className="inline-flex items-center rounded-full bg-[#162334] px-4 py-2 text-sm font-semibold !text-white transition hover:bg-[#24364d]"
+      >
+        <Icon className="mr-2 h-4 w-4 !text-white" aria-hidden="true" />
+        <span className="!text-white">
+          {loginError
+            ? {
+                pt: "Não foi possível guardar. Tenta novamente.",
+                en: "Could not save. Try again.",
+                fr: "Enregistrement impossible. Réessayez.",
+                es: "No se ha podido guardar. Int\u00E9ntalo de nuevo.",
+                de: "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.",
+                it: "Impossibile salvare. Riprova.",
+              }[locale]
+            : label}
+        </span>
+      </Link>
+    </>
   );
 }

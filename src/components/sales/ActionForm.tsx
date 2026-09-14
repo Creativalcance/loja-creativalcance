@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useState, useEffect, type ReactNode } from "react";
+import { useAgentEdits } from "./AgentEditContext";
 import type { SalesActionState } from "@/lib/sales/types";
 export default function SalesActionForm({
   action,
@@ -9,6 +10,8 @@ export default function SalesActionForm({
   pendingText = "A guardar…",
   createdLink = false,
   className = "",
+  disabled = false,
+  tracksAgentEdits = false,
 }: {
   action: (s: SalesActionState, f: FormData) => Promise<SalesActionState>;
   children: ReactNode;
@@ -16,15 +19,24 @@ export default function SalesActionForm({
   pendingText?: string;
   createdLink?: boolean;
   className?: string;
+  disabled?: boolean;
+  tracksAgentEdits?: boolean;
 }) {
+  const { setDirty } = useAgentEdits();
   const [uploadError, setUploadError] = useState("");
   const [state, formAction, pending] = useActionState(action, {
     success: false,
     message: "",
   });
+  useEffect(() => {
+    if (tracksAgentEdits && state.success) setDirty(false);
+  }, [state, tracksAgentEdits, setDirty]);
   return (
     <form
       action={formAction}
+      onChange={() => {
+        if (tracksAgentEdits) setDirty(true);
+      }}
       onSubmit={(event) => {
         setUploadError("");
         const data = new FormData(event.currentTarget);
@@ -37,7 +49,10 @@ export default function SalesActionForm({
       }}
       className={`space-y-4 ${className}`}
     >
-      <fieldset disabled={pending} className="space-y-4 disabled:opacity-60">
+      <fieldset
+        disabled={pending || disabled}
+        className="space-y-4 disabled:opacity-60"
+      >
         {children}
         <button
           type="submit"

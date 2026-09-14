@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { localizePath } from "@/lib/i18n/config";
+import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import type { SalesAgent } from "./types";
 
 export const assertSalesAccess = cache(async () => {
@@ -18,18 +19,15 @@ export const assertSalesAccess = cache(async () => {
     .select("role,is_active")
     .eq("id", user.id)
     .maybeSingle();
-  if (!profile?.is_active || profile.role !== "sales")
-    redirect(
-      profile?.role === "admin" ? "/admin" : "/login?erro=sem-acesso-comercial",
-    );
   const { data: agent, error: agentError } = await supabase
     .from("sales_agents")
     .select("*")
     .eq("user_id", user.id)
     .in("status", ["invited", "active"])
     .maybeSingle<SalesAgent>();
-  if (agentError || !agent) redirect("/login?erro=sem-acesso-comercial");
-  return { userId: user.id, agent, supabase };
+  if (agentError || !agent || !hasCommercialAccess(profile, agent))
+    redirect("/login?erro=sem-acesso-comercial");
+  return { userId: user.id, agent, supabase, role: profile!.role };
 });
 
 export async function assertSalesOrder(orderId: string) {
@@ -51,12 +49,14 @@ export async function activateSalesAccount(userId: string) {
     .select("role,is_active")
     .eq("id", userId)
     .maybeSingle();
-  if (profile?.role !== "sales" || !profile.is_active) return;
+  if (!profile?.is_active || !["customer", "admin"].includes(profile.role))
+    return;
   const { error } = await admin
     .from("sales_agents")
     .update({ status: "active", updated_at: new Date().toISOString() })
     .eq("user_id", userId)
-    .eq("status", "invited");
+    .eq("status", "invited")
+    .eq("account_kind", "new_account");
   if (error) throw new Error("Não foi possível ativar a conta comercial.");
 }
 export function salesHome(agent: SalesAgent) {

@@ -2,16 +2,16 @@
 create function pg_temp.sales_assert(ok boolean, message text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception 'Sales test failed: %',message;end if;end $$;
 create temporary table sales_test_ids(name text primary key,id uuid not null default gen_random_uuid());
 insert into sales_test_ids(name) values('admin'),('rep_a'),('rep_b'),('customer'),('customer_2'),('agent_a'),('agent_b'),('order_a'),('order_b'),('payment_a'),('payout_a'),('order_c'),('order_d');
-insert into auth.users(id,email,raw_user_meta_data) select id,'sales-test-'||id||'@example.invalid',jsonb_build_object('full_name','Sales regression fixture') from sales_test_ids where name in ('admin','rep_a','rep_b','customer','customer_2');
+insert into auth.users(id,email_confirmed_at,created_at,email,raw_user_meta_data) select id,now(),now(),'sales-test-'||id||'@example.invalid',jsonb_build_object('full_name','Sales regression fixture') from sales_test_ids where name in ('admin','rep_a','rep_b','customer','customer_2');
 update public.profiles set role='admin',is_active=true where id=(select id from sales_test_ids where name='admin');
 
 do $$ declare actor uuid; a uuid; b uuid; c uuid; o uuid; payment uuid; payout uuid; result jsonb; terms jsonb; cnt bigint; begin
  select id into actor from sales_test_ids where name='admin';select id into c from sales_test_ids where name='customer';select id into o from sales_test_ids where name='order_a';select id into payment from sales_test_ids where name='payment_a';select id into payout from sales_test_ids where name='payout_a';
  terms:=jsonb_build_object('full_name','Representative A','email','sales-test-'||(select id from sales_test_ids where name='rep_a')||'@example.invalid','countries',jsonb_build_array('PT','ES'),'locale','es','status','draft','supplier_rate_bps',500,'manual_rate_bps',1000,'hold_days',0,'attribution_months',12,'recurring',true,'commission_enabled',true,'monthly_target_cents',100000,'starts_on',current_date::text);
  result:=public.sales_admin_mutate(actor,'save_agent',terms);a:=(result->>'id')::uuid;update sales_test_ids set id=a where name='agent_a';
- perform public.sales_admin_mutate(actor,'link_account',jsonb_build_object('agent_id',a,'user_id',(select id from sales_test_ids where name='rep_a')));
+ perform public.sales_admin_mutate(actor,'link_account',jsonb_build_object('agent_id',a,'user_id',(select id from sales_test_ids where name='rep_a'),'expected_email',(select email from public.sales_agents where id=a),'expected_updated_at',(select updated_at from public.sales_agents where id=a)));
  perform public.sales_admin_mutate(actor,'save_agent',terms||jsonb_build_object('agent_id',a,'status','active'));
- perform pg_temp.sales_assert((select role='sales' from public.profiles where id=(select id from sales_test_ids where name='rep_a')),'invitation associates a restricted sales role');
+ perform pg_temp.sales_assert((select role='customer' from public.profiles where id=(select id from sales_test_ids where name='rep_a')),'invitation associates a restricted sales role');
  perform public.sales_admin_mutate(actor,'assign_customer',jsonb_build_object('agent_id',a,'customer_user_id',c,'reason','Customer acquired by representative A'));
  insert into public.orders(id,user_id,customer_email,customer_name,discount_total,tax_total,shipping_total,grand_total,currency)
  values(o,c,'sales-fixture@example.invalid','Fixture customer',20,41.40,10,231.40,'EUR');
@@ -55,7 +55,7 @@ do $$ declare actor uuid; a uuid; b uuid; c uuid; o uuid; payment uuid; payout u
  perform pg_temp.sales_assert((select amount_refunded=0 and status='paid' from public.payments where id=payment),'commission reconciliation does not mutate the existing payment workflow');
  terms:=terms||jsonb_build_object('full_name','Representative B','email','sales-test-'||(select id from sales_test_ids where name='rep_b')||'@example.invalid','locale','de');
  result:=public.sales_admin_mutate(actor,'save_agent',terms);b:=(result->>'id')::uuid;update sales_test_ids set id=b where name='agent_b';
- perform public.sales_admin_mutate(actor,'link_account',jsonb_build_object('agent_id',b,'user_id',(select id from sales_test_ids where name='rep_b')));
+ perform public.sales_admin_mutate(actor,'link_account',jsonb_build_object('agent_id',b,'user_id',(select id from sales_test_ids where name='rep_b'),'expected_email',(select email from public.sales_agents where id=b),'expected_updated_at',(select updated_at from public.sales_agents where id=b)));
  perform public.sales_admin_mutate(actor,'save_agent',terms||jsonb_build_object('agent_id',b,'status','active'));
  perform public.sales_admin_mutate(actor,'assign_customer',jsonb_build_object('agent_id',b,'customer_user_id',c,'reason','Transfer customer portfolio to B'));
  insert into public.orders(id,user_id,customer_email,customer_name,grand_total) values((select id from sales_test_ids where name='order_b'),c,'sales-fixture@example.invalid','Fixture customer',100);

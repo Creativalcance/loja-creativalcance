@@ -12,7 +12,8 @@ function load(path, imports = {}) {
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText, { exports, URL, console, process: {env:{NEXT_PUBLIC_SITE_URL:'https://shop.example.test'}},
-    require: name => { if (!(name in imports)) throw new Error(`Unexpected import: ${name}`); return imports[name]; } });
+    require: name => { if (name === "@/lib/auth/commercial-access") return load("src/lib/auth/commercial-access.ts");
+    if (!(name in imports)) throw new Error(`Unexpected import: ${name}`); return imports[name]; } });
   return exports;
 }
 const config = load('src/lib/i18n/config.ts');
