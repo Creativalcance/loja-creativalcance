@@ -1,5 +1,6 @@
 "use server";
 
+import { SITE_LOCALES, localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
@@ -31,6 +32,8 @@ type OrderRecord = {
   shipped_at: string | null;
   delivered_at: string | null;
   metadata: JsonRecord | null;
+  updated_at: string;
+  order_items: Array<{ fulfillment_route: string }> | null;
 };
 
 type OrderItemRecord = {
@@ -227,10 +230,12 @@ async function getOrder(
         invoice_status,
         shipped_at,
         delivered_at,
-        metadata
+        metadata,
+        updated_at,
+        order_items(fulfillment_route)
       `,
     )
-    .eq("id", orderId)
+    .eq("id", orderId).is("deleted_at", null)
     .maybeSingle<OrderRecord>();
 
   if (error) {
@@ -317,11 +322,24 @@ async function insertOrderHistory(params: {
 function revalidateOrderPaths(
   orderId: string,
 ): void {
+  for (const locale of Object.keys(SITE_LOCALES) as SiteLocale[]) {
+    revalidatePath(localizePath("/area-cliente/encomendas", locale));
+    revalidatePath(localizePath(`/area-cliente/encomendas/${orderId}`, locale));
+  }
   revalidatePath("/admin/encomendas");
 
   revalidatePath(
     `/admin/encomendas/${orderId}`,
   );
+}
+
+async function syncManualGroups(order: OrderRecord, status: string, now: string): Promise<void> {
+  const groupStatus = ({ processing: "processing", in_production: "in_production", shipped: "shipped", delivered: "delivered", cancelled: "cancelled", failed: "failed" } as Record<string, string>)[status];
+  if (!groupStatus) return;
+  const admin = createSupabaseAdminClient();
+  const { error } = await admin.from("fulfillment_groups").update({ status: groupStatus, updated_at: now })
+    .eq("order_id", order.id).eq("route", "internal_360");
+  if (error) throw new Error(error.message);
 }
 
 export async function updateOrderTrackingAction(
@@ -379,6 +397,8 @@ export async function updateOrderTrackingAction(
     }
 
     const order = await getOrder(orderId);
+    const hasNewTracking = Boolean((trackingNumber && trackingNumber !== order.tracking_number) || (trackingUrl && trackingUrl !== order.tracking_url));
+    if (trackingNumber === order.tracking_number && trackingUrl === order.tracking_url && (!shippingCarrier || shippingCarrier === order.shipping_carrier) && (!markAsShipped || order.status === "shipped")) return { success: true, message: "Os dados de expedição já estão atualizados." };
     const now = new Date().toISOString();
 
     const nextOrderStatus = markAsShipped
@@ -396,9 +416,10 @@ export async function updateOrderTrackingAction(
     const currentMetadata =
       getMetadataRecord(order.metadata);
 
-    const { error } = await supabaseAdmin
+    const { data: changed, error } = await supabaseAdmin
       .from("orders")
       .update({
+        updated_at: now,
         tracking_number: trackingNumber,
         tracking_url: trackingUrl,
         shipping_carrier:
@@ -417,11 +438,14 @@ export async function updateOrderTrackingAction(
             access.userId,
         },
       })
-      .eq("id", order.id);
+      .eq("id", order.id).eq("updated_at", order.updated_at).select("id").maybeSingle();
 
     if (error) {
       throw new Error(error.message);
     }
+
+    if (!changed) throw new Error("A encomenda foi alterada entretanto. Atualiza a página e tenta novamente.");
+    if (markAsShipped) await syncManualGroups(order, nextOrderStatus, now);
 
     await insertOrderHistory({
       orderId: order.id,
@@ -449,13 +473,14 @@ export async function updateOrderTrackingAction(
       },
     });
 
-    if (trackingNumber || trackingUrl) {
+    if (hasNewTracking) {
       await notifyOrderTrackingAvailable(order.id);
     } else {
       await notifyOrderStatusChanged({
         orderId: order.id,
         previousStatus: order.status,
         newStatus: nextOrderStatus,
+        eventId: `admin-tracking:${now}`,
       });
     }
 
@@ -730,7 +755,7 @@ export async function updateOrderStatusAction(
         "status",
       );
 
-    const fulfillmentStatus =
+    let fulfillmentStatus =
       getRequiredFormString(
         formData,
         "fulfillmentStatus",
@@ -762,10 +787,15 @@ export async function updateOrderStatusAction(
     }
 
     const order = await getOrder(orderId);
+    if (status === "shipped" || status === "delivered" || status === "cancelled") fulfillmentStatus = status;
+    if (order.status === status && order.fulfillment_status === fulfillmentStatus) return { success: true, message: "A encomenda já tem este estado." };
+    const manualOnly = Boolean(order.order_items?.length) && order.order_items!.every(item => item.fulfillment_route === "internal_360");
+    if (manualOnly && ["sent_to_supplier", "supplier_confirmed"].includes(status)) return { success: false, message: "Esta encomenda é processada pela 360. Escolhe um estado de processamento interno." };
     const now = new Date().toISOString();
 
     const updateValues: JsonRecord = {
       status,
+      updated_at: now,
       fulfillment_status:
         fulfillmentStatus,
     };
@@ -801,14 +831,17 @@ export async function updateOrderStatusAction(
     const supabaseAdmin =
       createSupabaseAdminClient();
 
-    const { error } = await supabaseAdmin
+    const { data: changed, error } = await supabaseAdmin
       .from("orders")
       .update(updateValues)
-      .eq("id", order.id);
+      .eq("id", order.id).eq("updated_at", order.updated_at).select("id").maybeSingle();
 
     if (error) {
       throw new Error(error.message);
     }
+
+    if (!changed) throw new Error("A encomenda foi alterada entretanto. Atualiza a página e tenta novamente.");
+    await syncManualGroups(order, status, now);
 
     await insertOrderHistory({
       orderId: order.id,
@@ -839,6 +872,7 @@ export async function updateOrderStatusAction(
 
     await notifyOrderStatusChanged({
       orderId: order.id,
+      eventId: `admin-status:${now}`,
       previousStatus:
         order.status !== status
           ? order.status

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSiteLocale, localizePath } from "@/lib/i18n/config";
 import { notFound } from "next/navigation";
 import { ownedCustomerOrder, safeDocumentUrl } from "@/lib/customer/order-details";
 
@@ -21,7 +22,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const result = await admin.storage.from("customization-artwork").createSignedUrl(path, 60);
       if (result.error) throw new Error("Documento temporariamente indisponível.");
       url = result.data.signedUrl;
-    } else url = safeDocumentUrl(kind === "logo" ? item.logo_url : item.mockup_url ?? item.technical_preview_url);
+    } else {
+      url = safeDocumentUrl(kind === "logo" ? item.logo_url : item.mockup_url);
+      if (kind === "mockup" && !url) {
+        const locale = getSiteLocale(request.headers.get("x-site-locale"));
+        const response = NextResponse.redirect(new URL(localizePath(`/area-cliente/encomendas/${id}/mockup/${itemId}`, locale), request.url));
+        response.headers.set("Cache-Control", "private, no-store");
+        return response;
+      }
+    }
   }
   if (!url) notFound();
   const response = NextResponse.redirect(url);

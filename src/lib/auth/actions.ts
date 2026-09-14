@@ -72,7 +72,7 @@ export async function loginAction(
 
       await claimGuestShopping();
       if (!destinationPath || !canReturnTo(profile.role, destinationPath)) {
-        destinationPath = getDefaultRedirectPath(profile.role, locale);
+        destinationPath = getDefaultRedirectPath(profile.role, getSiteLocale(data.user.user_metadata?.preferred_locale ?? locale));
       }
     }
   } catch (error) {
@@ -93,8 +93,11 @@ export async function registerAction(
   const email = String(formData.get("email") || "").trim().toLowerCase();
   const password = String(formData.get("password") || "");
   const confirmPassword = String(formData.get("confirmPassword") || "");
-  const nextPath = safeReturnPath(formData.get("next"));
   const locale = getSiteLocale(String(formData.get("locale") || "pt"));
+  const preferredLocale = getSiteLocale(String(formData.get("preferredLocale") || locale));
+  const requestedNextPath = safeReturnPath(formData.get("next"));
+  const nextPath = requestedNextPath && canReturnTo("customer", requestedNextPath)
+    ? localizePath(requestedNextPath, preferredLocale) : null;
   const messages = authActionMessages(locale);
 
   if (!fullName || !email || !password || !confirmPassword) {
@@ -129,10 +132,11 @@ export async function registerAction(
       email,
       password,
       options: {
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(nextPath ?? localizePath("/area-cliente", locale))}`,
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/auth/callback?next=${encodeURIComponent(nextPath ?? localizePath("/area-cliente", preferredLocale))}`,
         data: {
           full_name: fullName,
-          locale,
+          locale: preferredLocale,
+          preferred_locale: preferredLocale,
         },
       },
     });
@@ -157,7 +161,7 @@ export async function registerAction(
         userId: data.user.id,
         email: data.user.email,
         name: fullName,
-        locale,
+        locale: preferredLocale,
       });
     }
 
@@ -168,5 +172,5 @@ export async function registerAction(
     };
   }
 
-  redirect(`${localizePath("/login", locale)}?registo=sucesso${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`);
+  redirect(`${localizePath("/login", preferredLocale)}?registo=sucesso${nextPath ? `&next=${encodeURIComponent(nextPath)}` : ""}`);
 }

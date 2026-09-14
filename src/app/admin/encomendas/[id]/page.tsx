@@ -30,44 +30,15 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommercialForm";
 import AdminDeleteOrderForm from "@/components/admin/orders/AdminDeleteOrderForm";
 import AdminRetrySupplierSubmissionForm from "@/components/admin/orders/AdminRetrySupplierSubmissionForm";
-import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
+import OrderArtworkPreview from "@/components/orders/OrderArtworkPreview";
+import { buildOrderArtworkPreview } from "@/lib/orders/artwork-preview";
+import { hydrateOrderArtworkGeometry } from "@/lib/orders/artwork-geometry";
+import { AdminOrderStatusForm, AdminTrackingForm } from "@/components/admin/orders/AdminOrderOperations";
 import { replaceSupplierBrandName } from "@/lib/supplier/display";
 
 export const dynamic = "force-dynamic";
 
 type JsonRecord = Record<string, unknown>;
-
-function getTextArtwork(data: JsonRecord): {
-  content: string;
-  fontFamily: string;
-  fontSize: number;
-  fontWeight: "400" | "700";
-  fontStyle: "normal" | "italic";
-  color: string;
-  x: number;
-  y: number;
-  rotation: number;
-} | null {
-  const value = data.textLayer;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const layer = value as JsonRecord;
-  if (typeof layer.content !== "string" || !layer.content.trim()) return null;
-  return {
-    content: layer.content,
-    fontFamily: typeof layer.fontFamily === "string" ? layer.fontFamily : "Arial",
-    fontSize: Number(layer.fontSize ?? 24),
-    fontWeight: layer.fontWeight === "700" ? "700" : "400",
-    fontStyle: layer.fontStyle === "italic" ? "italic" : "normal",
-    color: typeof layer.color === "string" ? layer.color : "#111827",
-    x: Number(layer.x ?? 50),
-    y: Number(layer.y ?? 50),
-    rotation: Number(layer.rotation ?? 0),
-  };
-}
-
-function hasComposedArtwork(data: JsonRecord): boolean {
-  return data.hasComposedArtwork === true || data.hasComposedArtwork === "true";
-}
 
 type AdminOrderDetailPageProps = {
   params: Promise<{
@@ -170,6 +141,7 @@ type OrderItemRecord = {
   supplier_payload: JsonRecord;
 
   source_cart_item_id: string | null;
+  fulfillment_route: string;
   customization_draft_id: string | null;
   customization_location_id: string | null;
   customization_component_name: string | null;
@@ -658,8 +630,9 @@ async function createSignedAssetUrl(
 async function getOrderItemViews(
   items: OrderItemRecord[],
 ): Promise<OrderItemView[]> {
+  const hydrated = await hydrateOrderArtworkGeometry(createSupabaseAdminClient(), items);
   return Promise.all(
-    items.map(async (item) => {
+    hydrated.map(async (item) => {
       const [signedLogoUrl, signedMockupUrl] = await Promise.all([
         createSignedAssetUrl(item.logo_storage_path),
         createSignedAssetUrl(item.mockup_storage_path),
@@ -1027,6 +1000,7 @@ const supabaseAdmin = createSupabaseAdminClient();
           personalization_data,
           supplier_payload,
           source_cart_item_id,
+          fulfillment_route,
           customization_draft_id,
           customization_location_id,
           customization_component_name,
@@ -1823,49 +1797,8 @@ const supabaseAdmin = createSupabaseAdminClient();
                             ) : null}
                           </div>
 
-                          <div className="mt-4 flex min-h-44 items-center justify-center overflow-hidden rounded-2xl bg-neutral-50">
-                            {item.mockupPreviewUrl ? (
-                              <img
-                                src={item.mockupPreviewUrl}
-                                alt={`Mockup de ${item.product_name}`}
-                                className="max-h-56 w-full object-contain p-4"
-                              />
-                            ) : item.technical_preview_url &&
-                              item.logoPreviewUrl ? (
-                              <CustomizationLocationImage
-                                urls={[item.technical_preview_url]}
-                                artworkUrl={item.logoPreviewUrl}
-                                artworkPosition={{
-                                  x: hasComposedArtwork(item.personalization_data) ? 0 : Number(item.logo_position_x ?? 20),
-                                  y: hasComposedArtwork(item.personalization_data) ? 0 : Number(item.logo_position_y ?? 35),
-                                  width: hasComposedArtwork(item.personalization_data) ? 100 : Number(item.logo_scale ?? 60),
-                                  rotation: hasComposedArtwork(item.personalization_data) ? 0 : Number(item.logo_rotation ?? 0),
-                                }}
-                                printAreaAspectRatio={
-                                  item.printing_width_mm &&
-                                  item.printing_height_mm
-                                    ? Number(item.printing_width_mm) /
-                                      Number(item.printing_height_mm)
-                                    : 1
-                                }
-                                artworkAspectRatio={
-                                  hasComposedArtwork(item.personalization_data) && item.printing_width_mm && item.printing_height_mm
-                                    ? Number(item.printing_width_mm) / Number(item.printing_height_mm)
-                                    : item.logo_width_mm &&
-                                  item.logo_height_mm
-                                    ? Number(item.logo_width_mm) /
-                                      Number(item.logo_height_mm)
-                                    : 1
-                                }
-                                textArtwork={hasComposedArtwork(item.personalization_data) ? null : getTextArtwork(item.personalization_data)}
-                                alt={`Maquete personalizada de ${item.product_name}`}
-                                className="max-h-56 w-full object-contain p-4"
-                              />
-                            ) : (
-                              <p className="px-4 text-center text-sm text-neutral-400">
-                                Mockup ainda não disponível
-                              </p>
-                            )}
+                          <div className="mt-4">
+                            <OrderArtworkPreview preview={buildOrderArtworkPreview(item, { logoUrl: item.logoPreviewUrl, mockupUrl: item.mockupPreviewUrl })} alt={`Mockup de ${item.product_name}`} />
                           </div>
                         </div>
 
@@ -1982,6 +1915,15 @@ const supabaseAdmin = createSupabaseAdminClient();
           </div>
 
           <aside className="space-y-6 xl:sticky xl:top-6">
+            <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-neutral-950">Atualizar estado da encomenda</h2>
+              <p className="mb-5 mt-2 text-sm text-neutral-600">A alteração fica no histórico e envia um email ao cliente no idioma da encomenda.</p>
+              <AdminOrderStatusForm orderId={order.id} currentStatus={order.status} currentFulfillmentStatus={order.fulfillment_status} allowSupplierStates={orderItems.some(item => item.fulfillment_route !== "internal_360")} />
+            </section>
+            <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <h2 className="mb-5 text-lg font-semibold text-neutral-950">Tracking e expedição</h2>
+              <AdminTrackingForm orderId={order.id} shippingCarrier={order.shipping_carrier} trackingNumber={order.tracking_number} trackingUrl={order.tracking_url} isShipped={Boolean(order.shipped_at)} />
+            </section>
             <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
               <div className="flex items-center gap-3">
                 <UserRound className="h-5 w-5 text-neutral-500" />

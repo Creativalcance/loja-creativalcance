@@ -236,3 +236,11 @@ test('the existing cron requires its secret before any recovery and invokes only
   assert.equal((await route.GET({ headers: new Headers({ authorization: 'Bearer test-secret' }) })).status, 200);
   assert.deepEqual(calls, ['customer', 'internal', 'newsletter']);
 });
+
+test('repeated genuine status transitions have distinct events while retries keep the same event', async () => {
+  const order=fixture('es'),h=harness({orders:[order]});
+  for(const eventId of ['change-1','change-1','change-2']) await h.customer.notifyOrderStatusChanged({orderId:order.id,previousStatus:'processing',newStatus:'in_production',eventId});
+  assert.equal(h.requests.length,2);
+  assert.notEqual(h.requests[0].headers['Idempotency-Key'],h.requests[1].headers['Idempotency-Key']);
+  assert.equal(h.requests[1].body.tags.find(tag=>tag.name==='locale').value,'es');
+});

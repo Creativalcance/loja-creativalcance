@@ -834,7 +834,7 @@ export async function createPaymentCheckoutSessionAction(
       metadata: {
         source: "checkout",
         cartId: cart.id,
-        locale,
+        locale: getSiteLocale(typeof user.user_metadata?.preferred_locale === "string" ? user.user_metadata.preferred_locale : locale),
         taxRate: tax.rate,
         taxRegion: tax.region,
         taxRegionLabel: tax.label,

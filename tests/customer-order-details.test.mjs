@@ -58,6 +58,9 @@ test('order page presents customer events despite email failure, and distinguish
   const page = load('src/app/area-cliente/encomendas/[id]/page.tsx', {
     'react/jsx-runtime':jsx, 'next/link':({children,...props})=>React.createElement('a',props,children),
     '@/components/layout/SiteHeader':()=>null,
+    '@/components/orders/OrderArtworkPreview':({alt})=>React.createElement('img',{alt}),
+    '@/lib/orders/artwork-preview':load('src/lib/orders/artwork-preview.ts'),
+    '@/lib/orders/artwork-geometry':{hydrateOrderArtworkGeometry:async(_admin,items)=>items},
     '@/lib/customer/order-details':{ownedCustomerOrder:async()=>({order,user:{id:'customer'},admin}),safeDocumentUrl:value=>typeof value==='string'&&value.startsWith('https://')?value:null},
     '@/lib/customer/order-status':status, '@/lib/customer/order-copy':copy,
     '@/lib/i18n/server':{getCurrentLocale:async()=>'pt'},
@@ -73,6 +76,7 @@ test('document downloads check both item and owned order before signing a file',
   const filters = []; let signed = false;
   const q = {select:()=>q,eq:(key,value)=>{filters.push([key,value]);return q;},maybeSingle:async()=>({data:null,error:null})};
   const route = load('src/app/area-cliente/encomendas/[id]/documento/route.ts', {
+    '@/lib/i18n/config':{getSiteLocale:()=> 'pt',localizePath:path=>path},
     'next/server':{NextResponse:{redirect:()=>{throw new Error('Unexpected redirect');}}},
     'next/navigation':{notFound:()=>{throw new Error('NOT_FOUND');}},
     '@/lib/customer/order-details':{ownedCustomerOrder:async()=>({order:{id:'owned-order'},admin:{from:()=>q,storage:{from:()=>({createSignedUrl:()=>{signed=true;}})}}}),safeDocumentUrl:()=>null},
