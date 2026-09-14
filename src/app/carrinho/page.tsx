@@ -6,6 +6,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
+import { getLocalizedProductTexts } from "@/lib/i18n/catalog";
 import { getCurrentLocale } from "@/lib/i18n/server";
 import {
   calculateAmountUntilFreeShipping,
@@ -14,6 +15,7 @@ import {
 
 type CartItem = {
   id: string;
+  product_id: string | null;
   product_sku: string;
   product_name: string;
   quantity: number;
@@ -90,6 +92,7 @@ export default async function CartPage() {
           currency,
           cart_items (
             id,
+            product_id,
             product_sku,
             product_name,
             quantity,
@@ -113,7 +116,15 @@ export default async function CartPage() {
     cart = data ?? null;
   }
 
-  const items = cart?.cart_items ?? [];
+  const cartItems = cart?.cart_items ?? [];
+  const translations = await getLocalizedProductTexts({
+    productIds: cartItems.flatMap((item) => item.product_id ? [item.product_id] : []),
+    locale,
+  });
+  const items = cartItems.map((item) => ({
+    ...item,
+    product_name: (item.product_id && translations.get(item.product_id)?.name) || item.product_name,
+  }));
   const currency = cart?.currency ?? "EUR";
   const eligibleOrderTotal = calculateEligibleOrderTotal({
     productsTotal: Number(cart?.subtotal ?? 0),
@@ -211,6 +222,7 @@ export default async function CartPage() {
 
                       <div className="mt-5">
                         <RemoveCartItemButton
+                        locale={locale}
                           itemId={item.id}
                           productName={item.product_name}
                           returnTo={localizePath("/carrinho", locale)}

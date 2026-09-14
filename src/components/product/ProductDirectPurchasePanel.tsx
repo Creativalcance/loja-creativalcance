@@ -148,11 +148,12 @@ const SIZE_ORDER = [
   "6XL",
 ];
 
-function formatPrice(
+function formatMoney(
   value: number,
   currency: string,
+  intlLocale: string,
 ): string {
-  return new Intl.NumberFormat("pt-PT", {
+  return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency,
   }).format(value);
@@ -574,20 +575,11 @@ function getLowestPrice(
   );
 }
 
-function getQuantityLabel(
-  price: ProductPurchasePrice,
-): string {
-  if (price.quantity_max) {
-    return `${price.quantity_min.toLocaleString(
-      "pt-PT",
-    )} a ${price.quantity_max.toLocaleString(
-      "pt-PT",
-    )}`;
-  }
-
-  return `${price.quantity_min.toLocaleString(
-    "pt-PT",
-  )}+`;
+function getQuantityLabel(price: ProductPurchasePrice, intlLocale: string): string {
+  const minimum = price.quantity_min.toLocaleString(intlLocale);
+  return price.quantity_max
+    ? `${minimum}–${price.quantity_max.toLocaleString(intlLocale)}`
+    : `${minimum}+`;
 }
 
 function formatProductText(value: string | null): string | null {
@@ -650,6 +642,15 @@ function PurchasePanel({
 }: ProductDirectPurchasePanelProps & { resume?: PurchaseResume }) {
   const labels = getMessages(locale);
   const intlLocale = SITE_LOCALES[locale].intlLocale;
+  const formatPrice = (value: number, currency: string) => formatMoney(value, currency, intlLocale);
+  const detailText = {
+    pt: { colors: "Cores disponíveis", information: "Informação adicional", brand: "Marca", material: "Material", dimensions: "Dimensões", weight: "Peso", available: "Produto disponível para encomenda online.", added: "Produto adicionado ao carrinho." },
+    en: { colors: "Available colours", information: "Additional information", brand: "Brand", material: "Material", dimensions: "Dimensions", weight: "Weight", available: "Product available to order online.", added: "Product added to your cart." },
+    fr: { colors: "Couleurs disponibles", information: "Informations complémentaires", brand: "Marque", material: "Matière", dimensions: "Dimensions", weight: "Poids", available: "Produit disponible à la commande en ligne.", added: "Produit ajouté au panier." },
+    es: { colors: "Colores disponibles", information: "Información adicional", brand: "Marca", material: "Material", dimensions: "Dimensiones", weight: "Peso", available: "Producto disponible para pedidos online.", added: "Producto añadido al carrito." },
+    de: { colors: "Verfügbare Farben", information: "Zusätzliche Informationen", brand: "Marke", material: "Material", dimensions: "Abmessungen", weight: "Gewicht", available: "Produkt online bestellbar.", added: "Produkt zum Warenkorb hinzugefügt." },
+    it: { colors: "Colori disponibili", information: "Informazioni aggiuntive", brand: "Marchio", material: "Materiale", dimensions: "Dimensioni", weight: "Peso", available: "Prodotto disponibile per ordini online.", added: "Prodotto aggiunto al carrello." },
+  }[locale];
   const panelText =
     (locale === "es" ? ({
     product: "Producto",
@@ -1292,7 +1293,7 @@ function PurchasePanel({
                   <Palette className="h-4 w-4 text-neutral-500" />
 
                   <p className="text-sm font-semibold text-neutral-950">
-                    Cores disponíveis
+                    {detailText.colors}
                   </p>
                 </div>
 
@@ -1423,19 +1424,19 @@ function PurchasePanel({
 
         <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <h2 className="text-xl font-semibold text-neutral-950">
-            Informação adicional
+            {detailText.information}
           </h2>
 
           <p className="mt-4 whitespace-pre-line break-words leading-8 text-neutral-600 [overflow-wrap:anywhere]">
             {formattedProductDescription ??
               formattedShortDescription ??
-              "Produto disponível para encomenda online."}
+              detailText.available}
           </p>
 
           <dl className="mt-8 grid gap-4 text-sm sm:grid-cols-2">
             <div className="rounded-2xl bg-neutral-50 p-4">
               <dt className="text-neutral-500">
-                Marca
+                {detailText.brand}
               </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {brand ?? "—"}
@@ -1444,7 +1445,7 @@ function PurchasePanel({
 
             <div className="rounded-2xl bg-neutral-50 p-4">
               <dt className="text-neutral-500">
-                Material
+                {detailText.material}
               </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {material ?? "—"}
@@ -1453,7 +1454,7 @@ function PurchasePanel({
 
             <div className="rounded-2xl bg-neutral-50 p-4">
               <dt className="text-neutral-500">
-                Dimensões
+                {detailText.dimensions}
               </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {dimensions ?? "—"}
@@ -1462,7 +1463,7 @@ function PurchasePanel({
 
             <div className="rounded-2xl bg-neutral-50 p-4">
               <dt className="text-neutral-500">
-                Peso
+                {detailText.weight}
               </dt>
               <dd className="mt-1 font-medium text-neutral-950">
                 {weight
@@ -1574,7 +1575,7 @@ function PurchasePanel({
                             className="border-b border-neutral-200 px-4 py-3 text-center font-semibold text-neutral-950"
                           >
                             {getQuantityLabel(
-                              price,
+                              price, intlLocale,
                             )}
                           </th>
                         ),
@@ -1847,7 +1848,7 @@ function PurchasePanel({
 
                               <label className="shrink-0 text-right">
                                 <span className="mb-1 block text-xs font-medium text-neutral-500">
-                                  Quantidade
+                                  {panelText.quantity}
                                 </span>
                               <input
                                 type="number"
@@ -2101,7 +2102,7 @@ function PurchasePanel({
                     : "bg-red-50 text-red-700"
                 }`}
               >
-                {cartState.message}
+                {cartState.success ? detailText.added : cartState.message}
 
                 {cartState.success ? (
                   <Link
