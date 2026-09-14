@@ -1,5 +1,7 @@
-import { STATUS_LABELS } from "@/lib/customer/order-status";
+import { customerStatus } from "@/lib/customer/order-status";
 import { createHash } from "node:crypto";
+import { setTimeout as pause } from "node:timers/promises";
+import { getLocalizedProductTexts } from "@/lib/i18n/catalog";
 import { getSiteLocale, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -41,6 +43,7 @@ type OrderEmailRecord = {
   requested_shipping_date: string | null;
   metadata: Record<string, unknown> | null;
   order_items: Array<{
+    product_id: string | null;
     product_name: string;
     quantity: number;
     total: number;
@@ -88,7 +91,7 @@ function money(value: unknown, currency: unknown, locale: SiteLocale): string {
 
 function statusLabel(status: unknown, locale: SiteLocale): string {
   const normalized = typeof status === "string" ? status : "";
-  return STATUS_LABELS[locale][normalized] || normalized.replaceAll("_", " ");
+  return customerStatus(normalized, locale);
 }
 
 function asString(value: unknown): string {
@@ -203,12 +206,21 @@ export async function deliverCustomerEmail(notification: EmailNotification): Pro
   const claimed = await admin.from("customer_email_notifications").update({
     email_status: "sending", email_attempted_at: new Date().toISOString(),
     email_attempts: notification.email_attempts + 1, email_error: null, updated_at: new Date().toISOString(),
-  }).eq("id", notification.id).in("email_status", ["pending", "failed"]).select("id").maybeSingle<{ id: string }>();
+  }).eq("id", notification.id).eq("email_attempts", notification.email_attempts).in("email_status", ["pending", "failed"]).select("id").maybeSingle<{ id: string }>();
   if (claimed.error) throw new Error(`Não foi possível preparar o email ao cliente: ${claimed.error.message}`);
   if (!claimed.data) return false;
   try {
     const apiKey = process.env.RESEND_API_KEY?.trim();
     if (!apiKey) throw new Error("RESEND_API_KEY não está configurada.");
+    // Persist translated item names once, so retries use the same email snapshot.
+    if (notification.event_type === "order_confirmation" && notification.locale !== "pt" && !notification.payload.itemsLocalized) {
+      const items = Array.isArray(notification.payload.items) ? notification.payload.items as Array<Record<string, unknown>> : [];
+      const translations = await getLocalizedProductTexts({ productIds: items.map((item) => asString(item.productId)).filter(Boolean), locale: notification.locale });
+      const payload = { ...notification.payload, itemsLocalized: true, items: items.map((item) => ({ ...item, name: translations.get(asString(item.productId))?.name || item.name })) };
+      const snapshot = await admin.from("customer_email_notifications").update({ payload }).eq("id", notification.id).eq("email_status", "sending");
+      if (snapshot.error) throw new Error(snapshot.error.message);
+      notification = { ...notification, payload };
+    }
     const content = renderEmail(notification);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": notification.event_key.slice(0, 256) },
@@ -228,7 +240,7 @@ export async function deliverCustomerEmail(notification: EmailNotification): Pro
 
 async function getOrder(orderId: string): Promise<OrderEmailRecord> {
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.from("orders").select("id,user_id,order_number,customer_email,customer_name,status,currency,subtotal,personalization_total,setup_total,shipping_total,discount_total,tax_total,grand_total,tracking_number,tracking_url,shipping_carrier,requested_shipping_date,metadata,order_items(product_name,quantity,total,personalization_required)").eq("id", orderId).single<OrderEmailRecord>();
+  const { data, error } = await admin.from("orders").select("id,user_id,order_number,customer_email,customer_name,status,currency,subtotal,personalization_total,setup_total,shipping_total,discount_total,tax_total,grand_total,tracking_number,tracking_url,shipping_carrier,requested_shipping_date,metadata,order_items(product_id,product_name,quantity,total,personalization_required)").eq("id", orderId).single<OrderEmailRecord>();
   if (error || !data) throw new Error(`Não foi possível preparar o email da encomenda: ${error?.message ?? "encomenda inexistente"}`);
   return data;
 }
@@ -236,7 +248,7 @@ async function getOrder(orderId: string): Promise<OrderEmailRecord> {
 function orderPayload(order: OrderEmailRecord): Record<string, unknown> {
   return { orderId: order.id, orderNumber: order.order_number, customerName: order.customer_name,
     currency: order.currency, grandTotal: order.grand_total, status: order.status,
-    items: (order.order_items ?? []).map((item) => ({ name: item.product_name, quantity: item.quantity, total: item.total, personalized: item.personalization_required })),
+    items: (order.order_items ?? []).map((item) => ({ productId: item.product_id, name: item.product_name, quantity: item.quantity, total: item.total, personalized: item.personalization_required })),
   };
 }
 
@@ -301,6 +313,7 @@ export async function retryPendingCustomerEmails(limit = 25): Promise<{ processe
   for (const notification of data ?? []) {
     try { if (await deliverCustomerEmail(notification)) sent += 1; }
     catch { failed += 1; }
+    await pause(600);
   }
   return { processed: (data ?? []).length, sent, failed };
 }

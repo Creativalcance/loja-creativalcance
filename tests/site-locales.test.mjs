@@ -36,6 +36,8 @@ test('all six languages preserve product identity and shopping parameters when s
 test('customer email templates keep the order language, localized URLs, totals and HTML escaping', () => {
   const email = load('src/lib/notifications/customer-email.ts', {
     'node:crypto': crypto,
+    'node:timers/promises': { setTimeout: async () => {} },
+    '@/lib/i18n/catalog': { getLocalizedProductTexts: async () => new Map() },
     '@/lib/customer/order-status': load('src/lib/customer/order-status.ts'),
     '@/lib/i18n/config': config,
     '@/lib/supabase/admin': { createSupabaseAdminClient: () => { throw new Error('No database or email delivery during rendering tests'); } },

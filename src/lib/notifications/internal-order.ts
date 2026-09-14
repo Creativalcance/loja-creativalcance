@@ -1,3 +1,4 @@
+import { setTimeout as pause } from "node:timers/promises";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type InternalGroup = {
@@ -9,6 +10,8 @@ type InternalGroup = {
 type InternalOrder = {
   id: string;
   order_number: string;
+  payment_status: string;
+  status: string;
   customer_name: string;
   customer_email: string;
   customer_phone: string | null;
@@ -42,6 +45,8 @@ type InternalOrder = {
 
 type Notification = {
   id: string;
+  email_to: string;
+  email_attempts: number;
   email_status: "pending" | "sending" | "sent" | "failed";
 };
 
@@ -63,7 +68,7 @@ function money(value: number, currency: string): string {
   return new Intl.NumberFormat("pt-PT", { style: "currency", currency: currency || "EUR" }).format(value);
 }
 
-export async function notifyInternalOrder(groupId: string): Promise<void> {
+export async function notifyInternalOrder(groupId: string): Promise<boolean> {
   const admin = createSupabaseAdminClient();
   const groupResult = await admin.from("fulfillment_groups")
     .select("id,order_id,status")
@@ -80,7 +85,7 @@ export async function notifyInternalOrder(groupId: string): Promise<void> {
   if (itemIds.length === 0) throw new Error("O grupo interno não contém artigos.");
 
   const orderResult = await admin.from("orders").select(`
-    id, order_number, customer_name, customer_email, customer_phone,
+    id, order_number, payment_status, status, customer_name, customer_email, customer_phone,
     company_name, company_tax_id, currency, grand_total, customer_notes,
     shipping_address:customer_addresses!orders_shipping_address_id_fkey (
       contact_name, contact_email, contact_phone, address_line_1, address_line_2,
@@ -105,6 +110,7 @@ export async function notifyInternalOrder(groupId: string): Promise<void> {
       : raw.shipping_address,
     order_items: (raw.order_items ?? []).filter((item) => itemIds.includes(item.id)),
   };
+  if (order.payment_status !== "paid" || ["cancelled", "canceled", "refunded"].includes(order.status)) return false;
   const emailTo = process.env.INTERNAL_ORDER_EMAIL?.trim() || DEFAULT_INTERNAL_EMAIL;
   const eventKey = `internal-order:${groupId}`;
   const notificationResult = await admin.from("admin_notifications").upsert({
@@ -116,24 +122,24 @@ export async function notifyInternalOrder(groupId: string): Promise<void> {
     metadata: { fulfillmentGroupId: groupId, orderNumber: order.order_number },
     email_to: emailTo,
   }, { onConflict: "event_key", ignoreDuplicates: true })
-    .select("id,email_status").maybeSingle<Notification>();
+    .select("id,email_status,email_to,email_attempts").maybeSingle<Notification>();
   if (notificationResult.error) throw new Error(notificationResult.error.message);
   let notification = notificationResult.data;
   if (!notification) {
     const existing = await admin.from("admin_notifications")
-      .select("id,email_status").eq("event_key", eventKey).single<Notification>();
+      .select("id,email_status,email_to,email_attempts").eq("event_key", eventKey).single<Notification>();
     if (existing.error || !existing.data) throw new Error(existing.error?.message || "Notificação interna inexistente.");
     notification = existing.data;
   }
-  if (notification.email_status === "sent") return;
+  if (notification.email_status === "sent" || notification.email_attempts >= 5) return false;
 
   const claim = await admin.from("admin_notifications").update({
-    email_status: "sending", email_attempted_at: new Date().toISOString(),
+    email_status: "sending", email_attempts: notification.email_attempts + 1, email_attempted_at: new Date().toISOString(),
     email_error: null, updated_at: new Date().toISOString(),
-  }).eq("id", notification.id).in("email_status", ["pending", "failed"])
+  }).eq("id", notification.id).eq("email_attempts", notification.email_attempts).in("email_status", ["pending", "failed"])
     .select("id").maybeSingle<{ id: string }>();
   if (claim.error) throw new Error(claim.error.message);
-  if (!claim.data) return;
+  if (!claim.data) return false;
 
   const address = order.shipping_address;
   const addressText = address
@@ -158,20 +164,45 @@ export async function notifyInternalOrder(groupId: string): Promise<void> {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": eventKey },
-      body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_FROM_EMAIL, to: [emailTo], subject, html, text, tags: [{ name: "event", value: "internal_order_paid" }] }),
+      body: JSON.stringify({ from: process.env.RESEND_FROM_EMAIL?.trim() || DEFAULT_FROM_EMAIL, to: [notification.email_to], subject, html, text, tags: [{ name: "event", value: "internal_order_paid" }] }),
     });
     const result = (await response.json().catch(() => ({}))) as ResendResponse;
     if (!response.ok || !result.id) throw new Error(result.message || result.name || `Resend respondeu com HTTP ${response.status}.`);
-    await Promise.all([
-      admin.from("admin_notifications").update({ email_status: "sent", email_provider_id: result.id, email_sent_at: new Date().toISOString(), email_error: null, updated_at: new Date().toISOString() }).eq("id", notification.id),
-      admin.from("fulfillment_groups").update({ status: "notified", notification_email: emailTo, notified_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", groupId),
-    ]);
+    const saved = await admin.from("admin_notifications").update({ email_status: "sent", email_provider_id: result.id, email_sent_at: new Date().toISOString(), email_error: null, updated_at: new Date().toISOString() }).eq("id", notification.id);
+    if (saved.error) throw new Error(`Email enviado, mas o estado não foi guardado: ${saved.error.message}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido no email interno.";
     await Promise.all([
       admin.from("admin_notifications").update({ email_status: "failed", email_error: message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", notification.id),
-      admin.from("fulfillment_groups").update({ status: "failed", last_error: message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", groupId),
+      admin.from("fulfillment_groups").update({ status: "failed", last_error: message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", groupId).in("status", ["pending", "failed"]),
     ]);
     throw error;
   }
+  // Persist delivery first: a fulfillment update failure must never requeue a sent email.
+  const updated = await admin.from("fulfillment_groups").update({ status: "notified", notification_email: notification.email_to, notified_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }).eq("id", groupId).in("status", ["pending", "failed"]);
+  if (updated.error) throw new Error(updated.error.message);
+  return true;
+}
+
+export async function retryPendingInternalOrderEmails(limit = 5): Promise<{ processed: number; sent: number; failed: number }> {
+  const admin = createSupabaseAdminClient();
+  const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const reset = await admin.from("admin_notifications").update({ email_status: "failed", email_error: "Envio anterior interrompido; reagendado automaticamente.", updated_at: new Date().toISOString() })
+    .eq("event_type", "internal_order_paid").eq("email_status", "sending").lt("email_attempted_at", staleBefore);
+  if (reset.error) throw new Error(reset.error.message);
+  const { data, error } = await admin.from("admin_notifications").select("metadata")
+    .eq("event_type", "internal_order_paid").in("email_status", ["pending", "failed"])
+    .lt("email_attempts", 5).order("created_at", { ascending: true }).limit(limit)
+    .returns<Array<{ metadata: { fulfillmentGroupId?: string } }>>();
+  if (error) throw new Error(error.message);
+  let sent = 0; let failed = 0;
+  for (const notification of data ?? []) {
+    try {
+      const groupId = notification.metadata?.fulfillmentGroupId;
+      if (!groupId) throw new Error("Notificação sem grupo interno.");
+      if (await notifyInternalOrder(groupId)) sent += 1;
+    } catch { failed += 1; }
+    await pause(600);
+  }
+  return { processed: (data ?? []).length, sent, failed };
 }

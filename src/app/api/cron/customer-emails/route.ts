@@ -1,5 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { retryPendingInternalOrderEmails } from "@/lib/notifications/internal-order";
+import { retryPendingNewsletterWelcomeEmails } from "@/lib/newsletter/welcome-email";
 import { retryPendingCustomerEmails } from "@/lib/notifications/customer-email";
 
 export const runtime = "nodejs";
@@ -20,8 +22,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ success: false, message: "Pedido não autorizado." }, { status: 401 });
   }
   try {
-    const result = await retryPendingCustomerEmails();
-    return NextResponse.json({ success: true, executedAt: new Date().toISOString(), ...result });
+    const customer = await retryPendingCustomerEmails(10);
+    const internal360 = await retryPendingInternalOrderEmails(5);
+    const newsletter = await retryPendingNewsletterWelcomeEmails(5);
+    return NextResponse.json({ success: true, executedAt: new Date().toISOString(), ...customer, internal360, newsletter });
   } catch (error) {
     return NextResponse.json({
       success: false,
