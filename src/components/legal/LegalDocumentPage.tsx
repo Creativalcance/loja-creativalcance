@@ -30,7 +30,7 @@ export default async function LegalDocumentPage({
     <main className="bg-neutral-50 px-6 py-10 sm:py-14">
       <article className="mx-auto max-w-4xl rounded-3xl border border-neutral-200 bg-white px-6 py-8 shadow-sm sm:px-10 sm:py-12">
         <Link href={localizePath("/", locale)} className="text-sm font-semibold text-neutral-500 hover:text-neutral-950">
-          ← {locale === "en" ? "Back to homepage" : locale === "fr" ? "Retour à l’accueil" : "Voltar à página inicial"}
+          ← {(locale === "es" ? ("Volver al inicio") : locale === "de" ? ("Zur Startseite") : locale === "it" ? ("Torna alla pagina iniziale") : locale === "en" ? "Back to homepage" : locale === "fr" ? "Retour à l’accueil" : "Voltar à página inicial")}
         </Link>
         <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#ff6a00]">
           Informação legal

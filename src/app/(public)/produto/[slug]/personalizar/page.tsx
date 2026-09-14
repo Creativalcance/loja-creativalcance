@@ -24,7 +24,7 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getCurrentLocale();
   return {
-    title: locale === "en" ? "Personalize product" : locale === "fr" ? "Personnaliser le produit" : "Personalizar produto",
+    title: (locale === "es" ? ("Personalizar producto") : locale === "de" ? ("Produkt personalisieren") : locale === "it" ? ("Personalizza il prodotto") : locale === "en" ? "Personalize product" : locale === "fr" ? "Personnaliser le produit" : "Personalizar produto"),
     robots: { index: false, follow: false },
   };
 }
@@ -947,11 +947,11 @@ export default async function ProductPersonalizePage({
 
               {selectedVariantWasReplaced ? (
                 <p className="mt-3 border-t border-neutral-200 pt-3 text-xs leading-5 text-neutral-500">
-                  {locale === "en"
+                  {(locale === "es" ? (`La variante ${getVariantLabel(requestedVariant) ?? "seleccionada"} no tiene \u00E1reas de personalizaci\u00F3n proporcionadas por el proveedor. Mostramos la primera variante compatible.`) : locale === "de" ? (`F\u00FCr die Variante ${getVariantLabel(requestedVariant) ?? "ausgew\u00E4hlt"} stellt der Lieferant keine Personalisierungsfl\u00E4chen bereit. Wir zeigen die erste kompatible Variante.`) : locale === "it" ? (`La variante ${getVariantLabel(requestedVariant) ?? "selezionata"} non ha aree di personalizzazione fornite dal fornitore. Mostriamo la prima variante compatibile.`) : locale === "en"
                     ? `The ${getVariantLabel(requestedVariant) ?? "selected"} variant has no personalization areas provided by the supplier. We are showing the first compatible variant.`
                     : locale === "fr"
                       ? `La variante ${getVariantLabel(requestedVariant) ?? "sélectionnée"} ne comporte aucune zone de personnalisation fournie par le fournisseur. Nous affichons la première variante compatible.`
-                      : `A variante ${getVariantLabel(requestedVariant) ?? "selecionada"} não tem áreas de personalização comunicadas pelo fornecedor. Apresentamos a primeira variante compatível.`}
+                      : `A variante ${getVariantLabel(requestedVariant) ?? "selecionada"} não tem áreas de personalização comunicadas pelo fornecedor. Apresentamos a primeira variante compatível.`)}
                 </p>
               ) : null}
             </div>

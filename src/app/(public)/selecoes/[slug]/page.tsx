@@ -26,7 +26,7 @@ export async function generateMetadata({
   const config = getSelectionPage(slug, locale);
 
   if (!config) {
-    return { title: locale === "en" ? "Selection not found" : locale === "fr" ? "Sélection introuvable" : "Seleção não encontrada", robots: { index: false } };
+    return { title: (locale === "es" ? ("Selecci\u00F3n no encontrada") : locale === "de" ? ("Auswahl nicht gefunden") : locale === "it" ? ("Selezione non trovata") : locale === "en" ? "Selection not found" : locale === "fr" ? "Sélection introuvable" : "Seleção não encontrada"), robots: { index: false } };
   }
 
   const path = localizePath(`/selecoes/${config.slug}`, locale);

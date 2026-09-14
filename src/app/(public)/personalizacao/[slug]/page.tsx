@@ -18,6 +18,10 @@ const copy = {
   pt: { missing: "Técnica não encontrada", back: "Voltar a personalização", eyebrow: "Personalização · Técnica", checklist: "Checklist antes de configurar", search: "Pesquisar produtos", compare: "Comparar também", view: "Ver técnica", breadcrumb: "Personalização" },
   en: { missing: "Technique not found", back: "Back to customisation", eyebrow: "Customisation · Technique", checklist: "Checklist before configuring", search: "Search products", compare: "Compare with", view: "View technique", breadcrumb: "Customisation" },
   fr: { missing: "Technique introuvable", back: "Retour à la personnalisation", eyebrow: "Personnalisation · Technique", checklist: "Checklist avant la configuration", search: "Rechercher des produits", compare: "Comparer aussi", view: "Voir la technique", breadcrumb: "Personnalisation" },
+
+es: { missing: "T\u00E9cnica no encontrada", back: "Volver a la personalizaci\u00F3n", eyebrow: "Personalizaci\u00F3n \u00B7 T\u00E9cnica", checklist: "Lista de comprobaci\u00F3n antes de configurar", search: "Buscar productos", compare: "Comparar con", view: "Ver t\u00E9cnica", breadcrumb: "Personalizaci\u00F3n" },
+de: { missing: "Technik nicht gefunden", back: "Zur\u00FCck zur Personalisierung", eyebrow: "Personalisierung \u00B7 Technik", checklist: "Checkliste vor der Konfiguration", search: "Produkte suchen", compare: "Vergleichen mit", view: "Technik ansehen", breadcrumb: "Personalisierung" },
+it: { missing: "Tecnica non trovata", back: "Torna alla personalizzazione", eyebrow: "Personalizzazione \u00B7 Tecnica", checklist: "Verifiche prima della configurazione", search: "Cerca prodotti", compare: "Confronta con", view: "Vedi la tecnica", breadcrumb: "Personalizzazione" },
 } as const;
 
 type PersonalizationPageProps = {

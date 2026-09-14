@@ -60,11 +60,11 @@ export function buildProductMetaDescription(
   const suffix = details.length > 0 ? ` ${details.join(" · ")}.` : "";
 
   const locale = input.locale ?? "pt";
-  const callToAction = locale === "en"
+  const callToAction = (locale === "es" ? (`Consulta precios por cantidad, stock y opciones de personalizaci\u00F3n en ${SITE_NAME}.`) : locale === "de" ? (`Informieren Sie sich bei ${SITE_NAME} \u00FCber Mengenpreise, Bestand und Personalisierungsoptionen.`) : locale === "it" ? (`Consulta prezzi per quantit\u00E0, disponibilit\u00E0 e opzioni di personalizzazione su ${SITE_NAME}.`) : locale === "en"
     ? `View quantity pricing, stock and customisation options at ${SITE_NAME}.`
     : locale === "fr"
       ? `Consultez les prix par quantité, le stock et les options de personnalisation sur ${SITE_NAME}.`
-      : `Consulte preços por quantidade, stock e opções de personalização na ${SITE_NAME}.`;
+      : `Consulte preços por quantidade, stock e opções de personalização na ${SITE_NAME}.`);
   return truncateSeoText(
     `${input.name}.${suffix} ${callToAction}`,
     160,

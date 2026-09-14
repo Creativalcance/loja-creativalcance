@@ -85,7 +85,28 @@ export default async function CategoryProductsPage({
   const category = await resolveCategoryRoute(routeCategoryName, locale);
   const categoryName = category.localizedName;
   const seoContent = buildCategorySeoContent(categoryName, locale);
-  const copy = locale === "en"
+  const copy = (locale === "es" ? ({
+    back: "Volver a las categor\u00EDas", category: "Categor\u00EDa", search: "Buscar productos",
+    subcategories: "Subcategor\u00EDas", productCount: (count: number) => `${count.toLocaleString("es-ES")} producto${count === 1 ? "" : "s"}`,
+    loadError: "No se han podido cargar los productos de esta categor\u00EDa. Int\u00E9ntalo de nuevo.", emptyTitle: "No hay productos en esta categor\u00EDa",
+    emptyText: "Comprueba que haya productos activos asignados a esta categor\u00EDa.", explore: "Explorar por necesidad",
+    exploreTitle: "M\u00E1s all\u00E1 de las categor\u00EDas", exploreText: "Explora soluciones por presupuesto y cantidad, aplicaciones como kits de bienvenida y eventos, o p\u00E1ginas para sectores espec\u00EDficos.",
+    solutions: "Soluciones", applications: "Casos de uso", industries: "Sectores", breadcrumb: "Categor\u00EDas",
+}) : locale === "de" ? ({
+    back: "Zur\u00FCck zu den Kategorien", category: "Kategorie", search: "Produkte suchen",
+    subcategories: "Unterkategorien", productCount: (count: number) => `${count.toLocaleString("de-DE")} Produkt${count === 1 ? "" : "e"}`,
+    loadError: "Die Produkte dieser Kategorie konnten nicht geladen werden. Bitte versuchen Sie es erneut.", emptyTitle: "Keine Produkte in dieser Kategorie",
+    emptyText: "Pr\u00FCfen Sie, ob dieser Kategorie aktive Produkte zugeordnet sind.", explore: "Nach Bedarf entdecken",
+    exploreTitle: "\u00DCber Kategorien hinaus", exploreText: "Entdecken Sie L\u00F6sungen nach Budget und Menge, Anwendungen wie Willkommenspakete und Veranstaltungen oder Seiten f\u00FCr bestimmte Branchen.",
+    solutions: "L\u00F6sungen", applications: "Anwendungsf\u00E4lle", industries: "Branchen", breadcrumb: "Kategorien",
+}) : locale === "it" ? ({
+    back: "Torna alle categorie", category: "Categoria", search: "Cerca prodotti",
+    subcategories: "Sottocategorie", productCount: (count: number) => `${count.toLocaleString("it-IT")} prodott${count === 1 ? "o" : "i"}`,
+    loadError: "Impossibile caricare i prodotti di questa categoria. Riprova.", emptyTitle: "Nessun prodotto in questa categoria",
+    emptyText: "Verifica che ci siano prodotti attivi assegnati a questa categoria.", explore: "Esplora per esigenza",
+    exploreTitle: "Oltre le categorie", exploreText: "Esplora soluzioni per budget e quantit\u00E0, applicazioni come kit di benvenuto ed eventi o pagine dedicate a settori specifici.",
+    solutions: "Soluzioni", applications: "Casi d'uso", industries: "Settori", breadcrumb: "Categorie",
+}) : locale === "en"
     ? {
         back: "Back to categories", category: "Category", search: "Search products",
         subcategories: "Subcategories", productCount: (count: number) => `${count.toLocaleString("en-GB")} product${count === 1 ? "" : "s"}`,
@@ -110,7 +131,7 @@ export default async function CategoryProductsPage({
           emptyText: "Confirma se existem produtos ativos com esta categoria.", explore: "Explorar por necessidade",
           exploreTitle: "Não procure apenas por categoria", exploreText: "Consulte soluções por orçamento e quantidade, aplicações como welcome kits e eventos, ou páginas dedicadas a setores específicos.",
           solutions: "Soluções", applications: "Aplicações", industries: "Indústrias", breadcrumb: "Categorias",
-        };
+        });
 
   const supabase = await createSupabaseServerClient();
 
@@ -339,7 +360,7 @@ export async function generateMetadata({
     alternates: { canonical },
     openGraph: {
       type: "website",
-      locale: locale === "en" ? "en_GB" : locale === "fr" ? "fr_FR" : "pt_PT",
+      locale: (locale === "es" ? ("es_ES") : locale === "de" ? ("de_DE") : locale === "it" ? ("it_IT") : locale === "en" ? "en_GB" : locale === "fr" ? "fr_FR" : "pt_PT"),
       title: seoContent.title,
       description: seoContent.description,
       url: canonical,

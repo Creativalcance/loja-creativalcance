@@ -51,6 +51,18 @@ function mapTranslation(row: TranslationRow): LocalizedProductText {
   };
 }
 
+// The supplier may omit individual translated fields. Fill those fields from
+// EN, then PT, without replacing available text in the requested language.
+function resolveTranslation(rows: TranslationRow[]): LocalizedProductText | null {
+  if (!rows.length) return null;
+  const filled = Object.assign({}, ...rows.slice().reverse().map((row) =>
+    Object.fromEntries(Object.entries(row).filter(([, value]) =>
+      value != null && (typeof value !== "string" || value.trim().length > 0),
+    )),
+  ));
+  return mapTranslation({ ...rows[0], ...filled, language: rows[0].language });
+}
+
 export async function getLocalizedProductText(params: {
   productId: string;
   locale: SiteLocale;
@@ -78,15 +90,10 @@ export async function getLocalizedProductText(params: {
     (data ?? []).map((translation) => [translation.language, translation]),
   );
 
-  for (const language of fallbackLanguages) {
-    const translation = translations.get(language);
-
-    if (translation) {
-      return mapTranslation(translation);
-    }
-  }
-
-  return null;
+  return resolveTranslation(fallbackLanguages.flatMap((language) => {
+    const row = translations.get(language);
+    return row ? [row] : [];
+  }));
 }
 
 // Each product can return three fallback languages; stay safely below the
@@ -143,13 +150,11 @@ export async function getLocalizedProductTexts(params: {
     const languages = byProduct.get(productId);
     if (!languages) continue;
 
-    for (const language of fallbackLanguages) {
-      const translation = languages.get(language);
-      if (translation) {
-        result.set(productId, mapTranslation(translation));
-        break;
-      }
-    }
+    const localized = resolveTranslation(fallbackLanguages.flatMap((language) => {
+      const row = languages.get(language);
+      return row ? [row] : [];
+    }));
+    if (localized) result.set(productId, localized);
   }
 
   return result;

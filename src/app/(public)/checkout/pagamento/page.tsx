@@ -149,7 +149,64 @@ export default async function CheckoutPaymentPage() {
   const locale = await getCurrentLocale();
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const text =
-    locale === "en"
+    (locale === "es" ? ({
+    back: "Volver al env\u00EDo",
+    destination: "Destino",
+    shipping: "Env\u00EDo",
+    complete: "Completado",
+    payment: "Pago",
+    reviewPayment: "Revisi\u00F3n y pago",
+    step: "Paso 3 de 3",
+    title: "Revisar y pagar",
+    intro: "Confirma todos los datos antes de continuar con el pago seguro.",
+    method: "M\u00E9todo de env\u00EDo seleccionado",
+    requestedDate: "Fecha preferida:",
+    orderTotal: "Total del pedido",
+    units: "unidades",
+    personalization: "Personalizaci\u00F3n",
+    products: "Productos",
+    setupExtras: "Preparaci\u00F3n y extras",
+    vat: "IVA",
+    payTotal: "Total a pagar",
+}) : locale === "de" ? ({
+    back: "Zur\u00FCck zum Versand",
+    destination: "Lieferadresse",
+    shipping: "Versand",
+    complete: "Abgeschlossen",
+    payment: "Zahlung",
+    reviewPayment: "Pr\u00FCfung und Zahlung",
+    step: "Schritt 3 von 3",
+    title: "Pr\u00FCfen und bezahlen",
+    intro: "Best\u00E4tigen Sie alle Angaben, bevor Sie mit der sicheren Zahlung fortfahren.",
+    method: "Ausgew\u00E4hlte Versandart",
+    requestedDate: "Wunschtermin:",
+    orderTotal: "Bestellsumme",
+    units: "St\u00FCck",
+    personalization: "Personalisierung",
+    products: "Produkte",
+    setupExtras: "Einrichtung und Extras",
+    vat: "MwSt.",
+    payTotal: "Zu zahlender Gesamtbetrag",
+}) : locale === "it" ? ({
+    back: "Torna alla spedizione",
+    destination: "Destinazione",
+    shipping: "Spedizione",
+    complete: "Completato",
+    payment: "Pagamento",
+    reviewPayment: "Riepilogo e pagamento",
+    step: "Passaggio 3 di 3",
+    title: "Rivedi e paga",
+    intro: "Conferma tutti i dati prima di procedere al pagamento sicuro.",
+    method: "Metodo di spedizione selezionato",
+    requestedDate: "Data preferita:",
+    orderTotal: "Totale dell'ordine",
+    units: "unit\u00E0",
+    personalization: "Personalizzazione",
+    products: "Prodotti",
+    setupExtras: "Preparazione ed extra",
+    vat: "IVA",
+    payTotal: "Totale da pagare",
+}) : locale === "en"
       ? {
           back: "Back to shipping",
           destination: "Destination",
@@ -212,7 +269,7 @@ export default async function CheckoutPaymentPage() {
             setupExtras: "Preparação e extras",
             vat: "IVA",
             payTotal: "Total a pagar",
-          };
+          });
   const supabase = await createSupabaseServerClient();
 
   const {
@@ -522,11 +579,11 @@ export default async function CheckoutPaymentPage() {
                 <span>{text.shipping}</span>
                 <span className="font-semibold text-neutral-950">
                   {shippingTotal === 0
-                    ? locale === "en"
+                    ? (locale === "es" ? ("Gratis") : locale === "de" ? ("Kostenlos") : locale === "it" ? ("Gratuito") : locale === "en"
                       ? "Free"
                       : locale === "fr"
                         ? "Gratuit"
-                        : "Grátis"
+                        : "Grátis")
                     : formatPrice(shippingTotal, currency, intlLocale)}
                 </span>
               </div>

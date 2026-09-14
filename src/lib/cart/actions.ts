@@ -320,7 +320,7 @@ function getSafeRemoveReturnPath(
 ): string {
   const path = String(value ?? "").trim();
 
-  const basePath = path.replace(/^\/(?:en|fr)(?=\/|$)/, "") || "/";
+  const basePath = path.replace(/^\/(?:en|fr|es|de|it)(?=\/|$)/, "") || "/";
   if (REMOVE_RETURN_PATHS.has(basePath)) {
     return path;
   }
@@ -477,7 +477,7 @@ export async function removeCartItemAction(
     revalidatePath("/checkout/expedicao");
     revalidatePath("/checkout/pagamento");
 
-    const localePrefix = returnTo.match(/^\/(en|fr)(?=\/|$)/)?.[0] ?? "";
+    const localePrefix = returnTo.match(/^\/(en|fr|es|de|it)(?=\/|$)/)?.[0] ?? "";
     redirectUrl = remainingItem ? returnTo : `${localePrefix}/carrinho`;
   } catch (error) {
     return {

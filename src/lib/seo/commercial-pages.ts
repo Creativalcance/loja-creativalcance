@@ -788,7 +788,19 @@ export function getCommercialPageFaq(
 ): CommercialFaq[] {
   if (locale !== "pt") {
     const en = locale === "en";
-    return en ? [
+    return (locale === "es" ? ([
+    { question: "\u00BFC\u00F3mo se seleccionan los productos?", answer: "La p\u00E1gina busca en el cat\u00E1logo activo mediante t\u00E9rminos y filtros comerciales relacionados con esta necesidad." },
+    { question: "\u00BFEsta selecci\u00F3n sustituye a la p\u00E1gina del producto?", answer: "No. La p\u00E1gina del producto sigue siendo la referencia para stock, cantidad m\u00EDnima, precio, materiales, variantes y personalizaci\u00F3n." },
+    { question: "\u00BFPuedo combinar presupuesto y cantidad?", answer: "S\u00ED. Utiliza Smart Merch o las p\u00E1ginas por presupuesto y cantidad para acotar las opciones." },
+]) : locale === "de" ? ([
+    { question: "Wie werden die Produkte ausgew\u00E4hlt?", answer: "Die Seite durchsucht den aktiven Katalog mit Suchbegriffen und Angebotsfiltern zu diesem Bedarf." },
+    { question: "Ersetzt diese Auswahl die Produktseite?", answer: "Nein. Die Produktseite bleibt ma\u00DFgeblich f\u00FCr Bestand, Mindestmenge, Preis, Materialien, Varianten und Personalisierung." },
+    { question: "Kann ich Budget- und Mengenkriterien kombinieren?", answer: "Ja. Nutzen Sie Smart Merch oder die L\u00F6sungsseiten nach Budget und Menge, um die Optionen einzugrenzen." },
+]) : locale === "it" ? ([
+    { question: "Come vengono selezionati i prodotti?", answer: "La pagina cerca nel catalogo attivo usando termini e filtri commerciali collegati a questa esigenza." },
+    { question: "Questa selezione sostituisce la pagina del prodotto?", answer: "No. La pagina del prodotto rimane il riferimento per disponibilit\u00E0, quantit\u00E0 minima, prezzo, materiali, varianti e personalizzazione." },
+    { question: "Posso combinare criteri di budget e quantit\u00E0?", answer: "S\u00EC. Usa Smart Merch o le pagine per budget e quantit\u00E0 per restringere le opzioni." },
+]) : en ? [
       { question: "How are the products selected?", answer: "The page searches the active catalogue using terms and commercial filters related to this need." },
       { question: "Does this selection replace the product page?", answer: "No. The product page remains the reference for stock, minimum quantity, price, materials, variants and customisation." },
       { question: "Can I combine budget and quantity criteria?", answer: "Yes. Use Smart Merch or the budget and quantity solution pages to narrow down the options." },
@@ -796,7 +808,7 @@ export function getCommercialPageFaq(
       { question: "Comment les produits sont-ils sélectionnés ?", answer: "La page recherche dans le catalogue actif à l’aide de termes et de filtres commerciaux liés à ce besoin." },
       { question: "Cette sélection remplace-t-elle la page produit ?", answer: "Non. La page produit reste la référence pour le stock, la quantité minimale, le prix, les matériaux, les variantes et la personnalisation." },
       { question: "Puis-je combiner budget et quantité ?", answer: "Oui. Utilisez Smart Merch ou les pages par budget et quantité pour affiner les options." },
-    ];
+    ]);
   }
   if (config.group === "budget") {
     return [

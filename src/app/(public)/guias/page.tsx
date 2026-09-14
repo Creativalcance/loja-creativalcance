@@ -47,6 +47,40 @@ const copy: Record<SiteLocale, {
     ctaText: "Une fois vos critères définis, utilisez Smart Merch pour explorer les produits par besoin, quantité, budget ou délai.",
     ctaButton: "Essayer Smart Merch", breadcrumb: "Guides",
   },
+
+es: {
+    title: "Gu\u00EDas de merchandising corporativo y productos promocionales",
+    description: "Gu\u00EDas pr\u00E1cticas sobre productos promocionales, merchandising corporativo, kits de bienvenida, eventos, sostenibilidad, presupuestos y personalizaci\u00F3n.",
+    ogDescription: "Criterios pr\u00E1cticos para elegir, personalizar y planificar merchandising corporativo.",
+    back: "\u2190 Volver al inicio", eyebrow: "Centro de conocimiento",
+    heading: "Gu\u00EDas para elegir merchandising con criterios claros",
+    intro: "Contenidos pr\u00E1cticos que convierten una necesidad empresarial en criterios claros de producto, presupuesto, cantidad, plazo, personalizaci\u00F3n y sostenibilidad.",
+    read: "Leer gu\u00EDa", ctaHeading: "De la orientaci\u00F3n a una selecci\u00F3n concreta",
+    ctaText: "Cuando tengas claros los criterios, utiliza Smart Merch para explorar productos por necesidad, cantidad, presupuesto o plazo.",
+    ctaButton: "Probar Smart Merch", breadcrumb: "Gu\u00EDas",
+},
+de: {
+    title: "Ratgeber f\u00FCr Unternehmensmerchandising und Werbeartikel",
+    description: "Praktische Ratgeber zu Werbeartikeln, Unternehmensmerchandising, Willkommenspaketen, Veranstaltungen, Nachhaltigkeit, Budgets und Personalisierung.",
+    ogDescription: "Praktische Kriterien f\u00FCr Auswahl, Personalisierung und Planung von Unternehmensmerchandising.",
+    back: "\u2190 Zur Startseite", eyebrow: "Wissensbereich",
+    heading: "Merchandising mit klaren Kriterien ausw\u00E4hlen",
+    intro: "Praktische Inhalte, die einen gesch\u00E4ftlichen Bedarf in klare Kriterien f\u00FCr Produkt, Budget, Menge, Termin, Personalisierung und Nachhaltigkeit \u00FCbersetzen.",
+    read: "Ratgeber lesen", ctaHeading: "Von der Beratung zur konkreten Auswahl",
+    ctaText: "Sobald Ihre Kriterien feststehen, entdecken Sie mit Smart Merch Produkte nach Bedarf, Menge, Budget oder Termin.",
+    ctaButton: "Smart Merch ausprobieren", breadcrumb: "Ratgeber",
+},
+it: {
+    title: "Guide al merchandising aziendale e ai prodotti promozionali",
+    description: "Guide pratiche su prodotti promozionali, merchandising aziendale, kit di benvenuto, eventi, sostenibilit\u00E0, budget e personalizzazione.",
+    ogDescription: "Criteri pratici per scegliere, personalizzare e pianificare il merchandising aziendale.",
+    back: "\u2190 Torna alla pagina iniziale", eyebrow: "Centro di conoscenza",
+    heading: "Guide per scegliere merchandising con criteri chiari",
+    intro: "Contenuti pratici che trasformano un'esigenza aziendale in criteri chiari per prodotto, budget, quantit\u00E0, tempi, personalizzazione e sostenibilit\u00E0.",
+    read: "Leggi la guida", ctaHeading: "Dalle indicazioni a una selezione concreta",
+    ctaText: "Una volta definiti i criteri, usa Smart Merch per esplorare prodotti per esigenza, quantit\u00E0, budget o scadenza.",
+    ctaButton: "Prova Smart Merch", breadcrumb: "Guide",
+},
 };
 
 export async function generateMetadata(): Promise<Metadata> {

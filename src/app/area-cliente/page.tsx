@@ -58,7 +58,11 @@ function formatPrice(value: number, currency: string, locale: SiteLocale): strin
 }
 
 function getQuoteStatusLabel(status: string, locale: SiteLocale): string {
-  const all = { pt: { new: "Novo", in_analysis: "Em análise", proposal_sent: "Proposta enviada", negotiation: "Negociação", won: "Ganho", lost: "Perdido", cancelled: "Cancelado" }, en: { new: "New", in_analysis: "Under review", proposal_sent: "Proposal sent", negotiation: "Negotiation", won: "Won", lost: "Lost", cancelled: "Cancelled" }, fr: { new: "Nouveau", in_analysis: "En analyse", proposal_sent: "Proposition envoyée", negotiation: "Négociation", won: "Gagné", lost: "Perdu", cancelled: "Annulé" } };
+  const all = { pt: { new: "Novo", in_analysis: "Em análise", proposal_sent: "Proposta enviada", negotiation: "Negociação", won: "Ganho", lost: "Perdido", cancelled: "Cancelado" }, en: { new: "New", in_analysis: "Under review", proposal_sent: "Proposal sent", negotiation: "Negotiation", won: "Won", lost: "Lost", cancelled: "Cancelled" }, fr: { new: "Nouveau", in_analysis: "En analyse", proposal_sent: "Proposition envoyée", negotiation: "Négociation", won: "Gagné", lost: "Perdu", cancelled: "Annulé" } ,
+es: { new: "Nuevo", in_analysis: "En revisi\u00F3n", proposal_sent: "Propuesta enviada", negotiation: "Negociaci\u00F3n", won: "Ganado", lost: "Perdido", cancelled: "Cancelado" },
+de: { new: "Neu", in_analysis: "In Pr\u00FCfung", proposal_sent: "Angebot gesendet", negotiation: "Verhandlung", won: "Gewonnen", lost: "Verloren", cancelled: "Storniert" },
+it: { new: "Nuovo", in_analysis: "In esame", proposal_sent: "Proposta inviata", negotiation: "Negoziazione", won: "Acquisito", lost: "Perso", cancelled: "Annullato" },
+};
   const labels: Record<string, string> = all[locale];
 
   return labels[status] ?? status;

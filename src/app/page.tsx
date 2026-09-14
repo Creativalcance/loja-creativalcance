@@ -56,7 +56,20 @@ export async function generateMetadata(): Promise<Metadata> {
       description:
         "Trouvez des objets personnalisés, du merchandising, des cadeaux d’entreprise et des vêtements promotionnels avec recherche intelligente et tarifs dégressifs.",
     },
-  };
+
+es: {
+    title: "360 Merchandising \u2014 Merchandising personalizado y regalos corporativos",
+    description: "Encuentra merchandising personalizado, productos promocionales, regalos corporativos y ropa de marca con b\u00FAsqueda inteligente, precios por cantidad y personalizaci\u00F3n.",
+},
+de: {
+    title: "360 Merchandising \u2014 Personalisiertes Merchandising und Firmengeschenke",
+    description: "Finden Sie personalisiertes Merchandising, Werbeartikel, Firmengeschenke und Markenkleidung mit intelligenter Suche, Mengenpreisen und Personalisierung.",
+},
+it: {
+    title: "360 Merchandising \u2014 Merchandising personalizzato e regali aziendali",
+    description: "Trova merchandising personalizzato, prodotti promozionali, regali aziendali e abbigliamento con logo grazie alla ricerca intelligente, ai prezzi per quantit\u00E0 e alla personalizzazione.",
+},
+};
   const content = metadataByLocale[locale];
 
   return {
@@ -129,7 +142,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: CalendarDays,
     layoutClassName: "lg:col-span-5",
     imageSizes: "(min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Agendas", en: "Diaries & planners", fr: "Agendas" },
+    label: { pt: "Agendas", en: "Diaries & planners", fr: "Agendas" ,
+es: "Agendas y planificadores",
+de: "Kalender und Planer",
+it: "Agende e planner",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93873_set.jpg",
@@ -137,7 +154,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: CupSoda,
     layoutClassName: "lg:col-span-7",
     imageSizes: "(min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Copos, garrafas e canecas", en: "Drinkware", fr: "Verres, bouteilles et mugs" },
+    label: { pt: "Copos, garrafas e canecas", en: "Drinkware", fr: "Verres, bouteilles et mugs" ,
+es: "Botellas y tazas",
+de: "Trinkgef\u00E4\u00DFe",
+it: "Bottiglie e tazze",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/94945_set.jpg",
@@ -145,7 +166,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: House,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Casa", en: "Home", fr: "Maison" },
+    label: { pt: "Casa", en: "Home", fr: "Maison" ,
+es: "Hogar",
+de: "Zuhause",
+it: "Casa",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/35869_100.jpg",
@@ -153,7 +178,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Baby,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Criança", en: "Kids", fr: "Enfants" },
+    label: { pt: "Criança", en: "Kids", fr: "Enfants" ,
+es: "Infantil",
+de: "Kinder",
+it: "Bambini",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/99970_103.jpg",
@@ -161,7 +190,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Dumbbell,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Desporto e ar livre", en: "Sports & outdoors", fr: "Sports et plein air" },
+    label: { pt: "Desporto e ar livre", en: "Sports & outdoors", fr: "Sports et plein air" ,
+es: "Deporte y aire libre",
+de: "Sport und Outdoor",
+it: "Sport e attivit\u00E0 all'aperto",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/92667a_set.jpg",
@@ -169,7 +202,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Backpack,
     layoutClassName: "lg:col-span-7",
     imageSizes: "(min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Mochilas, malas e pastas", en: "Backpacks, bags & briefcases", fr: "Sacs à dos, sacs et porte-documents" },
+    label: { pt: "Mochilas, malas e pastas", en: "Backpacks, bags & briefcases", fr: "Sacs à dos, sacs et porte-documents" ,
+es: "Mochilas, bolsas y maletines",
+de: "Rucks\u00E4cke, Taschen und Aktentaschen",
+it: "Zaini, borse e cartelle",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/97222_set.jpg",
@@ -177,7 +214,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Cpu,
     layoutClassName: "lg:col-span-5",
     imageSizes: "(min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Tecnologia", en: "Technology", fr: "Technologie" },
+    label: { pt: "Tecnologia", en: "Technology", fr: "Technologie" ,
+es: "Tecnolog\u00EDa",
+de: "Technologie",
+it: "Tecnologia",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/11100_108.jpg",
@@ -185,7 +226,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: PenLine,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Escrita", en: "Writing", fr: "Écriture" },
+    label: { pt: "Escrita", en: "Writing", fr: "Écriture" ,
+es: "Escritura",
+de: "Schreibwaren",
+it: "Scrittura",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93668_set.jpg",
@@ -193,7 +238,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Package,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Kits", en: "Kits", fr: "Kits" },
+    label: { pt: "Kits", en: "Kits", fr: "Kits" ,
+es: "Kits",
+de: "Sets",
+it: "Kit",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/95132_set.jpg",
@@ -201,7 +250,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Badge,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Pessoal e viagem", en: "Personal & travel", fr: "Personnel et voyage" },
+    label: { pt: "Pessoal e viagem", en: "Personal & travel", fr: "Personnel et voyage" ,
+es: "Cuidado personal y viajes",
+de: "K\u00F6rperpflege und Reisen",
+it: "Cura personale e viaggi",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/99568_105.jpg",
@@ -209,7 +262,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: Umbrella,
     layoutClassName: "lg:col-span-5",
     imageSizes: "(min-width: 1024px) 42vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Sol e chuva", en: "Sun & rain", fr: "Soleil et pluie" },
+    label: { pt: "Sol e chuva", en: "Sun & rain", fr: "Soleil et pluie" ,
+es: "Sol y lluvia",
+de: "Sonne und Regen",
+it: "Sole e pioggia",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/99316_105.jpg",
@@ -217,7 +274,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: TreePine,
     layoutClassName: "lg:col-span-7",
     imageSizes: "(min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Natal", en: "Christmas", fr: "Noël" },
+    label: { pt: "Natal", en: "Christmas", fr: "Noël" ,
+es: "Navidad",
+de: "Weihnachten",
+it: "Natale",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/93089_amb.jpg",
@@ -225,7 +286,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: KeyRound,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Porta-chaves e lanyards", en: "Keyrings & lanyards", fr: "Porte-clés et lanyards" },
+    label: { pt: "Porta-chaves e lanyards", en: "Keyrings & lanyards", fr: "Porte-clés et lanyards" ,
+es: "Llaveros y lanyards",
+de: "Schl\u00FCsselanh\u00E4nger und Schl\u00FCsselb\u00E4nder",
+it: "Portachiavi e laccetti",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/73129_set.jpg",
@@ -233,7 +298,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: CircleDot,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Pins personalizados", en: "Custom pins", fr: "Badges personnalisés" },
+    label: { pt: "Pins personalizados", en: "Custom pins", fr: "Badges personnalisés" ,
+es: "Pins personalizados",
+de: "Personalisierte Pins",
+it: "Spille personalizzate",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/73390_340-b.jpg",
@@ -241,7 +310,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     icon: CircleDot,
     layoutClassName: "lg:col-span-4",
     imageSizes: "(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw",
-    label: { pt: "Doming", en: "Doming", fr: "Doming" },
+    label: { pt: "Doming", en: "Doming", fr: "Doming" ,
+es: "Doming",
+de: "Doming",
+it: "Doming",
+},
   },
   {
     imageUrl: "https://cdn.hideacontent.com/public/products/1000x1000/70006_set.jpg",
@@ -250,7 +323,11 @@ const additionalCategoryCards: AdditionalCategoryCard[] = [
     layoutClassName: "lg:col-span-12",
     imageSizes: "(min-width: 1024px) 100vw, (min-width: 768px) 50vw, 100vw",
     imagePositionClassName: "object-center",
-    label: { pt: "Mostruários", en: "Showcases", fr: "Présentoirs" },
+    label: { pt: "Mostruários", en: "Showcases", fr: "Présentoirs" ,
+es: "Expositores",
+de: "Vitrinen",
+it: "Espositori",
+},
   },
 ];
 
@@ -258,6 +335,10 @@ const additionalCategoriesCopy: Record<SiteLocale, { eyebrow: string; title: str
   pt: { eyebrow: "Mais para descobrir", title: "Todas as categorias, para todas as ideias." },
   en: { eyebrow: "More to discover", title: "Every category, for every idea." },
   fr: { eyebrow: "Encore plus à découvrir", title: "Toutes les catégories, pour toutes vos idées." },
+
+es: { eyebrow: "M\u00E1s por descubrir", title: "Cada categor\u00EDa, para cada idea." },
+de: { eyebrow: "Mehr entdecken", title: "Jede Kategorie, f\u00FCr jede Idee." },
+it: { eyebrow: "Altro da scoprire", title: "Ogni categoria, per ogni idea." },
 };
 
 const buyingStepIcons = [LayoutGrid, Palette, ShoppingCart, CheckCircle2] as const;

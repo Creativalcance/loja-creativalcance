@@ -21,7 +21,7 @@ const status = load('src/lib/customer/order-status.ts');
 const copy = load('src/lib/customer/order-copy.ts');
 
 test('customer status labels never disclose internal status codes or supplier references', () => {
-  for (const locale of ['pt','en','fr']) {
+  for (const locale of ['pt','en','fr','es','de','it']) {
     assert.doesNotMatch(status.customerStatus('sent_to_supplier', locale), /supplier|fornecedor|fournisseur/i);
     assert.doesNotMatch(status.customerStatus('SECRET_INTERNAL_CODE', locale), /SECRET_INTERNAL_CODE/);
   }

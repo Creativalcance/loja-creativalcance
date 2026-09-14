@@ -99,7 +99,100 @@ export default function CheckoutShippingForm({
   initialShippingNotes,
 }: CheckoutShippingFormProps) {
   const text =
-    locale === "en"
+    (locale === "es" ? ({
+    method: "M\u00E9todo de env\u00EDo",
+    methodHint: "Elige c\u00F3mo deseas recibir el pedido.",
+    store: "Env\u00EDo gestionado por la tienda",
+    storeHint: "El pedido se env\u00EDa a la direcci\u00F3n indicada en el paso anterior.",
+    estimate: "Estimaci\u00F3n: de 1 a 3 d\u00EDas laborables",
+    origin: "Origen: Portugal",
+    free: "Gratis",
+    cost: "Coste estimado",
+    freeShipping: `Env\u00EDo gratis en pedidos de ${formatPrice(FREE_SHIPPING_THRESHOLD, currency, locale)} o m\u00E1s.`,
+    remaining: "A\u00F1ade {amount} m\u00E1s para conseguir env\u00EDo gratis.",
+    date: "Fecha preferida",
+    dateLabel: "Fecha de entrega preferida *",
+    dateHint: "Esta fecha se tendr\u00E1 en cuenta en la planificaci\u00F3n y se confirmar\u00E1 tras validar la producci\u00F3n y el env\u00EDo.",
+    recommended: "Fechas recomendadas",
+    earliest: "La m\u00E1s pr\u00F3xima",
+    day: "d\u00EDa",
+    days: "d\u00EDas",
+    dateNote: "La primera fecha disponible es el segundo d\u00EDa laborable a partir de hoy.",
+    accept: "Acepto la entrega despu\u00E9s de esta fecha",
+    acceptHelp: "Autoriza el env\u00EDo en cuanto el pedido est\u00E9 listo, aunque haya pasado la fecha seleccionada.",
+    references: "Referencias e instrucciones",
+    internal: "Referencia interna",
+    notes: "Instrucciones de env\u00EDo",
+    notesPlaceholder: "Horario de recepci\u00F3n, acceso de carga, contacto local u otras instrucciones.",
+    beforeVat: "Total sin IVA",
+    goods: "Productos y personalizaci\u00F3n",
+    shipping: "Env\u00EDo",
+    current: "Total actual",
+    saving: "Guardando env\u00EDo...",
+    continue: "Continuar al pago",
+}) : locale === "de" ? ({
+    method: "Versandart",
+    methodHint: "W\u00E4hlen Sie, wie Sie die Bestellung erhalten m\u00F6chten.",
+    store: "Versand durch den Shop",
+    storeHint: "Die Bestellung wird an die im vorherigen Schritt angegebene Adresse gesendet.",
+    estimate: "Sch\u00E4tzung: 1 bis 3 Werktage",
+    origin: "Herkunft: Portugal",
+    free: "Kostenlos",
+    cost: "Gesch\u00E4tzte Kosten",
+    freeShipping: `Kostenloser Versand ab einem Bestellwert von ${formatPrice(FREE_SHIPPING_THRESHOLD, currency, locale)}.`,
+    remaining: "F\u00FCgen Sie weitere {amount} hinzu und erhalten Sie kostenlosen Versand.",
+    date: "Wunschtermin",
+    dateLabel: "Gew\u00FCnschter Liefertermin *",
+    dateHint: "Dieser Termin wird bei der Planung ber\u00FCcksichtigt und nach Pr\u00FCfung von Produktion und Versand best\u00E4tigt.",
+    recommended: "Empfohlene Termine",
+    earliest: "Fr\u00FChester Termin",
+    day: "Tag",
+    days: "Tage",
+    dateNote: "Der fr\u00FCheste verf\u00FCgbare Termin ist der zweite Werktag nach heute.",
+    accept: "Ich akzeptiere eine Lieferung nach diesem Termin",
+    acceptHelp: "Erlauben Sie den Versand, sobald die Bestellung bereit ist, auch wenn der gew\u00E4hlte Termin bereits verstrichen ist.",
+    references: "Referenzen und Hinweise",
+    internal: "Interne Referenz",
+    notes: "Versandhinweise",
+    notesPlaceholder: "Annahmezeiten, Ladezugang, Kontakt vor Ort oder weitere Hinweise.",
+    beforeVat: "Gesamtbetrag ohne MwSt.",
+    goods: "Produkte und Personalisierung",
+    shipping: "Versand",
+    current: "Aktueller Gesamtbetrag",
+    saving: "Versandangaben werden gespeichert...",
+    continue: "Weiter zur Zahlung",
+}) : locale === "it" ? ({
+    method: "Metodo di spedizione",
+    methodHint: "Scegli come desideri ricevere l'ordine.",
+    store: "Spedizione gestita dal negozio",
+    storeHint: "L'ordine viene inviato all'indirizzo indicato nel passaggio precedente.",
+    estimate: "Stima: da 1 a 3 giorni lavorativi",
+    origin: "Origine: Portogallo",
+    free: "Gratuito",
+    cost: "Costo stimato",
+    freeShipping: `Spedizione gratuita per ordini da ${formatPrice(FREE_SHIPPING_THRESHOLD, currency, locale)}.`,
+    remaining: "Aggiungi altri {amount} per ottenere la spedizione gratuita.",
+    date: "Data preferita",
+    dateLabel: "Data di consegna preferita *",
+    dateHint: "Questa data verr\u00E0 considerata nella pianificazione e confermata dopo la verifica di produzione e spedizione.",
+    recommended: "Date consigliate",
+    earliest: "Prima disponibile",
+    day: "giorno",
+    days: "giorni",
+    dateNote: "La prima data disponibile \u00E8 il secondo giorno lavorativo dopo oggi.",
+    accept: "Accetto la consegna dopo questa data",
+    acceptHelp: "Autorizza la spedizione non appena l'ordine \u00E8 pronto, anche se la data selezionata \u00E8 gi\u00E0 trascorsa.",
+    references: "Riferimenti e istruzioni",
+    internal: "Riferimento interno",
+    notes: "Istruzioni di spedizione",
+    notesPlaceholder: "Orari di ricevimento, accesso per lo scarico, contatto locale o altre istruzioni.",
+    beforeVat: "Totale IVA esclusa",
+    goods: "Prodotti e personalizzazione",
+    shipping: "Spedizione",
+    current: "Totale attuale",
+    saving: "Salvataggio della spedizione...",
+    continue: "Continua al pagamento",
+}) : locale === "en"
       ? {
           method: "Shipping method",
           methodHint: "Choose how you want to receive the order.",
@@ -214,7 +307,7 @@ export default function CheckoutShippingForm({
             current: "Total atual",
             saving: "A guardar expedição...",
             continue: "Continuar para pagamento",
-          };
+          });
   const minimumDeliveryDate = getMinimumDeliveryDate();
   const initialDate =
     initialRequestedDeliveryDate >= minimumDeliveryDate
@@ -465,11 +558,11 @@ export default function CheckoutShippingForm({
                 type="button"
                 onClick={openDatePicker}
                 aria-label={
-                  locale === "en"
+                  (locale === "es" ? ("Abrir calendario") : locale === "de" ? ("Kalender \u00F6ffnen") : locale === "it" ? ("Apri calendario") : locale === "en"
                     ? "Open calendar"
                     : locale === "fr"
                       ? "Ouvrir le calendrier"
-                      : "Abrir calendário"
+                      : "Abrir calendário")
                 }
                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-neutral-300 bg-white text-neutral-700 shadow-none transition hover:border-neutral-950"
               >
@@ -551,11 +644,11 @@ export default function CheckoutShippingForm({
             defaultValue={initialInternalReference}
             maxLength={120}
             placeholder={
-              locale === "en"
+              (locale === "es" ? ("Ej.: PO-2026-001, evento o centro de costes") : locale === "de" ? ("Z. B. PO-2026-001, Veranstaltung oder Kostenstelle") : locale === "it" ? ("Es. PO-2026-001, evento o centro di costo") : locale === "en"
                 ? "E.g. PO-2026-001, event or cost centre"
                 : locale === "fr"
                   ? "Ex. : PO-2026-001, événement ou centre de coûts"
-                  : "Ex.: PO-2026-001, evento ou centro de custo"
+                  : "Ex.: PO-2026-001, evento ou centro de custo")
             }
             className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />

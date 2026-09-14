@@ -7,7 +7,7 @@ import { getPersonalizationPages } from "@/lib/seo/personalization-pages";
 import { getSelectionPages } from "@/lib/seo/selection-pages";
 import { absoluteUrl } from "@/lib/seo/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -65,12 +65,12 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
 }
 
 function withLocalizedEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
-  const locales: SiteLocale[] = ["pt", "en", "fr"];
+  const locales: SiteLocale[] = Object.keys(SITE_LOCALES) as SiteLocale[];
   return entries.map((entry) => {
     const path = new URL(entry.url).pathname;
     const languages = Object.fromEntries(
       locales.map((locale) => [
-        locale === "pt" ? "pt-PT" : locale === "en" ? "en-GB" : "fr-FR",
+        SITE_LOCALES[locale].htmlLang,
         absoluteUrl(localizePath(path, locale)),
       ]),
     );
@@ -78,7 +78,7 @@ function withLocalizedEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sit
     return {
       ...entry,
       url: absoluteUrl(localizePath(path, "pt")),
-      alternates: { languages },
+      alternates: { languages: { ...languages, "x-default": absoluteUrl(localizePath(path, "pt")) } },
     };
   });
 }

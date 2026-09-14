@@ -109,7 +109,11 @@ export default function HeaderAccountLink({ context, locale }: HeaderAccountLink
       className="inline-flex items-center rounded-full bg-[#162334] px-4 py-2 text-sm font-semibold !text-white transition hover:bg-[#24364d]"
     >
       <Icon className="mr-2 h-4 w-4 !text-white" aria-hidden="true" />
-      <span className="!text-white">{loginError ? ({ pt: "Não foi possível guardar. Tenta novamente.", en: "Could not save. Try again.", fr: "Enregistrement impossible. Réessayez." })[locale] : label}</span>
+      <span className="!text-white">{loginError ? ({ pt: "Não foi possível guardar. Tenta novamente.", en: "Could not save. Try again.", fr: "Enregistrement impossible. Réessayez." ,
+es: "No se ha podido guardar. Int\u00E9ntalo de nuevo.",
+de: "Speichern fehlgeschlagen. Bitte versuchen Sie es erneut.",
+it: "Impossibile salvare. Riprova.",
+})[locale] : label}</span>
     </Link>
   );
 }

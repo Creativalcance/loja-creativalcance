@@ -15,11 +15,11 @@ export default function InstitutionalPage({
   config: InstitutionalPageConfig;
   locale: SiteLocale;
 }) {
-  const text = locale === "en"
+  const text = (locale === "es" ? ({ back: "Volver al inicio", essentials: "Puntos clave", related: "Informaci\u00F3n relacionada", learn: "Saber m\u00E1s", continue: "Continuar" }) : locale === "de" ? ({ back: "Zur Startseite", essentials: "Wichtige Punkte", related: "Verwandte Informationen", learn: "Mehr erfahren", continue: "Weiter" }) : locale === "it" ? ({ back: "Torna alla pagina iniziale", essentials: "Punti chiave", related: "Informazioni correlate", learn: "Scopri di pi\u00F9", continue: "Continua" }) : locale === "en"
     ? { back: "Back to homepage", essentials: "Key points", related: "Related information", learn: "Learn more", continue: "Continue" }
     : locale === "fr"
       ? { back: "Retour à l’accueil", essentials: "Points essentiels", related: "Informations connexes", learn: "En savoir plus", continue: "Continuer" }
-      : { back: "Voltar à página inicial", essentials: "Pontos essenciais", related: "Informação relacionada", learn: "Saber mais", continue: "Continuar" };
+      : { back: "Voltar à página inicial", essentials: "Pontos essenciais", related: "Informação relacionada", learn: "Saber mais", continue: "Continuar" });
   return (
     <main className="min-h-screen bg-neutral-50">
       <section className="border-b border-neutral-200 bg-white">

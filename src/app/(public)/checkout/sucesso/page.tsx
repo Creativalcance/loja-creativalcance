@@ -45,7 +45,43 @@ export default async function CheckoutSuccessPage({
 }: CheckoutSuccessPageProps) {
   const locale = await getCurrentLocale();
   const text =
-    locale === "en"
+    (locale === "es" ? ({
+    confirmed: "Pago confirmado",
+    confirming: "Confirmando el pago",
+    thanks: "Gracias por tu pedido",
+    received: "Hemos recibido tu pago",
+    paidHelp: "Tu pedido se ha registrado y nuestro equipo lo validar\u00E1 antes de enviarlo a producci\u00F3n.",
+    pendingHelp: "Stripe est\u00E1 confirmando el pago. El estado del pedido se actualizar\u00E1 autom\u00E1ticamente.",
+    orderNumber: "N\u00FAmero de pedido",
+    total: "Total",
+    orders: "Ver pedidos",
+    continueShopping: "Seguir comprando",
+    intlLocale: "es-ES",
+}) : locale === "de" ? ({
+    confirmed: "Zahlung best\u00E4tigt",
+    confirming: "Zahlung wird best\u00E4tigt",
+    thanks: "Vielen Dank f\u00FCr Ihre Bestellung",
+    received: "Wir haben Ihre Zahlung erhalten",
+    paidHelp: "Ihre Bestellung wurde erfasst und wird von unserem Team gepr\u00FCft, bevor sie in Produktion geht.",
+    pendingHelp: "Stripe best\u00E4tigt die Zahlung. Der Bestellstatus wird automatisch aktualisiert.",
+    orderNumber: "Bestellnummer",
+    total: "Gesamtbetrag",
+    orders: "Bestellungen ansehen",
+    continueShopping: "Weiter einkaufen",
+    intlLocale: "de-DE",
+}) : locale === "it" ? ({
+    confirmed: "Pagamento confermato",
+    confirming: "Conferma del pagamento in corso",
+    thanks: "Grazie per il tuo ordine",
+    received: "Abbiamo ricevuto il tuo pagamento",
+    paidHelp: "Il tuo ordine \u00E8 stato registrato e verr\u00E0 verificato dal nostro team prima di essere inviato in produzione.",
+    pendingHelp: "Stripe sta confermando il pagamento. Lo stato dell'ordine verr\u00E0 aggiornato automaticamente.",
+    orderNumber: "Numero d'ordine",
+    total: "Totale",
+    orders: "Vedi gli ordini",
+    continueShopping: "Continua gli acquisti",
+    intlLocale: "it-IT",
+}) : locale === "en"
       ? {
           confirmed: "Payment confirmed",
           confirming: "Payment being confirmed",
@@ -85,7 +121,7 @@ export default async function CheckoutSuccessPage({
             orders: "Ver encomendas",
             continueShopping: "Continuar a comprar",
             intlLocale: "pt-PT",
-          };
+          });
   const resolvedSearchParams = await searchParams;
   const sessionId =
     resolvedSearchParams?.session_id?.trim() ?? null;
