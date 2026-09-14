@@ -21,5 +21,5 @@ export async function updateUserAccessAction(formData: FormData): Promise<void> 
   const id=String(formData.get("id")??"");const role=String(formData.get("role")??"");const active=String(formData.get("is_active")??"")==="true";
   if(!id||!(["customer","admin"] as string[]).includes(role))return;
   if(id===current&&(!active||role!=="admin"))throw new Error("Não podes retirar o teu próprio acesso de Administração.");
-  const admin=createSupabaseAdminClient();const{error}=await admin.from("profiles").update({role,is_active:active}).eq("id",id);if(error)throw new Error(error.message);revalidatePath("/admin/utilizadores");
+  const admin=createSupabaseAdminClient();const existing=await admin.from("profiles").select("role").eq("id",id).maybeSingle();if(existing.data?.role==="sales")throw new Error("Gere o acesso comercial no módulo Rede Comercial.");const{error}=await admin.from("profiles").update({role,is_active:active}).eq("id",id);if(error)throw new Error(error.message);revalidatePath("/admin/utilizadores");
 }

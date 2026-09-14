@@ -22,7 +22,7 @@ function getDefaultRedirectPath(role: string | null | undefined, locale: SiteLoc
     return "/admin";
   }
 
-  return localizePath("/area-cliente", locale);
+  return localizePath(role === "sales" ? "/area-comercial" : "/area-cliente", locale);
 }
 
 export async function loginAction(

@@ -10,8 +10,9 @@ export async function claimGuestShopping(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) throw new Error("Sessão inválida. Volta a iniciar sessão.");
-  const { data: profile } = await supabase.from("profiles").select("is_active").eq("id", user.id).maybeSingle();
+  const { data: profile } = await supabase.from("profiles").select("is_active,role").eq("id", user.id).maybeSingle();
   if (!profile || profile.is_active === false) throw new Error("Conta inativa.");
+  if (profile.role === "sales") return;
   // Both identities come from verified server context, never form fields.
   const { error: claimError } = await createSupabaseAdminClient().rpc("claim_guest_shopping", {
     p_user_id: user.id, p_session_id: sessionId,

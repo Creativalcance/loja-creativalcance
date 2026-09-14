@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
   async function redirectAfterConfirmation() {
     await claimGuestShopping();
     const { data: { user } } = await supabase.auth.getUser();
-    if (user?.email) {
+    const profile = user ? await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle() : null;
+    if (user?.email && profile?.data?.role === "customer") {
       try {
         await notifyAccountWelcome({
           userId: user.id,

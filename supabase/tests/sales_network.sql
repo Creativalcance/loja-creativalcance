@@ -1,0 +1,96 @@
+-- Run in a transaction with the sales migration applied; rollback all fixtures afterwards.
+create function pg_temp.sales_assert(ok boolean, message text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception 'Sales test failed: %',message;end if;end $$;
+create temporary table sales_test_ids(name text primary key,id uuid not null default gen_random_uuid());
+insert into sales_test_ids(name) values('admin'),('rep_a'),('rep_b'),('customer'),('customer_2'),('agent_a'),('agent_b'),('order_a'),('order_b'),('payment_a'),('payout_a'),('order_c'),('order_d');
+insert into auth.users(id,email,raw_user_meta_data) select id,'sales-test-'||id||'@example.invalid',jsonb_build_object('full_name','Sales regression fixture') from sales_test_ids where name in ('admin','rep_a','rep_b','customer','customer_2');
+update public.profiles set role='admin',is_active=true where id=(select id from sales_test_ids where name='admin');
+
+do $$ declare actor uuid; a uuid; b uuid; c uuid; o uuid; payment uuid; payout uuid; result jsonb; terms jsonb; cnt bigint; begin
+ select id into actor from sales_test_ids where name='admin';select id into c from sales_test_ids where name='customer';select id into o from sales_test_ids where name='order_a';select id into payment from sales_test_ids where name='payment_a';select id into payout from sales_test_ids where name='payout_a';
+ terms:=jsonb_build_object('full_name','Representative A','email','sales-test-'||(select id from sales_test_ids where name='rep_a')||'@example.invalid','countries',jsonb_build_array('PT','ES'),'locale','es','status','draft','supplier_rate_bps',500,'manual_rate_bps',1000,'hold_days',0,'attribution_months',12,'recurring',true,'commission_enabled',true,'monthly_target_cents',100000,'starts_on',current_date::text);
+ result:=public.sales_admin_mutate(actor,'save_agent',terms);a:=(result->>'id')::uuid;update sales_test_ids set id=a where name='agent_a';
+ perform public.sales_admin_mutate(actor,'link_account',jsonb_build_object('agent_id',a,'user_id',(select id from sales_test_ids where name='rep_a')));
+ perform public.sales_admin_mutate(actor,'save_agent',terms||jsonb_build_object('agent_id',a,'status','active'));
+ perform pg_temp.sales_assert((select role='sales' from public.profiles where id=(select id from sales_test_ids where name='rep_a')),'invitation associates a restricted sales role');
+ perform public.sales_admin_mutate(actor,'assign_customer',jsonb_build_object('agent_id',a,'customer_user_id',c,'reason','Customer acquired by representative A'));
+ insert into public.orders(id,user_id,customer_email,customer_name,discount_total,tax_total,shipping_total,grand_total,currency)
+ values(o,c,'sales-fixture@example.invalid','Fixture customer',20,41.40,10,231.40,'EUR');
+ insert into public.order_items(order_id,product_sku,product_name,quantity,unit_price,total,fulfillment_route) values(o,'TEST-S','Supplier fixture',1,100,100,'supplier_api'),(o,'TEST-M','Manual fixture',1,100,100,'internal_360');
+ perform pg_temp.sales_assert((select agent_id=a from public.sales_order_attributions where order_id=o),'new order snapshots the assigned agent');
+ perform public.sales_refresh_commissions(a);
+ perform pg_temp.sales_assert((select earned_cents=1350 and supplier_base_cents=9000 and manual_base_cents=9000 and state='forecast' from public.sales_commissions where order_id=o),'mixed order: discount allocation, route-specific rates, no tax/shipping commission');
+ begin perform public.sales_admin_mutate(actor,'approve',jsonb_build_object('agent_id',a,'order_id',o,'expected_cents',1350));raise exception 'Unpaid commission was approved';exception when others then if sqlerrm='Unpaid commission was approved' then raise;end if;end;
+ insert into public.payments(id,order_id,provider,status,amount,amount_received,paid_at,currency) values(payment,o,'stripe','paid',231.40,231.40,now(),'EUR');
+ update public.orders set payment_status='paid',paid_at=now() where id=o;
+ perform public.sales_refresh_commissions(a);
+ perform pg_temp.sales_assert((select state='forecast' from public.sales_commissions where order_id=o),'payment alone does not release commission');
+ update public.orders set status='delivered',fulfillment_status='delivered',delivered_at=now()-interval '2 days' where id=o;
+ perform public.sales_refresh_commissions(a);
+ perform pg_temp.sales_assert((select state='eligible' from public.sales_commissions where order_id=o),'paid and delivered order becomes eligible');
+ update public.payments set amount_received=100 where id=payment;
+ perform public.sales_refresh_commissions(a);
+ perform pg_temp.sales_assert((select state='forecast' from public.sales_commissions where order_id=o),'partial Stripe capture cannot earn a full commission');
+ update public.payments set amount_received=231.40 where id=payment;perform public.sales_refresh_commissions(a);
+ select count(*) into cnt from public.sales_audit_log where agent_id=a;perform public.sales_refresh_commissions(a);perform pg_temp.sales_assert((select count(*)=cnt from public.sales_audit_log where agent_id=a),'reconciliation retry is idempotent');
+ perform public.sales_admin_mutate(actor,'save_agent',terms||jsonb_build_object('agent_id',a,'status','active','supplier_rate_bps',2000,'manual_rate_bps',3000));
+ perform public.sales_refresh_commissions(a);perform pg_temp.sales_assert((select earned_cents=1350 from public.sales_commissions where order_id=o),'rate changes never rewrite existing order terms');
+ begin perform public.sales_admin_mutate(c,'approve',jsonb_build_object('agent_id',a,'order_id',o,'expected_cents',1350));raise exception 'Customer approved commission';exception when others then if sqlerrm='Customer approved commission' then raise;end if;end;
+ begin perform public.sales_admin_mutate(actor,'approve',jsonb_build_object('agent_id',a,'order_id',o,'expected_cents',1500));raise exception 'Stale value approved';exception when others then if sqlerrm='Stale value approved' then raise;end if;end;
+ perform public.sales_admin_mutate(actor,'approve',jsonb_build_object('agent_id',a,'order_id',o,'expected_cents',1350));
+ result:=public.sales_admin_mutate(actor,'payout',jsonb_build_object('agent_id',a,'request_id',payout,'expected_cents',1350,'currency','EUR','reference','TEST PAYMENT','period',current_date::text,'paid_at',current_date::text));
+ perform pg_temp.sales_assert((select paid_cents=1350 from public.sales_commissions where order_id=o),'payout records settled commission');
+ result:=public.sales_admin_mutate(actor,'payout',jsonb_build_object('agent_id',a,'request_id',payout,'expected_cents',1350,'currency','EUR','reference','TEST PAYMENT','period',current_date::text,'paid_at',current_date::text));
+ perform pg_temp.sales_assert((result->>'duplicate')::boolean and (select count(*)=1 from public.sales_email_notifications where agent_id=a),'payout retry does not duplicate payout or email');
+ perform public.sales_observe_refund(payment,6000,23140,'eur',now());
+ perform public.sales_observe_refund(payment,2000,23140,'eur',now()-interval '1 minute');
+ perform pg_temp.sales_assert((select refund_cents=6000 from public.sales_payment_checks where payment_id=payment),'older refund events cannot overwrite a newer observation');
+ perform public.sales_refresh_commissions(a);
+ perform pg_temp.sales_assert((select review_required and approved_at is null from public.sales_commissions where order_id=o),'partial refund blocks approval and invalidates previous approval');
+ perform public.sales_admin_mutate(actor,'allocate_refund',jsonb_build_object('agent_id',a,'order_id',o,'refund_cents',6000,'supplier_net_cents',5000,'manual_net_cents',0,'reason','Partial supplier product refund'));
+ perform pg_temp.sales_assert((select earned_cents=1100 and paid_cents=1350 and not review_required from public.sales_commissions where order_id=o),'partial refund preserves paid history and creates a negative adjustment');
+ perform public.sales_admin_mutate(actor,'approve',jsonb_build_object('agent_id',a,'order_id',o,'expected_cents',1100));
+ begin perform public.sales_admin_mutate(actor,'payout',jsonb_build_object('agent_id',a,'request_id',gen_random_uuid(),'expected_cents',250,'currency','EUR','reference','INVALID NEGATIVE','period',current_date::text,'paid_at',current_date::text));raise exception 'Negative balance paid';exception when others then if sqlerrm='Negative balance paid' then raise;end if;end;
+ perform public.sales_observe_refund(payment,23140,23140,'eur',now()+interval '1 second');perform public.sales_refresh_commissions(a);
+ perform pg_temp.sales_assert((select earned_cents=0 and paid_cents=1350 and state='cancelled' from public.sales_commissions where order_id=o),'full refund annuls entitlement and preserves historical payments');
+ perform pg_temp.sales_assert((select amount_refunded=0 and status='paid' from public.payments where id=payment),'commission reconciliation does not mutate the existing payment workflow');
+ terms:=terms||jsonb_build_object('full_name','Representative B','email','sales-test-'||(select id from sales_test_ids where name='rep_b')||'@example.invalid','locale','de');
+ result:=public.sales_admin_mutate(actor,'save_agent',terms);b:=(result->>'id')::uuid;update sales_test_ids set id=b where name='agent_b';
+ perform public.sales_admin_mutate(actor,'link_account',jsonb_build_object('agent_id',b,'user_id',(select id from sales_test_ids where name='rep_b')));
+ perform public.sales_admin_mutate(actor,'save_agent',terms||jsonb_build_object('agent_id',b,'status','active'));
+ perform public.sales_admin_mutate(actor,'assign_customer',jsonb_build_object('agent_id',b,'customer_user_id',c,'reason','Transfer customer portfolio to B'));
+ insert into public.orders(id,user_id,customer_email,customer_name,grand_total) values((select id from sales_test_ids where name='order_b'),c,'sales-fixture@example.invalid','Fixture customer',100);
+ perform pg_temp.sales_assert((select agent_id=b from public.sales_order_attributions where order_id=(select id from sales_test_ids where name='order_b')) and (select agent_id=a from public.sales_order_attributions where order_id=o),'portfolio transfer affects new orders only');
+ insert into public.sales_contacts(agent_id,name,email,country_code) values(a,'Contact A','contact-a-'||a||'@example.invalid','PT'),(b,'Contact B','contact-b-'||b||'@example.invalid','ES');
+ -- Fixed waiting periods and first-paid-order-only terms are independent of previous rules.
+ perform public.sales_admin_mutate(actor,'save_agent',terms||jsonb_build_object('agent_id',b,'status','active','hold_days',14,'recurring',false));
+ perform public.sales_admin_mutate(actor,'assign_customer',jsonb_build_object('agent_id',b,'customer_user_id',(select id from sales_test_ids where name='customer_2'),'reason','Second test customer assignment'));
+ insert into public.orders(id,user_id,customer_email,customer_name,grand_total,payment_status,paid_at,status,fulfillment_status,delivered_at)
+ select id,(select id from sales_test_ids where name='customer_2'),'sales-fixture2@example.invalid','Fixture two',100,'paid',case when name='order_c' then now()-interval '2 days' else now()-interval '1 day' end,'delivered','delivered',now()-interval '1 day' from sales_test_ids where name in ('order_c','order_d');
+ insert into public.order_items(order_id,product_sku,product_name,quantity,total,fulfillment_route) select id,'MANUAL','Manual only fixture',1,100,'internal_360' from sales_test_ids where name in ('order_c','order_d');
+ insert into public.payments(order_id,provider,status,amount,amount_received,paid_at,currency) select id,'manual','paid',100,100,now(),'EUR' from sales_test_ids where name in ('order_c','order_d');
+ perform public.sales_refresh_commissions(b);
+ perform pg_temp.sales_assert((select earned_cents=1000 and state='forecast' from public.sales_commissions where order_id=(select id from sales_test_ids where name='order_c')),'manual-only commission respects delivery waiting period');
+ perform pg_temp.sales_assert((select earned_cents=0 and state='cancelled' from public.sales_commissions where order_id=(select id from sales_test_ids where name='order_d')),'first-paid-order policy excludes repeat purchases');
+ update public.sales_customer_assignments set expires_at=now()-interval '1 second',starts_at=now()-interval '2 days' where agent_id=b and ended_at is null;
+ insert into public.orders(user_id,customer_email,customer_name,grand_total) values(c,'expired@example.invalid','Expired attribution',100) returning id into o;
+ perform pg_temp.sales_assert(not exists(select 1 from public.sales_order_attributions where order_id=o),'expired portfolio cannot attribute orders');
+end $$;
+
+-- Direct database access tests: the representative cannot read another portfolio, change terms, or execute admin RPCs.
+select set_config('request.jwt.claims',jsonb_build_object('sub',(select id from sales_test_ids where name='rep_a'),'role','authenticated')::text,true);
+set local role authenticated;
+select pg_temp.sales_assert((select count(*)=1 from public.sales_agents),'sales role reads only its own profile');
+select pg_temp.sales_assert((select count(*)=1 from public.sales_contacts),'sales role reads only its own contacts');
+select pg_temp.sales_assert((select count(*)=1 from public.sales_order_attributions),'sales role reads only its own historical attributions');
+select pg_temp.sales_assert((select count(*)=0 from public.orders),'sales role cannot directly read private orders or supplier payloads');
+select pg_temp.sales_assert(not has_table_privilege('authenticated','public.sales_agents','UPDATE'),'sales cannot change own commission rates');
+select pg_temp.sales_assert(not has_column_privilege('authenticated','public.profiles','role','UPDATE'),'sales cannot promote its own role');
+select pg_temp.sales_assert(not has_function_privilege('authenticated','public.sales_admin_mutate(uuid,text,jsonb)','EXECUTE'),'admin RPC is not exposed to authenticated users');
+select pg_temp.sales_assert(not has_function_privilege('anon','public.sales_refresh_commissions(uuid)','EXECUTE'),'reconciliation RPC is not public');
+reset role;
+update public.profiles set is_active=false where id=(select id from sales_test_ids where name='rep_a');
+set local role authenticated;
+select pg_temp.sales_assert((select count(*)=0 from public.sales_agents),'suspension blocks current-session RLS access');
+select pg_temp.sales_assert((select count(*)=0 from public.sales_contacts),'suspension blocks existing portfolio access');
+reset role;
+select 'Sales financial workflow and RLS assertions passed' as result;

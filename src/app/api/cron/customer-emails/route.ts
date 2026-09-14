@@ -1,3 +1,4 @@
+import { retrySalesEmails } from '@/lib/sales/email';
 import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { retryPendingInternalOrderEmails } from "@/lib/notifications/internal-order";
@@ -25,7 +26,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const customer = await retryPendingCustomerEmails(10);
     const internal360 = await retryPendingInternalOrderEmails(5);
     const newsletter = await retryPendingNewsletterWelcomeEmails(5);
-    return NextResponse.json({ success: true, executedAt: new Date().toISOString(), ...customer, internal360, newsletter });
+    let sales: unknown;
+    try { sales = await retrySalesEmails(2); } catch { sales = { error: "Sales email retry pending" }; }
+    return NextResponse.json({ sales, success: true, executedAt: new Date().toISOString(), ...customer, internal360, newsletter });
   } catch (error) {
     return NextResponse.json({
       success: false,

@@ -12,6 +12,7 @@ export async function proxy(request: NextRequest) {
     : originalPath;
   const isAdminPath = applicationPath.startsWith("/admin") || applicationPath.startsWith("/api/admin");
   const isCustomerPath = applicationPath.startsWith("/area-cliente");
+  const isSalesPath = applicationPath === "/area-comercial" || applicationPath.startsWith("/area-comercial/");
   const isCheckoutPath = applicationPath === "/checkout" || applicationPath.startsWith("/checkout/");
   const isAuthPath =
     applicationPath.startsWith("/auth/") ||
@@ -20,7 +21,7 @@ export async function proxy(request: NextRequest) {
     applicationPath === "/registo" ||
     applicationPath === "/recuperar-password" ||
     applicationPath === "/nova-password";
-  const needsSessionHandling = isAdminPath || isCustomerPath || isCheckoutPath || isAuthPath;
+  const needsSessionHandling = isAdminPath || isCustomerPath || isSalesPath || isCheckoutPath || isAuthPath;
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-site-locale", locale);
 
@@ -87,11 +88,11 @@ export async function proxy(request: NextRequest) {
   const { data: claimsData } = await supabase.auth.getClaims();
   const path = applicationPath;
 
-  if (isCustomerPath || isCheckoutPath) {
+  if (isCustomerPath || isSalesPath || isCheckoutPath) {
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
   }
 
-  if (isAdminPath || isCustomerPath) {
+  if (isAdminPath || isCustomerPath || isSalesPath) {
     const userId = typeof claimsData?.claims?.sub === "string" ? claimsData.claims.sub : null;
 
     if (!userId) {
@@ -111,9 +112,14 @@ export async function proxy(request: NextRequest) {
       .eq("id", userId)
       .maybeSingle<{ role: string; is_active: boolean }>();
 
-    const allowed = profile?.is_active !== false &&
+    let allowed = profile?.is_active !== false &&
       ((isAdminPath && profile?.role === "admin") ||
-        (isCustomerPath && profile?.role === "customer"));
+        (isCustomerPath && profile?.role === "customer") || (isSalesPath && profile?.role === "sales"));
+
+    if (allowed && isSalesPath) {
+      const { data: agent } = await supabase.from("sales_agents").select("status").eq("user_id", userId).maybeSingle();
+      allowed = Boolean(agent && ["active", "invited"].includes(agent.status));
+    }
 
     if (!allowed) {
       if (path.startsWith("/api/")) {
@@ -123,7 +129,7 @@ export async function proxy(request: NextRequest) {
       const destination = request.nextUrl.clone();
       destination.pathname = profile?.role === "admin"
         ? "/admin"
-        : localizedPath
+        : profile?.role === "sales" && !isSalesPath ? (localizedPath ? `/${locale}/area-comercial` : "/area-comercial") : localizedPath
           ? `/${locale}`
           : "/";
       destination.search = "";
