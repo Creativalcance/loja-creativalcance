@@ -10,6 +10,7 @@ export default function AgentForm({ agent }: { agent?: SalesAgent }) {
       action={saveAgentAction}
       submit={agent ? "Guardar ficha" : "Criar comercial"}
       createdLink={!agent}
+      tracksAgentEdits
     >
       <input type="hidden" name="agent_id" value={agent?.id || ""} />
       <div className="grid gap-4 sm:grid-cols-2">
@@ -34,7 +35,7 @@ export default function AgentForm({ agent }: { agent?: SalesAgent }) {
           value={agent?.company_name}
         />
         <label className="text-sm font-medium">
-          Idioma da conta e emails
+          Idioma da área comercial e respetivos emails
           <select
             name="locale"
             className={inputClass}
@@ -56,7 +57,9 @@ export default function AgentForm({ agent }: { agent?: SalesAgent }) {
           >
             {agent?.user_id ? (
               <>
-                <option value="invited">Convidado</option>
+                {agent.account_kind === "new_account" && (
+                  <option value="invited">Convidado</option>
+                )}
                 <option value="active">Ativo</option>
                 <option value="suspended">Suspenso</option>
               </>

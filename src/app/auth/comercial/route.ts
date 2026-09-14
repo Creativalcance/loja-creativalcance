@@ -19,13 +19,15 @@ export async function GET(request: NextRequest) {
         .maybeSingle();
       const { data: agent } = await supabase
         .from("sales_agents")
-        .select("status,locale")
+        .select("status,locale,account_kind")
         .eq("user_id", data.user.id)
         .maybeSingle();
       if (
-        profile?.role === "sales" &&
+        profile &&
+        ["customer", "admin"].includes(profile.role) &&
         profile.is_active &&
         agent &&
+        agent.account_kind === "new_account" &&
         ["invited", "active"].includes(agent.status)
       ) {
         const response = NextResponse.redirect(

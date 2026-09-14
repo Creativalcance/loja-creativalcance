@@ -10,6 +10,7 @@ function load(path, imports = {}) {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
   }).outputText;
   vm.runInNewContext(code, { exports, URL, console, process, require: (name) => {
+    if (name === "@/lib/auth/commercial-access") return load("src/lib/auth/commercial-access.ts");
     if (!(name in imports)) throw new Error(`Unexpected import: ${name}`);
     return imports[name];
   } });

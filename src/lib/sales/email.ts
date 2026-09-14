@@ -57,7 +57,11 @@ export async function sendSalesEmail(params: {
   return String(result.id);
 }
 export async function sendSalesInvitation(agent: SalesAgent) {
-  if (!agent.user_id || !["invited", "active"].includes(agent.status))
+  if (
+    agent.account_kind === "existing_account" ||
+    !agent.user_id ||
+    agent.status !== "invited"
+  )
     throw new Error("A conta não está disponível para convite.");
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin.auth.admin.generateLink({
@@ -95,20 +99,22 @@ export async function sendSalesInvitation(agent: SalesAgent) {
   if (saved.error)
     throw new Error("Convite enviado; não foi possível atualizar o registo.");
 }
-export async function retrySalesEmails(limit = 10) {
+export async function retrySalesEmails(limit = 10, agentId?: string) {
   const admin = createSupabaseAdminClient();
   await admin
     .from("sales_email_notifications")
     .update({ status: "failed" })
     .eq("status", "sending")
     .lt("attempted_at", new Date(Date.now() - 600000).toISOString());
-  const { data, error } = await admin
+  let pending = admin
     .from("sales_email_notifications")
     .select("*")
     .in("status", ["pending", "failed"])
     .lt("attempts", 5)
     .order("created_at")
     .limit(limit);
+  if (agentId) pending = pending.eq("agent_id", agentId).eq("kind", "access");
+  const { data, error } = await pending;
   if (error) throw new Error(error.message);
   let sent = 0;
   let failed = 0;
@@ -129,15 +135,50 @@ export async function retrySalesEmails(limit = 10) {
     try {
       const t = salesCopy(n.locale as SiteLocale);
       const p = n.payload;
+      const accessNotice = n.kind === "access";
+      if (accessNotice) {
+        const { data: agent } = await admin
+          .from("sales_agents")
+          .select("user_id,status")
+          .eq("id", n.agent_id)
+          .maybeSingle();
+        const identity = agent?.user_id
+          ? await admin.auth.admin.getUserById(agent.user_id)
+          : null;
+        const profile = agent?.user_id
+          ? await admin
+              .from("profiles")
+              .select("is_active")
+              .eq("id", agent.user_id)
+              .maybeSingle()
+          : null;
+        if (
+          agent?.status !== "active" ||
+          agent.user_id !== p.user_id ||
+          !profile?.data?.is_active ||
+          identity?.error ||
+          identity?.data.user?.email?.toLowerCase() !==
+            n.email_to.toLowerCase() ||
+          !identity?.data.user?.email_confirmed_at
+        )
+          throw new Error("O acesso ou o email da conta mudou.");
+      }
       const providerId = await sendSalesEmail({
-        key: `sales-payout:${n.id}`,
+        key: `sales-${accessNotice ? "access" : "payout"}:${n.id}`,
         to: n.email_to,
         locale: n.locale,
-        subject: t.paymentSubject,
-        body: `${p.name},\n\n${t.paymentBody}\n\n${salesMoney(p.amount_cents, p.currency, n.locale)}\n${t.reference}: ${p.reference}`,
+        subject: accessNotice ? t.accessSubject : t.paymentSubject,
+        body: accessNotice
+          ? `${p.name},\n\n${t.accessBody}`
+          : `${p.name},\n\n${t.paymentBody}\n\n${salesMoney(p.amount_cents, p.currency, n.locale)}\n${t.reference}: ${p.reference}`,
         url:
-          siteUrl() + localizePath("/area-comercial", n.locale) + "#pagamentos",
-        button: t.payouts,
+          siteUrl() +
+          (accessNotice
+            ? localizePath("/login", n.locale) +
+              "?next=" +
+              encodeURIComponent(localizePath("/area-comercial", n.locale))
+            : localizePath("/area-comercial", n.locale) + "#pagamentos"),
+        button: accessNotice ? t.title : t.payouts,
       });
       const saved = await admin
         .from("sales_email_notifications")
@@ -149,6 +190,14 @@ export async function retrySalesEmails(limit = 10) {
         })
         .eq("id", n.id);
       if (saved.error) throw new Error(saved.error.message);
+      if (accessNotice)
+        await admin
+          .from("sales_agents")
+          .update({
+            invitation_sent_at: new Date().toISOString(),
+            invitation_error: null,
+          })
+          .eq("id", n.agent_id);
       sent++;
     } catch {
       await admin

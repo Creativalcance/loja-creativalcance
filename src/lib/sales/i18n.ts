@@ -1,5 +1,29 @@
 import { SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 const rows = {
+  customerArea: [
+    "Área de Cliente",
+    "Customer area",
+    "Espace client",
+    "Área de cliente",
+    "Kundenbereich",
+    "Area cliente",
+  ],
+  accessSubject: [
+    "O teu acesso comercial está ativo",
+    "Your sales access is active",
+    "Votre accès commercial est actif",
+    "Tu acceso comercial está activo",
+    "Ihr Vertriebszugang ist aktiv",
+    "Il tuo accesso commerciale è attivo",
+  ],
+  accessBody: [
+    "A tua conta 360 Merchandising tem agora acesso à Área Comercial. Entra com os teus dados habituais. A palavra-passe, as compras e os acessos existentes mantêm-se.",
+    "Your 360 Merchandising account now includes access to the Sales workspace. Sign in with your usual details. Your password, purchases and existing access remain unchanged.",
+    "Votre compte 360 Merchandising donne désormais accès à l’Espace commercial. Connectez-vous avec vos identifiants habituels. Votre mot de passe, vos achats et vos accès existants sont conservés.",
+    "Tu cuenta de 360 Merchandising ya incluye acceso al Área comercial. Entra con tus datos habituales. Se mantienen tu contraseña, tus compras y tus accesos existentes.",
+    "Ihr Konto bei 360 Merchandising bietet jetzt Zugang zum Vertriebsbereich. Melden Sie sich mit Ihren gewohnten Zugangsdaten an. Ihr Passwort, Ihre Einkäufe und Ihre bisherigen Zugriffsrechte bleiben erhalten.",
+    "Il tuo account 360 Merchandising include ora l’accesso all’Area commerciale. Accedi con le tue credenziali abituali. Password, acquisti e accessi esistenti rimangono invariati.",
+  ],
   title: [
     "Área Comercial",
     "Sales workspace",
@@ -539,9 +563,10 @@ export function salesMoney(
   currency = "EUR",
   locale: SiteLocale = "pt",
 ) {
-  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, { style: "currency", currency }).format(
-    cents / 100,
-  );
+  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, {
+    style: "currency",
+    currency,
+  }).format(cents / 100);
 }
 export function countryName(code: string, locale: SiteLocale = "pt") {
   return new Intl.DisplayNames([locale], { type: "region" }).of(code) || code;

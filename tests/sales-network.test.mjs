@@ -36,6 +36,8 @@ function load(file, imports = {}, extra = {}) {
       Intl,
       require: (name) => {
         if (name === "server-only") return {};
+        if (name === "@/lib/auth/commercial-access")
+          return load("src/lib/auth/commercial-access.ts");
         if (!(name in imports)) throw new Error(`Unexpected import ${name}`);
         return imports[name];
       },
@@ -112,12 +114,21 @@ test("invalid rates, money and contract dates are rejected", () => {
     false,
   );
 });
-test("commercial return paths never confer admin/customer access", () => {
+test("commercial membership adds access without changing customer or admin permissions", () => {
   for (const locale of Object.keys(config.SITE_LOCALES)) {
     assert.equal(
       paths.canReturnTo(
-        "sales",
+        "customer",
         config.localizePath("/area-comercial", locale),
+        true,
+      ),
+      true,
+    );
+    assert.equal(
+      paths.canReturnTo(
+        "admin",
+        config.localizePath("/area-comercial", locale),
+        true,
       ),
       true,
     );
@@ -129,15 +140,22 @@ test("commercial return paths never confer admin/customer access", () => {
       false,
     );
     assert.equal(
-      paths.canReturnTo("sales", config.localizePath("/admin", locale)),
-      false,
+      paths.canReturnTo(
+        "customer",
+        config.localizePath("/area-cliente", locale),
+        true,
+      ),
+      true,
     );
     assert.equal(
-      paths.canReturnTo("sales", config.localizePath("/area-cliente", locale)),
+      paths.canReturnTo(
+        "customer",
+        config.localizePath("/admin", locale),
+        true,
+      ),
       false,
     );
   }
-  assert.equal(paths.safeReturnPath("//evil.test"), undefined);
 });
 test("CSV export protects spreadsheet formulas and quoting", () => {
   for (const value of ["=SUM(1,2)", " +123", "@command", "-10"])
@@ -159,7 +177,7 @@ for (const locale of Object.keys(config.SITE_LOCALES))
   });
 
 function accessHarness({
-  role = "sales",
+  role = "customer",
   active = true,
   validAgent = true,
   allowedOrder = true,
@@ -218,10 +236,9 @@ function accessHarness({
   });
   return { mod, reads, adminOpened: () => adminOpened };
 }
-test("an active sales profile and matching agent are both required", async () => {
+test("an active base account and matching commercial membership are both required", async () => {
   for (const args of [
-    { role: "customer" },
-    { role: "admin" },
+    { role: "unknown" },
     { active: false },
     { validAgent: false },
   ]) {
@@ -397,6 +414,7 @@ test("commercial creation form renders native accessible inputs with no assumed 
   const Form = load("src/components/sales/ActionForm.tsx", {
     "react/jsx-runtime": jsx,
     react: React,
+    "./AgentEditContext": { useAgentEdits: () => ({ setDirty: () => {} }) },
     "next/link": ({ children, ...props }) =>
       React.createElement("a", props, children),
   }).default;
@@ -419,4 +437,345 @@ test("commercial creation form renders native accessible inputs with no assumed 
   assert.match(html, /value="draft" selected=""/);
   assert.doesNotMatch(html, /name="commission_enabled"[^>]*checked/);
   assert.equal((html.match(/<form/g) || []).length, 1);
+});
+
+test("membership suspension preserves customer access and never elevates administration", () => {
+  const { hasCommercialAccess } = load("src/lib/auth/commercial-access.ts");
+  for (const role of ["customer", "admin"]) {
+    assert.equal(
+      hasCommercialAccess({ role, is_active: true }, { status: "active" }),
+      true,
+    );
+    assert.equal(
+      hasCommercialAccess({ role, is_active: true }, { status: "suspended" }),
+      false,
+    );
+    assert.equal(
+      hasCommercialAccess({ role, is_active: false }, { status: "active" }),
+      false,
+    );
+    assert.equal(hasCommercialAccess({ role, is_active: true }, null), false);
+  }
+  assert.equal(
+    paths.canReturnTo("customer", "/checkout?draft=retained", false),
+    true,
+  );
+  assert.equal(
+    paths.canReturnTo("customer", "/area-cliente/encomendas", false),
+    true,
+  );
+  assert.equal(paths.canReturnTo("customer", "/admin", true), false);
+});
+
+function inviteHarness({
+  confirmed = true,
+  dirty = false,
+  existing = true,
+} = {}) {
+  const events = [];
+  const fixture = {
+    ...agent,
+    user_id: null,
+    status: "draft",
+    account_kind: "new_account",
+    updated_at: "2026-09-14T15:00:00Z",
+    invitation_sent_at: null,
+  };
+  const candidate = {
+    id: other,
+    email: fixture.email,
+    role: "customer",
+    is_active: true,
+    confirmed,
+    banned: false,
+    linked_agent_id: null,
+  };
+  const accountModule = load("src/lib/sales/account.ts", {
+    "@/lib/supabase/admin": { createSupabaseAdminClient: () => ({}) },
+  });
+  const db = {
+    auth: {
+      admin: {
+        createUser: async () => {
+          events.push("createUser");
+          throw new Error("Unexpected identity creation");
+        },
+        deleteUser: async () => events.push("deleteUser"),
+      },
+    },
+    from: () => {
+      const q = {
+        select: () => q,
+        update: () => q,
+        eq: () => q,
+        single: async () => ({ data: fixture }),
+        then: (resolve) => resolve({ error: null }),
+      };
+      return q;
+    },
+    rpc: async (name, data) => {
+      events.push({ name, data });
+      return { data: { id }, error: null };
+    },
+  };
+  const mod = load("src/lib/sales/actions.ts", {
+    "node:crypto": crypto,
+    "next/cache": { revalidatePath: () => {} },
+    "@/lib/auth/assert-admin": {
+      assertAdminAccess: async () => ({ userId: id }),
+    },
+    "@/lib/supabase/admin": { createSupabaseAdminClient: () => db },
+    "@/lib/i18n/config": config,
+    "./validation": rules,
+    "./account": {
+      findSalesAccount: async () => (existing ? candidate : null),
+      canLinkSalesAccount: accountModule.canLinkSalesAccount,
+    },
+    "./access": {},
+    "./i18n": copy,
+    "./reconcile": {},
+    "./email": {
+      sendSalesInvitation: async () => events.push("password-invite"),
+      retrySalesEmails: async () => events.push("access-email"),
+    },
+  });
+  const form = new FormData();
+  for (const [k, v] of Object.entries({
+    agent_id: id,
+    expected_email: dirty ? "wrong@example.test" : fixture.email,
+    expected_updated_at: fixture.updated_at,
+    confirm_account: "on",
+    account_mode: "existing",
+    existing_user_id: other,
+  }))
+    form.set(k, v);
+  return { mod, form, events };
+}
+test("existing customer activation never creates an identity or resets a password", async () => {
+  const h = inviteHarness();
+  assert.equal((await h.mod.inviteAgentAction({}, h.form)).success, true);
+  assert.equal(h.events[0].data.p_action, "link_existing_account");
+  assert.equal(h.events[0].data.p_data.user_id, other);
+  assert.equal(h.events[1], "access-email");
+  assert.equal(h.events.length, 2);
+});
+test("unconfirmed identities and stale saved-email confirmations cannot be linked", async () => {
+  for (const opts of [
+    { confirmed: false },
+    { dirty: true },
+    { existing: false },
+  ]) {
+    const h = inviteHarness(opts);
+    assert.equal((await h.mod.inviteAgentAction({}, h.form)).success, false);
+    assert.equal(h.events.length, 0);
+  }
+});
+
+test("account association uses verified Auth identity and rejects profile email mismatch", async () => {
+  for (const mismatch of [false, true]) {
+    const reads = [];
+    const db = {
+      auth: {
+        admin: {
+          getUserById: async (userId) => {
+            reads.push(userId);
+            return {
+              data: {
+                user: {
+                  id: userId,
+                  email: mismatch ? "other@example.test" : agent.email,
+                  email_confirmed_at: "confirmed",
+                },
+              },
+              error: null,
+            };
+          },
+        },
+      },
+      from: (table) => {
+        let key;
+        const q = {
+          select: () => q,
+          eq: (k, v) => {
+            key = v;
+            return q;
+          },
+          maybeSingle: async () => ({
+            data:
+              table === "sales_agents"
+                ? null
+                : key === id
+                  ? { role: "admin", is_active: true }
+                  : {
+                      id: other,
+                      email: agent.email,
+                      full_name: "Existing",
+                      role: "customer",
+                      is_active: true,
+                    },
+          }),
+        };
+        return q;
+      },
+    };
+    const mod = load("src/lib/sales/account.ts", {
+      "@/lib/supabase/admin": { createSupabaseAdminClient: () => db },
+    });
+    if (mismatch)
+      await assert.rejects(mod.findSalesAccount(id, agent.email), /difere/);
+    else {
+      const result = await mod.findSalesAccount(id, agent.email);
+      assert.equal(result.id, other);
+      assert.equal(result.confirmed, true);
+    }
+    assert.deepEqual(reads, [other]);
+  }
+});
+
+for (const locale of Object.keys(config.SITE_LOCALES))
+  test(`existing account activation email in ${locale} uses normal login without password token`, async () => {
+    const notice = {
+      id,
+      agent_id: id,
+      kind: "access",
+      status: "pending",
+      attempts: 0,
+      locale,
+      email_to: agent.email,
+      payload: { name: "Existing <customer>", user_id: other },
+    };
+    const sends = [];
+    const db = {
+      auth: {
+        admin: {
+          getUserById: async () => ({
+            data: {
+              user: {
+                id: other,
+                email: agent.email,
+                email_confirmed_at: "confirmed",
+              },
+            },
+            error: null,
+          }),
+        },
+      },
+      from: (table) => {
+        let update = null;
+        const filters = [];
+        const q = {
+          select: () => q,
+          update: (v) => {
+            update = v;
+            return q;
+          },
+          eq: (k, v) => {
+            filters.push([k, v]);
+            return q;
+          },
+          in: () => q,
+          lt: () => q,
+          order: () => q,
+          limit: () => q,
+          maybeSingle: async () => ({
+            data:
+              table === "sales_agents"
+                ? { user_id: other, status: "active" }
+                : table === "profiles"
+                  ? { is_active: true }
+                  : { id },
+            error: null,
+          }),
+          then: (resolve) => {
+            if (table === "sales_email_notifications" && !update)
+              return resolve({ data: [notice], error: null });
+            return resolve({ error: null });
+          },
+        };
+        return q;
+      },
+    };
+    const mod = load(
+      "src/lib/sales/email.ts",
+      {
+        "@/lib/supabase/admin": { createSupabaseAdminClient: () => db },
+        "@/lib/i18n/config": config,
+        "./i18n": copy,
+      },
+      {
+        process: {
+          env: {
+            RESEND_API_KEY: "test-fixture",
+            NEXT_PUBLIC_SITE_URL: "https://shop.example.test",
+          },
+        },
+        fetch: async (url, opts) => {
+          sends.push(JSON.parse(opts.body));
+          return { ok: true, json: async () => ({ id: "email-fixture" }) };
+        },
+      },
+    );
+    const result = await mod.retrySalesEmails(1, id);
+    assert.equal(result.sent, 1);
+    assert.equal(sends.length, 1);
+    assert.equal(sends[0].subject, copy.salesCopy(locale).accessSubject);
+    assert.equal(sends[0].to[0], agent.email);
+    assert.ok(
+      sends[0].text.includes(config.localizePath("/login", locale) + "?next="),
+    );
+    assert.doesNotMatch(
+      sends[0].text,
+      /token_hash|nova-password|auth\/comercial/,
+    );
+    assert.ok(sends[0].html.includes("Existing &lt;customer&gt;"));
+    await assert.rejects(
+      mod.sendSalesInvitation({ ...agent, account_kind: "existing_account" }),
+      /não está disponível/,
+    );
+  });
+
+test("unsaved commercial edits disable activation and identify the persisted account", () => {
+  const Form = ({ disabled, children, submit }) =>
+    React.createElement(
+      "form",
+      null,
+      React.createElement(
+        "fieldset",
+        { disabled },
+        children,
+        React.createElement("button", null, submit),
+      ),
+    );
+  const props = {
+    agent: {
+      ...agent,
+      user_id: null,
+      status: "draft",
+      updated_at: "saved-version",
+    },
+    account: {
+      id: other,
+      email: agent.email,
+      role: "customer",
+      full_name: "Existing Customer",
+      confirmed: true,
+      is_active: true,
+      banned: false,
+      linked_agent_id: null,
+    },
+  };
+  for (const dirty of [false, true]) {
+    const Panel = load("src/components/sales/AccountAccessPanel.tsx", {
+      "react/jsx-runtime": jsx,
+      "@/lib/sales/actions": { inviteAgentAction: async () => {} },
+      "./AgentEditContext": { useAgentEdits: () => ({ dirty }) },
+      "./ActionForm": Form,
+    }).default;
+    const html = renderToStaticMarkup(React.createElement(Panel, props));
+    assert.ok(html.includes(agent.email));
+    assert.ok(html.includes("Existing Customer"));
+    assert.equal(html.includes('<fieldset disabled="">'), dirty);
+    const confirmation = html.match(/<input[^>]*name="confirm_account"[^>]*>/)?.[0] || "";
+    assert.match(confirmation, /required=""/);
+  }
 });

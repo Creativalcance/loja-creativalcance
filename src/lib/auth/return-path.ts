@@ -14,10 +14,10 @@ export function safeReturnPath(value: unknown): string | undefined {
   } catch { return undefined; }
 }
 
-export function canReturnTo(role: string | null | undefined, path: string): boolean {
+export function canReturnTo(role: string | null | undefined, path: string, commercialAccess = false): boolean {
   const normalized = new URL(path, "https://store.invalid").pathname.replace(/^\/(en|fr|es|de|it)(?=\/|$)/, "");
   if (/^\/(admin|api\/admin)(\/|$)/.test(normalized)) return role === "admin";
-  if (/^\/area-comercial(\/|$)/.test(normalized)) return role === "sales";
+  if (/^\/area-comercial(\/|$)/.test(normalized)) return commercialAccess && (role === "customer" || role === "admin");
   if (/^\/area-cliente(\/|$)/.test(normalized)) return role === "customer";
   return true;
 }
