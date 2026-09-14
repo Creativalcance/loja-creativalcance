@@ -1,30 +1,404 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Plus, Search, Star, XCircle } from "lucide-react";
+import { assertAdminAccess } from "@/lib/auth/assert-admin";
+import ManualProductControls from "@/components/admin/manual-products/Controls";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  Search,
+  Star,
+  XCircle,
+} from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { updateProductFeaturedAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 const PAGE_SIZE = 50;
 
-type Product = { id:string; sku:string; name:string; short_description:string|null; status:string; is_active:boolean; is_featured:boolean; is_customizable:boolean; min_order_quantity:number; updated_at:string; suppliers:{name:string}|null };
-type Props = { searchParams?:Promise<{q?:string;status?:string;destaque?:string;pagina?:string}> };
+type Product = {
+  id: string;
+  sku: string;
+  name: string;
+  short_description: string | null;
+  status: string;
+  is_active: boolean;
+  is_featured: boolean;
+  is_customizable: boolean;
+  min_order_quantity: number;
+  updated_at: string;
+  deleted_at: string | null;
+  catalog_source: string;
+  fulfillment_route: string;
+  suppliers: { name: string } | null;
+};
+type Props = {
+  searchParams?: Promise<{
+    q?: string;
+    status?: string;
+    destaque?: string;
+    origem?: string;
+    pagina?: string;
+  }>;
+};
 
-function pageHref(q:string,status:string,featured:string,page:number){const p=new URLSearchParams();if(q)p.set("q",q);if(status)p.set("status",status);if(featured)p.set("destaque",featured);p.set("pagina",String(page));return `/admin/produtos?${p}`;}
-function date(value:string){return new Intl.DateTimeFormat("pt-PT",{dateStyle:"short",timeStyle:"short"}).format(new Date(value));}
-function statusLabel(value:string){return ({active:"Activo",inactive:"Inactivo",draft:"Rascunho",archived:"Arquivado"} as Record<string,string>)[value]??value;}
+function pageHref(
+  q: string,
+  status: string,
+  featured: string,
+  source: string,
+  page: number,
+) {
+  const p = new URLSearchParams();
+  if (q) p.set("q", q);
+  if (status) p.set("status", status);
+  if (featured) p.set("destaque", featured);
+  if (source) p.set("origem", source);
+  p.set("pagina", String(page));
+  return `/admin/produtos?${p}`;
+}
+function date(value: string) {
+  return new Intl.DateTimeFormat("pt-PT", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+function statusLabel(value: string) {
+  return (
+    (
+      {
+        active: "Publicado",
+        inactive: "Inativo",
+        draft: "Rascunho",
+        archived: "Arquivado",
+      } as Record<string, string>
+    )[value] ?? value
+  );
+}
 
-export default async function AdminProductsPage({searchParams}:Props){
-  const params=await searchParams;const q=params?.q?.trim().slice(0,80)??"";const status=params?.status?.trim()??"";const featured=params?.destaque?.trim()??"";const requested=Number(params?.pagina??1);const page=Number.isFinite(requested)&&requested>0?Math.floor(requested):1;const from=(page-1)*PAGE_SIZE;
-  const supabase=await createSupabaseServerClient();const{data:{user}}=await supabase.auth.getUser();if(!user)redirect("/login");const{data:profile}=await supabase.from("profiles").select("role,is_active").eq("id",user.id).maybeSingle<{role:string;is_active:boolean}>();if(!profile||profile.role!=="admin"||!profile.is_active)redirect("/");
-  const safe=q.replace(/[%_(),]/g," ").trim();let list=supabase.from("products").select("id,sku,name,short_description,status,is_active,is_featured,is_customizable,min_order_quantity,updated_at,suppliers(name)",{count:"exact"}).order("updated_at",{ascending:false}).range(from,from+PAGE_SIZE-1);if(safe)list=list.or(`name.ilike.%${safe}%,sku.ilike.%${safe}%,short_description.ilike.%${safe}%`);if(status)list=list.eq("status",status);if(featured==="sim")list=list.eq("is_featured",true);if(featured==="nao")list=list.eq("is_featured",false);
-  const[result,active,inactive,highlights]=await Promise.all([list,supabase.from("products").select("id",{count:"exact",head:true}).eq("status","active").eq("is_active",true),supabase.from("products").select("id",{count:"exact",head:true}).or("status.eq.inactive,is_active.eq.false"),supabase.from("products").select("id",{count:"exact",head:true}).eq("status","active").eq("is_active",true).eq("is_featured",true)]);if(result.error)throw new Error(result.error.message);const products=(result.data??[]) as unknown as Product[];const count=result.count??0;const pages=Math.max(1,Math.ceil(count/PAGE_SIZE));
-  return <main className="min-h-screen bg-neutral-50 px-4 py-8 sm:px-6 sm:py-10"><section className="mx-auto max-w-7xl">
-    <Link href="/admin" className="inline-flex items-center text-sm font-medium text-neutral-600"><ArrowLeft className="mr-2 h-4 w-4"/>Voltar ao admin</Link>
-    <div className="mt-8 flex flex-wrap items-end justify-between gap-4"><div><p className="text-sm font-medium uppercase tracking-[.2em] text-neutral-500">Administração</p><h1 className="mt-3 text-3xl font-semibold sm:text-4xl">Produtos</h1><p className="mt-4 text-neutral-600">Gestão integral do catálogo, disponibilidade e destaques apresentados na loja.</p></div><Link href="/admin/produtos/novo" className="inline-flex items-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white"><Plus className="mr-2 h-4 w-4"/>Novo produto 360</Link></div>
-    <div className="mt-10 grid gap-5 md:grid-cols-3">{[{label:"Produtos activos",value:active.count??0,Icon:CheckCircle2,color:"text-emerald-600"},{label:"Produtos inactivos",value:inactive.count??0,Icon:XCircle,color:"text-red-600"},{label:"Em destaque",value:highlights.count??0,Icon:Star,color:"text-amber-600"}].map(({label,value,Icon,color})=><article key={label} className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"><Icon className={`h-6 w-6 ${color}`}/><p className="mt-5 text-sm text-neutral-500">{label}</p><p className="mt-1 text-3xl font-semibold">{value.toLocaleString("pt-PT")}</p></article>)}</div>
-    <form action="/admin/produtos" className="mt-8 grid gap-4 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm lg:grid-cols-[1fr_200px_200px_auto]"><div className="relative"><Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"/><input name="q" type="search" defaultValue={q} placeholder="Pesquisar por nome, SKU ou descrição" className="w-full rounded-2xl border border-neutral-300 py-3 pl-11 pr-4"/></div><select name="status" defaultValue={status} className="rounded-2xl border border-neutral-300 px-4"><option value="">Todos os estados</option><option value="active">Activo</option><option value="inactive">Inactivo</option><option value="draft">Rascunho</option><option value="archived">Arquivado</option></select><select name="destaque" defaultValue={featured} className="rounded-2xl border border-neutral-300 px-4"><option value="">Todos os produtos</option><option value="sim">Apenas em destaque</option><option value="nao">Fora dos destaques</option></select><button className="rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white">Filtrar</button></form>
-    <section className="mt-8 overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm"><div className="border-b border-neutral-200 p-5"><h2 className="text-xl font-semibold">Listagem de produtos</h2><p className="mt-2 text-sm text-neutral-500">50 por página · Página {page} de {pages} · {count.toLocaleString("pt-PT")} resultados</p></div><div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-sm"><thead className="bg-neutral-50 text-neutral-500"><tr>{["Produto","SKU","Fornecedor","Estado","MOQ","Personalizável","Destaque","Actualizado"].map(h=><th key={h} className="px-5 py-4">{h}</th>)}</tr></thead><tbody className="divide-y divide-neutral-100">{products.map(product=><tr key={product.id} className="align-top"><td className="px-5 py-5"><strong>{product.name}</strong><p className="mt-1 line-clamp-2 max-w-md text-neutral-500">{product.short_description??"Sem descrição curta."}</p></td><td className="px-5 py-5">{product.sku}</td><td className="px-5 py-5">{product.suppliers?.name??"—"}</td><td className="px-5 py-5"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${product.is_active&&product.status==="active"?"bg-emerald-50 text-emerald-700":"bg-red-50 text-red-700"}`}>{statusLabel(product.status)}</span></td><td className="px-5 py-5">{product.min_order_quantity}</td><td className="px-5 py-5">{product.is_customizable?"Sim":"Não"}</td><td className="px-5 py-5"><form action={updateProductFeaturedAction}><input type="hidden" name="productId" value={product.id}/><input type="hidden" name="featured" value={product.is_featured?"false":"true"}/><button className="inline-flex items-center rounded-xl border border-neutral-300 px-3 py-2 text-xs font-semibold"><Star className="mr-1 h-3.5 w-3.5"/>{product.is_featured?"Retirar":"Adicionar"}</button></form></td><td className="px-5 py-5">{date(product.updated_at)}</td></tr>)}{products.length===0?<tr><td colSpan={8} className="p-12 text-center text-neutral-500">Sem resultados.</td></tr>:null}</tbody></table></div>
-    {pages>1?<nav className="flex items-center justify-between border-t border-neutral-200 p-5"><p className="text-sm text-neutral-500">Página {page} de {pages}</p><div className="flex gap-2">{page>1?<Link href={pageHref(q,status,featured,page-1)} className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold"><ChevronLeft className="mr-1 h-4 w-4"/>Anterior</Link>:null}{page<pages?<Link href={pageHref(q,status,featured,page+1)} className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold">Seguinte<ChevronRight className="ml-1 h-4 w-4"/></Link>:null}</div></nav>:null}</section>
-  </section></main>;
+export default async function AdminProductsPage({ searchParams }: Props) {
+  const params = await searchParams;
+  const q = params?.q?.trim().slice(0, 80) ?? "";
+  const status = params?.status?.trim() ?? "";
+  const featured = params?.destaque?.trim() ?? "";
+  const source = ["manual", "supplier_sync"].includes(params?.origem ?? "")
+    ? params!.origem!
+    : "";
+  const requested = Number(params?.pagina ?? 1);
+  const page =
+    Number.isFinite(requested) && requested > 0 ? Math.floor(requested) : 1;
+  const from = (page - 1) * PAGE_SIZE;
+  await assertAdminAccess("/admin/produtos");
+  const supabase = await createSupabaseServerClient();
+  const safe = q.replace(/[%_(),]/g, " ").trim();
+  let list = supabase
+    .from("products")
+    .select(
+      "id,sku,name,short_description,status,is_active,is_featured,is_customizable,min_order_quantity,updated_at,deleted_at,catalog_source,fulfillment_route,suppliers(name)",
+      { count: "exact" },
+    )
+    .order("updated_at", { ascending: false })
+    .range(from, from + PAGE_SIZE - 1);
+  if (safe)
+    list = list.or(
+      `name.ilike.%${safe}%,sku.ilike.%${safe}%,short_description.ilike.%${safe}%`,
+    );
+  if (status === "deleted") list = list.not("deleted_at", "is", null);
+  else {
+    list = list.is("deleted_at", null);
+    if (status) list = list.eq("status", status);
+  }
+  if (source) list = list.eq("catalog_source", source);
+  if (featured === "sim") list = list.eq("is_featured", true);
+  if (featured === "nao") list = list.eq("is_featured", false);
+  const [result, active, inactive, highlights] = await Promise.all([
+    list,
+    supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "active")
+      .eq("is_active", true),
+    supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .or("status.eq.inactive,is_active.eq.false"),
+    supabase
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null)
+      .eq("status", "active")
+      .eq("is_active", true)
+      .eq("is_featured", true),
+  ]);
+  if (result.error) throw new Error(result.error.message);
+  const products = (result.data ?? []) as unknown as Product[];
+  const count = result.count ?? 0;
+  const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  return (
+    <main className="min-h-screen bg-neutral-50 px-4 py-8 sm:px-6 sm:py-10">
+      <section className="mx-auto max-w-7xl">
+        <Link
+          href="/admin"
+          className="inline-flex items-center text-sm font-medium text-neutral-600"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar ao admin
+        </Link>
+        <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium uppercase tracking-[.2em] text-neutral-500">
+              Administração
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold sm:text-4xl">
+              Produtos
+            </h1>
+            <p className="mt-4 text-neutral-600">
+              Gestão integral do catálogo, disponibilidade e destaques
+              apresentados na loja.
+            </p>
+          </div>
+          <Link
+            href="/admin/produtos/novo"
+            className="inline-flex items-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Novo produto 360
+          </Link>
+        </div>
+        <div className="mt-10 grid gap-5 md:grid-cols-3">
+          {[
+            {
+              label: "Produtos activos",
+              value: active.count ?? 0,
+              Icon: CheckCircle2,
+              color: "text-emerald-600",
+            },
+            {
+              label: "Produtos inactivos",
+              value: inactive.count ?? 0,
+              Icon: XCircle,
+              color: "text-red-600",
+            },
+            {
+              label: "Em destaque",
+              value: highlights.count ?? 0,
+              Icon: Star,
+              color: "text-amber-600",
+            },
+          ].map(({ label, value, Icon, color }) => (
+            <article
+              key={label}
+              className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
+            >
+              <Icon className={`h-6 w-6 ${color}`} />
+              <p className="mt-5 text-sm text-neutral-500">{label}</p>
+              <p className="mt-1 text-3xl font-semibold">
+                {value.toLocaleString("pt-PT")}
+              </p>
+            </article>
+          ))}
+        </div>
+        <form
+          action="/admin/produtos"
+          className="mt-8 grid gap-4 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm lg:grid-cols-[1fr_160px_180px_180px_auto]"
+        >
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <input
+              aria-label="Pesquisar produtos"
+              name="q"
+              type="search"
+              defaultValue={q}
+              placeholder="Pesquisar por nome, SKU ou descrição"
+              className="w-full rounded-2xl border border-neutral-300 py-3 pl-11 pr-4"
+            />
+          </div>
+          <select
+            aria-label="Estado"
+            name="status"
+            defaultValue={status}
+            className="rounded-2xl border border-neutral-300 px-4"
+          >
+            <option value="">Todos os estados</option>
+            <option value="active">Publicado</option>
+            <option value="inactive">Inativo</option>
+            <option value="draft">Rascunho</option>
+            <option value="archived">Arquivado</option>
+            <option value="deleted">Eliminados</option>
+          </select>
+          <select
+            aria-label="Origem"
+            name="origem"
+            defaultValue={source}
+            className="rounded-2xl border border-neutral-300 px-4"
+          >
+            <option value="">Todas as origens</option>
+            <option value="manual">360 · Manual</option>
+            <option value="supplier_sync">Fornecedor</option>
+          </select>
+          <select
+            aria-label="Destaque"
+            name="destaque"
+            defaultValue={featured}
+            className="rounded-2xl border border-neutral-300 px-4"
+          >
+            <option value="">Todos os produtos</option>
+            <option value="sim">Apenas em destaque</option>
+            <option value="nao">Fora dos destaques</option>
+          </select>
+          <button className="rounded-2xl bg-neutral-950 px-6 py-3 text-sm font-semibold text-white">
+            Filtrar
+          </button>
+        </form>
+        <section className="mt-8 overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-sm">
+          <div className="border-b border-neutral-200 p-5">
+            <h2 className="text-xl font-semibold">Listagem de produtos</h2>
+            <p className="mt-2 text-sm text-neutral-500">
+              50 por página · Página {page} de {pages} ·{" "}
+              {count.toLocaleString("pt-PT")} resultados
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1050px] text-left text-sm">
+              <thead className="bg-neutral-50 text-neutral-500">
+                <tr>
+                  {[
+                    "Produto",
+                    "Ações",
+                    "SKU",
+                    "Origem",
+                    "Estado",
+                    "MOQ",
+                    "Personalizável",
+                    "Destaque",
+                    "Atualizado",
+                  ].map((h) => (
+                    <th key={h} className="px-5 py-4">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-100">
+                {products.map((product) => (
+                  <tr key={product.id} className="align-top">
+                    <td className="px-5 py-5">
+                      <strong>
+                        {product.catalog_source === "manual" ? (
+                          <Link
+                            href={`/admin/produtos/${product.id}`}
+                            className="hover:underline"
+                          >
+                            {product.name}
+                          </Link>
+                        ) : (
+                          product.name
+                        )}
+                      </strong>
+                      <p className="mt-1 line-clamp-2 max-w-md text-neutral-500">
+                        {product.short_description ?? "Sem descrição curta."}
+                      </p>
+                    </td>
+                    <td className="px-5 py-5">
+                      {product.catalog_source === "manual" &&
+                      product.fulfillment_route === "internal_360" ? (
+                        <ManualProductControls
+                          key={product.updated_at}
+                          product={product}
+                        />
+                      ) : (
+                        <span className="text-xs text-neutral-500">
+                          Sincronizado pelo fornecedor
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-5">{product.sku}</td>
+                    <td className="px-5 py-5">
+                      {product.catalog_source === "manual"
+                        ? "360 · Manual"
+                        : (product.suppliers?.name ?? "Fornecedor")}
+                    </td>
+                    <td className="px-5 py-5">
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${product.is_active && product.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}
+                      >
+                        {product.deleted_at
+                          ? "Eliminado"
+                          : statusLabel(product.status)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-5">{product.min_order_quantity}</td>
+                    <td className="px-5 py-5">
+                      {product.is_customizable ? "Sim" : "Não"}
+                    </td>
+                    <td className="px-5 py-5">
+                      {!product.deleted_at && (
+                        <form action={updateProductFeaturedAction}>
+                          <input
+                            type="hidden"
+                            name="productId"
+                            value={product.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="featured"
+                            value={product.is_featured ? "false" : "true"}
+                          />
+                          <button className="inline-flex items-center rounded-xl border border-neutral-300 px-3 py-2 text-xs font-semibold">
+                            <Star className="mr-1 h-3.5 w-3.5" />
+                            {product.is_featured ? "Retirar" : "Adicionar"}
+                          </button>
+                        </form>
+                      )}
+                    </td>
+                    <td className="px-5 py-5">{date(product.updated_at)}</td>
+                  </tr>
+                ))}
+                {products.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="p-12 text-center text-neutral-500"
+                    >
+                      Sem resultados.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          {pages > 1 ? (
+            <nav className="flex items-center justify-between border-t border-neutral-200 p-5">
+              <p className="text-sm text-neutral-500">
+                Página {page} de {pages}
+              </p>
+              <div className="flex gap-2">
+                {page > 1 ? (
+                  <Link
+                    href={pageHref(q, status, featured, source, page - 1)}
+                    className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold"
+                  >
+                    <ChevronLeft className="mr-1 h-4 w-4" />
+                    Anterior
+                  </Link>
+                ) : null}
+                {page < pages ? (
+                  <Link
+                    href={pageHref(q, status, featured, source, page + 1)}
+                    className="inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold"
+                  >
+                    Seguinte
+                    <ChevronRight className="ml-1 h-4 w-4" />
+                  </Link>
+                ) : null}
+              </div>
+            </nav>
+          ) : null}
+        </section>
+      </section>
+    </main>
+  );
 }
