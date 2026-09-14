@@ -32,6 +32,7 @@ export type ProductEditorVariant = {
   id: string;
   sku: string;
   color_name: string | null;
+  color_label?: string | null;
   color_hex: string | null;
   size: string | null;
   image_url: string | null;
@@ -237,11 +238,11 @@ function getColorLabel(variant: ProductEditorVariant | null, fallback = "Cor sel
     return fallback;
   }
 
-  if (variant.color_name && variant.size) {
-    return `${variant.color_name} · ${variant.size}`;
+  if ((variant.color_label ?? variant.color_name) && variant.size) {
+    return `${variant.color_label ?? variant.color_name} · ${variant.size}`;
   }
 
-  return variant.color_name ?? variant.size ?? fallback;
+  return variant.color_label ?? variant.color_name ?? variant.size ?? fallback;
 }
 
 function getLocationLabel(location: ProductEditorLocation): string {

@@ -50,7 +50,7 @@ function fixture({ failTranslation = false } = {}) {
     '@/lib/i18n/config':config,
     '@/lib/supabase/admin':{createSupabaseAdminClient:()=>({from:()=>translationQuery})},
   });
-  const presentation = load('src/lib/i18n/product-presentation.ts', {'@/lib/i18n/catalog':catalog});
+  const presentation = load('src/lib/i18n/product-presentation.ts', {'@/lib/i18n/catalog':catalog, '@/lib/i18n/colors':{getLocalizedVariantColors:async()=>new Map()}});
   const sourceQuery = {select:()=>sourceQuery,eq:()=>sourceQuery,or:()=>sourceQuery,order:()=>sourceQuery,limit:()=>sourceQuery,
     then:resolve=>Promise.resolve({data:[product],error:null}).then(resolve)};
   const landings = load('src/lib/seo/landing-products.ts', {

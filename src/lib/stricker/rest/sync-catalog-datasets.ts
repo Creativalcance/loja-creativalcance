@@ -559,6 +559,10 @@ export async function syncRestCatalogDataset(params: {
         ? (payload.Colors as StrickerColorRecord[])
         : [];
 
+      if (payload.Language !== params.lang || records.length === 0) {
+        throw new Error(`O fornecedor não devolveu um dicionário de cores válido para ${params.lang}.`);
+      }
+
       const rows = buildColorRows({
         supplierId,
         lang: params.lang,

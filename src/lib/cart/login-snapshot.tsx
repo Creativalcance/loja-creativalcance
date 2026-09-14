@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { localizePath } from "@/lib/i18n/config";
 
 const EVENT = "360:before-login";
 const MARKER = "360:shopping-resume";
@@ -31,7 +32,7 @@ async function save(value: unknown) {
         if (entry.value.expires < Date.now()) entry.delete();
         entry.continue();
       };
-      snapshots.put({ value, path: location.pathname + location.search, expires: Date.now() + 86400000 }, key);
+      snapshots.put({ value, path: localizePath(location.pathname + location.search, "pt"), expires: Date.now() + 86400000 }, key);
       tx.oncomplete = () => resolve();
       tx.onerror = tx.onabort = () => reject(tx.error);
     });
@@ -48,18 +49,20 @@ async function restore<T>(): Promise<T | undefined> {
       const request = db.transaction("snapshots").objectStore("snapshots").get(key);
       request.onsuccess = () => {
         const saved = request.result;
-        resolve(saved?.expires > Date.now() && saved.path === location.pathname + location.search ? saved.value as T : undefined);
+        resolve(saved?.expires > Date.now() && localizePath(saved.path, "pt") === localizePath(location.pathname + location.search, "pt") ? saved.value as T : undefined);
       };
       request.onerror = () => reject(request.error);
     });
   } finally { db.close(); }
 }
 
-export async function preserveShoppingBeforeLogin() {
+export async function preserveShoppingBeforeNavigation() {
   const pending: Promise<void>[] = [];
   window.dispatchEvent(new CustomEvent(EVENT, { detail: pending }));
   await Promise.all(pending);
 }
+
+export const preserveShoppingBeforeLogin = preserveShoppingBeforeNavigation;
 
 export async function snapshotImage(url: string | null): Promise<string | null> {
   if (!url || url.startsWith("data:")) return url;

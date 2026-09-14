@@ -2,6 +2,7 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 import { NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
+import { SITE_LOCALES } from "@/lib/i18n/config";
 import { syncRestCatalogDataset } from "@/lib/stricker/rest/sync-catalog-datasets";
 import {
   reconcileCommercialAvailability,
@@ -294,8 +295,15 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       return syncRestStocksByCountry({ lang: "PT", country: "CZ" });
     case "availability":
       return reconcileCommercialAvailability();
-    case "colors":
-      return syncRestCatalogDataset({ dataset: "colors", lang: "PT" });
+    case "colors": {
+      const languages = [];
+      // The supplier rejects overlapping catalogue requests on one session.
+      // Refresh every storefront language sequentially under the existing lock.
+      for (const locale of Object.values(SITE_LOCALES)) {
+        languages.push(await syncRestCatalogDataset({ dataset: "colors", lang: locale.strickerLanguage }));
+      }
+      return { languages };
+    }
     case "product-types":
       return syncRestCatalogDataset({ dataset: "productTypes", lang: "PT" });
     case "products-tree":

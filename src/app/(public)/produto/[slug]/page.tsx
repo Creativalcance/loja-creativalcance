@@ -23,6 +23,7 @@ import {
   serializeJsonLd,
 } from "@/lib/seo/structured-data";
 import { localizePath } from "@/lib/i18n/config";
+import { localizeProductColors } from "@/lib/i18n/colors";
 import { getLocalizedProductText } from "@/lib/i18n/catalog";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
@@ -65,6 +66,8 @@ type ProductVariant = {
   id: string;
   sku: string;
   color_name: string | null;
+  color_code: string | null;
+  color_label?: string | null;
   color_hex: string | null;
   size: string | null;
   material: string | null;
@@ -102,6 +105,7 @@ type ProductCustomizationLocation = {
 
 type ProductDetail = {
   id: string;
+  supplier_id: string | null;
   sku: string;
   name: string;
   slug: string;
@@ -251,6 +255,7 @@ export async function generateMetadata({
           id,
           sku,
           color_name,
+          color_code,
           color_hex,
           size,
           material,
@@ -525,6 +530,7 @@ export default async function ProductDetailPage({
       `
         id,
         sku,
+        supplier_id,
         name,
         slug,
         short_description,
@@ -571,6 +577,7 @@ export default async function ProductDetailPage({
           id,
           sku,
           color_name,
+          color_code,
           color_hex,
           size,
           material,
@@ -709,7 +716,7 @@ export default async function ProductDetailPage({
     (a, b) => a.quantity_min - b.quantity_min,
   );
 
-  const colors = product.product_variants ?? [];
+  const colors = await localizeProductColors(product.product_variants ?? [], product.supplier_id, locale);
   const components = product.product_customization_components ?? [];
   const componentsById = buildComponentMap(components);
 
@@ -727,6 +734,7 @@ export default async function ProductDetailPage({
     id: color.id,
     sku: color.sku,
     color_name: color.color_name,
+    color_label: color.color_label,
     color_hex: color.color_hex,
     size: color.size,
     image_url: color.optional_image_1_url ?? color.optional_image_2_url,

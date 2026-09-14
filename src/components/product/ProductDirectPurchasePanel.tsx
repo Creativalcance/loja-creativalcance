@@ -32,6 +32,7 @@ export type ProductPurchaseColor = {
   id: string;
   sku: string;
   color_name: string | null;
+  color_label?: string | null;
   color_hex: string | null;
   size: string | null;
   image_url: string | null;
@@ -162,17 +163,18 @@ function formatMoney(
 function getColorLabel(
   color: ProductPurchaseColor,
 ): string {
-  return color.color_name ?? "Cor disponível";
+  return color.color_label ?? color.color_name ?? "—";
 }
 
 function getVariantLabel(
   color: ProductPurchaseColor,
 ): string {
-  if (color.color_name && color.size) {
-    return `${color.color_name} · ${color.size}`;
+  if ((color.color_label ?? color.color_name) && color.size) {
+    return `${color.color_label ?? color.color_name} · ${color.size}`;
   }
 
   return (
+    color.color_label ??
     color.color_name ??
     color.size ??
     "Opção disponível"
@@ -1974,7 +1976,7 @@ function PurchasePanel({
 
                   <span className="font-medium text-neutral-950">
                     {selectedColorGroup?.label ??
-                      selectedVariant?.color_name ??
+                      selectedVariant?.color_label ?? selectedVariant?.color_name ??
                       "—"}
                   </span>
                 </div>
