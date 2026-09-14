@@ -47,7 +47,7 @@ function getFooterGroups(locale: SiteLocale) {
       { label: (locale === "es" ? ("Pol\u00EDtica de privacidad") : locale === "de" ? ("Datenschutzerkl\u00E4rung") : locale === "it" ? ("Informativa sulla privacy") : locale === "en" ? "Privacy Policy" : locale === "fr" ? "Politique de Confidentialité" : "Política de Privacidade"), href: "/politica-de-privacidade" },
       { label: (locale === "es" ? ("Pol\u00EDtica de cookies") : locale === "de" ? ("Cookie-Richtlinie") : locale === "it" ? ("Informativa sui cookie") : locale === "en" ? "Cookie Policy" : locale === "fr" ? "Politique de Cookies" : "Política de Cookies"), href: "/politica-de-cookies" },
       { label: (locale === "es" ? ("Reembolsos y devoluciones") : locale === "de" ? ("R\u00FCckerstattungen und R\u00FCcksendungen") : locale === "it" ? ("Rimborsi e resi") : locale === "en" ? "Refunds and Returns" : locale === "fr" ? "Remboursements et Retours" : "Reembolsos e Devoluções"), href: "/reembolsos-e-devolucoes" },
-      { label: "Contactos", href: "/contactos" },
+      { label: { pt: "Contactos", en: "Contact", fr: "Contact", es: "Contacto", de: "Kontakt", it: "Contatti" }[locale], href: "/contactos" },
     ],
   },
   ].map((group) => ({
