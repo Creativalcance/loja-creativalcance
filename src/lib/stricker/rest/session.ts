@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import {
@@ -7,6 +8,16 @@ import {
 import { type StrickerStoredSession } from "./types";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
+
+const SESSION_LOCK_TTL_SECONDS = 60;
+const SESSION_LOCK_WAIT_MS = 200;
+const SESSION_LOCK_MAX_ATTEMPTS = 30;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
 
 function isValidSessionStatus(status: unknown): boolean {
   if (typeof status === "boolean") {
@@ -71,6 +82,28 @@ async function markSessionAsInvalid(params: {
       raw_payload: params.rawPayload ?? {},
     })
     .eq("id", params.sessionId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function markActiveSessionsAsInvalid(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  reason: string;
+}): Promise<void> {
+  const { error } = await params.supabaseAdmin
+    .from("supplier_sessions")
+    .update({
+      status: "invalid",
+      last_validated_at: new Date().toISOString(),
+      raw_payload: {
+        reason: params.reason,
+      },
+    })
+    .eq("supplier_id", params.supplierId)
+    .eq("status", "active");
 
   if (error) {
     throw new Error(error.message);
@@ -153,7 +186,9 @@ async function createStoredSession(params: {
     .single<StrickerStoredSession>();
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Não foi possível guardar a sessão do fornecedor.");
+    throw new Error(
+      error?.message ?? "Não foi possível guardar a sessão do fornecedor.",
+    );
   }
 
   return data;
@@ -167,25 +202,177 @@ function isExpiredSession(session: StrickerStoredSession): boolean {
   return new Date(session.expires_at).getTime() <= Date.now();
 }
 
+function canReuseReplacementSession(params: {
+  session: StrickerStoredSession | null;
+  previousSessionId?: string | null;
+}): params is {
+  session: StrickerStoredSession;
+  previousSessionId?: string | null;
+} {
+  if (!params.session || isExpiredSession(params.session)) {
+    return false;
+  }
+
+  if (
+    params.previousSessionId &&
+    params.session.id === params.previousSessionId
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+async function acquireSessionLock(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  ownerToken: string;
+}): Promise<boolean> {
+  const { data, error } = await params.supabaseAdmin.rpc(
+    "try_acquire_integration_sync_lock",
+    {
+      target_lock_key: `stricker:session-auth:${params.supplierId}`,
+      target_owner_token: params.ownerToken,
+      target_ttl_seconds: SESSION_LOCK_TTL_SECONDS,
+    },
+  );
+
+  if (error) {
+    throw new Error(
+      `Não foi possível obter o bloqueio da sessão Stricker: ${error.message}`,
+    );
+  }
+
+  return data === true;
+}
+
+async function releaseSessionLock(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  ownerToken: string;
+}): Promise<void> {
+  const { error } = await params.supabaseAdmin.rpc(
+    "release_integration_sync_lock",
+    {
+      target_lock_key: `stricker:session-auth:${params.supplierId}`,
+      target_owner_token: params.ownerToken,
+    },
+  );
+
+  if (error) {
+    console.error(
+      "Falha ao libertar bloqueio da sessão Stricker:",
+      error.message,
+    );
+  }
+}
+
 async function createNewValidSession(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
+  previousSessionId?: string | null;
 }): Promise<string> {
-  const authentication = await authenticateStrickerClient();
-  const token = authentication.Token?.trim();
+  const ownerToken = randomUUID();
+  let acquired = false;
 
-  if (!token) {
-    throw new Error("O fornecedor não devolveu token de autenticação.");
+  for (
+    let attempt = 0;
+    attempt < SESSION_LOCK_MAX_ATTEMPTS;
+    attempt += 1
+  ) {
+    acquired = await acquireSessionLock({
+      supabaseAdmin: params.supabaseAdmin,
+      supplierId: params.supplierId,
+      ownerToken,
+    });
+
+    if (acquired) {
+      break;
+    }
+
+    await sleep(SESSION_LOCK_WAIT_MS);
+
+    const replacement = await getLatestActiveSession({
+      supabaseAdmin: params.supabaseAdmin,
+      supplierId: params.supplierId,
+    });
+
+    if (
+      canReuseReplacementSession({
+        session: replacement,
+        previousSessionId: params.previousSessionId,
+      })
+    ) {
+      return replacement.token;
+    }
   }
 
-  await createStoredSession({
-    supabaseAdmin: params.supabaseAdmin,
-    supplierId: params.supplierId,
-    token,
-    rawPayload: authentication as Record<string, unknown>,
+  if (!acquired) {
+    throw new Error(
+      "Não foi possível obter o bloqueio para renovar a sessão do fornecedor.",
+    );
+  }
+
+  try {
+    const replacement = await getLatestActiveSession({
+      supabaseAdmin: params.supabaseAdmin,
+      supplierId: params.supplierId,
+    });
+
+    if (
+      canReuseReplacementSession({
+        session: replacement,
+        previousSessionId: params.previousSessionId,
+      })
+    ) {
+      return replacement.token;
+    }
+
+    const authentication = await authenticateStrickerClient();
+    const token = authentication.Token?.trim();
+
+    if (!token) {
+      throw new Error("O fornecedor não devolveu token de autenticação.");
+    }
+
+    await createStoredSession({
+      supabaseAdmin: params.supabaseAdmin,
+      supplierId: params.supplierId,
+      token,
+      rawPayload: authentication as Record<string, unknown>,
+    });
+
+    return token;
+  } finally {
+    await releaseSessionLock({
+      supabaseAdmin: params.supabaseAdmin,
+      supplierId: params.supplierId,
+      ownerToken,
+    });
+  }
+}
+
+export async function refreshStrickerSessionToken(
+  reason = "A sessão foi rejeitada pelo fornecedor durante uma operação autenticada.",
+): Promise<string> {
+  const supabaseAdmin = createSupabaseAdminClient();
+  const supplierId = await getStrickerSupplierId();
+  const previousSession = await getLatestActiveSession({
+    supabaseAdmin,
+    supplierId,
   });
 
-  return token;
+  await markActiveSessionsAsInvalid({
+    supabaseAdmin,
+    supplierId,
+    reason,
+  });
+
+  return createNewValidSession({
+    supabaseAdmin,
+    supplierId,
+    previousSessionId: previousSession?.id ?? null,
+  });
 }
 
 export async function getValidStrickerSessionToken(): Promise<string> {
@@ -217,6 +404,7 @@ export async function getValidStrickerSessionToken(): Promise<string> {
     return createNewValidSession({
       supabaseAdmin,
       supplierId,
+      previousSessionId: existingSession.id,
     });
   }
 
@@ -243,6 +431,7 @@ export async function getValidStrickerSessionToken(): Promise<string> {
     return createNewValidSession({
       supabaseAdmin,
       supplierId,
+      previousSessionId: existingSession.id,
     });
   } catch (error) {
     await markSessionAsInvalid({
@@ -259,6 +448,7 @@ export async function getValidStrickerSessionToken(): Promise<string> {
     return createNewValidSession({
       supabaseAdmin,
       supplierId,
+      previousSessionId: existingSession.id,
     });
   }
 }
