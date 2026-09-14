@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { registerAction, type AuthActionState } from "@/lib/auth/actions";
-import { localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
+import { languagePreferenceCopy } from "@/lib/i18n/language-preference";
 import { authCopy } from "@/lib/i18n/account";
 
 const initialState: AuthActionState = {
@@ -21,6 +22,15 @@ export default function RegisterForm({ locale, nextPath }: { locale: SiteLocale;
   return (
     <form action={formAction} className="mt-8 space-y-5">
       <input type="hidden" name="locale" value={locale} />
+      <div>
+        <label htmlFor="preferredLocale" className="block text-sm font-medium text-neutral-700">{languagePreferenceCopy[locale].label}</label>
+        <select id="preferredLocale" name="preferredLocale" defaultValue={locale} disabled={isPending}
+          aria-describedby="preferredLocale-help"
+          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10">
+          {Object.entries(SITE_LOCALES).map(([value, language]) => <option key={value} value={value}>{language.label}</option>)}
+        </select>
+        <p id="preferredLocale-help" className="mt-2 text-xs leading-5 text-neutral-500">{languagePreferenceCopy[locale].help}</p>
+      </div>
       {nextPath ? <input type="hidden" name="next" value={nextPath} /> : null}
       <div>
         <label

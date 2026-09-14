@@ -3,7 +3,6 @@
 import { useActionState } from "react";
 import {
   BadgeCheck,
-  FileText,
   PackageCheck,
   ReceiptText,
   Truck,
@@ -20,6 +19,7 @@ type AdminOrderStatusFormProps = {
   orderId: string;
   currentStatus: string;
   currentFulfillmentStatus: string;
+  allowSupplierStates?: boolean;
 };
 
 type AdminTrackingFormProps = {
@@ -97,6 +97,7 @@ export function AdminOrderStatusForm({
   orderId,
   currentStatus,
   currentFulfillmentStatus,
+  allowSupplierStates = true,
 }: AdminOrderStatusFormProps) {
   const [state, formAction, isPending] = useActionState(
     updateOrderStatusAction,
@@ -137,13 +138,13 @@ export function AdminOrderStatusForm({
             Em processamento
           </option>
 
-          <option value="sent_to_supplier">
+          {allowSupplierStates && <><option value="sent_to_supplier">
             Enviada ao fornecedor
           </option>
 
           <option value="supplier_confirmed">
             Confirmada pelo fornecedor
-          </option>
+          </option></>}
 
           <option value="in_production">
             Em produção

@@ -2108,6 +2108,7 @@ function CustomizationEditor({
 
       formData.set("supplierId", supplierId ?? "");
       formData.set("textLayer", JSON.stringify(textLayer));
+      formData.set("printAreaGeometry", JSON.stringify(selectedLocation.print_area_geometry));
 
       try {
         const composedArtwork = await createComposedArtworkFile({

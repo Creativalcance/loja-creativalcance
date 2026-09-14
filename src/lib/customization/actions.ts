@@ -1,5 +1,6 @@
 "use server";
 
+import { normalizePrintAreaGeometry } from "@/lib/orders/artwork-preview";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -1181,6 +1182,7 @@ export async function saveCustomizationDraftAction(
         printColorMode,
         printColors,
         editorVersion: 2,
+        printAreaGeometry: normalizePrintAreaGeometry(JSON.parse(String(formData.get("printAreaGeometry") || "null"))),
         hasComposedArtwork,
         textLayer,
         sourceArtworkStoragePath,

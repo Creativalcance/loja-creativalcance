@@ -1,4 +1,7 @@
 import Link from "next/link";
+import OrderArtworkPreview from "@/components/orders/OrderArtworkPreview";
+import { buildOrderArtworkPreview, hasOrderArtworkPreview } from "@/lib/orders/artwork-preview";
+import { hydrateOrderArtworkGeometry } from "@/lib/orders/artwork-geometry";
 import SiteHeader from "@/components/layout/SiteHeader";
 import { ownedCustomerOrder, safeDocumentUrl } from "@/lib/customer/order-details";
 import { customerStatus, STATUS_LABELS } from "@/lib/customer/order-status";
@@ -16,13 +19,14 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
   const { order, user, admin } = await ownedCustomerOrder(id, path);
   // Privileged reads occur only after verifying ownership of this exact order.
   const [items, payments, history, notifications, addresses] = await Promise.all([
-    admin.from("order_items").select("id,product_name,quantity,unit_price,total,personalization_required,personalization_notes,customization_component_name,customization_location_name,customization_technique_name,logo_file_name,logo_storage_path,logo_url,mockup_storage_path,mockup_url,technical_preview_url,artwork_approved").eq("order_id", id).order("created_at"),
+    admin.from("order_items").select("id,product_name,quantity,unit_price,total,personalization_required,personalization_notes,customization_component_name,customization_location_name,customization_technique_name,logo_file_name,logo_storage_path,logo_url,mockup_storage_path,mockup_url,technical_preview_url,artwork_approved,customization_location_id,service_code,personalization_data,printing_width_mm,printing_height_mm,logo_position_x,logo_position_y,logo_scale,logo_rotation,logo_width_mm,logo_height_mm").eq("order_id", id).order("created_at"),
     admin.from("payments").select("id,status,amount,amount_received,amount_refunded,currency,created_at,paid_at,refunded_at").eq("order_id", id).order("created_at", { ascending: false }),
     admin.from("order_status_history").select("id,new_status,created_at").eq("order_id", id).order("created_at", { ascending: false }),
     admin.from("customer_email_notifications").select("id,event_type,payload,created_at").eq("order_id", id).eq("user_id", user.id).in("event_type", ["order_confirmation", "order_status_changed", "order_tracking_available"]).order("created_at", { ascending: false }),
     admin.from("customer_addresses").select("id,contact_name,company_name,address_line_1,address_line_2,postal_code,city,country_code").eq("user_id", user.id).in("id", [order.shipping_address_id, order.billing_address_id].filter(Boolean)),
   ]);
   if ([items, payments, history, notifications, addresses].some(result => result.error)) throw new Error("Não foi possível carregar todos os detalhes da encomenda. Tenta novamente.");
+  const orderItems = await hydrateOrderArtworkGeometry(admin, items.data ?? []);
   const money = (value: number | string | null, currency = order.currency) => new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, { style: "currency", currency }).format(Number(value ?? 0));
   const date = (value: string) => new Intl.DateTimeFormat(SITE_LOCALES[locale].intlLocale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
   const events: { id: string; time: string; label: string }[] = [{ id: "created", time: order.created_at, label: t.received }];
@@ -50,13 +54,16 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
     <header><h1 className="break-words text-3xl font-semibold">{order.order_number}</h1><p className="mt-2 text-neutral-600">{date(order.created_at)}</p><p className="mt-3 font-semibold">{customerStatus(order.status, locale)}</p></header>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"><div className="min-w-0 space-y-6">
       <section className={panel}><h2 className="text-xl font-semibold">{t.history}</h2><ol className="mt-5 space-y-4">{timeline.map(event => <li key={event.id} className="border-l-2 border-orange-500 pl-4"><p className="font-medium">{event.label}</p><time className="text-sm text-neutral-500" dateTime={event.time}>{date(event.time)}</time></li>)}</ol></section>
-      <section className={panel}><h2 className="text-xl font-semibold">{t.items}</h2><div className="mt-5 divide-y">{(items.data ?? []).map(item => <article key={item.id} className="space-y-3 py-5 first:pt-0"><h3 className="font-semibold">{item.product_name}</h3><p>{t.quantity}: {item.quantity} · {money(item.unit_price)} / un. · {money(item.total)}</p>{item.personalization_required && <>
+      <section className={panel}><h2 className="text-xl font-semibold">{t.items}</h2><div className="mt-5 divide-y">{orderItems.map(item => {
+        const preview = buildOrderArtworkPreview(item, { logoUrl: item.logo_storage_path || safeDocumentUrl(item.logo_url) ? document("logo", item.id) : null, mockupUrl: item.mockup_storage_path || safeDocumentUrl(item.mockup_url) ? document("mockup", item.id) : null });
+        return <article key={item.id} className="space-y-3 py-5 first:pt-0"><h3 className="font-semibold">{item.product_name}</h3><p>{t.quantity}: {item.quantity} · {money(item.unit_price)} / un. · {money(item.total)}</p>{item.personalization_required && <>
         <p>{[item.customization_component_name, item.customization_location_name, item.customization_technique_name].filter(Boolean).join(" · ")}</p>
         <p>{item.artwork_approved ? t.approved : t.unapproved}</p>
         {item.personalization_notes && <p className="whitespace-pre-wrap break-words text-sm">{item.personalization_notes}</p>}
-        <div className="flex flex-wrap gap-2">{(item.logo_storage_path || safeDocumentUrl(item.logo_url)) && <a className={link} href={document("logo", item.id)} target="_blank" rel="noopener noreferrer">{t.logo}</a>}{(item.mockup_storage_path || safeDocumentUrl(item.mockup_url ?? item.technical_preview_url)) && <a className={link} href={document("mockup", item.id)} target="_blank" rel="noopener noreferrer">{t.mockup}</a>}</div>
-        <p className="text-sm text-neutral-500">{item.mockup_storage_path || item.mockup_url || item.technical_preview_url ? t.simulation : t.awaiting}</p>
-      </>}</article>)}</div></section>
+        <OrderArtworkPreview preview={preview} alt={`${t.mockup}: ${item.product_name}`} />
+        <div className="flex flex-wrap gap-2">{(item.logo_storage_path || safeDocumentUrl(item.logo_url)) && <a className={link} href={document("logo", item.id)} target="_blank" rel="noopener noreferrer">{t.logo}</a>}{hasOrderArtworkPreview(preview) && <a className={link} href={document("mockup", item.id)} target="_blank" rel="noopener noreferrer">{t.mockup}</a>}</div>
+        <p className="text-sm text-neutral-500">{hasOrderArtworkPreview(preview) ? t.simulation : t.awaiting}</p>
+      </>}</article>; })}</div></section>
       <section className={panel}><h2 className="text-xl font-semibold">{t.payment}</h2><p className="mt-3 font-medium">{customerStatus(order.payment_status, locale)}</p>{!(payments.data?.length) && <p className="mt-3 text-neutral-600">{t.noPayments}</p>}{(payments.data ?? []).map(payment => <div key={payment.id} className="mt-4 border-t pt-4"><p>{customerStatus(payment.status, locale)} · {money(payment.amount, payment.currency)}</p><p className="text-sm text-neutral-500">{date(payment.paid_at ?? payment.created_at)}</p>{Number(payment.amount_refunded) > 0 && <p>{t.refunded}: {money(payment.amount_refunded, payment.currency)}</p>}</div>)}</section>
     </div><aside className="min-w-0 space-y-6">
       <section className={panel}><h2 className="text-xl font-semibold">{t.total}</h2><dl className="mt-4 space-y-2">{[[t.products,order.subtotal],[t.personalization,order.personalization_total],[t.setup,order.setup_total],[t.shipping,order.shipping_total],[t.discount,-Number(order.discount_total)],[t.tax,order.tax_total],[t.total,order.grand_total]].map(([label,value]) => <div key={String(label)} className="flex justify-between gap-3"><dt>{label}</dt><dd className="font-medium">{money(value)}</dd></div>)}</dl></section>

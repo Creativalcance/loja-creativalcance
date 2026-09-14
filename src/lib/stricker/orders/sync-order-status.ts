@@ -185,6 +185,7 @@ export async function syncSubmittedStrickerOrders() {
               orderId: order.id,
               previousStatus: normalizeText(order.supplier_last_status)?.toUpperCase() ?? null,
               newStatus: status,
+              eventId: `supplier:${checkedAt}`,
             });
           }
         } catch (cause) {

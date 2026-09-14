@@ -277,12 +277,12 @@ export async function notifyOrderConfirmed(orderId: string): Promise<void> {
   }
 }
 
-export async function notifyOrderStatusChanged(params: { orderId: string; previousStatus: string | null; newStatus: string | null }): Promise<void> {
-  if (!params.newStatus || params.previousStatus === params.newStatus || params.newStatus === "paid") return;
+export async function notifyOrderStatusChanged(params: { orderId: string; previousStatus: string | null; newStatus: string | null; eventId?: string }): Promise<void> {
+  if (!params.newStatus || params.previousStatus === params.newStatus) return;
   try {
     const order = await getOrder(params.orderId);
     const locale = normalizeLocale(order.metadata?.locale);
-    const fingerprint = createHash("sha256").update(`${params.previousStatus ?? "none"}:${params.newStatus}`).digest("hex").slice(0, 20);
+    const fingerprint = createHash("sha256").update(`${params.previousStatus ?? "none"}:${params.newStatus}${params.eventId ? `:${params.eventId}` : ""}`).digest("hex").slice(0, 20);
     const notification = await ensureNotification({ eventKey: `order-status:${order.id}:${fingerprint}`, eventType: "order_status_changed", emailTo: order.customer_email, locale, userId: order.user_id, orderId: order.id, payload: { ...orderPayload(order), previousStatus: params.previousStatus, newStatus: params.newStatus } });
     await sendPrepared(notification);
   } catch (error) {
