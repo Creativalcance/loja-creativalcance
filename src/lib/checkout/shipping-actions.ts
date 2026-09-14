@@ -1,5 +1,7 @@
 "use server";
 
+import { assessCheckoutDestination } from "@/lib/markets/policy";
+import { marketText } from "@/lib/markets/i18n";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -247,6 +249,13 @@ export async function saveCheckoutShippingAction(
           message: "Define primeiro a morada de destino da encomenda.",
         };
       }
+
+      const { data: destination, error: destinationError } = await supabaseAdmin
+        .from("customer_addresses").select("country_code,postal_code")
+        .eq("id", cart.shipping_address_id).eq("user_id", user.id).maybeSingle();
+      if (destinationError || !destination) return { success: false, message: marketText("invalidCountry", locale) };
+      const eligibility = assessCheckoutDestination(destination, cart.currency || "EUR");
+      if (eligibility.status === "review") return { success: false, message: marketText(eligibility.reason, locale) };
 
       const merchandiseTotal = roundMoney(
         Number(cart.subtotal ?? 0) +

@@ -1,5 +1,8 @@
 "use client";
 
+import CountrySelect from "@/components/markets/CountrySelect";
+import { countryName } from "@/lib/markets/countries";
+import { marketText } from "@/lib/markets/i18n";
 import { useActionState, useState } from "react";
 import {
   Building2,
@@ -82,6 +85,7 @@ export default function CheckoutForm({
     savedAddresses[0] ??
     null;
 
+  const [newCountry, setNewCountry] = useState("PT");
   const [addressMode, setAddressMode] = useState<"saved" | "new">(
     defaultSavedAddress ? "saved" : "new",
   );
@@ -351,7 +355,7 @@ export default function CheckoutForm({
                         ? ` · ${address.district}`
                         : ""}
                       <br />
-                      {address.country_code}
+                      {countryName(address.country_code, locale)}
                     </p>
                   </div>
 
@@ -523,15 +527,15 @@ export default function CheckoutForm({
                 {text.country}
               </label>
 
-              <select
+              <CountrySelect
                 id="shippingCountryCode"
                 name="shippingCountryCode"
-                defaultValue="PT"
-                autoComplete="country"
+                locale={locale}
+                value={newCountry}
+                onChange={(event) => setNewCountry(event.target.value)}
                 className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-              >
-                <option value="PT">Portugal</option>
-              </select>
+              />
+              {newCountry !== "PT" && <p role="status" className="mt-3 text-sm text-neutral-600">{marketText("internationalReview", locale)}</p>}
             </div>
           </div>
         )}

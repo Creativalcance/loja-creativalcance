@@ -1,5 +1,7 @@
 "use server";
 
+import { assessCheckoutDestination, MARKET_POLICY_VERSION } from "@/lib/markets/policy";
+import { marketText } from "@/lib/markets/i18n";
 import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import Stripe from "stripe";
@@ -147,87 +149,6 @@ function roundMoney(value: number): number {
 
 function toStripeAmount(value: number): number {
   return Math.round(roundMoney(value) * 100);
-}
-
-function normalizeText(value: string | null): string {
-  return (
-    value
-      ?.normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toLowerCase() ?? ""
-  );
-}
-
-function determinePortugueseTax(params: { address: ShippingAddress }): {
-  rate: number;
-  region: "continental" | "madeira" | "acores";
-  label: string;
-} {
-  const searchableText = normalizeText(
-    [
-      params.address.district,
-      params.address.city,
-      params.address.address_line_1,
-      params.address.address_line_2,
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
-
-  const azoresTerms = [
-    "acores",
-    "ponta delgada",
-    "angra do heroismo",
-    "ribeira grande",
-    "praia da vitoria",
-    "horta",
-    "sao miguel",
-    "santa maria",
-    "terceira",
-    "graciosa",
-    "sao jorge",
-    "pico",
-    "faial",
-    "flores",
-    "corvo",
-  ];
-
-  if (azoresTerms.some((term) => searchableText.includes(term))) {
-    return {
-      rate: 0.16,
-      region: "acores",
-      label: "Açores",
-    };
-  }
-
-  const madeiraTerms = [
-    "madeira",
-    "funchal",
-    "porto santo",
-    "camara de lobos",
-    "machico",
-    "santa cruz",
-    "ribeira brava",
-    "calheta",
-    "santana",
-    "sao vicente",
-    "ponta do sol",
-  ];
-
-  if (madeiraTerms.some((term) => searchableText.includes(term))) {
-    return {
-      rate: 0.22,
-      region: "madeira",
-      label: "Madeira",
-    };
-  }
-
-  return {
-    rate: 0.23,
-    region: "continental",
-    label: "Portugal Continental",
-  };
 }
 
 function createOrderNumber(orderId: string): string {
@@ -557,6 +478,11 @@ export async function createPaymentCheckoutSessionAction(
     }
 
     const cart = cartData as unknown as Cart;
+    const destination = cart.customer_addresses;
+    if (destination) {
+      const eligibility = assessCheckoutDestination(destination, cart.currency || "EUR");
+      if (eligibility.status === "review") return { success: false, message: marketText(eligibility.reason, locale) };
+    }
     let cartItems = cart.cart_items ?? [];
     const shippingAddress = cart.customer_addresses;
 
@@ -735,9 +661,8 @@ export async function createPaymentCheckoutSessionAction(
       Math.max(0, eligibleOrderTotal + shippingTotal),
     );
 
-    const tax = determinePortugueseTax({
-      address: shippingAddress,
-    });
+    const tax = assessCheckoutDestination(shippingAddress, cart.currency || "EUR");
+    if (tax.status === "review") return { success: false, message: marketText(tax.reason, locale) };
 
     const taxTotal = roundMoney(taxableTotal * tax.rate);
     const grandTotal = roundMoney(taxableTotal + taxTotal);
@@ -835,6 +760,11 @@ export async function createPaymentCheckoutSessionAction(
         source: "checkout",
         cartId: cart.id,
         locale: getSiteLocale(typeof user.user_metadata?.preferred_locale === "string" ? user.user_metadata.preferred_locale : locale),
+        taxPolicyVersion: MARKET_POLICY_VERSION,
+        taxCountry: tax.country,
+        taxPostalCode: tax.postalCode,
+        taxTreatment: "standard_rate",
+        taxExemptionReason: null,
         taxRate: tax.rate,
         taxRegion: tax.region,
         taxRegionLabel: tax.label,

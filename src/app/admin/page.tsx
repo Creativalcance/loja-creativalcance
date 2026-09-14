@@ -26,6 +26,7 @@ type AdminModule = {
 };
 
 const adminModules: AdminModule[] = [
+  { title: "Mercados, impostos e moedas", description: "Consultar destinos, tratamento fiscal e moedas disponíveis.", href: "/admin/mercados", icon: BadgeEuro },
   { title: "Rede Comercial", description: "Gerir comerciais por país, carteiras de clientes, comissões e pagamentos.", href: "/admin/rede-comercial", icon: Building2 },
   {
     title: "Dashboard semanal",

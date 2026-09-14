@@ -1,3 +1,6 @@
+import CurrencyReference from "@/components/markets/CurrencyReference";
+import { assessCheckoutDestination } from "@/lib/markets/policy";
+import ReviewNotice from "@/components/markets/ReviewNotice";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -83,66 +86,6 @@ function formatPrice(
     style: "currency",
     currency,
   }).format(Number(value ?? 0));
-}
-
-function normalizeText(value: string | null): string {
-  return (
-    value
-      ?.normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toLowerCase() ?? ""
-  );
-}
-
-function determineTaxRate(address: ShippingAddress): number {
-  const searchableText = normalizeText(
-    [
-      address.district,
-      address.city,
-      address.address_line_1,
-      address.address_line_2,
-    ]
-      .filter(Boolean)
-      .join(" "),
-  );
-
-  const azoresTerms = [
-    "acores",
-    "ponta delgada",
-    "angra do heroismo",
-    "ribeira grande",
-    "praia da vitoria",
-    "horta",
-    "sao miguel",
-    "terceira",
-    "faial",
-    "pico",
-    "flores",
-    "corvo",
-  ];
-
-  if (azoresTerms.some((term) => searchableText.includes(term))) {
-    return 0.16;
-  }
-
-  const madeiraTerms = [
-    "madeira",
-    "funchal",
-    "porto santo",
-    "camara de lobos",
-    "machico",
-    "santa cruz",
-    "ribeira brava",
-    "calheta",
-    "santana",
-  ];
-
-  if (madeiraTerms.some((term) => searchableText.includes(term))) {
-    return 0.22;
-  }
-
-  return 0.23;
 }
 
 export default async function CheckoutPaymentPage() {
@@ -388,7 +331,9 @@ export default async function CheckoutPaymentPage() {
 
   const taxableTotal = Math.max(0, eligibleOrderTotal + shippingTotal);
 
-  const taxRate = determineTaxRate(address);
+  const tax = assessCheckoutDestination(address, currency);
+  if (tax.status === "review") return <ReviewNotice reason={tax.reason} locale={locale} cartId={cart.id}/>;
+  const taxRate = tax.rate;
   const taxTotal = Number((taxableTotal * taxRate).toFixed(2));
   const grandTotal = Number((taxableTotal + taxTotal).toFixed(2));
 
@@ -609,6 +554,7 @@ export default async function CheckoutPaymentPage() {
                 </div>
               </div>
             </div>
+            <CurrencyReference euros={grandTotal} locale={locale}/>
           </aside>
         </div>
       </section>
