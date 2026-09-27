@@ -10,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   Package,
@@ -282,35 +283,90 @@ function getStockForVariant(params: {
   };
 }
 
-function formatStockDate(value: string): string {
-  return new Intl.DateTimeFormat("pt-PT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${value}T00:00:00Z`));
+// Display-only clock: server and hydration share an empty snapshot; dates are
+// classified after hydration in the shop timezone, including across midnight.
+function subscribeToStockDay(onChange: () => void) {
+  const timer = setInterval(onChange, 60_000);
+  return () => clearInterval(timer);
 }
 
-function formatNextEntries(entries: ProductPurchaseFutureStock[]): string {
-  if (entries.length === 0) return "—";
+function getStockDay() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Lisbon", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
 
+function getServerStockDay() { return ""; }
+
+const restockMessages = {
+  pt: { next: "Próxima reposição prevista", all: "Ver todas as previsões", past: "Previsões anteriores — por confirmar", none: "Sem nova data de reposição prevista", date: "Data prevista", quantity: "Quantidade", units: "un.", note: "Datas previstas de reposição de stock, sujeitas a confirmação. Não correspondem à entrega da encomenda.", future: "Esta encomenda inclui unidades de reposição futura." },
+  en: { next: "Next expected restock", all: "View all forecasts", past: "Previous forecasts — awaiting confirmation", none: "No new restock date available", date: "Expected date", quantity: "Quantity", units: "units", note: "Estimated stock replenishment dates, subject to confirmation. These are not order delivery dates.", future: "This order includes units from future stock." },
+  fr: { next: "Prochain réapprovisionnement prévu", all: "Voir toutes les prévisions", past: "Prévisions antérieures — à confirmer", none: "Aucune nouvelle date de réapprovisionnement prévue", date: "Date prévue", quantity: "Quantité", units: "unités", note: "Dates prévisionnelles de réapprovisionnement, sous réserve de confirmation. Elles ne correspondent pas à la livraison de la commande.", future: "Cette commande comprend des unités de stock à venir." },
+  es: { next: "Próxima reposición prevista", all: "Ver todas las previsiones", past: "Previsiones anteriores — pendientes de confirmación", none: "Sin nueva fecha de reposición prevista", date: "Fecha prevista", quantity: "Cantidad", units: "uds.", note: "Fechas previstas de reposición de stock, sujetas a confirmación. No corresponden a la entrega del pedido.", future: "Este pedido incluye unidades de stock futuro." },
+  de: { next: "Nächste voraussichtliche Warenauffüllung", all: "Alle Prognosen anzeigen", past: "Frühere Prognosen — Bestätigung ausstehend", none: "Kein neuer Termin für die Warenauffüllung verfügbar", date: "Voraussichtliches Datum", quantity: "Menge", units: "Stk.", note: "Voraussichtliche Termine für die Warenauffüllung, vorbehaltlich Bestätigung. Dies sind keine Liefertermine für die Bestellung.", future: "Diese Bestellung enthält Einheiten aus zukünftigem Bestand." },
+  it: { next: "Prossimo riassortimento previsto", all: "Vedi tutte le previsioni", past: "Previsioni precedenti — da confermare", none: "Nessuna nuova data di riassortimento prevista", date: "Data prevista", quantity: "Quantità", units: "pz.", note: "Date previste di riassortimento, soggette a conferma. Non corrispondono alla consegna dell’ordine.", future: "Questo ordine include unità di stock futuro." },
+} satisfies Record<SiteLocale, Record<string, string>>;
+
+function RestockForecast({ entries, locale, today }: {
+  entries: ProductPurchaseFutureStock[];
+  locale: SiteLocale;
+  today: string;
+}) {
+  const text = restockMessages[locale];
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
+  // Preserve existing same-date aggregation. Never combine different dates.
   const quantitiesByDate = new Map<string, number>();
-
   for (const entry of entries) {
-    quantitiesByDate.set(
-      entry.expected_date,
-      (quantitiesByDate.get(entry.expected_date) ?? 0) +
-        entry.expected_quantity,
-    );
+    quantitiesByDate.set(entry.expected_date,
+      (quantitiesByDate.get(entry.expected_date) ?? 0) + entry.expected_quantity);
   }
-
-  return [...quantitiesByDate.entries()]
-    .sort(([dateA], [dateB]) => dateA.localeCompare(dateB))
-    .map(
-      ([date, quantity]) =>
-        `${formatStockDate(date)} · ${quantity.toLocaleString("pt-PT")} un.`,
-    )
-    .join(" · ");
+  const rows = [...quantitiesByDate.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const upcoming = rows.filter(([date]) => !today || date >= today);
+  const previous = rows.filter(([date]) => today && date < today);
+  const next = today ? upcoming[0] : undefined;
+  const formatDate = (value: string) => {
+    const date = new Date(`${value}T00:00:00Z`);
+    return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(intlLocale, {
+      day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+    }).format(date);
+  };
+  const formatQuantity = (value: number) => `${value.toLocaleString(intlLocale)} ${text.units}`;
+  const table = (items: [string, number][], caption: string) => (
+    <table className="w-full text-left text-sm tabular-nums">
+      <caption className="sr-only">{caption}</caption>
+      <thead><tr className="border-b border-current/15">
+        <th scope="col" className="py-2 pr-3 font-medium">{text.date}</th>
+        <th scope="col" className="py-2 text-right font-medium">{text.quantity}</th>
+      </tr></thead>
+      <tbody>{items.map(([date, quantity]) => (
+        <tr key={date} className="border-b border-current/10 last:border-0">
+          <td className="py-2 pr-3"><time dateTime={date}>{formatDate(date)}</time></td>
+          <td className="py-2 text-right">{formatQuantity(quantity)}</td>
+        </tr>
+      ))}</tbody>
+    </table>
+  );
+  return (
+    <div className="space-y-2 text-sm leading-5">
+      {today ? (next ? (
+        <div>
+          <p className="font-medium">{text.next}</p>
+          <p className="mt-1 tabular-nums"><time dateTime={next[0]}>{formatDate(next[0])}</time>{" · "}{formatQuantity(next[1])}</p>
+        </div>
+      ) : <p className="font-medium">{text.none}</p>) : null}
+      <details>
+        <summary className="cursor-pointer rounded py-1 font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2">{text.all}</summary>
+        {upcoming.length > 0 ? table(upcoming, text.all) : null}
+        {previous.length > 0 ? (
+          <div className="mt-3">
+            <p className="font-medium">{text.past}</p>
+            {table(previous, text.past)}
+          </div>
+        ) : null}
+      </details>
+      <p className="text-xs leading-4 opacity-80">{text.note}</p>
+    </div>
+  );
 }
 
 function dedupeVariantsBySize(params: {
@@ -642,6 +698,7 @@ function PurchasePanel({
   futureStocks,
   customizationDraft,
 }: ProductDirectPurchasePanelProps & { resume?: PurchaseResume }) {
+  const stockDay = useSyncExternalStore(subscribeToStockDay, getStockDay, getServerStockDay);
   const labels = getMessages(locale);
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const formatPrice = (value: number, currency: string) => formatMoney(value, currency, intlLocale);
@@ -1902,12 +1959,9 @@ function PurchasePanel({
                             </div>
 
                             {stock.nextEntries.length > 0 ? (
-                              <p className="border-t border-neutral-200 px-4 py-3 text-xs leading-5 text-neutral-600">
-                                <span className="font-medium text-neutral-700">
-                                  {panelText.nextDelivery}
-                                </span>{" "}
-                                {formatNextEntries(stock.nextEntries)}
-                              </p>
+                              <div className="border-t border-neutral-200 px-4 py-3 text-neutral-600">
+                                <RestockForecast entries={stock.nextEntries} locale={locale} today={stockDay} />
+                              </div>
                             ) : null}
                           </div>
                         );
@@ -1959,7 +2013,8 @@ function PurchasePanel({
             {selectedQuantity > selectedStock.available &&
             selectedStock.nextEntries.length > 0 ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900">
-                {panelText.futureStock} {formatNextEntries(selectedStock.nextEntries)}.
+                <p className="mb-3 font-medium">{restockMessages[locale].future}</p>
+                <RestockForecast entries={selectedStock.nextEntries} locale={locale} today={stockDay} />
               </div>
             ) : null}
 
