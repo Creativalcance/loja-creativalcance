@@ -1,5 +1,5 @@
 export const FREE_SHIPPING_THRESHOLD = 50;
-export const STANDARD_SHIPPING_PRICE = 8.9;
+export const STANDARD_SHIPPING_PRICE = 4.9;
 
 export function roundMoney(value: number): number {
   return Number(value.toFixed(2));
