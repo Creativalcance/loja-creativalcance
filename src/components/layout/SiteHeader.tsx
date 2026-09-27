@@ -1,4 +1,3 @@
-import { MATERIALS_PATH, materialMessages } from "@/lib/catalog/materials-collection";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, ShoppingCart, Sparkles } from "lucide-react";
@@ -114,13 +113,6 @@ export default async function SiteHeader({
           <HeaderAccountLink context={context} locale={locale} />
         </div>
       </div>
-      {context === "store" ? (
-        <nav aria-label={materialMessages[locale].title} className="border-t border-neutral-100 px-4 py-2 text-center text-sm">
-          <Link href={localizePath(MATERIALS_PATH, locale)} className="font-medium text-emerald-800 underline-offset-4 hover:underline">
-            {materialMessages[locale].title}
-          </Link>
-        </nav>
-      ) : null}
     </header>
   );
 }

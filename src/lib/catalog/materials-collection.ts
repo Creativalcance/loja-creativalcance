@@ -1,9 +1,10 @@
 import type { SiteLocale } from "@/lib/i18n/config";
 
+export const MATERIALS_CARD_IMAGE = "https://cdn.hideacontent.com/public/products/1000x1000/11196_102.jpg";
 export const MATERIALS_PATH = "/materiais-reciclados-certificados";
 export const materialMessages = {
   "pt": {
-    "title": "Materiais reciclados e certificados",
+    "title": "Materiais reciclados ou certificados FSC",
     "nav": "Reciclados e FSC",
     "intro": "Produtos com materiais reciclados ou materiais certificados FSC, de acordo com a informação de cada artigo. Consulta a descrição para conhecer a composição e as percentagens disponíveis.",
     "all": "Todos",
@@ -15,7 +16,7 @@ export const materialMessages = {
     "empty": "Não existem produtos para este filtro."
   },
   "en": {
-    "title": "Recycled and certified materials",
+    "title": "Recycled or FSC-certified materials",
     "nav": "Recycled & FSC",
     "intro": "Products containing recycled materials or FSC-certified materials, according to each product’s information. Check the description for composition and available percentages.",
     "all": "All",
@@ -27,7 +28,7 @@ export const materialMessages = {
     "empty": "No products match this filter."
   },
   "fr": {
-    "title": "Matières recyclées et certifiées",
+    "title": "Matières recyclées ou certifiées FSC",
     "nav": "Recyclé et FSC",
     "intro": "Produits contenant des matières recyclées ou certifiées FSC, selon les informations de chaque article. Consultez la description pour connaître la composition et les pourcentages disponibles.",
     "all": "Tous",
@@ -39,7 +40,7 @@ export const materialMessages = {
     "empty": "Aucun produit ne correspond à ce filtre."
   },
   "es": {
-    "title": "Materiales reciclados y certificados",
+    "title": "Materiales reciclados o certificados FSC",
     "nav": "Reciclados y FSC",
     "intro": "Productos con materiales reciclados o certificados FSC, según la información de cada artículo. Consulta la descripción para conocer la composición y los porcentajes disponibles.",
     "all": "Todos",
@@ -51,7 +52,7 @@ export const materialMessages = {
     "empty": "No hay productos para este filtro."
   },
   "de": {
-    "title": "Recycelte und zertifizierte Materialien",
+    "title": "Recycelte oder FSC-zertifizierte Materialien",
     "nav": "Recycelt & FSC",
     "intro": "Produkte mit recycelten oder FSC-zertifizierten Materialien gemäß den jeweiligen Produktangaben. Zusammensetzung und verfügbare Prozentangaben finden Sie in der Beschreibung.",
     "all": "Alle",
@@ -63,7 +64,7 @@ export const materialMessages = {
     "empty": "Keine Produkte für diesen Filter."
   },
   "it": {
-    "title": "Materiali riciclati e certificati",
+    "title": "Materiali riciclati o certificati FSC",
     "nav": "Riciclati e FSC",
     "intro": "Prodotti con materiali riciclati o certificati FSC, secondo le informazioni di ciascun articolo. Consulta la descrizione per la composizione e le percentuali disponibili.",
     "all": "Tutti",

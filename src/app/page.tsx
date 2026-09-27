@@ -1,3 +1,4 @@
+import { MATERIALS_PATH, MATERIALS_CARD_IMAGE, materialMessages } from "@/lib/catalog/materials-collection";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -131,6 +132,14 @@ const categoryCards: CategoryCard[] = [
     icon: Sparkles,
     layoutClassName: "lg:col-span-7",
     imageSizes: "(min-width: 1280px) 720px, (min-width: 1024px) 58vw, (min-width: 768px) 50vw, 100vw",
+    imagePositionClassName: "object-center",
+  },
+  {
+    imageUrl: MATERIALS_CARD_IMAGE,
+    href: MATERIALS_PATH,
+    icon: TreePine,
+    layoutClassName: "md:col-span-2 lg:col-span-12",
+    imageSizes: "(min-width: 1280px) 1280px, 100vw",
     imagePositionClassName: "object-center",
   },
 ];
@@ -439,7 +448,9 @@ export default async function HomePage() {
 
             <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-12 lg:gap-6">
               {categoryCards.map((category, index) => {
-                const [title, description] = messages.categoryCards[index];
+                const [title, description] = category.href === MATERIALS_PATH
+                  ? [materialMessages[locale].title, materialMessages[locale].intro]
+                  : messages.categoryCards[index];
                 const Icon = category.icon;
 
                 return (
