@@ -42,7 +42,7 @@ export default async function MaterialsCollection({ searchParams }: {
     const predicate = (key: string) => `properties.cs."${JSON.stringify([{ key, value: true }]).replace(/"/g, '\\"')}"`;
     query = query.or([predicate("recycled_materials"), predicate("fsc")].join(","));
   } else {
-    query = query.contains("properties", [{ key: filter, value: true }]);
+    query = query.contains("properties", JSON.stringify([{ key: filter, value: true }]));
   }
   const { data, error, count } = await query
     .order("is_purchasable", { ascending: false })
