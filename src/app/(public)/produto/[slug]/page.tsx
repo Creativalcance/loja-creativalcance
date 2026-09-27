@@ -1,3 +1,4 @@
+import { getMaterialClaims, materialMessages } from "@/lib/catalog/materials-collection";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -104,6 +105,7 @@ type ProductCustomizationLocation = {
 };
 
 type ProductDetail = {
+  properties: unknown;
   id: string;
   supplier_id: string | null;
   sku: string;
@@ -533,6 +535,7 @@ export default async function ProductDetailPage({
         supplier_id,
         name,
         slug,
+        properties,
         short_description,
         description,
         brand,
@@ -814,6 +817,16 @@ export default async function ProductDetailPage({
           <ArrowLeft className="mr-2 h-4 w-4" />
           {backLabel}
         </Link>
+
+        {getMaterialClaims(product.properties).length > 0 ? (
+          <ul className="mt-4 flex flex-wrap gap-2">
+            {getMaterialClaims(product.properties).map(claim => (
+              <li key={claim} className="rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-900">
+                {materialMessages[locale][claim === "fsc" ? "fsc" : "recycled"]}
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
         <ProductDirectPurchasePanel
           locale={locale}
