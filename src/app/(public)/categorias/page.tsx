@@ -1,3 +1,5 @@
+import Image from "next/image";
+import { MATERIALS_PATH, MATERIALS_CARD_IMAGE, materialMessages } from "@/lib/catalog/materials-collection";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Boxes, Search } from "lucide-react";
@@ -301,6 +303,25 @@ export default async function CategoriesPage() {
 
         {categories.length > 0 ? (
           <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <Link
+              href={localizePath(MATERIALS_PATH, locale)}
+              className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:-translate-y-1 hover:border-white/30 hover:bg-white/[0.06]"
+            >
+              <div className="aspect-[4/3] bg-white">
+                <Image src={MATERIALS_CARD_IMAGE} alt="" width={1000} height={1000} sizes="(min-width: 1280px) 280px, (min-width: 640px) 45vw, 100vw" className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-105" />
+              </div>
+              <div className="p-6">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white">
+                  <Boxes className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <h2 className="mt-6 text-xl font-semibold tracking-tight text-white">{materialMessages[locale].title}</h2>
+                <p className="mt-3 text-sm leading-6 text-white/55">{materialMessages[locale].intro}</p>
+                <span className="mt-6 inline-flex items-center text-sm font-semibold text-white">
+                  {labels.common.viewProducts}
+                  <ArrowRight className="ml-2 h-4 w-4 transition group-hover:translate-x-1" aria-hidden="true" />
+                </span>
+              </div>
+            </Link>
             {categories.map((category) => (
               <Link
                 key={category.sourceName}
