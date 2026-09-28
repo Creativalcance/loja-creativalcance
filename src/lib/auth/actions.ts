@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { authActionMessages } from "@/lib/i18n/account";
+import { authActionMessages, authPasswordError } from "@/lib/i18n/account";
 import { getSiteLocale, localizePath, type SiteLocale } from "@/lib/i18n/config";
 import { notifyAccountWelcome } from "@/lib/notifications/customer-email";
 import { safeReturnPath, canReturnTo } from "@/lib/auth/return-path";
@@ -146,7 +146,7 @@ export async function registerAction(
     if (error) {
       return {
         success: false,
-        message: `${messages.createFailed} ${error.message}`,
+        message: authPasswordError(error, locale, messages.createFailed),
       };
     }
 

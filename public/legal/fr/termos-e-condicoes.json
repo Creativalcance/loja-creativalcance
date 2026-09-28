@@ -1,0 +1,710 @@
+{
+  "sourceSha256": "61f511b06d3c4d915ff15acf1509b99d13b1e394f70ebf65dcc374df71eb09df",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1. Identification, objet et portée"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising est une marque détenue et exploitée par CRIATIVALCANCE, UNIPESSOAL LDA, entité juridique no. 518143350, dont le siège social est situé à Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les présentes Conditions Générales (« Conditions ») régissent l'accès et l'utilisation du site Internet 360-merchandising.com, la création et l'utilisation de comptes clients, l'acquisition de produits, les services de personnalisation, le traitement des commandes, les paiements, la production, l'expédition, la livraison, les réclamations, les retours et autres relations commerciales établies avec 360 Merchandising."
+    },
+    {
+      "type": "paragraph",
+      "text": "Lors de la passation d'une commande, le client déclare avoir lu et accepté les CGV applicables à la date de l'achat. L'acceptation de ces Conditions n'implique pas une renonciation aux droits qui sont obligatoires en vertu de la loi applicable."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising vend aux consommateurs et clients professionnels et accepte les commandes pour plusieurs pays, avec la disponibilité de certains produits, les techniques de personnalisation et les modes de livraison en fonction de la destination, de la disponibilité et des restrictions légales ou logistiques applicables."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2. Définitions et nature des clients"
+    },
+    {
+      "type": "paragraph",
+      "text": "Aux fins des présentes Conditions :"
+    },
+    {
+      "type": "bullet",
+      "text": "« 360 Merchandising » ou « Vendeur » désigne la marque exploitée par CRIATIVALCANCE, UNIPESSOAL LDA ;"
+    },
+    {
+      "type": "bullet",
+      "text": "« Client » désigne toute personne physique ou morale qui utilise les canaux 360 Merchandising ou passe une commande ;"
+    },
+    {
+      "type": "bullet",
+      "text": "« Consommateur » désigne une personne physique qui agit à des fins n'entrant pas dans le cadre de son activité commerciale, industrielle, artisanale ou professionnelle ;"
+    },
+    {
+      "type": "bullet",
+      "text": "« Client professionnel » désigne la personne physique ou morale qui achète des produits ou des services dans le cadre de son activité commerciale ou professionnelle ;"
+    },
+    {
+      "type": "bullet",
+      "text": "« Produit personnalisé » désigne tout bien produit, transformé, imprimé, gravé, brodé, marqué ou préparé conformément aux spécifications choisies par le client ou au contenu fourni par le client ;"
+    },
+    {
+      "type": "bullet",
+      "text": "« Maquette » ou « soft proof » désigne une représentation visuelle destinée à valider, le cas échéant, la position, la taille, l'orientation et/ou l'aspect général de la personnalisation avant production."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les dispositions spécifiquement relatives aux droits des consommateurs ne s'appliquent qu'à ceux qui disposent légalement de ce statut. Dans les relations B2B, les présentes Conditions, les conditions commerciales convenues et la législation civile et commerciale applicable s'appliquent."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3. Utilisation du site Internet et du compte client"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client doit utiliser le site Internet de manière licite, diligente et compatible avec sa finalité. Lors de la création d'un compte, les données fournies doivent être véridiques, complètes et mises à jour, et certains champs peuvent être obligatoires ou facultatifs selon le type de client et d'opération."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client est responsable de la confidentialité de ses identifiants et des opérations effectuées via son compte, à moins qu'il ne démontre qu'un accès non autorisé s'est produit pour des raisons indépendantes de sa volonté."
+    },
+    {
+      "type": "paragraph",
+      "text": "Il est notamment interdit :"
+    },
+    {
+      "type": "bullet",
+      "text": "accéder ou tenter d'accéder à des zones, des données, des systèmes ou des comptes sans autorisation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "interférer avec la sécurité, la disponibilité ou le fonctionnement du site Web ;"
+    },
+    {
+      "type": "bullet",
+      "text": "introduire des codes malveillants, des virus, des scripts abusifs ou des mécanismes automatisés conçus pour extraire des données sans autorisation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "utiliser de fausses identités ou créer des comptes au nom de tiers sans pouvoir le faire ;"
+    },
+    {
+      "type": "bullet",
+      "text": "utiliser des promotions, des remises, des campagnes ou des fonctionnalités du site Web de manière frauduleuse ou abusive ;"
+    },
+    {
+      "type": "bullet",
+      "text": "collecter des données auprès d'autres utilisateurs sans motifs légitimes ni consentement lorsque cela est requis."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4. Comportement de l'utilisateur et contenu soumis"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client est responsable des fichiers, images, logos, textes, slogans, photographies, marques, designs, documents et autres contenus qu'il soumet pour personnalisation, publication, évaluation ou communication."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client ne doit pas soumettre de contenu qui :"
+    },
+    {
+      "type": "bullet",
+      "text": "est illégal, diffamatoire, menaçant, discriminatoire, incitant à la haine ou à la violence, sexuellement illicite ou préjudiciable aux mineurs ;"
+    },
+    {
+      "type": "bullet",
+      "text": "viole les droits d'auteur, les marques, les designs, les brevets, les secrets commerciaux, le droit à l'image, la vie privée ou d'autres droits de tiers ;"
+    },
+    {
+      "type": "bullet",
+      "text": "contient des données personnelles de tiers sans légitimité pour leur utilisation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "contient des informations fausses ou matériellement trompeuses ;"
+    },
+    {
+      "type": "bullet",
+      "text": "contient du code malveillant ou pourrait compromettre des systèmes, des personnes ou des équipements."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising peut refuser, suspendre ou annuler la production de contenu qui, pour des motifs raisonnables, pourrait violer la loi, les droits de tiers, les exigences techniques de production ou les présentes Conditions. Chaque fois qu'une commande payée est refusée pour des raisons non imputables au client, les procédures de remboursement applicables seront adoptées."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5. Propriété intellectuelle"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le site Internet, l'identité visuelle de 360 Merchandising, les textes, photographies, graphiques, interfaces, logiciels, bases de données, éléments de conception et autres contenus mis à disposition par 360 Merchandising sont protégés par les droits de propriété intellectuelle applicables, appartenant à CRIATIVALCANCE, UNIPESSOAL LDA ou à des tiers ayant autorisé leur utilisation."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client n'acquiert aucun droit de propriété sur ces éléments par le simple accès au site ou par l'achat de produits."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.1. Contenu client"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client conserve les droits qu'il détient légitimement sur le contenu soumis. En fournissant du contenu pour exécuter une commande, vous accordez à CRIATIVALCANCE, UNIPESSOAL LDA et aux partenaires d'exploitation strictement nécessaires une licence non exclusive, temporaire et limitée dans le but de préparer, d'adapter techniquement, de convertir, de vectoriser, de reproduire, de produire, de contrôler la qualité, d'expédier et de fournir une assistance relative à la commande."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client garantit qu'il dispose des droits, licences, autorisations et consentements nécessaires pour permettre une telle utilisation."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.2. Rapports de violation de la propriété intellectuelle"
+    },
+    {
+      "type": "paragraph",
+      "text": "Toute personne qui considère qu'un contenu utilisé via 360 Merchandising viole les droits de propriété intellectuelle peut contacter info@360-merchandising.com, en identifiant le droit prétendument violé, le contenu en question, ses coordonnées et les éléments permettant de démontrer la légitimité de la plainte."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6. Produits, informations commerciales et disponibilité"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising vise à présenter des informations à jour sur les produits, les caractéristiques, les couleurs, les matériaux, les dimensions, les possibilités de personnalisation, les prix et la disponibilité. Toutefois, des modifications du catalogue, du stock, des spécifications techniques ou des erreurs matérielles peuvent survenir."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les images sont de nature illustrative. La présentation des couleurs peut varier en fonction de l'écran, de l'éclairage, du matériau, de la finition et de la technique de personnalisation. Ces variations naturelles ne portent pas préjudice aux droits du client lorsqu'il existe un défaut de conformité effectif du produit."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les disponibilités indiquées peuvent évoluer entre la demande de renseignements et la validation de la commande. 360 Merchandising pourra refuser ou annuler une ligne de commande lorsque le produit devient indisponible, est soumis à des restrictions dans le pays de destination ou s'il existe une erreur matérielle évidente dans les informations présentées, en remboursant les montants correspondants lorsqu'ils ont déjà été payés."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7. Processus de commande et formation du contrat"
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour effectuer un achat, le client sélectionne les produits, les quantités, les variantes, les options de personnalisation et autres éléments disponibles, confirme les détails de facturation et de livraison et choisit un mode de paiement présenté lors du paiement."
+    },
+    {
+      "type": "paragraph",
+      "text": "Avant de finaliser la commande, le client doit vérifier soigneusement les informations saisies, notamment le produit, la couleur, la quantité, la technique de personnalisation, la position, le fichier, le texte, les adresses, le NIF et les contacts."
+    },
+    {
+      "type": "paragraph",
+      "text": "La soumission de la commande constitue une proposition d'achat. L'envoi automatique d'un message d'accusé de réception confirme la réception de la commande, mais l'acceptation commerciale dépend de la validation du paiement et de la possibilité de traiter la commande. Le contrat est considéré comme conclu lorsque la commande est acceptée pour traitement, sans préjudice des règles impératives applicables."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising peut demander des informations complémentaires lorsque cela est nécessaire pour valider les données, prévenir la fraude, clarifier les fichiers ou assurer la faisabilité technique de la personnalisation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8. Personnalisation, fichiers et approbation des maquettes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour les produits personnalisables, le client doit s'assurer que le fichier ou le design soumis est adapté à l'usage prévu et qu'il prend entièrement connaissance des éléments présentés avant confirmation."
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsqu'il existe un éditeur ou un personnalisateur, le client doit vérifier, entre autres :"
+    },
+    {
+      "type": "bullet",
+      "text": "le contenu textuel, l'orthographe, la ponctuation, les noms, les chiffres et les dates ;"
+    },
+    {
+      "type": "bullet",
+      "text": "position, orientation, échelle et proportion de la personnalisation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "zone d'impression sélectionnée et technique de personnalisation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "couleur ou nombre de couleurs sélectionné, le cas échéant ;"
+    },
+    {
+      "type": "bullet",
+      "text": "qualité, résolution, transparences et lisibilité du fichier téléchargé."
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsqu'une maquette ou une épreuve numérique est mise à disposition pour approbation, l'approbation du client signifie qu'il accepte les éléments visibles et les choix représentés dans cette épreuve. Les erreurs visibles dans la maquette et approuvées par le client, telles que des fautes d'orthographe, un texte incorrect, une orientation ou un positionnement choisi, ne constituent pas en elles-mêmes un défaut de fabrication."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'épreuvage numérique est une approximation visuelle. Des différences raisonnables résultant du support physique, de la technique d'impression, de la texture, de la luminosité ou du calibrage de l'écran peuvent survenir. Cette clause n'exclut pas la responsabilité en cas de défaut de conformité, de défaut de production ou d'exécution matériellement différente de la commande approuvée."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising et ses partenaires opérationnels peuvent effectuer les ajustements strictement techniques nécessaires à la production — par exemple, conversion de format, vectorisation, préparation de fichiers ou adaptation aux dimensions maximales de la zone de personnalisation — à condition que ces ajustements ne modifient pas matériellement le contenu approuvé ou, lorsqu'ils le font, soient soumis à une nouvelle validation par le client."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9. Prix, taxes, campagnes et promotions"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les prix sont indiqués en euros sauf indication contraire. Le prix total applicable, les taxes, les frais de personnalisation et les frais de livraison sont affichés avant la confirmation définitive de la commande, en fonction des données saisies et de la destination sélectionnée."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les prix, gammes de produits et conditions commerciales pourront être modifiés pour de futures commandes. Les modifications n'affectent pas les commandes déjà acceptées, sauf erreur matérielle manifeste, modification requise par la loi ou accord avec le client."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les campagnes, codes promotionnels, remises et avantages sont soumis à des conditions spécifiques divulguées dans chaque action. Sauf indication expresse, les différentes promotions ne peuvent être cumulées."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'utilisation frauduleuse de campagnes, la création de comptes artificiels, la manipulation de références ou d'autres pratiques visant à obtenir des avantages indus peuvent entraîner l'annulation des avantages, la suspension du compte et l'exercice des droits légaux applicables."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10. Paiement et facturation"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les paiements électroniques sont traités via Stripe. Les modes de paiement réellement disponibles sont ceux présentés lors du paiement au moment de l'achat et peuvent varier en fonction du pays, de la devise, de l'appareil ou des conditions techniques du fournisseur."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising ne stocke pas les données complètes de la carte de paiement. Le traitement des données de paiement est effectué par le prestataire spécialisé, dans les conditions applicables."
+    },
+    {
+      "type": "paragraph",
+      "text": "La commande n'est traitée qu'après confirmation du paiement, sauf accord contraire exprès d'une méthode commerciale."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client doit fournir des informations de facturation correctes, y compris les données NIF ou de l'entreprise, le cas échéant. La facture est émise par voie électronique et envoyée à l'email associé à la commande et/ou mise à disposition dans l'espace client, selon la configuration du service."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11. Production, expédition et livraison"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les délais indiqués sur le site Internet ou lors du paiement sont des estimations basées, entre autres facteurs, sur la disponibilité, la quantité, la technique de personnalisation, le temps de production, la destination et le mode logistique."
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsqu'une date ou un intervalle de livraison contractuellement contraignant est indiqué, les droits légaux en cas de non-respect s'appliquent."
+    },
+    {
+      "type": "paragraph",
+      "text": "La sélection du transporteur et du circuit logistique est effectuée par 360 Merchandising et/ou ses partenaires opérationnels en fonction de la destination et des caractéristiques de la commande."
+    },
+    {
+      "type": "paragraph",
+      "text": "Il appartient au client de fournir une adresse de livraison complète et correcte et d'assurer des conditions de réception raisonnables. Les frais ou retards résultant directement d'une adresse erronée, incomplète, d'un refus de livraison injustifié ou d'un non-retrait imputable au client pourront être facturés au client lorsque la loi le permet."
+    },
+    {
+      "type": "paragraph",
+      "text": "Dans le cas des consommateurs, le risque de perte ou de dommage n'est transféré que lorsque le consommateur ou un tiers désigné par le consommateur, autre que le transporteur, prend physiquement possession du bien, à moins que le consommateur n'ait lui-même choisi un transporteur autre que ceux proposés par 360 Merchandising."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "11.1. Livraisons internationales"
+    },
+    {
+      "type": "paragraph",
+      "text": "Dans les commandes internationales, il peut y avoir des restrictions de produits, des exigences douanières, des taxes, des droits d'importation ou des frais locaux. Dans le cas où ces frais ne sont pas inclus dans le prix présenté par 360 Merchandising, leur éventuelle attribution au destinataire dépendra de la législation du pays de destination et des informations fournies avant de finaliser l'achat, le cas échéant."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "12. Modifications et annulation de commandes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client doit contacter 360 Merchandising dans les plus brefs délais s'il souhaite modifier ou annuler une commande."
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour les produits non personnalisés, les demandes de modifications ou d'annulations avant expédition seront analysées en fonction de l'état de la commande et sans préjudice du droit de rétractation reconnu au consommateur dans les cas légalement applicables."
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour les produits personnalisés, la possibilité de modification ou d'annulation dépend de l'état de préparation et de production. Une fois que la personnalisation ou la production selon les spécifications du client commence, il peut ne pas être possible de modifier ou d'annuler la commande. Cette règle ne porte pas préjudice aux droits découlant du défaut de conformité ou du non-respect imputable au vendeur."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13. Droit de rétractation sur les produits non personnalisés"
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsque le client est un consommateur et achète à distance un produit qui n’est ni personnalisé ni couvert par une autre exception légale, il dispose, en règle générale, de 14 jours pour exercer son droit de rétractation, sans avoir à donner de motif."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le délai court, en règle générale, à compter de la date à laquelle le consommateur ou un tiers désigné par le consommateur, autre que le transporteur, prend physiquement possession du bien, dans les conditions légales applicables."
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour exercer ce droit, le consommateur doit adresser une déclaration sans équivoque à info@360-merchandising.com, identifiant la commande et les biens visés. Vous pouvez utiliser le modèle de l'annexe I, bien que son utilisation ne soit pas obligatoire."
+    },
+    {
+      "type": "paragraph",
+      "text": "Après avoir notifié sa rétractation, le consommateur doit restituer le bien dans le délai légal applicable, en suivant les instructions fournies par le service client. L'adresse de retour sera indiquée selon le cas spécifique et peut être différente du siège social de CRIATIVALCANCE, UNIPESSOAL LDA."
+    },
+    {
+      "type": "paragraph",
+      "text": "Sauf si 360 Merchandising accepte de les supporter ou si la loi en décide autrement, les frais directs de retour des marchandises au titre du droit de rétractation sont à la charge du consommateur."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le remboursement sera effectué dans le délai légal de 14 jours à compter de la notification de la rétractation, et pourra être retenu jusqu'à réception de la marchandise ou présentation d'un justificatif de retour, dans les conditions permises par la loi. Le remboursement comprend les paiements reçus et le coût du mode de livraison standard le moins cher disponible, à l'exclusion des frais supplémentaires résultant du choix d'un mode de livraison plus coûteux."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le remboursement s'effectue, en règle générale, via le même mode de paiement que celui utilisé lors de la transaction initiale, sauf convention contraire expresse et à condition que le consommateur n'encoure aucun frais pour cette raison."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14. Produits personnalisés et exception au droit de rétractation"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sauf accord contraire, le droit de rétractation ne s’applique pas à la fourniture de biens confectionnés selon les spécifications du consommateur ou nettement personnalisés."
+    },
+    {
+      "type": "paragraph",
+      "text": "Ainsi, les produits imprimés, gravés, brodés, marqués ou préparés spécifiquement en fonction des choix du client, les fichiers, logos, textes, images ou autres spécifications ne peuvent, en règle générale, être retournés uniquement en raison d'un changement d'avis."
+    },
+    {
+      "type": "paragraph",
+      "text": "L’exclusion du droit de rétractation ne supprime pas les droits du consommateur en cas de défaut de conformité, de défaut, de dommage, d’erreur de production ou d’exécution substantiellement différente de ce qui a été convenu."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "15. Conformité, garantie légale et réclamations"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising s'engage à fournir des produits conformes au contrat et aux caractéristiques présentées et approuvées, compte tenu de la nature du produit et de la personnalisation."
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour les ventes aux consommateurs, CRIATIVALCANCE, UNIPESSOAL LDA répond des défauts de conformité conformément au décret-loi portugais n° 84/2021 du 18 octobre, y compris pendant le délai légal de responsabilité de trois ans à compter de la livraison des biens, lorsqu’il est applicable."
+    },
+    {
+      "type": "paragraph",
+      "text": "En cas de défaut de conformité, le consommateur dispose des recours prévus par la loi, notamment la réparation ou le remplacement et, lorsque les conditions légales sont réunies, une réduction proportionnelle du prix ou la résolution du contrat. Si le défaut de conformité apparaît dans les 30 premiers jours suivant la livraison, les droits de rejet prévus par la loi s’appliquent également."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les règles de cette section ne s'appliquent pas de la même manière à Clients professionnels, dont les droits résultent de la législation civile et commerciale, des conditions particulières convenues et des garanties commerciales éventuellement applicables."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.1. Situations imputables au client"
+    },
+    {
+      "type": "paragraph",
+      "text": "Sans préjudice des droits impératifs du consommateur, un résultat découlant exclusivement d’instructions ou d’éléments incorrects fournis par le client ne constitue pas un défaut de conformité imputable à 360 Merchandising, par exemple :"
+    },
+    {
+      "type": "bullet",
+      "text": "des erreurs d'orthographe, de grammaire, de chiffres ou de contenu dans le fichier ou la maquette approuvé ;"
+    },
+    {
+      "type": "bullet",
+      "text": "image de résolution insuffisante ou fichier techniquement inadéquat dont la limitation a été communiquée ou clairement perceptible lors du processus d'approbation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "sélection incorrecte du produit, de la variante, de la quantité, de la couleur, de la technique ou de l'emplacement par le client ;"
+    },
+    {
+      "type": "bullet",
+      "text": "adresse de livraison incorrecte ou incomplète fournie par le client ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les dommages causés après la livraison par une utilisation, un stockage, un lavage, un entretien ou une manipulation contraire aux instructions applicables."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "16. Retours, remplacements, réimpressions et remboursements"
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsque le client identifie un problème, il doit contacter le support client via info@360-merchandising.com ou +351 913 784 204, en indiquant le numéro de commande et en décrivant la situation."
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour permettre une analyse rapide, 360 Merchandising peut demander des éléments raisonnablement nécessaires, tels que des photographies ou une vidéo du produit, l'emballage et l'étiquette d'expédition, l'indication du nombre d'unités concernées et, le cas échéant, des éléments permettant de mesurer ou d'identifier le défaut."
+    },
+    {
+      "type": "paragraph",
+      "text": "La présentation de ces éléments a pour but de faciliter le diagnostic et ne limite pas les droits du consommateur lorsque la loi ne permet pas de conditionner leur exercice à de telles formalités."
+    },
+    {
+      "type": "paragraph",
+      "text": "Une fois un défaut de conformité confirmé, les moyens de remise en conformité prévus par la loi et adaptés au cas spécifique seront appliqués. Lorsqu'il est nécessaire de retourner l'article pour réparation ou remplacement dans le cadre de la garantie légale du consommateur, les frais nécessaires à la remise en conformité sont à la charge du professionnel selon les modalités légales."
+    },
+    {
+      "type": "paragraph",
+      "text": "En cas de remboursement, celui-ci sera effectué via le mode de paiement légalement ou contractuellement applicable. 360 Merchandising peut limiter la réimpression, le remplacement ou le remboursement aux unités réellement concernées lorsque cela est compatible avec la nature du problème et les droits du client."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "17. Avis, concours et recommandations"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.1. Notes et commentaires"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client peut, lorsque la fonctionnalité est disponible, publier des avis ou des commentaires. Le contenu doit représenter une expérience authentique et être conforme à la loi et aux présentes Conditions. 360 Merchandising peut modérer ou supprimer le contenu illégal, frauduleux, abusif, publicitaire ou sans rapport avec le produit ou le service."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.2. Concours et campagnes"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les concours, concours et campagnes promotionnelles peuvent être soumis à des réglementations ou conditions spécifiques, qui prévalent sur les présentes Conditions concernant les aspects spécifiques de l'action."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "17.3. Parrainez un ami"
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsqu'il existe une fonctionnalité de recommandation, les bénéfices, les critères d'éligibilité, la validité, les conditions d'attribution et d'utilisation seront ceux présentés dans la campagne en cours. Le système ne peut pas être utilisé à des fins d’auto-référence abusive, de création artificielle de compte, de spam ou d’obtention frauduleuse d’avantages."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "18. Suspension et clôture des comptes"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising peut suspendre ou résilier un compte lorsqu'il existe des preuves raisonnables de fraude, de violation grave ou répétée des présentes Conditions, de risque de sécurité, d'utilisation illégale ou de nécessité de se conformer à une obligation légale."
+    },
+    {
+      "type": "paragraph",
+      "text": "Chaque fois que les circonstances le permettront, le client sera informé de la mesure et de son motif. La suspension ou la résiliation d'un compte n'éteint pas les obligations déjà établies, notamment les obligations de paiement, de livraison, de garantie, de retour ou autres obligations liées aux commandes déjà passées."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le client peut demander la clôture de son compte via info@360-merchandising.com, sans préjudice de la conservation des données requises par la loi ou nécessaires à l'exécution et à la preuve des relations contractuelles existantes."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "19. Responsabilité"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising est responsable des dommages qui lui sont légalement imputables et n'exclut ni ne limite sa responsabilité dans les situations où la loi ne permet pas une telle exclusion ou limitation."
+    },
+    {
+      "type": "paragraph",
+      "text": "Sans préjudice des droits des consommateurs, 360 Merchandising n'est pas responsable des retards, pannes ou dommages résultant exclusivement d'informations incorrectes fournies par le client, d'une mauvaise utilisation du produit, d'actes de tiers échappant à son contrôle raisonnable ou d'événements de force majeure."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising ne garantit pas que le site Web fonctionnera sans interruption à tout moment. Des périodes de maintenance, de mises à jour, des pannes de réseau, une indisponibilité de services tiers ou des incidents techniques peuvent survenir."
+    },
+    {
+      "type": "paragraph",
+      "text": "Dans les relations avec les clients professionnels et dans toute la mesure permise par la loi, la responsabilité pour dommages indirects, perte d'opportunité, perte de profit ou dommages purement consécutifs est exclue lorsque ces dommages ne résultent pas d'une intention ou d'une négligence grave et ne sont pas couverts par la responsabilité légale obligatoire."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "20. Protection des données, cookies et communications électroniques"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le traitement des données personnelles effectué dans le cadre de l'utilisation du site Internet, de la création de compte, des commandes, des personnalisations, des paiements, du marketing et du support client est régi par la Politique de Confidentialité 360 Merchandising."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'utilisation de cookies et technologies similaires est régie par les mécanismes d'information et de consentement disponibles sur le site Internet et, le cas échéant, par la Politique Cookies."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les communications commerciales peuvent être annulées via le mécanisme de « désabonnement » prévu dans les messages ou en contactant 360 Merchandising, sans préjudice de l'envoi des communications strictement nécessaires au compte, à la commande ou à la relation contractuelle."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "21. Force majeure et événements échappant à un contrôle raisonnable"
+    },
+    {
+      "type": "paragraph",
+      "text": "Aucune des parties ne sera responsable de l'inexécution ou du retard résultant d'un événement extraordinaire et imprévisible échappant à son contrôle raisonnable, y compris, selon le cas, les catastrophes naturelles, les incendies, la guerre, les perturbations graves des transports, les grèves générales, les pannes systémiques de communications, les actes d'autorité ou l'indisponibilité générale des infrastructures."
+    },
+    {
+      "type": "paragraph",
+      "text": "La partie concernée doit prendre des mesures raisonnables pour minimiser l’impact et rétablir la conformité dès que possible. Les droits impératifs du consommateur concernant la livraison, la résolution ou le remboursement restent conformes à la législation applicable."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "22. Modifications des Conditions Générales"
+    },
+    {
+      "type": "paragraph",
+      "text": "CRIATIVALCANCE, UNIPESSOAL LDA peut mettre à jour ces Conditions pour refléter des changements législatifs, technologiques, opérationnels ou commerciaux. La version actuelle sera publiée sur le site Internet en indiquant la date de mise à jour."
+    },
+    {
+      "type": "paragraph",
+      "text": "Sauf si la loi impose une autre solution, les changements ne modifient pas rétroactivement les commandes déjà conclues."
+    },
+    {
+      "type": "paragraph",
+      "text": "Si une disposition des présentes Conditions est jugée invalide, illégale ou inapplicable, les dispositions restantes resteront en vigueur dans la mesure maximale autorisée."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'éventuel défaut d'exercice d'un droit par 360 Merchandising ne constitue pas une renonciation à ce droit."
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsque les Conditions sont mises à disposition en plusieurs langues, la version portugaise constitue la version de référence pour l'interprétation, sans préjudice des normes impératives applicables au consommateur dans son pays de résidence lorsque celles-ci ne peuvent être dérogées par accord."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "23. Droit applicable et règlement des litiges"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les présentes Conditions et les contrats conclus avec CRIATIVALCANCE, UNIPESSOAL LDA sont régis par le droit portugais, sans préjudice des dispositions impératives en matière de protection des consommateurs applicables en fonction du pays de résidence du consommateur."
+    },
+    {
+      "type": "paragraph",
+      "text": "Dans les relations avec les consommateurs, toute clause relative au for ou à la loi applicable doit être interprétée sans priver le consommateur de la protection que lui confèrent les règles impératives et les règles de compétence judiciaire applicables."
+    },
+    {
+      "type": "paragraph",
+      "text": "Dans les relations exclusivement entre professionnels, et sauf accord écrit contraire ou règle légale impérative, le tribunal de Coimbra est compétent pour résoudre les litiges nés de la relation contractuelle."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "23.1. Règlement alternatif des litiges de consommation"
+    },
+    {
+      "type": "paragraph",
+      "text": "En cas de litige de consommation, le consommateur peut recourir à une entité compétente de règlement alternatif des litiges (RAL), conformément à la loi n° 144/2015 du 8 septembre, telle que modifiée."
+    },
+    {
+      "type": "paragraph",
+      "text": "Compte tenu de la localisation de CRIATIVALCANCE, UNIPESSOAL LDA, le Centre d'arbitrage des conflits de consommation de la région de Coimbra peut être pertinent, entre autres territorialement compétent. Dans les domaines non couverts par un centre régional, le Centre national d'information et d'arbitrage des conflits de consommation (CNIACC) peut être compétent."
+    },
+    {
+      "type": "paragraph",
+      "text": "La liste actualisée des entités RAL peut être consultée auprès de la Direction Générale des Consommateurs :"
+    },
+    {
+      "type": "paragraph",
+      "text": "www.consumidor.gov.pt."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'ancienne plateforme européenne de règlement des litiges en ligne (ODR/RLL) a été supprimée le 20 juillet 2025 et n'est donc pas recommandée comme moyen actuel de soumettre des litiges."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "24. Réclamations et carnet de contacts"
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour une assistance, des réclamations, des demandes liées aux commandes ou à l’exercice de droits contractuels :"
+    },
+    {
+      "type": "bullet",
+      "text": "CRIATIVALCANCE, UNIPESSOAL LDA"
+    },
+    {
+      "type": "bullet",
+      "text": "Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal"
+    },
+    {
+      "type": "bullet",
+      "text": "Téléphone : +351 913 784 204"
+    },
+    {
+      "type": "bullet",
+      "text": "Courriel : info@360-merchandising.com"
+    },
+    {
+      "type": "bullet",
+      "text": "Site Web : 360-merchandising.com"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le consommateur peut également introduire une réclamation via le Livre électronique des réclamations :"
+    },
+    {
+      "type": "paragraph",
+      "text": "www.livroreclamacoes.pt."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "Annexe I — Modèle de formulaire de rétractation"
+    },
+    {
+      "type": "paragraph",
+      "text": "Ce formulaire est réservé aux consommateurs et aux situations dans lesquelles le droit légal de rétractation s’applique. Il ne s’applique pas, en règle générale, aux biens confectionnés selon les spécifications du consommateur ou nettement personnalisés."
+    },
+    {
+      "type": "paragraph",
+      "text": "À CRIATIVALCANCE, UNIPESSOAL LDA / 360 Merchandising Courriel : info@360-merchandising.com"
+    },
+    {
+      "type": "paragraph",
+      "text": "Je vous informe par la présente de ma rétractation du contrat relatif à l’achat des biens suivants : ________________________________________________________________________"
+    },
+    {
+      "type": "paragraph",
+      "text": "Numéro de commande : _________________________________________________\nDate de commande : ______________________________________________________\nDate de réception : ______________________________________________________\nNom du consommateur : __________________________________________________\nAdresse du consommateur : ________________________________________________\nCourriel : _________________________________________________________________________"
+    },
+    {
+      "type": "paragraph",
+      "text": "Date : __________________________\nSignature (uniquement si envoyé sur papier) : ______________________________"
+    },
+    {
+      "type": "paragraph",
+      "text": "Remarque : lorsque le droit de rétractation existe, l’envoi de ce formulaire ne dispense pas de retourner les biens dans le délai légal applicable."
+    }
+  ]
+}

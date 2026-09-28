@@ -1,0 +1,682 @@
+{
+  "sourceSha256": "4d1b269d865f47fed681784cacd7efb9c91538a499349da55ce7031cb1568f66",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1. Déclaration de confidentialité et portée"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising est une marque détenue et exploitée par CRIATIVALCANCE, UNIPESSOAL LDA. La protection de la vie privée et des données personnelles de ses clients, clients potentiels, utilisateurs, contacts commerciaux, fournisseurs et autres interlocuteurs est une priorité dans l’organisation de ses services."
+    },
+    {
+      "type": "paragraph",
+      "text": "Cette politique de confidentialité explique de manière transparente quelles données personnelles sont traitées par 360 Merchandising, comment elles sont collectées, à quelles fins elles sont utilisées, quelles bases juridiques s'appliquent, combien de temps elles sont conservées, avec qui elles peuvent être partagées et quels sont les droits de leurs titulaires."
+    },
+    {
+      "type": "paragraph",
+      "text": "Cette Politique s'applique au site Internet 360-merchandising.com et aux interactions effectuées via l'espace client, les formulaires, les demandes de devis, les commandes, l'e-mail, le téléphone, WhatsApp, les réseaux sociaux, les campagnes, les concours, les évaluations, les recommandations et autres canaux commerciaux utilisés par 360 Merchandising, y compris les relations B2C et B2B."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising accepte les commandes destinées à différents pays. Chaque fois que le traitement des données personnelles est soumis au règlement (UE) 2016/679 — Règlement général sur la protection des données (« RGPD ») — et à la législation nationale applicable, ces textes législatifs seront respectés."
+    },
+    {
+      "type": "paragraph",
+      "text": "La simple utilisation du site ne remplace pas les consentements spécifiques exigés par la loi. Lorsque le traitement repose sur le consentement, celui-ci est demandé de manière libre, spécifique, éclairée et univoque et peut être retiré selon les modalités décrites dans la présente Politique."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2. Responsable du traitement des données"
+    },
+    {
+      "type": "paragraph",
+      "text": "L’entité responsable du traitement des données personnelles dans le cadre de la marque 360 Merchandising est :"
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Champ",
+          "Informations"
+        ],
+        [
+          "Entité",
+          "CRIATIVALCANCE, UNIPESSOAL LDA"
+        ],
+        [
+          "NIPC/NIF",
+          "518143350"
+        ],
+        [
+          "Adresse",
+          "Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal"
+        ],
+        [
+          "Téléphone",
+          "+351 913 784 204"
+        ],
+        [
+          "Courriel",
+          "info@360-merchandising.com"
+        ],
+        [
+          "Site Web",
+          "360-merchandising.com"
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "CRIATIVALCANCE, UNIPESSOAL LDA n’a pas désigné, à la date de cette version, de Délégué à la Protection des Données. Les questions concernant la confidentialité et l'exercice des droits doivent être adressées à l'adresse e-mail indiquée ci-dessus."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3. Données personnelles, sujets et catégories de données"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.1. Que sont les données personnelles ?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Au sens du RGPD, les données personnelles sont toute information relative à une personne physique identifiée ou identifiable. Une personne peut être identifiable directement ou indirectement, notamment par son nom, son numéro d'identification, ses données de localisation, ses identifiants électroniques ou d'autres éléments relatifs à son identité."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.2. Qui sont les détenteurs des données ?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cette Politique s'applique, entre autres, aux clients et clients potentiels, aux utilisateurs du site Web, aux représentants et employés des entreprises clientes, aux destinataires de commandes, aux participants à des concours, aux abonnés aux communications, aux personnes qui contactent le support client, aux utilisateurs qui publient des avis ou des commentaires et aux contacts fournis via les fonctionnalités de recommandation."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.3. Comment collectons-nous les données personnelles ?"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les données peuvent être collectées directement auprès du titulaire, notamment lorsqu'il :"
+    },
+    {
+      "type": "bullet",
+      "text": "créer ou utiliser un compte client ;"
+    },
+    {
+      "type": "bullet",
+      "text": "passer une commande ou demander un devis ;"
+    },
+    {
+      "type": "bullet",
+      "text": "télécharger un logo, une image, un fichier, un document ou tout autre contenu à des fins de personnalisation ;"
+    },
+    {
+      "type": "bullet",
+      "text": "utiliser l'éditeur de produit ou le personnalisateur et approuver une conception ou une maquette ;"
+    },
+    {
+      "type": "bullet",
+      "text": "contacter 360 Merchandising par e-mail, téléphone, WhatsApp, réseaux sociaux ou formulaire ;"
+    },
+    {
+      "type": "bullet",
+      "text": "vous abonner à des newsletters ou à d'autres communications commerciales ;"
+    },
+    {
+      "type": "bullet",
+      "text": "participe à des concours, des campagnes ou des actions promotionnelles ;"
+    },
+    {
+      "type": "bullet",
+      "text": "publier une critique, un commentaire ou tout autre contenu ;"
+    },
+    {
+      "type": "bullet",
+      "text": "utiliser la fonctionnalité de recommandation ou « parrainer un ami » ;"
+    },
+    {
+      "type": "bullet",
+      "text": "interagit avec le site Web, les cookies, les outils d’analyse ou les technologies publicitaires."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les données peuvent également être reçues de tiers impliqués dans l'exécution des commandes, les paiements, l'expédition, le support technique, la prévention de la fraude, la publicité et d'autres opérations nécessaires à la fourniture des services."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.4. Quelles catégories de données traitons-nous ?"
+    },
+    {
+      "type": "paragraph",
+      "text": "En fonction de l'interaction et le cas échéant, les données suivantes peuvent être traitées :"
+    },
+    {
+      "type": "bullet",
+      "text": "données d'identification et de contact : nom, email, téléphone, adresse et pays ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données fiscales et professionnelles : NIF, raison sociale, données de facturation et autres éléments nécessaires à l'émission des documents commerciaux ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données de compte et d'authentification : identifiants de compte et identifiants nécessaires pour accéder à l'espace réservé ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données de commande : produits achetés, quantités, variantes, personnalisations, observations, statut de la commande, historique des achats et communications associées ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données de facturation et de livraison : adresses, destinataire, données nécessaires au transport et, le cas échéant, informations requises par les autorités fiscales ou douanières ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données relatives à la personnalisation : logos, images, textes, fichiers, documents, designs, maquettes et approbations respectives ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données du support client : contenu des emails, messages, appels, demandes, réclamations et leur suivi ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données marketing : préférences de communication, abonnements, consentements, interactions avec les emails, campagnes, publicités et paniers abandonnés ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données publiques : nom ou désignation présenté par l'utilisateur, contenu des évaluations, commentaires et date de publication respective ;"
+    },
+    {
+      "type": "bullet",
+      "text": "données techniques et d'utilisation : adresse IP, identifiants de l'appareil, navigateur, système d'exploitation, pages visitées, origine de la visite, événements de navigation et autres données associées aux cookies ou technologies similaires ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les données de paiement de nature non sensible reçues du prestataire de paiement, telles que l'état du paiement, le montant et la référence de la transaction."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.5. Fichiers, logos, images et personnalisations"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le 360 Merchandising permet le chargement et la conservation de fichiers destinés à la personnalisation du produit. Ces contenus peuvent, dans certaines circonstances, contenir des données personnelles du client ou de tiers."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'utilisateur est responsable de s'assurer qu'il dispose de la légitimité pour fournir, utiliser et faire reproduire le contenu soumis, y compris lorsqu'il contient des noms, photographies, logos, marques, données de tiers ou autres informations protégées. 360 Merchandising ne demande en règle générale pas de catégories particulières de données personnelles et recommande de ne pas inclure dans ces fichiers les informations sensibles qui ne sont pas strictement nécessaires."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les maquettes et personnalisations pourront être conservées dans l'espace client et dans l'historique des commandes, dans la mesure nécessaire à l'exécution, aux tests, à la répétition ou à l'assistance relative à la commande et dans le respect des délais de conservation précisés dans la présente Politique."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "3.6. Données tierces fournies par l'utilisateur"
+    },
+    {
+      "type": "paragraph",
+      "text": "Chaque fois que l'utilisateur fournit des données sur une autre personne — par exemple, un destinataire de commande ou un contact indiqué via la fonctionnalité « Parrainer un ami » — il doit s'assurer qu'il est autorisé à le faire et que la personne en question a été dûment informée lorsque cela est nécessaire."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les données reçues via une référence seront utilisées pour gérer la référence ou l'invitation et ne seront pas utilisées pour des communications commerciales continues sans base juridique appropriée."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4. Finalités et base juridique du traitement"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising traite les données personnelles uniquement lorsqu'il existe un objectif spécifique et une base juridique adéquate. Selon le contexte, les motifs suivants peuvent s'appliquer :"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.1. Exécution du contrat et mesures précontractuelles"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cette base sert notamment à :"
+    },
+    {
+      "type": "bullet",
+      "text": "création et gestion de comptes clients ;"
+    },
+    {
+      "type": "bullet",
+      "text": "réponse aux demandes d'informations, de contact et de budget ;"
+    },
+    {
+      "type": "bullet",
+      "text": "traitement, gestion et suivi des commandes ;"
+    },
+    {
+      "type": "bullet",
+      "text": "gestion des options de personnalisation, des fichiers, des maquettes et des approbations respectives ;"
+    },
+    {
+      "type": "bullet",
+      "text": "gestion de la facturation, du recouvrement et du statut des paiements ;"
+    },
+    {
+      "type": "bullet",
+      "text": "production, préparation, expédition et livraison de produits;"
+    },
+    {
+      "type": "bullet",
+      "text": "support client, gestion des réclamations et assistance après-vente ;"
+    },
+    {
+      "type": "bullet",
+      "text": "gestion des retours, annulations, corrections ou autres opérations liées au contrat."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.2. Respect des obligations légales"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les données seront traitées lorsque cela est nécessaire pour respecter les obligations fiscales, comptables, commerciales, douanières, de protection des consommateurs, la coopération avec les autorités ou d'autres obligations légales applicables."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.3. Consentement"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le consentement peut être utilisé, lorsque la loi l'exige, pour envoyer certaines communications marketing, utiliser des cookies ou des technologies publicitaires non essentielles, participer à des campagnes spécifiques et à d'autres fins qui dépendent de l'expression de la volonté de la personne concernée."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le consentement peut être retiré à tout moment, sans compromettre la licéité du traitement effectué avant son retrait."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "4.4. Intérêt légitime"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising peut traiter les données sur la base de ses intérêts légitimes, à condition que, après examen, les intérêts, droits et libertés fondamentales du titulaire ne prévalent pas. Cette base peut couvrir :"
+    },
+    {
+      "type": "bullet",
+      "text": "améliorer la qualité, la sécurité, le fonctionnement et les performances du site Web et des services ;"
+    },
+    {
+      "type": "bullet",
+      "text": "prévention et détection des fraudes, abus, abus ou incidents de sécurité ;"
+    },
+    {
+      "type": "bullet",
+      "text": "gestion des contacts commerciaux B2B et des relations avec les clients existants, lorsque la loi le permet ;"
+    },
+    {
+      "type": "bullet",
+      "text": "analyse statistique et amélioration de l'expérience utilisateur;"
+    },
+    {
+      "type": "bullet",
+      "text": "défense, exercice ou démonstration de droits dans le cadre de procédures judiciaires ou extrajudiciaires ;"
+    },
+    {
+      "type": "bullet",
+      "text": "récupération des processus d'achat initiés, y compris les paniers abandonnés, lorsque la loi le permet et que les règles applicables aux communications électroniques sont respectées."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5. Marketing, communications et publicité"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising peut utiliser les données de contact et les informations relatives à la relation commerciale pour envoyer des newsletters, des actualités, des campagnes, des offres, des informations sur les produits, des communications promotionnelles et d'autres messages marketing, toujours conformément à la législation applicable."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'envoi de communications promotionnelles peut être basé sur le consentement ou, lorsque la loi le permet, sur une autre base juridique appropriée. Chaque communication marketing envoyée par email doit prévoir un moyen simple de désinscription (« désabonnement »)."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising utilise ou peut utiliser des mécanismes de publicité et de remarketing, notamment Google Ads et Meta Ads/Meta Pixel, pour mesurer les campagnes, créer des audiences, limiter ou optimiser la présentation des publicités et comprendre les performances des actions marketing. Lorsque ces technologies dépendent de cookies ou d'autres identifiants non essentiels, elles seront activées conformément aux préférences de consentement de l'utilisateur, chaque fois que la loi l'exige."
+    },
+    {
+      "type": "paragraph",
+      "text": "Des communications automatiques liées aux processus d'achat peuvent également être envoyées, y compris des messages concernant les paniers abandonnés, dans la mesure permise par la législation applicable et dans le respect des préférences de l'utilisateur."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.1. Concours et actions promotionnelles"
+    },
+    {
+      "type": "paragraph",
+      "text": "Lorsque l'utilisateur participe à un concours, un concours ou une action promotionnelle, les données sont traitées pour gérer la participation, vérifier l'éligibilité, contacter les participants ou les gagnants, remettre les prix et respecter toute obligation légale. Des règles supplémentaires peuvent être incluses dans le règlement spécifique à chaque initiative."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.2. Notes et commentaires du public"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les avis, commentaires ou contenus publiés dans les espaces publics du site peuvent être visibles par les autres utilisateurs et, selon la configuration technique, être indexés par les moteurs de recherche. L'utilisateur ne doit pas publier de données personnelles de tiers ou d'informations qu'il n'a pas l'intention de rendre publiques."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.3. Appels téléphoniques"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising assure le support client par téléphone et peut, dans certaines situations, enregistrer les appels. Lorsqu'il y a un enregistrement, l'interlocuteur sera informé de manière appropriée, y compris le but de l'enregistrement. Selon le contexte, l'enregistrement peut être destiné à prouver des communications ou des transactions, un contrôle qualité, une formation, une sûreté ou une défense de droits, avec une base juridique appropriée à la finalité spécifique."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les enregistrements, lorsqu'ils existent, ne seront conservés que pendant la durée nécessaire et légalement autorisée, en fonction de la finalité respective."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6. Paiements"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les paiements effectués sur le site Internet sont traités par des prestataires spécialisés. 360 Merchandising utilise Stripe pour traiter les paiements électroniques."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising ne stocke pas les données complètes de la carte de paiement. Ces données sont saisies et traitées dans le cadre du service du prestataire de paiement. 360 Merchandising peut recevoir des informations nécessaires à la gestion de la transaction, telles que l'état du paiement, le montant, la devise, les références de la transaction et les informations nécessaires au rapprochement, à la prévention de la fraude ou au remboursement."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le prestataire de paiement peut agir en tant que responsable du traitement indépendant ou sous-traitant en relation avec certaines opérations, selon la nature du traitement et ses propres conditions et politiques."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7. Partage de données avec des tiers"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising ne vend pas de données personnelles. Les données pourront toutefois être communiquées ou mises à la disposition de tiers lorsque cela est nécessaire à la fourniture de services, au fonctionnement du site Internet, à l'accomplissement d'obligations légales ou à la poursuite de finalités légitimes."
+    },
+    {
+      "type": "paragraph",
+      "text": "Parmi les destinataires ou catégories de destinataires peuvent figurer :"
+    },
+    {
+      "type": "bullet",
+      "text": "Stripe, pour le traitement des paiements et les opérations associées ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Supabase, pour les services technologiques de bases de données, d'authentification, de stockage et d'infrastructure applicative ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Vercel, pour l'hébergement, la mise à disposition et l'infrastructure technique du site Internet ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google, y compris Google Analytics, Google Tag Manager et Google Ads, pour la mesure, la gestion des balises, l'analyse, la publicité et le remarketing, conformément aux préférences applicables ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Meta, lorsque Meta Ads, Meta Pixel ou des services de communication tels que WhatsApp sont utilisés, selon le contexte et les préférences applicables ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les fournisseurs de produits, de services de personnalisation, de production, de préparation de commande, d'expédition et autres partenaires opérationnels nécessaires à l'exécution de la commande ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les transporteurs, les opérateurs logistiques et leurs partenaires, le choix de l'opérateur de livraison étant effectué dans le cadre de la supply chain applicable à la commande ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les fournisseurs de technologie, d'assistance, de sécurité, de prévention de la fraude, de comptabilité, d'audit, de conseil juridique ou d'autres services professionnels ;"
+    },
+    {
+      "type": "bullet",
+      "text": "autorités fiscales, douanières, judiciaires, policières, réglementaires ou administratives, lorsqu'il existe une obligation légale ou une demande légitime."
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour l'exécution des commandes personnalisées et leur livraison, le nom du client ou du destinataire, l'email, l'adresse de livraison, les informations de commande, les fichiers ou logos de personnalisation, les maquettes et autres éléments indispensables à la production, à la validation, à l'expédition et à la livraison pourront être communiqués, lorsque cela est nécessaire."
+    },
+    {
+      "type": "paragraph",
+      "text": "Chaque fois qu'un tiers traite des données pour le compte de CRIATIVALCANCE, UNIPESSOAL LDA, des mesures contractuelles et organisationnelles appropriées seront adoptées pour garantir que le traitement est effectué conformément aux instructions applicables et à la législation sur la protection des données."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8. Transferts internationaux de données"
+    },
+    {
+      "type": "paragraph",
+      "text": "Certains fournisseurs technologiques, plateformes numériques ou partenaires impliqués dans les services peuvent opérer en dehors du Portugal ou de l'Espace économique européen (« EEE »), ou utiliser des infrastructures distribuées à l'échelle internationale."
+    },
+    {
+      "type": "paragraph",
+      "text": "Chaque fois qu'un transfert international de données personnelles est soumis au RGPD et a sa destination dans un pays ne bénéficiant pas d'une décision d'adéquation applicable, CRIATIVALCANCE, UNIPESSOAL LDA cherchera à garantir l'utilisation d'un mécanisme de transfert reconnu par la loi, tel que des clauses contractuelles types approuvées par la Commission européenne, des mesures supplémentaires appropriées ou toute autre base juridique applicable."
+    },
+    {
+      "type": "paragraph",
+      "text": "La réalisation de livraisons internationales peut également nécessiter la communication de données aux opérateurs logistiques, aux partenaires locaux et aux autorités douanières ou fiscales des pays concernés, lorsque cela est nécessaire à l'exécution de la commande ou au respect des obligations légales."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9. Stockage des données personnelles"
+    },
+    {
+      "type": "paragraph",
+      "text": "Les données personnelles ne sont conservées que pendant la durée nécessaire aux finalités pour lesquelles elles ont été collectées, sans préjudice des durées plus longues imposées par la loi ou nécessaires à l'exercice ou à la défense des droits."
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Catégorie/objectif",
+          "Critères de conservation"
+        ],
+        [
+          "Données fiscales, comptables et documentation commerciale",
+          "Pour la durée légale requise, qui peut atteindre 10 ans lorsqu'elle est applicable aux obligations comptables, fiscales ou tenues de livres."
+        ],
+        [
+          "Compte client",
+          "Tant que le compte reste actif et, après sa clôture, pendant la durée nécessaire au respect des obligations légales et à la défense des droits."
+        ],
+        [
+          "Commandes, facturation, livraison et service après-vente",
+          "Pendant la relation contractuelle et ultérieurement pendant le temps nécessaire pour respecter les obligations légales, gérer les réclamations, les garanties et défendre les droits."
+        ],
+        [
+          "Fichiers de personnalisation, conceptions et maquettes",
+          "Tant qu'elles sont nécessaires à l'exécution, à l'historique, au support ou à la répétition des commandes et, lorsqu'elles sont conservées dans l'espace client, tant que cette conservation est nécessaire et légitime, sans préjudice des demandes de suppression légalement recevables."
+        ],
+        [
+          "Marketing et newsletter",
+          "Jusqu'au retrait du consentement, à l'opposition ou à la résiliation de l'abonnement, sans préjudice de la conservation minimale nécessaire pour démontrer les préférences et éviter les contacts indésirables."
+        ],
+        [
+          "Notes et commentaires",
+          "Tant qu’ils restent publiés ou jusqu’à ce qu’une demande de suppression soit formulée, à moins qu’il n’existe une base légitime de conservation."
+        ],
+        [
+          "Appels enregistrés",
+          "Pour la durée nécessaire et légalement autorisée en fonction de la finalité spécifique, à communiquer le cas échéant."
+        ],
+        [
+          "Données techniques, cookies et analyses",
+          "En fonction de la durée des identifiants, des paramètres de consentement et des délais définis par les services respectifs et la configuration du site Internet."
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "À l’expiration de la durée de conservation applicable, les données seront supprimées ou anonymisées de manière irréversible. Elles ne seront conservées au-delà de cette durée que si un fondement juridique le justifie."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10. Sécurité des données"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising adopte des mesures techniques et organisationnelles adaptées aux risques pour protéger les données personnelles contre la destruction, la perte, l'altération, la divulgation ou l'accès non autorisés, accidentels ou illégaux."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les mesures peuvent inclure, selon la nature du système et des données :"
+    },
+    {
+      "type": "bullet",
+      "text": "utilisation de connexions sécurisées et de cryptage lors du transit ;"
+    },
+    {
+      "type": "bullet",
+      "text": "mécanismes d'authentification et de contrôle d'accès ;"
+    },
+    {
+      "type": "bullet",
+      "text": "gestion des autorisations selon les principes des besoins d'accès ;"
+    },
+    {
+      "type": "bullet",
+      "text": "mesures de surveillance, d’enregistrement et de sécurité des applications et des infrastructures ;"
+    },
+    {
+      "type": "bullet",
+      "text": "sauvegardes adéquates et mécanismes de continuité ;"
+    },
+    {
+      "type": "bullet",
+      "text": "sélection de prestataires offrant des garanties appropriées en matière de sécurité et de protection des données ;"
+    },
+    {
+      "type": "bullet",
+      "text": "procédures de réponse aux incidents et évaluation de la vulnérabilité."
+    },
+    {
+      "type": "paragraph",
+      "text": "Aucun système d’information n’est absolument à l’abri des risques. C'est pourquoi 360 Merchandising revoit et ajuste ses mesures de sécurité en fonction des évolutions technologiques, de la nature des données et des risques identifiés."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'utilisateur doit également protéger ses identifiants d'accès, utiliser des mots de passe appropriés et informer 360 Merchandising s'il soupçonne une utilisation non autorisée de son compte."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11. Droits des personnes concernées"
+    },
+    {
+      "type": "paragraph",
+      "text": "Conformément à la législation applicable et sous réserve des conditions respectives, la personne concernée peut exercer les droits suivants : Droit d'accès : obtenir la confirmation du traitement et accéder à ses données personnelles et aux informations pertinentes sur ce traitement. Droit de rectification : demander la correction de données inexactes ou le complément de données incomplètes. Droit à l'effacement : demander la suppression des données lorsque les exigences légales sont remplies et qu'il n'existe aucune base qui impose ou légitime leur conservation. Droit à la limitation des soins : demander la limitation des soins dans les situations prévues par la loi. Droit à la portabilité : recevoir, le cas échéant, les données fournies dans un format structuré, couramment utilisé et lisible par machine, ou demander leur transmission à un autre responsable. Droit d'opposition : s'opposer à certains traitements fondés sur un intérêt légitime et, à tout moment, aux traitements à des fins de marketing direct. Droit de retirer le consentement : retirer le consentement à tout moment concernant les traitements basés sur celui-ci, sans affecter la licéité du traitement antérieur. Droit de réclamation : introduire une réclamation auprès de l'autorité de contrôle compétente, à savoir la Commission Nationale de Protection des Données (« CNPD »), sans préjudice des autres moyens de protection."
+    },
+    {
+      "type": "paragraph",
+      "text": "L'exercice des droits doit être effectué via info@360-merchandising.com ou par écrit à l'adresse indiquée dans la présente Politique. Pour protéger les données du titulaire, 360 Merchandising peut demander des informations supplémentaires raisonnablement nécessaires pour confirmer l'identité du demandeur."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les demandes seront traitées dans les délais légaux. Dans certaines situations, un droit peut être limité ou refusé lorsqu'il existe une obligation légale, un besoin de conservation, de protection des droits de tiers ou toute autre exception prévue par la législation."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "12. Cookies, analyses et technologies similaires"
+    },
+    {
+      "type": "paragraph",
+      "text": "Le site Web utilise des cookies et des technologies similaires pour assurer son fonctionnement, maintenir des sessions, protéger la sécurité, enregistrer les préférences, mesurer l'utilisation et les performances et, lorsqu'autorisé, soutenir les activités de publicité et de remarketing."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les catégories et technologies suivantes peuvent être utilisées, entre autres :"
+    },
+    {
+      "type": "bullet",
+      "text": "cookies et stockage strictement nécessaires au fonctionnement, à la session, à l'authentification, au panier et à la sécurité du site ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les technologies associées à Supabase nécessaires à l'authentification, à la session et au fonctionnement de l'espace client ;"
+    },
+    {
+      "type": "bullet",
+      "text": "les technologies associées à Stripe nécessaires au traitement sécurisé des paiements et à la prévention de la fraude ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google Analytics 4 (GA4), pour l'analyse statistique et la mesure des usages ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google Tag Manager, pour la gestion technique des balises et des intégrations ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google Ads, pour mesurer les conversions, la publicité et le remarketing ;"
+    },
+    {
+      "type": "bullet",
+      "text": "Meta Pixel et Meta Ads, pour la mesure, la création d'audience et la publicité, lorsqu'ils sont mis en œuvre et légalement autorisés."
+    },
+    {
+      "type": "paragraph",
+      "text": "Les cookies et technologies qui ne sont pas strictement nécessaires seront utilisés conformément aux choix de l'utilisateur et aux exigences légales applicables. L'utilisateur peut modifier ses préférences grâce au mécanisme de gestion du consentement disponible sur le site Web et peut également gérer les cookies via les paramètres du navigateur, bien que la désactivation de certains éléments puisse affecter la fonctionnalité."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13. Contacts, réclamations et autorité de contrôle"
+    },
+    {
+      "type": "paragraph",
+      "text": "Pour des questions liées à la vie privée, au traitement des données personnelles ou à l'exercice des droits, vous pouvez contacter :"
+    },
+    {
+      "type": "bullet",
+      "text": "Courriel : info@360-merchandising.com"
+    },
+    {
+      "type": "bullet",
+      "text": "Téléphone : +351 913 784 204"
+    },
+    {
+      "type": "bullet",
+      "text": "Adresse : CRIATIVALCANCE, UNIPESSOAL LDA, Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal."
+    },
+    {
+      "type": "paragraph",
+      "text": "Le titulaire a également le droit d'introduire une réclamation auprès de la Commission Nationale pour la Protection des Données (CNPD) ou d'une autre autorité de contrôle compétente, conformément à la législation applicable."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14. Modifications de la politique de confidentialité"
+    },
+    {
+      "type": "paragraph",
+      "text": "CRIATIVALCANCE, UNIPESSOAL LDA peut réviser ou mettre à jour cette Politique de Confidentialité chaque fois que cela est nécessaire, notamment suite à des changements législatifs, réglementaires, technologiques, organisationnels ou des changements dans les services fournis par 360 Merchandising. La version mise à jour sera publiée sur le site Internet en indiquant la date de révision et, lorsque les modifications sont matériellement pertinentes, des moyens supplémentaires d'information des utilisateurs pourront être utilisés."
+    }
+  ]
+}

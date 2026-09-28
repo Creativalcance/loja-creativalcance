@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: { "/*": ["./public/legal/**/*.json"] },
   experimental: { serverActions: { bodySizeLimit: "4mb" } },
   images: {
     remotePatterns: [
