@@ -402,47 +402,22 @@ export default function ProductCustomizationSimulator({
   const estimatedTotal = roundMoney(personalizationSubtotal + extrasTotal);
   const productionDays = getEstimatedProductionDays(selectedTechnique);
 
-  useEffect(() => {
-    if (
-      selectedLocationId &&
-      availableLocations.some((location) => location.id === selectedLocationId)
-    ) {
-      return;
-    }
-
-    setSelectedLocationId(
-      availableLocations.find((location) => location.is_default)?.id ??
-        availableLocations[0]?.id ??
-        null,
-    );
-  }, [availableLocations, selectedLocationId]);
-
-  useEffect(() => {
-    const nextTechnique = availableTechniques[0] ?? null;
-
-    if (
-      selectedTechnique &&
-      availableTechniques.some((technique) => technique === selectedTechnique)
-    ) {
-      return;
-    }
-
-    setSelectedTechnique(nextTechnique);
-  }, [availableTechniques, selectedTechnique]);
-
-  useEffect(() => {
-    setPosition(initialPosition);
-  }, [selectedLocationId]);
-
-  useEffect(() => {
-    setPosition((current) =>
-      getSafeLogoPosition({
-        position: current,
-        printAreaAspectRatio,
-        logoAspectRatio,
-      }),
-    );
-  }, [printAreaAspectRatio, logoAspectRatio]);
+  // Adjust selection only when its inputs invalidate it, before painting.
+  const effectiveLocationId = selectedLocation?.id ?? null;
+  if (selectedLocationId !== effectiveLocationId) {
+    setSelectedLocationId(effectiveLocationId);
+  }
+  const effectiveTechnique = availableTechniques.includes(selectedTechnique ?? "")
+    ? selectedTechnique : availableTechniques[0] ?? null;
+  if (selectedTechnique !== effectiveTechnique) setSelectedTechnique(effectiveTechnique);
+  const [positionInputs, setPositionInputs] = useState({ locationId: effectiveLocationId, printAreaAspectRatio, logoAspectRatio });
+  if (positionInputs.locationId !== effectiveLocationId || positionInputs.printAreaAspectRatio !== printAreaAspectRatio || positionInputs.logoAspectRatio !== logoAspectRatio) {
+    setPositionInputs({ locationId: effectiveLocationId, printAreaAspectRatio, logoAspectRatio });
+    setPosition(getSafeLogoPosition({
+      position: positionInputs.locationId !== effectiveLocationId ? initialPosition : position,
+      printAreaAspectRatio, logoAspectRatio,
+    }));
+  }
 
   useEffect(() => {
     return () => {

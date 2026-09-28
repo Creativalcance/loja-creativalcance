@@ -9,7 +9,7 @@ function load(path, imports = {}, suffix = '') {
   const code = ts.transpileModule(fs.readFileSync(path, 'utf8') + suffix, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  vm.runInNewContext(code, { exports, console, Intl, require: name => imports[name] ?? {} });
+  vm.runInNewContext(code, { exports, console, Intl, setTimeout: (callback) => callback(), require: name => imports[name] ?? {} });
   return exports;
 }
 const config = load('src/lib/i18n/config.ts');

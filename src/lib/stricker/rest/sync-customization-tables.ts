@@ -83,6 +83,10 @@ type PrintingPriceTableUpsertRow = {
   quantity_max: number | null;
   supplier_price: number;
   base_price: number;
+  is_manual_override: boolean;
+  handling_is_manual_override: boolean;
+  pricing_mode: string;
+  handling_pricing_mode: string;
   margin_percentage: number;
   margin_rate: number | null;
   markup_rate: number | null;
@@ -442,6 +446,10 @@ function buildPrintingPriceTableRows(params: {
         quantity_max: quantityMax,
         supplier_price: currentTier.supplierPrice,
         base_price: currentTier.supplierPrice,
+        is_manual_override: false,
+        handling_is_manual_override: false,
+        pricing_mode: calculatedPersonalizationPrice.marginRate ? "margin" : "markup",
+        handling_pricing_mode: calculatedHandlingCost.marginRate ? "margin" : "markup",
         margin_percentage: calculatedPersonalizationPrice.marginRate
           ? Number((calculatedPersonalizationPrice.marginRate * 100).toFixed(4))
           : 0,
@@ -553,6 +561,7 @@ async function upsertPrintingPriceTables(params: {
         .select(
           "external_id,pricing_mode,margin_percentage,margin_rate,markup_rate,fixed_fee,manual_price,final_price,is_manual_override,override_reason,override_updated_at,override_updated_by,handling_cost,handling_margin_rate,handling_markup_rate,handling_pricing_mode,handling_manual_price,handling_is_manual_override,handling_override_reason,handling_override_updated_at,handling_override_updated_by",
         )
+        .eq("supplier_id", rowChunk[0].supplier_id)
         .in(
           "external_id",
           rowChunk.map((row) => row.external_id),
@@ -608,6 +617,7 @@ async function upsertPrintingPriceTables(params: {
       .from("printing_price_tables")
       .upsert(rowsToUpsert, {
         onConflict: "supplier_id,external_id",
+        defaultToNull: false,
       });
 
     if (error) {

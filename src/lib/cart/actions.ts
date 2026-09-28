@@ -1,5 +1,6 @@
 "use server";
 
+import { assertStockAvailable } from "@/lib/commerce/check-stock";
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -617,6 +618,7 @@ export async function addToCartAction(
         .eq("id", productId)
         .eq("status", "active")
         .eq("is_active", true)
+        .eq("is_purchasable", true)
         .maybeSingle<ProductForCart>();
 
     if (productError || !product) {
@@ -978,6 +980,11 @@ export async function addToCartAction(
             techniqueName:
               printingTechnique?.name ?? null,
           };
+
+    const { data: existingStockItems, error: stockItemsError } = await supabaseAdmin
+      .from("cart_items").select("product_id,variant_id,quantity").eq("cart_id", cart.id);
+    if (stockItemsError) throw new Error("Não foi possível confirmar os artigos do carrinho.");
+    await assertStockAvailable([...(existingStockItems ?? []), { product_id: product.id, variant_id: variant?.id ?? null, quantity }]);
 
     const {
       data: insertedItem,

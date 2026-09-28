@@ -1310,9 +1310,12 @@ function CustomizationEditor({
     return group?.id ?? locationGroups[0]?.id ?? null;
   }, [initialLocationId, locationGroups]);
 
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(
+  const [requestedGroupId, setSelectedGroupId] = useState<string | null>(
     resume?.selectedGroupId ?? initialGroupId,
   );
+
+  const selectedGroupId = locationGroups.some(group => group.id === requestedGroupId)
+    ? requestedGroupId : locationGroups[0]?.id ?? null;
 
   const selectedGroup = useMemo(
     () =>
@@ -1399,7 +1402,8 @@ function CustomizationEditor({
     requiredPrintColorCount === 0 ||
     selectedPantoneValues.length === requiredPrintColorCount;
   const displayedLogoPreviewUrl =
-    recoloredLogoPreviewUrl ?? logoPreviewUrl;
+    logoPreviewUrl && effectivePrintColorMode !== "full" && printColorsAreValid
+      ? recoloredLogoPreviewUrl ?? logoPreviewUrl : logoPreviewUrl;
 
   const declaredPrintAreaDimensions = parsePrintAreaDimensions(
     selectedLocation?.max_printing_area_mm ?? null,
@@ -1605,17 +1609,6 @@ function CustomizationEditor({
   const previousCenter = useRef(resume ? centerResetKey : Symbol());
 
   useEffect(() => {
-    if (
-      selectedGroupId &&
-      locationGroups.some((group) => group.id === selectedGroupId)
-    ) {
-      return;
-    }
-
-    setSelectedGroupId(locationGroups[0]?.id ?? null);
-  }, [locationGroups, selectedGroupId]);
-
-  useEffect(() => {
     if (previousLocation.current === locationResetKey) return;
     previousLocation.current = locationResetKey;
     setSelectedLocationId(selectedGroup?.options[0]?.id ?? null);
@@ -1639,12 +1632,13 @@ function CustomizationEditor({
       effectivePrintColorMode === "full" ||
       !printColorsAreValid
     ) {
-      setRecoloredLogoPreviewUrl(null);
       return;
     }
 
+    let cancelled = false;
     const image = new Image();
     image.onload = () => {
+      if (cancelled) return;
       setRecoloredLogoPreviewUrl(
         recolorLogo({
           image,
@@ -1654,6 +1648,7 @@ function CustomizationEditor({
       );
     };
     image.src = logoPreviewUrl;
+    return () => { cancelled = true; };
   }, [
     detectedLogoColors,
     effectivePrintColorMode,

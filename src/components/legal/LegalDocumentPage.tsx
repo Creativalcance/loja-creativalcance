@@ -1,3 +1,4 @@
+import { getLegalCopy } from "@/lib/i18n/legal";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import Link from "next/link";
@@ -18,6 +19,7 @@ export default async function LegalDocumentPage({
   fileName,
 }: LegalDocumentPageProps) {
   const locale = await getCurrentLocale();
+  const copy = getLegalCopy(locale, fileName);
   const filePath = path.join(process.cwd(), "public", "legal", fileName);
   const content = await readFile(filePath, "utf8");
   const blocks = content
@@ -33,13 +35,13 @@ export default async function LegalDocumentPage({
           ← {(locale === "es" ? ("Volver al inicio") : locale === "de" ? ("Zur Startseite") : locale === "it" ? ("Torna alla pagina iniziale") : locale === "en" ? "Back to homepage" : locale === "fr" ? "Retour à l’accueil" : "Voltar à página inicial")}
         </Link>
         <p className="mt-8 text-xs font-semibold uppercase tracking-[0.22em] text-[#ff6a00]">
-          Informação legal
+          {copy.label}
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#162334] sm:text-4xl">
-          {title}
+          {locale === "pt" ? title : copy.title}
         </h1>
-        <p className="mt-4 max-w-3xl leading-7 text-neutral-600">{description}</p>
-        <div className="mt-10 border-t border-neutral-200 pt-8 text-[15px] leading-7 text-neutral-700">
+        <p className="mt-4 max-w-3xl leading-7 text-neutral-600">{locale === "pt" ? description : copy.notice}</p>
+        <div lang="pt-PT" className="mt-10 border-t border-neutral-200 pt-8 text-[15px] leading-7 text-neutral-700">
           {blocks.map((block, index) => {
             if (headingPattern.test(block) && !block.includes("\n")) {
               const isSubheading = /^\d+\.\d+\./.test(block);

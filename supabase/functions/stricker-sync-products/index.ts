@@ -1,6 +1,4 @@
-// @ts-nocheck
-
-// import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.1";
 
 type StrickerRawProduct = {
   id?: string | number;

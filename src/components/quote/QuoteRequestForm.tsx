@@ -45,6 +45,7 @@ export default function QuoteRequestForm({
 
   return (
     <form action={formAction} className="mt-8 space-y-6">
+      <input type="hidden" name="locale" value={locale} />
       <input type="hidden" name="productSku" value={productSku ?? ""} />
       <input type="hidden" name="productName" value={productName ?? ""} />
 
@@ -129,7 +130,7 @@ export default function QuoteRequestForm({
             className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           >
             <option value="email">E-mail</option>
-            <option value="phone">Telefone</option>
+            <option value="phone">{text.phone}</option>
             <option value="whatsapp">WhatsApp</option>
           </select>
         </div>

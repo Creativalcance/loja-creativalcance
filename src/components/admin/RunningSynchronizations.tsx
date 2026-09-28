@@ -35,9 +35,9 @@ export default function RunningSynchronizations() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const initialLoad = window.setTimeout(() => void load(), 0);
     const timer = window.setInterval(() => void load(), 5000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearTimeout(initialLoad); window.clearInterval(timer); };
   }, [load]);
 
   async function cancel(id: string) {

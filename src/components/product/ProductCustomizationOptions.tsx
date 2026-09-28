@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowRight,
   CheckCircle2,
@@ -72,21 +72,6 @@ export default function ProductCustomizationOptions({
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(
     options[0]?.id ?? null,
   );
-
-  useEffect(() => {
-    if (!selectedOptionId && options[0]) {
-      setSelectedOptionId(options[0].id);
-      return;
-    }
-
-    const selectedOptionExists = options.some(
-      (option) => option.id === selectedOptionId,
-    );
-
-    if (!selectedOptionExists) {
-      setSelectedOptionId(options[0]?.id ?? null);
-    }
-  }, [options, selectedOptionId]);
 
   const selectedOption = useMemo(() => {
     return (

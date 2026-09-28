@@ -300,6 +300,7 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       // The supplier rejects overlapping catalogue requests on one session.
       // Refresh every storefront language sequentially under the existing lock.
       for (const locale of Object.values(SITE_LOCALES)) {
+        if (languages.length > 0) await new Promise((resolve) => setTimeout(resolve, 10_000));
         languages.push(await syncRestCatalogDataset({ dataset: "colors", lang: locale.strickerLanguage }));
       }
       return { languages };

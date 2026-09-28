@@ -1,5 +1,8 @@
 "use server";
 
+import { validateCartPricing } from "@/lib/checkout/validate-cart-pricing";
+import { assertStockAvailable } from "@/lib/commerce/check-stock";
+
 import { assessCheckoutDestination, MARKET_POLICY_VERSION } from "@/lib/markets/policy";
 import { marketText } from "@/lib/markets/i18n";
 import { createHash } from "node:crypto";
@@ -539,6 +542,9 @@ export async function createPaymentCheckoutSessionAction(
         message: `${unavailableItem.product_name} deixou de estar disponível. Remove este artigo do carrinho antes de continuar.`,
       };
     }
+
+    await assertStockAvailable(cartItems);
+    await validateCartPricing(cartItems, cart.currency || "EUR", Number(cart.discount_total ?? 0));
 
     const personalizedItems = cartItems.filter(
       (item) => item.personalization_required,

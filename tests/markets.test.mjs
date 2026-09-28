@@ -52,6 +52,8 @@ test('direct payment action refuses foreign destination before any mutation or S
   const mutations=[]; const filters=[];
   const query={select(){return this;},eq(...args){filters.push(args);return this;},async maybeSingle(){return {data:{id:'cart',currency:'EUR',customer_addresses:{country_code:'US',postal_code:'10001'},cart_items:[]}};}};
   const action=load('src/lib/checkout/payment-actions.ts',{
+    '@/lib/checkout/validate-cart-pricing':{validateCartPricing(){throw Error('Unexpected pricing access');}},
+    '@/lib/commerce/check-stock':{assertStockAvailable(){throw Error('Unexpected stock access');}},
     '@/lib/markets/policy':policy,'@/lib/markets/i18n':copy,'node:crypto':{},'next/navigation':{redirect(){throw Error('unexpected redirect');}},
     '@/lib/stripe/server':{createStripeServerClient(){mutations.push('stripe');throw Error('unexpected stripe');}},
     '@/lib/supabase/admin':{createSupabaseAdminClient:()=>({from:()=>query,rpc:()=>{mutations.push('rpc');throw Error('unexpected mutation');}})},
