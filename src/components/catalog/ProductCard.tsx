@@ -1,3 +1,5 @@
+import NextImage from "next/image";
+import { canOptimizeCatalogImage } from "@/lib/catalog/image-optimization";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Star } from "lucide-react";
 import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
@@ -134,7 +136,7 @@ export default function ProductCard({ product, locale = "pt" }: ProductCardProps
     >
       <div className="aspect-square bg-neutral-100">
         {imageUrl ? (
-          <img
+          <NextImage unoptimized={!canOptimizeCatalogImage(imageUrl)} width={1000} height={1000} sizes="(min-width: 1280px) 320px, (min-width: 640px) 45vw, 100vw"
             src={imageUrl}
             alt={locale === "pt" ? primaryImage?.alt_text ?? product.name : product.name}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"

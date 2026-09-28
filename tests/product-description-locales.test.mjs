@@ -11,7 +11,7 @@ function load(path, imports = {}) {
   const code = ts.transpileModule(fs.readFileSync(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
-  vm.runInNewContext(code, { exports, console, Intl, require: name => {
+  vm.runInNewContext(code, { exports, console, Intl, URL, require: name => {
     if (!(name in imports)) throw new Error(`Unexpected import: ${name}`);
     return imports[name];
   }});
@@ -77,6 +77,8 @@ for (const [locale,[name,description]] of Object.entries(translatedCopy)) {
     }
     assert.equal(JSON.stringify(product),before);
     const card = load('src/components/catalog/ProductCard.tsx', {
+      'next/image': { __esModule: true, default: (input) => { const props = {...input}; delete props.unoptimized; return jsx.jsx('img', props); } },
+      '@/lib/catalog/image-optimization': load('src/lib/catalog/image-optimization.ts'),
       'react/jsx-runtime':jsx,
       'next/link':{__esModule:true,default:({children,...props})=>jsx.jsx('a',{...props,children})},
       'lucide-react':{ArrowRight:()=>null,CheckCircle2:()=>null,Star:()=>null},

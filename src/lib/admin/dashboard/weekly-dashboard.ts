@@ -739,7 +739,6 @@ export async function getWeeklyDashboardData(selectedWeekStart: string): Promise
   const previousWeekStart = addDaysToDateOnly(currentWeekStart, -7);
   const trendStart = addDaysToDateOnly(currentWeekStart, -49);
   const currentRange = buildWeekRange(currentWeekStart);
-  const previousRange = buildWeekRange(previousWeekStart);
   const trendStartRange = buildWeekRange(trendStart);
 
   const [allPaidOrders, rangeData, externalResult] = await Promise.all([

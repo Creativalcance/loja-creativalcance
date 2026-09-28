@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Check, ChevronDown, LoaderCircle } from "lucide-react";
 import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import { preserveShoppingBeforeNavigation } from "@/lib/cart/login-snapshot";
@@ -23,19 +23,21 @@ function Flag({ locale }: { locale: SiteLocale }) {
     className="h-[18px] w-6 shrink-0 rounded-[3px] object-cover shadow-[0_0_0_1px_rgba(22,35,52,0.1)]" />;
 }
 
-function navigateToLocale(locale: SiteLocale, pathname: string) {
+function saveLocalePreference(locale: SiteLocale) {
   document.cookie = `site-locale=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
-  window.location.assign(`${localizePath(pathname, locale)}${window.location.search}${window.location.hash}`);
 }
 
 export default function LanguageSwitcher({ locale, label }: { locale: SiteLocale; label: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [navigating, startTransition] = useTransition();
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const options = useRef<(HTMLButtonElement | null)[]>([]);
   const [open, setOpen] = useState(false);
-  const [pending, setPending] = useState(false);
+  const [saving, setPending] = useState(false);
+  const pending = saving || navigating;
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -68,7 +70,12 @@ export default function LanguageSwitcher({ locale, label }: { locale: SiteLocale
     setError(false);
     try {
       await preserveShoppingBeforeNavigation();
-      navigateToLocale(nextLocale, pathname);
+      saveLocalePreference(nextLocale);
+      startTransition(() => {
+        router.push(`${localizePath(pathname, nextLocale)}${window.location.search}${window.location.hash}`);
+      });
+      setOpen(false);
+      setPending(false);
     } catch {
       setPending(false);
       setError(true);

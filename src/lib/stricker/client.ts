@@ -145,6 +145,7 @@ export async function fetchStrickerProducts(
 export async function fetchStrickerProductsTree(
   _lang?: string,
 ): Promise<JsonRecord[]> {
+  void _lang; // Legacy callers may pass a language; this endpoint deliberately uses the configured language.
   const payload = await callStrickerRestMethod("ProductsTree", {
     lang: getForcedStrickerLanguage(),
   });
@@ -162,6 +163,7 @@ export async function fetchStrickerProductsTree(
 export async function fetchStrickerOptionals(
   _lang?: string,
 ): Promise<JsonRecord[]> {
+  void _lang; // Preserve the legacy signature and configured-language behaviour.
   const payload = await callStrickerRestMethod("Optionals", {
     lang: getForcedStrickerLanguage(),
   });
@@ -177,6 +179,7 @@ export async function fetchStrickerOptionals(
 export async function fetchStrickerOptionalsComplete(
   _lang?: string,
 ): Promise<JsonRecord[]> {
+  void _lang; // Preserve the legacy signature and configured-language behaviour.
   const payload = await callStrickerRestMethod("OptionalsComplete", {
     lang: getForcedStrickerLanguage(),
   });
@@ -197,6 +200,7 @@ export async function fetchStrickerStocksByCountry(
 ): Promise<JsonRecord[]> {
   const config = getStrickerConfig();
 
+  void _lang; // Preserve the legacy signature and configured-language behaviour.
   const payload = await callStrickerRestMethod("StocksByCountry", {
     country: country ?? config.defaultCountry,
     lang: getForcedStrickerLanguage(),
@@ -211,6 +215,7 @@ export async function fetchStrickerStocksByCountry(
 }
 
 export async function fetchStrickerColors(_lang?: string): Promise<JsonRecord[]> {
+  void _lang; // Preserve the legacy signature and configured-language behaviour.
   const payload = await callStrickerRestMethod("Colors", {
     lang: getForcedStrickerLanguage(),
   });

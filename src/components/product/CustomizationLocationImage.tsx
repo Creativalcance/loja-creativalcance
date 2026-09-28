@@ -1,5 +1,8 @@
 "use client";
 
+import NextImage from "next/image";
+
+
 import {
   useCallback,
   useEffect,
@@ -522,7 +525,7 @@ function CustomizationLocationImageContent({
   return (
     <div className="max-w-full p-8">
       <div className="relative isolate inline-block max-w-full align-middle">
-        <img
+        <NextImage unoptimized width={1000} height={1000} style={{ width: "auto", height: "auto" }}
           ref={imageRef}
           src={activeUrl}
           alt={alt}

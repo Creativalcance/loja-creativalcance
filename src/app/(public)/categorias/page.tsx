@@ -1,3 +1,5 @@
+import NextImage from "next/image";
+import { canOptimizeCatalogImage } from "@/lib/catalog/image-optimization";
 import Image from "next/image";
 import { MATERIALS_PATH, MATERIALS_CARD_IMAGE, materialMessages } from "@/lib/catalog/materials-collection";
 import Link from "next/link";
@@ -330,7 +332,7 @@ export default async function CategoriesPage() {
               >
                 <div className="aspect-[4/3] bg-white">
                   {category.imageUrl ? (
-                    <img
+                    <NextImage unoptimized={!canOptimizeCatalogImage(category.imageUrl)} width={1000} height={1000} sizes="(min-width: 1280px) 280px, (min-width: 640px) 45vw, 100vw"
                       src={category.imageUrl}
                       alt={category.imageAlt}
                       className="h-full w-full object-contain p-6 transition duration-500 group-hover:scale-105"

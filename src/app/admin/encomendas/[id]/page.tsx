@@ -1,3 +1,4 @@
+import NextImage from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -1753,13 +1754,13 @@ const supabaseAdmin = createSupabaseAdminClient();
 
                           <div className="mt-4 flex min-h-44 items-center justify-center overflow-hidden rounded-2xl bg-neutral-50">
                             {item.logoPreviewUrl ? (
-                              <img
+                              <NextImage unoptimized width={1000} height={1000}
                                 src={item.logoPreviewUrl}
                                 alt={
                                   item.logo_file_name ??
                                   "Logótipo"
                                 }
-                                className="max-h-48 w-full object-contain p-5"
+                                style={{ height: "auto" }} className="max-h-48 w-full object-contain p-5"
                               />
                             ) : (
                               <p className="px-4 text-center text-sm text-neutral-400">

@@ -1,4 +1,7 @@
 "use client";
+
+import NextImage from "next/image";
+
 import { ShoppingResume, snapshotImage, useShoppingLoginSnapshot } from "@/lib/cart/login-snapshot";
 
 import Link from "next/link";
@@ -2482,7 +2485,7 @@ function CustomizationEditor({
                         transformOrigin: "center center",
                       }}
                     >
-                      <img
+                      <NextImage unoptimized width={1000} height={1000}
                         src={displayedLogoPreviewUrl ?? logoPreviewUrl}
                         alt={copy.logoAlt}
                         draggable={false}

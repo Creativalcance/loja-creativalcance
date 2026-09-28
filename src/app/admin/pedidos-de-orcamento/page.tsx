@@ -195,7 +195,6 @@ export default async function AdminQuoteRequestsPage({
   const [
     { count: newCount },
     { count: inAnalysisCount },
-    { count: proposalSentCount },
     { count: wonCount },
   ] = await Promise.all([
     supabase
@@ -206,10 +205,6 @@ export default async function AdminQuoteRequestsPage({
       .from("quote_requests")
       .select("id", { count: "exact", head: true })
       .eq("status", "in_analysis"),
-    supabase
-      .from("quote_requests")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "proposal_sent"),
     supabase
       .from("quote_requests")
       .select("id", { count: "exact", head: true })
