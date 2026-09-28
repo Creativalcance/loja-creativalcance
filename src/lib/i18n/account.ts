@@ -49,3 +49,42 @@ export function authActionMessages(locale: SiteLocale) {
     : locale === "fr" ? { required: "Remplissez tous les champs obligatoires.", loginRequired: "Saisissez votre e-mail et votre mot de passe.", invalid: "Identifiants incorrects.", inactive: "Ce compte est inactif. Contactez le service client.", unexpectedLogin: "Erreur inattendue lors de la connexion.", passwordRule: "Le mot de passe doit contenir au moins 8 caractères, dont une lettre et un chiffre.", mismatch: "Les mots de passe ne correspondent pas.", createFailed: "Impossible de créer le compte. Réessayez.", unexpectedCreate: "Erreur inattendue lors de la création du compte.", emailRequired: "Saisissez votre adresse e-mail.", resetSent: "Si un compte existe pour cet e-mail, vous recevrez un lien pour définir un nouveau mot de passe.", expired: "Le lien a expiré. Demandez une nouvelle réinitialisation.", updateFailed: "Impossible de modifier le mot de passe.", updateSuccess: "Mot de passe modifié avec succès. Vous pouvez continuer." }
       : { required: "Preenche todos os campos.", loginRequired: "Preenche o e-mail e a palavra-passe.", invalid: "Dados de acesso inválidos.", inactive: "Esta conta está inativa. Contacta o apoio ao cliente.", unexpectedLogin: "Erro inesperado ao iniciar sessão.", passwordRule: "A palavra-passe deve ter no mínimo 8 caracteres e incluir pelo menos uma letra e um número.", mismatch: "As palavras-passe não coincidem.", createFailed: "Não foi possível criar a conta. Tenta novamente.", unexpectedCreate: "Erro técnico inesperado ao criar conta.", emailRequired: "Indica o teu endereço de e-mail.", resetSent: "Se existir uma conta com este e-mail, receberás uma ligação para definir uma nova palavra-passe.", expired: "A ligação expirou. Solicita uma nova recuperação.", updateFailed: "Não foi possível alterar a palavra-passe.", updateSuccess: "Palavra-passe alterada com sucesso. Já podes continuar." });
 }
+
+/** Translate only known password errors; never expose provider internals. */
+export function authPasswordError(error: { code?: string; name?: string; reasons?: string[] }, locale: SiteLocale, fallback: string): string {
+  const copy = {
+    pt: {
+      compromised: "Esta palavra-passe consta de fugas de dados conhecidas. Escolhe uma palavra-passe diferente e única para esta conta.",
+      weak: "Esta palavra-passe não cumpre os requisitos de segurança. Escolhe uma palavra-passe mais longa que inclua letras, números e símbolos.",
+      same: "Escolhe uma palavra-passe diferente da atual.",
+    },
+    en: {
+      compromised: "This password has appeared in known data breaches. Choose a different password that is unique to this account.",
+      weak: "This password does not meet the security requirements. Choose a longer password with letters, numbers and symbols.",
+      same: "Choose a password that is different from your current one.",
+    },
+    fr: {
+      compromised: "Ce mot de passe figure dans des fuites de données connues. Choisissez un autre mot de passe, unique à ce compte.",
+      weak: "Ce mot de passe ne respecte pas les exigences de sécurité. Choisissez un mot de passe plus long contenant des lettres, des chiffres et des symboles.",
+      same: "Choisissez un mot de passe différent de votre mot de passe actuel.",
+    },
+    es: {
+      compromised: "Esta contraseña aparece en filtraciones de datos conocidas. Elige otra contraseña que sea exclusiva de esta cuenta.",
+      weak: "Esta contraseña no cumple los requisitos de seguridad. Elige una contraseña más larga que incluya letras, números y símbolos.",
+      same: "Elige una contraseña diferente de la actual.",
+    },
+    de: {
+      compromised: "Dieses Passwort ist in bekannten Datenlecks enthalten. Wählen Sie ein anderes Passwort, das Sie nur für dieses Konto verwenden.",
+      weak: "Dieses Passwort erfüllt die Sicherheitsanforderungen nicht. Wählen Sie ein längeres Passwort mit Buchstaben, Zahlen und Sonderzeichen.",
+      same: "Wählen Sie ein anderes Passwort als Ihr bisheriges.",
+    },
+    it: {
+      compromised: "Questa password compare in violazioni di dati note. Scegli una password diversa e unica per questo account.",
+      weak: "Questa password non soddisfa i requisiti di sicurezza. Scegli una password più lunga che includa lettere, numeri e simboli.",
+      same: "Scegli una password diversa da quella attuale.",
+    },
+  }[locale];
+  if (error.code === "same_password") return copy.same;
+  if (error.code !== "weak_password" && error.name !== "AuthWeakPasswordError") return fallback;
+  return error.reasons?.includes("pwned") ? copy.compromised : copy.weak;
+}

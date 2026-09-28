@@ -1,0 +1,419 @@
+{
+  "sourceSha256": "db8a51cf60d048408d2793ef69989675882019a91f22bc0b768bcfa5d91e859d",
+  "blocks": [
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "1. Object and scope"
+    },
+    {
+      "type": "paragraph",
+      "text": "This Cookies Policy explains the use of cookies and similar technologies on the 360-merchandising.com website, operated by CRIATIVALCANCE, UNIPESSOAL LDA, under the 360 Merchandising brand."
+    },
+    {
+      "type": "paragraph",
+      "text": "This Policy should be read in conjunction with the Privacy Policy and 360 Merchandising Terms and Conditions. It applies to website users, including visitors, registered customers and people who use the purchase process, personalisation, payment or other digital features."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "2. What are cookies and similar technologies"
+    },
+    {
+      "type": "paragraph",
+      "text": "Cookies are small information files that a website can store on the user's terminal equipment, such as a computer, tablet or smartphone, through the browser. They allow, for example, to maintain a logged in session, remember preferences, maintain a shopping cart, measure website usage or evaluate campaign performance."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising may also use technologies similar to cookies, such as browser local storage (localStorage), sessionStorage, technical identifiers, pixels, tags, SDKs or equivalent mechanisms. For the purposes of this Policy, reference to “cookies” includes, where appropriate, these technologies."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "3. Who is responsible"
+    },
+    {
+      "type": "paragraph",
+      "text": "The person responsible for the use of our own cookies and the configuration of technologies integrated into the website is:"
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Field",
+          "Information"
+        ],
+        [
+          "Entity",
+          "CRIATIVALCANCE, UNIPESSOAL LDA"
+        ],
+        [
+          "NIPC / NIF",
+          "518143350"
+        ],
+        [
+          "Address",
+          "Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal"
+        ],
+        [
+          "Telephone",
+          "+351 913 784 204"
+        ],
+        [
+          "Email",
+          "info@360-merchandising.com"
+        ]
+      ]
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "4. Legal basis and consent"
+    },
+    {
+      "type": "paragraph",
+      "text": "The use of cookies and similar technologies complies with Regulation (EU) 2016/679 (GDPR), Law No. 41/2004, of August 18, in the applicable wording, and other relevant legislation on privacy and electronic communications."
+    },
+    {
+      "type": "paragraph",
+      "text": "Cookies strictly necessary for the operation of a service expressly requested by the user may be used without prior consent when they fall within the legally established exceptions. Cookies for analytics, advertising, remarketing, non-essential personalisation and other similar technologies are used with consent when legally required."
+    },
+    {
+      "type": "paragraph",
+      "text": "Consent must be freely given, specific, informed and unambiguous. Refusal of non-essential cookies does not prevent the use of the website's essential features. The user can withdraw or change consent at any time, as easily as they granted it, through the preference management mechanism available on the website."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "5. Types of cookies used"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.1. Strictly necessary cookies"
+    },
+    {
+      "type": "paragraph",
+      "text": "They are essential for the technical functioning of the website and for features requested by the user."
+    },
+    {
+      "type": "paragraph",
+      "text": "They may be necessary, in particular, for authentication, security, session management, shopping cart, checkout, fraud prevention and conservation of consent preferences."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.2. Functional cookies"
+    },
+    {
+      "type": "paragraph",
+      "text": "They allow you to remember options or improve functionalities, such as usage preferences, language or certain interface states. When not strictly necessary, they will be subject to the applicable consent regime."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.3. Analytics and performance cookies"
+    },
+    {
+      "type": "paragraph",
+      "text": "They allow you to understand how the website is used, measure visits and sessions, identify navigation patterns, evaluate technical performance and improve the experience. 360 Merchandising uses Google Analytics 4 (GA4)."
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "5.4. Advertising and remarketing cookies"
+    },
+    {
+      "type": "paragraph",
+      "text": "They allow you to measure campaigns, attribute conversions, limit or optimize ads, and create audiences for remarketing or personalised advertising. 360 Merchandising uses Google Ads and Meta Ads/Meta Pixel for these purposes in accordance with applicable consent preferences."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "6. First-party and third-party cookies"
+    },
+    {
+      "type": "paragraph",
+      "text": "First-party cookies are set by the domain 360-merchandising.com. Third-party cookies are set or read by external services integrated into the website. Some services may combine first-party cookies, third-party cookies and local storage."
+    },
+    {
+      "type": "paragraph",
+      "text": "The use of third-party technology does not mean that this third party has indiscriminate access to 360 Merchandising data. The processing depends on the technical integration, the configured purposes and the terms applicable to each service."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "7. Technologies and suppliers used"
+    },
+    {
+      "type": "paragraph",
+      "text": "According to the known configuration of the website, the following services are used or integrated:"
+    },
+    {
+      "type": "bullet",
+      "text": "Supabase — authentication, session, database and storage related to the client area and application functionalities;"
+    },
+    {
+      "type": "bullet",
+      "text": "Stripe — payment processing, authentication and fraud prevention;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google Analytics 4 (GA4) — statistical analysis and usage measurement;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google Tag Manager — management and technical activation of tags; GTM itself is a tag manager and cookies depend on the tags configured in it;"
+    },
+    {
+      "type": "bullet",
+      "text": "Google Ads — measurement of conversions, advertising and remarketing;"
+    },
+    {
+      "type": "bullet",
+      "text": "Meta Pixel / Meta Ads — campaign measurement, audience creation and advertising/remarketing;"
+    },
+    {
+      "type": "bullet",
+      "text": "360 Merchandising's own cookies — including session, cart and other essential or functional features of the website."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "8. Cookies and storage indicative table"
+    },
+    {
+      "type": "paragraph",
+      "text": "The following table presents the main cookies and storage mechanisms associated with the known configuration of the website. Technical names and deadlines may vary depending on supplier updates, browser configuration, country, consent and form of integration."
+    },
+    {
+      "type": "table",
+      "rows": [
+        [
+          "Cookie/technology",
+          "Supplier",
+          "Category",
+          "Purpose",
+          "Indicative retention period",
+          "Type"
+        ],
+        [
+          "Cookie/cart status",
+          "360 Merchandising",
+          "Necessary/functional",
+          "Keep the contents of the cart and allow you to resume the purchase.",
+          "Up to 30 days, depending on configuration.",
+          "First-party"
+        ],
+        [
+          "Supabase session/authentication",
+          "Supabase",
+          "Required",
+          "Keep the session authenticated, renew tokens and secure the reserved area.",
+          "Session or depending on the configured authentication duration.",
+          "Local storage/cookie, as per integration"
+        ],
+        [
+          "Consent Preferences",
+          "360 Merchandising / consent manager",
+          "Required",
+          "Record user choices and avoid asking for consent on each visit.",
+          "As configured by the manager; typically up to 12 months.",
+          "First-party"
+        ],
+        [
+          "__stripe_mid",
+          "Stripe",
+          "Necessary / security",
+          "Fraud prevention and risk assessment in payments.",
+          "Up to 1 year.",
+          "Third party/Stripe integration"
+        ],
+        [
+          "__stripe_sid",
+          "Stripe",
+          "Necessary / security",
+          "Fraud prevention during the payment session.",
+          "About 30 minutes.",
+          "Third party/Stripe integration"
+        ],
+        [
+          "m and other Stripe identifiers",
+          "Stripe",
+          "Necessary / security",
+          "Fraud prevention, authentication and payment security.",
+          "Session or according to service configuration.",
+          "Cookie/browser storage"
+        ],
+        [
+          "_ga",
+          "Google Analytics",
+          "Analytics",
+          "Distinguish users pseudonymously for statistical measurement.",
+          "Up to 2 years by default.",
+          "First-party"
+        ],
+        [
+          "_ga_<ID>",
+          "Google Analytics",
+          "Analytics",
+          "Maintain session state and measurement information associated with the GA4 stream.",
+          "Up to 2 years by default.",
+          "First-party"
+        ],
+        [
+          "_gcl_* (e.g.: _gcl_aw)",
+          "Google Ads/Google Tag",
+          "Advertising",
+          "Store ad click information and support conversion measurement.",
+          "Variable; depends on the configuration and conversion window.",
+          "First-party"
+        ],
+        [
+          "_fbp",
+          "Meta",
+          "Advertising",
+          "Support measurement, attribution, audience creation, and advertising delivery.",
+          "Depending on Meta’s configuration; typically up to around 90 days.",
+          "First-party / Meta technology"
+        ],
+        [
+          "_fbc",
+          "Meta",
+          "Advertising",
+          "Associate clicks from Meta ads and support conversion attribution.",
+          "Depending on Meta’s configuration; typically up to around 90 days.",
+          "First-party / Meta technology"
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "text": "Note: Google Tag Manager does not necessarily set cookies by itself; allows you to run and manage tags that can create or read cookies. The operational list must be reviewed whenever tags are added, removed or reconfigured."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "9. Google Tag Manager and Consent Mode"
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising uses Google Tag Manager to manage measurement and marketing integrations. The configuration must respect the user's consent preferences, preventing, when legally required, the storage or reading of analytics and advertising cookies before authorization."
+    },
+    {
+      "type": "paragraph",
+      "text": "When using Google Consent Mode, consent states can control categories such as analytics storage, advertising data, and ad personalisation. Refusal to personalised advertising must prevent the use of the corresponding functionalities, in accordance with the applicable technical configuration."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "10. How to manage or withdraw consent"
+    },
+    {
+      "type": "paragraph",
+      "text": "The user can accept, reject or configure non-essential cookies through the consent mechanism presented on the website. Preferences can be changed later using the cookie management option available on the website."
+    },
+    {
+      "type": "paragraph",
+      "text": "The withdrawal of consent does not affect the lawfulness of the processing carried out before such withdrawal. After changing preferences, some technologies may no longer be activated on new pages or sessions;"
+    },
+    {
+      "type": "paragraph",
+      "text": "Previously stored cookies may have to be deleted by the browser, depending on the technology used."
+    },
+    {
+      "type": "paragraph",
+      "text": "360 Merchandising recommends that the preferences mechanism clearly allows at least:"
+    },
+    {
+      "type": "paragraph",
+      "text": "accept all cookies, reject non-essential cookies and choose by category."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "11. Configuration via browser"
+    },
+    {
+      "type": "paragraph",
+      "text": "Browsers allow you to view, block or delete cookies. The procedure varies depending on the browser and device. Blocking strictly necessary cookies may compromise functionality such as login, cart, checkout or payment."
+    },
+    {
+      "type": "paragraph",
+      "text": "Browser management does not necessarily replace the website's consent mechanism and may not control all similar technologies, such as local storage, pixels or identifiers maintained by external services."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "12. International transfers and third parties"
+    },
+    {
+      "type": "paragraph",
+      "text": "Some providers integrated into the website may process data in countries outside the European Economic Area. When such operations are subject to the GDPR, the international transfer mechanisms provided for in the legislation and described in greater detail in the Privacy Policy apply."
+    },
+    {
+      "type": "paragraph",
+      "text": "External providers may update their own technologies, cookies, retention periods and purposes. 360 Merchandising seeks to keep its configuration and documentation consistent with these changes."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "13. Cookie list update"
+    },
+    {
+      "type": "paragraph",
+      "text": "The list of cookies contained in this Policy represents the configuration known on the date of update. The dynamic nature of services such as Google Analytics, Google Ads, Meta, Stripe, Supabase and tag managers may result in technical changes without materially modifying the purposes described."
+    },
+    {
+      "type": "paragraph",
+      "text": "Whenever new suppliers, new tags or new purposes are implemented, 360 Merchandising must update the configuration of the consent mechanism and, when necessary, this Cookies Policy before activating non-essential technologies."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "14. Changes to the Cookies Policy"
+    },
+    {
+      "type": "paragraph",
+      "text": "CRIATIVALCANCE, UNIPESSOAL LDA may change this Policy to reflect legislative, regulatory, technological or operational changes. The updated version will be published on the website indicating the revision date."
+    },
+    {
+      "type": "heading",
+      "level": 2,
+      "text": "15. Contacts"
+    },
+    {
+      "type": "paragraph",
+      "text": "For questions related to cookies, privacy or preference management, you can contact:"
+    },
+    {
+      "type": "bullet",
+      "text": "CRIATIVALCANCE, UNIPESSOAL LDA"
+    },
+    {
+      "type": "bullet",
+      "text": "Avenida Fernão de Magalhães, N.º 481, 2.º Andar - Sala D, 3000-177 Coimbra, Portugal"
+    },
+    {
+      "type": "bullet",
+      "text": "Telephone: +351 913 784 204"
+    },
+    {
+      "type": "bullet",
+      "text": "Email: info@360-merchandising.com"
+    },
+    {
+      "type": "bullet",
+      "text": "Website: 360-merchandising.com"
+    },
+    {
+      "type": "heading",
+      "level": 3,
+      "text": "15.1. Additional information about third-party services"
+    },
+    {
+      "type": "paragraph",
+      "text": "Google — cookie policies and technologies: policies.google.com\nStripe — information about cookies and privacy: stripe.com/privacy\nMeta — information about cookies: facebook.com/privacy/policies/cookies\nCNPD — National Data Protection Commission: cnpd.pt"
+    }
+  ]
+}
