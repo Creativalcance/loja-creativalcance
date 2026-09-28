@@ -1,4 +1,7 @@
 "use client";
+
+import NextImage from "next/image";
+
 import { ShoppingResume, useShoppingLoginSnapshot } from "@/lib/cart/login-snapshot";
 
 import Link from "next/link";
@@ -541,7 +544,7 @@ function ProductDetailImage({
   }
 
   return (
-    <img
+    <NextImage unoptimized width={1000} height={1000}
       src={imageUrl}
       alt={alt}
       className="h-full w-full object-contain p-8"

@@ -1,5 +1,8 @@
 "use client";
 
+import NextImage from "next/image";
+
+
 import Link from "next/link";
 import {
   useEffect,
@@ -18,7 +21,6 @@ import {
   Move,
   Plus,
   RotateCcw,
-  Ruler,
   Upload,
   X,
 } from "lucide-react";
@@ -308,7 +310,7 @@ export default function ProductCustomizationSimulator({
       locations[0]?.id ??
       null;
 
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
+  const [selectedVariantId] = useState<string | null>(
     initialValidVariantId,
   );
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
@@ -317,7 +319,7 @@ export default function ProductCustomizationSimulator({
   const [selectedTechnique, setSelectedTechnique] = useState<string | null>(
     null,
   );
-  const [quantity, setQuantity] = useState(Math.max(1, initialQuantity));
+  const [quantity] = useState(Math.max(1, initialQuantity));
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [logoAspectRatio, setLogoAspectRatio] = useState(3);
@@ -627,10 +629,10 @@ export default function ProductCustomizationSimulator({
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="flex min-h-[520px] items-center justify-center rounded-2xl bg-white">
                   {previewBaseImage ? (
-                    <img
+                    <NextImage unoptimized width={1000} height={1000}
                       src={previewBaseImage}
                       alt={productName}
-                      className="max-h-[620px] w-full object-contain p-8"
+                      style={{ height: "auto" }} className="max-h-[620px] w-full object-contain p-8"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-neutral-400">
@@ -681,7 +683,7 @@ export default function ProductCustomizationSimulator({
                       }}
                     >
                       {logoPreviewUrl ? (
-                        <img
+                        <NextImage unoptimized width={1000} height={1000}
                           src={logoPreviewUrl}
                           alt="Logótipo carregado"
                           draggable={false}

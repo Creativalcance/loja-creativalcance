@@ -705,10 +705,8 @@ async function prepareProductPayloadWithArtwork(params: {
           supabaseAdmin: params.supabaseAdmin,
           item,
         });
-        const {
-          OrderLineStamp: _orderLineStamp,
-          ...embeddedServiceLine
-        } = servicePayload;
+        const embeddedServiceLine: Omit<typeof servicePayload, "OrderLineStamp"> & { OrderLineStamp?: string } = { ...servicePayload };
+        delete embeddedServiceLine.OrderLineStamp;
 
         embeddedArtworkItemIds.push(item.id);
 

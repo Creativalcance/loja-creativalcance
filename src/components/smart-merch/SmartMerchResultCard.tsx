@@ -1,3 +1,5 @@
+import NextImage from "next/image";
+import { canOptimizeCatalogImage } from "@/lib/catalog/image-optimization";
 import Link from "next/link";
 import { ArrowRight, CalendarCheck2, CheckCircle2, Leaf, PackageCheck, Sparkles } from "lucide-react";
 import type { SmartMerchResult } from "@/lib/smart-merch/types";
@@ -14,7 +16,7 @@ export default function SmartMerchResultCard({ result, locale }: { result: Smart
       <Link href={localizePath(`/produto/${result.slug}`, locale)} className="group block">
         <div className="relative aspect-square bg-neutral-100">
           {result.imageUrl ? (
-            <img src={result.imageUrl} alt={result.imageAlt} className="h-full w-full object-contain p-5 transition duration-500 group-hover:scale-105" />
+            <NextImage unoptimized={!canOptimizeCatalogImage(result.imageUrl)} width={1000} height={1000} sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" src={result.imageUrl} alt={result.imageAlt} className="h-full w-full object-contain p-5 transition duration-500 group-hover:scale-105" />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-neutral-400">{text.noImage}</div>
           )}
