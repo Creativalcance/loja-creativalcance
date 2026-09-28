@@ -58,3 +58,22 @@ test('all legal titles, descriptions and related links use the selected locale',
     assert.equal(config.localizePath(`/${name}`, locale), `${locale === 'pt' ? '' : `/${locale}`}/${name}`);
   }
 });
+
+test('withdrawal exceptions and statutory liability retain explicit limitations in every translation', async () => {
+  const exceptionPhrases = {
+    en: 'neither personalised nor covered by another statutory exception',
+    fr: 'ni personnalisé ni couvert par une autre exception légale',
+    es: 'no sea personalizado ni esté comprendido en otra excepción legal',
+    de: 'weder personalisiert ist noch unter eine andere gesetzliche Ausnahme fällt',
+    it: 'non è personalizzato e non rientra in un’altra eccezione prevista dalla legge',
+  };
+  for (const [locale, phrase] of Object.entries(exceptionPhrases)) {
+    for (const name of ['termos-e-condicoes', 'reembolsos-e-devolucoes']) {
+      const doc = await reader.readLegalDocument(locale, name);
+      assert.ok(texts(doc).some(text => text.includes(phrase)), `${locale}/${name}: lost withdrawal exception`);
+    }
+  }
+  const german = texts(await reader.readLegalDocument('de', 'termos-e-condicoes')).join(' ');
+  assert.ok(german.includes('weder ausgeschlossen noch beschränkt'));
+  assert.ok(german.includes('Angemessene Abweichungen'));
+});

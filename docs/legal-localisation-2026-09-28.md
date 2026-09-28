@@ -22,4 +22,4 @@ Project dashboard: https://supabase.com/dashboard/project/qidoyvhwuvjttoihodvm/a
 
 ## Validation
 
-178 automated tests passed; ESLint reported no errors or warnings; TypeScript and the production build passed. Coverage includes all 24 legal documents and translated password rejection behaviour. Supplier sync, payment setup, order dispatch, database permissions, pricing and shipping rules were not changed.
+179 automated tests passed; ESLint reported no errors or warnings; TypeScript and the production build passed. Coverage includes all 24 legal documents and translated password rejection behaviour. Supplier sync, payment setup, order dispatch, database permissions, pricing and shipping rules were not changed.
