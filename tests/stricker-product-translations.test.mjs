@@ -48,7 +48,7 @@ function harness(lang, payload = { Language: lang, Products: [record] }, existin
       return query;
     },
   };
-  const module = load('src/lib/stricker/rest/sync-products.ts', {
+  const loadedModule = load('src/lib/stricker/rest/sync-products.ts', {
     '@/lib/supabase/admin': { createSupabaseAdminClient: () => admin },
     '@/lib/stricker/auth': { getStrickerSupplierId: async () => 'stricker' },
     '@/lib/stricker/change-detection': { hasSupplierPayloadChanged: (a, b) => JSON.stringify(a) !== JSON.stringify(b) },
@@ -57,7 +57,7 @@ function harness(lang, payload = { Language: lang, Products: [record] }, existin
     '@/lib/stricker/rest/session': { getValidStrickerSessionToken: async () => 'test-session' },
     '@/lib/stricker/sync-control': { assertSyncNotCancelled: async () => {} },
   });
-  return { run: () => module.syncRestProducts({ lang }), writes, request: () => fetched };
+  return { run: () => loadedModule.syncRestProducts({ lang }), writes, request: () => fetched };
 }
 
 for (const lang of ['EN', 'FR', 'ES', 'DE', 'IT']) {

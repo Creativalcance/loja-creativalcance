@@ -133,7 +133,9 @@ function isRetryableFetchError(error: unknown): boolean {
       message.includes("timeout") ||
       message.includes("econnreset") ||
       message.includes("socket") ||
-      message.includes("network")
+      message.includes("network") ||
+      message.includes("please allow some time between requests") ||
+      message.includes("erro http stricker 429")
     );
   }
 
@@ -238,7 +240,9 @@ async function fetchJson<TResponse>(
         throw error;
       }
 
-      await sleep(RETRY_DELAY_MS * (attempt + 1));
+      // Rate-limit responses need a longer cooldown than transient network errors.
+      const rateLimited = error instanceof Error && /please allow some time between requests|HTTP Stricker 429/i.test(error.message);
+      await sleep((rateLimited ? 15_000 : RETRY_DELAY_MS) * (attempt + 1));
     }
   }
 

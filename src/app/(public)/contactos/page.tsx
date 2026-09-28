@@ -4,10 +4,11 @@ import { Mail, MapPin, Phone } from "lucide-react";
 import { localizePath } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Contactos",
-  description: "Contacte a equipa da 360 Merchandising.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getCurrentLocale();
+  const title = { pt: "Contactos", en: "Contact", fr: "Contact", es: "Contacto", de: "Kontakt", it: "Contatti" }[locale];
+  return { title, description: `${title} — 360 Merchandising.` };
+}
 
 export default async function ContactsPage() {
   const locale = await getCurrentLocale();

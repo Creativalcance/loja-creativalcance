@@ -565,8 +565,6 @@ export async function saveCustomizationDraftAction(
       getRequiredNumber(formData, "quantity"),
     );
 
-    const extrasTotal =
-      getOptionalNumber(formData, "extrasTotal") ?? 0;
 
     const printingWidthMm = getOptionalNumber(
       formData,
@@ -607,6 +605,8 @@ export async function saveCustomizationDraftAction(
 
     const extraProof = getBoolean(formData, "extraProof");
     const nominative = getBoolean(formData, "nominative");
+    // Monetary values come from the service catalogue, never from form fields.
+    const extrasTotal = roundMoney((needsDesignHelp ? 21 : 0) + (extraProof ? 15 : 0) + (nominative ? 0.7 * quantity : 0));
 
     const internalReference = getOptionalString(
       formData,

@@ -238,7 +238,7 @@ function getStockForVariant(params: {
     )
     .filter((stock) => stock.expected_quantity > 0)
     .sort((a, b) => a.expected_date.localeCompare(b.expected_date));
-  const incoming = nextEntries.reduce(
+  const incoming = nextEntries.filter(stock => stock.expected_date >= getStockDay()).reduce(
     (total, stock) => total + stock.expected_quantity,
     0,
   );
@@ -527,13 +527,10 @@ function ProductDetailImage({
   fallbackUrl: string | null;
   alt: string;
 }) {
-  const [imageUrl, setImageUrl] = useState(
-    highResolutionUrl ?? fallbackUrl,
-  );
-
-  useEffect(() => {
-    setImageUrl(highResolutionUrl ?? fallbackUrl);
-  }, [fallbackUrl, highResolutionUrl]);
+  const sourceKey = `${highResolutionUrl ?? ""}|${fallbackUrl ?? ""}`;
+  const [failedSources, setFailedSources] = useState<{ key: string; urls: string[] }>({ key: "", urls: [] });
+  const failed = failedSources.key === sourceKey ? failedSources.urls : [];
+  const imageUrl = [highResolutionUrl, fallbackUrl].find(url => url && !failed.includes(url));
 
   if (!imageUrl) {
     return (
@@ -549,12 +546,7 @@ function ProductDetailImage({
       alt={alt}
       className="h-full w-full object-contain p-8"
       onError={() => {
-        if (fallbackUrl && imageUrl !== fallbackUrl) {
-          setImageUrl(fallbackUrl);
-          return;
-        }
-
-        setImageUrl(null);
+        setFailedSources({ key: sourceKey, urls: [...failed, imageUrl] });
       }}
     />
   );
