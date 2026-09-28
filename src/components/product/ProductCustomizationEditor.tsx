@@ -1402,7 +1402,7 @@ function CustomizationEditor({
     requiredPrintColorCount === 0 ||
     selectedPantoneValues.length === requiredPrintColorCount;
   const displayedLogoPreviewUrl =
-    effectivePrintColorMode !== "full" && printColorsAreValid
+    logoPreviewUrl && effectivePrintColorMode !== "full" && printColorsAreValid
       ? recoloredLogoPreviewUrl ?? logoPreviewUrl : logoPreviewUrl;
 
   const declaredPrintAreaDimensions = parsePrintAreaDimensions(
