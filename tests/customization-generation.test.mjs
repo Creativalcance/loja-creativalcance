@@ -40,7 +40,7 @@ test('completion preserves cumulative totals even on an empty sentinel page', ()
 const sync = load('src/lib/stricker/rest/sync-customization-options.ts', {
   '@/lib/supabase/admin': {}, '@/lib/stricker/auth': {}, '@/lib/stricker/images': { buildStrickerPrintingLinesImageUrl: value => value },
   '@/lib/stricker/sync-control': {}, '@/lib/stricker/service-code': { isSupplierServiceCode: value => !!value },
-}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps };');
+}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps, deactivateStaleCustomizationOptions };');
 const location = { id: 'loc', product_id: 'p', variant_id: 'v', supplier_id: 's', location_index: 2,
   location_name: 'Corpo', external_location_id: 'v:L2', raw_payload: {
     Component2: 'Esferográfica', Location2: 'Corpo', TableCodes2: 'LSR2-01, PDP6-01',
@@ -166,4 +166,21 @@ test('editor groups areas of the same technique while price selection keeps the 
   assert.equal(helpers.codeBelongsToSlot('LSR2-02-01', 'LSR2-01'), false);
   assert.match(pageSource, /readAllPages<ProductCustomizationOption>/);
   assert.match(pageSource, /readAllPages<PrintingPriceTable>/);
+});
+
+test('obsolete and invented services become inactive while official services and history remain', async () => {
+  const updates = [];
+  const existing = [{ id: 'good', variant_id: 'v', service_code: 'official' },
+    { id: 'invented', variant_id: 'v', service_code: '91777-103:C2:L2:PDP6-01-04' },
+    { id: 'removed', variant_id: 'v', service_code: 'removed-supplier-code' }];
+  const client = { from() { let change; let ids;
+    const q = { select() { return q; }, eq() { return q; }, in(key,values) { if (key === 'id') ids = values; return q; },
+      order() { return q; }, range() { return q; }, returns() { return Promise.resolve({ data: existing, error: null }); },
+      update(value) { change = value; return q; }, then(resolve,reject) { updates.push({ change, ids: Array.from(ids) }); return Promise.resolve({ error: null }).then(resolve,reject); },
+    }; return q; } };
+  await sync.deactivateStaleCustomizationOptions({ supabaseAdmin: client, supplierId: 's',
+    variants: [{ id: 'v', product_id: 'p' }], productReferencesById: new Map([['p','91777']]),
+    supplierOptions: [{ ProdReference: '91777', ServiceCode: 'official' }],
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(updates)), [{ change: { is_active: false }, ids: ['invented','removed'] }]);
 });

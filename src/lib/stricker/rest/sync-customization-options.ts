@@ -1109,6 +1109,47 @@ function dedupeCustomizationOptionRows(
   return Array.from(map.values());
 }
 
+async function deactivateStaleCustomizationOptions(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  supplierId: string;
+  variants: ProductVariantRow[];
+  productReferencesById: Map<string, string>;
+  supplierOptions: StrickerCustomizationOptionRecord[];
+}): Promise<void> {
+  const allowed = new Map<string, Set<string>>();
+  for (const option of params.supplierOptions) {
+    const reference = getNullableString(option.ProdReference);
+    const code = getNullableString(option.ServiceCode);
+    if (!reference || !isSupplierServiceCode(code)) continue;
+    const codes = allowed.get(reference) ?? new Set<string>();
+    codes.add(code); allowed.set(reference, codes);
+  }
+  const variantReferences = new Map(params.variants.map((variant) =>
+    [variant.id, params.productReferencesById.get(variant.product_id)]));
+  for (const ids of chunkArray(Array.from(variantReferences.keys()), 100)) {
+    const staleIds: string[] = [];
+    for (let page = 0; ; page += 1) {
+      const { data, error } = await params.supabaseAdmin.from("product_customization_options")
+        .select("id,variant_id,service_code").eq("supplier_id", params.supplierId)
+        .in("variant_id", ids).eq("is_active", true).order("id", { ascending: true })
+        .range(page * 1_000, (page + 1) * 1_000 - 1)
+        .returns<{ id: string; variant_id: string; service_code: string }[]>();
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) {
+        const reference = variantReferences.get(row.variant_id);
+        if (!reference || !allowed.get(reference)?.has(row.service_code)) staleIds.push(row.id);
+      }
+      if (!data || data.length < 1_000) break;
+    }
+    // Read every page before changing the filter used by pagination.
+    for (const staleChunk of chunkArray(staleIds, 100)) {
+      const { error } = await params.supabaseAdmin.from("product_customization_options")
+        .update({ is_active: false }).eq("supplier_id", params.supplierId).in("id", staleChunk);
+      if (error) throw new Error(error.message);
+    }
+  }
+}
+
 type UpsertCustomizationOptionsResult = {
   imported: number;
   failedRecords: string[];
@@ -1266,7 +1307,7 @@ export async function syncRestCustomizationOptions(params: {
       sourceCapturedAt: params.sourceCapturedAt,
     });
 
-    if (supplierOptionRecords.length === 0 && locations.length > 0) {
+    if (supplierOptionRecords.length === 0 && locations.length > 0 && !params.sourceCapturedAt) {
       throw new Error(
         "A captura local de customizationOptions ainda não está disponível para este lote. Execute primeiro a captura semanal do fornecedor.",
       );
@@ -1333,6 +1374,12 @@ export async function syncRestCustomizationOptions(params: {
       } catch (error) {
         throw phaseError("gravacao", error);
       }
+    }
+
+    if (params.sourceCapturedAt && failedOptionRecords.length === 0) {
+      await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+      await deactivateStaleCustomizationOptions({ supabaseAdmin, supplierId, variants,
+        productReferencesById, supplierOptions: supplierOptionRecords });
     }
 
     const nextOffset = params.offset + locations.length;
