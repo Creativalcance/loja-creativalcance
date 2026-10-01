@@ -92,6 +92,9 @@ export async function processCustomizationJob(): Promise<Record<string, unknown>
   if (error) throw new Error(error.message);
   if (!job) return { idle: true };
   let progress = job.raw_payload;
+  if (progress.stage === "options" && !progress.sourceCapturedAt) {
+    progress = initialCustomizationProgress();
+  }
   const deadline = Date.now() + 180_000;
   async function save(status: string, errors: string[] = []) {
     const { error: saveError } = await client.from("supplier_dataset_imports").update({
@@ -109,9 +112,10 @@ export async function processCustomizationJob(): Promise<Record<string, unknown>
     if (progress.stage === "source") {
       progress = { ...progress, attempts: progress.attempts + 1 };
       await save("running");
-      await syncRestCustomizationOptionsSource({ lang: job.language });
+      const source = await syncRestCustomizationOptionsSource({ lang: job.language });
+      if (typeof source.capturedAt !== "string") throw new Error("A captura não devolveu uma data válida.");
       await assertSyncNotCancelled({ supabaseAdmin: client, datasetImportId: job.id });
-      progress = { ...progress, stage: "options", attempts: 0 };
+      progress = { ...progress, stage: "options", attempts: 0, sourceCapturedAt: source.capturedAt };
       await save("running");
       // Source capture has its own invocation budget; process options on the next tick.
       return { jobId: job.id, stage: "options", offset: progress.offset };
@@ -121,7 +125,8 @@ export async function processCustomizationJob(): Promise<Record<string, unknown>
       progress = { ...progress, attempts: progress.attempts + 1 };
       await save("running");
       const result = await syncRestCustomizationOptions({ lang: job.language,
-        offset: progress.offset, cursor: progress.cursor, recordsTotal: progress.recordsTotal, limit: 25 });
+        offset: progress.offset, cursor: progress.cursor, recordsTotal: progress.recordsTotal,
+        sourceCapturedAt: progress.sourceCapturedAt, limit: 25 });
       await assertSyncNotCancelled({ supabaseAdmin: client, datasetImportId: job.id });
       progress = advanceCustomizationProgress(progress, result);
       await save(result.hasMore ? "running" : "success");

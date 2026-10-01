@@ -433,6 +433,7 @@ async function fetchCachedSupplierOptions(params: {
   supplierId: string;
   lang: StrickerLanguage;
   productReferences: string[];
+  sourceCapturedAt?: string;
 }): Promise<StrickerCustomizationOptionRecord[]> {
   const records: StrickerCustomizationOptionRecord[] = [];
   const uniqueReferences = Array.from(new Set(params.productReferences));
@@ -442,13 +443,15 @@ async function fetchCachedSupplierOptions(params: {
     let page = 0;
 
     while (true) {
-      const { data, error } = await params.supabaseAdmin
+      let query = params.supabaseAdmin
         .from("supplier_customization_options_cache")
         .select("raw_payload")
         .eq("supplier_id", params.supplierId)
         .eq("language", params.lang)
         .in("product_reference", referenceChunk)
-        .order("service_code", { ascending: true })
+        .order("service_code", { ascending: true });
+      if (params.sourceCapturedAt) query = query.eq("last_seen_at", params.sourceCapturedAt);
+      const { data, error } = await query
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .returns<SupplierCustomizationOptionCacheRow[]>();
 
@@ -1192,6 +1195,7 @@ export async function syncRestCustomizationOptions(params: {
   limit: number;
   cursor?: string | null;
   recordsTotal?: number | null;
+  sourceCapturedAt?: string;
 }): Promise<SyncRestCustomizationOptionsResult> {
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
@@ -1259,6 +1263,7 @@ export async function syncRestCustomizationOptions(params: {
       supplierId,
       lang: params.lang,
       productReferences: Array.from(productReferencesById.values()),
+      sourceCapturedAt: params.sourceCapturedAt,
     });
 
     if (supplierOptionRecords.length === 0 && locations.length > 0) {

@@ -40,7 +40,7 @@ test('completion preserves cumulative totals even on an empty sentinel page', ()
 const sync = load('src/lib/stricker/rest/sync-customization-options.ts', {
   '@/lib/supabase/admin': {}, '@/lib/stricker/auth': {}, '@/lib/stricker/images': { buildStrickerPrintingLinesImageUrl: value => value },
   '@/lib/stricker/sync-control': {}, '@/lib/stricker/service-code': { isSupplierServiceCode: value => !!value },
-}, '\nexport { fetchPrintingPriceTables, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps };');
+}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps };');
 const location = { id: 'loc', product_id: 'p', variant_id: 'v', supplier_id: 's', location_index: 2,
   location_name: 'Corpo', external_location_id: 'v:L2', raw_payload: {
     Component2: 'Esferográfica', Location2: 'Corpo', TableCodes2: 'LSR2-01, PDP6-01',
@@ -80,7 +80,7 @@ test('price reads paginate past 1000 rows with stable ordering and deduplicate o
 
 function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false } = {}) {
   const job = { id: 'job', language: 'PT', status: 'pending', errors: [], raw_payload: {
-    ...progressApi.initialCustomizationProgress(), stage, attempts,
+    ...progressApi.initialCustomizationProgress(), stage, attempts, sourceCapturedAt: stage === 'options' ? '2026-10-01T21:00:00Z' : undefined,
   } };
   const writes = []; const batchCalls = []; let sourceCalls = 0;
   const client = { from() { let update;
@@ -93,7 +93,7 @@ function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0
     'node:crypto': { randomUUID: () => 'owner' }, '@/lib/supabase/admin': { createSupabaseAdminClient: () => client },
     '@/lib/stricker/auth': { getStrickerSupplierId: async () => 's' },
     '@/lib/stricker/rest/sync-customization-options': { syncRestCustomizationOptions: async args => { batchCalls.push(args); if (batchError) throw Error(batchError); return result({ hasMore: false, nextCursor: null, nextOffset: null, optionsFailed: failed }); } },
-    '@/lib/stricker/rest/sync-customization-options-source': { syncRestCustomizationOptionsSource: async () => { sourceCalls++; } },
+    '@/lib/stricker/rest/sync-customization-options-source': { syncRestCustomizationOptionsSource: async () => { sourceCalls++; return { capturedAt: '2026-10-01T21:00:00Z' }; } },
     './customization-job-progress': progressApi,
     './sync-control': { assertSyncNotCancelled: async () => { if (canceled) throw Error('canceled'); }, isSyncCancelledError: error => error.message === 'canceled' },
   });
@@ -103,10 +103,26 @@ test('source capture and batch generation use separate invocation budgets', asyn
   const f = workerFixture({ stage: 'source' }); await f.api.processCustomizationJob();
   assert.equal(f.sourceCalls(), 1); assert.equal(f.batchCalls.length, 0);
   assert.equal(f.job.raw_payload.stage, 'options'); assert.equal(f.job.raw_payload.attempts, 0);
+  assert.equal(f.job.raw_payload.sourceCapturedAt, '2026-10-01T21:00:00Z');
 });
 test('successful worker saves completion and totals', async () => {
   const f = workerFixture(); await f.api.processCustomizationJob();
   assert.equal(f.job.status, 'success'); assert.equal(f.job.raw_payload.offset, 25);
+  assert.equal(f.job.raw_payload.sourceCapturedAt, '2026-10-01T21:00:00Z');
+});
+
+test('a legacy checkpoint without a snapshot restarts with a complete capture', async () => {
+  const f = workerFixture(); delete f.job.raw_payload.sourceCapturedAt;
+  f.job.raw_payload.offset = 250; await f.api.processCustomizationJob();
+  assert.equal(f.sourceCalls(), 1); assert.equal(f.batchCalls.length, 0);
+  assert.equal(f.job.raw_payload.offset, 0); assert.equal(f.job.raw_payload.stage, 'options');
+});
+test('source reads exclude obsolete records left behind by delayed cleanup', async () => {
+  const filters = [];
+  const client = { from() { const q = { select() { return q; }, eq(key,value) { filters.push([key,value]); return q; },
+    in() { return q; }, order() { return q; }, range() { return q; }, returns() { return Promise.resolve({ data: [], error: null }); } }; return q; } };
+  await sync.fetchCachedSupplierOptions({ supabaseAdmin: client, supplierId: 's', lang: 'PT', productReferences: ['91777'], sourceCapturedAt: 'snapshot' });
+  assert.ok(filters.some(([key,value]) => key === 'last_seen_at' && value === 'snapshot'));
 });
 for (const opts of [{ batchError: 'network failure' }, { failed: 1 }]) test('failed batch preserves cursor for retry', async () => {
   const f = workerFixture(opts); await f.api.processCustomizationJob();

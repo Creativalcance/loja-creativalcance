@@ -8,7 +8,7 @@ import {
   reconcileCommercialAvailability,
   syncCommercialDataset,
 } from "@/lib/stricker/rest/sync-commercial-status";
-import { enqueueCustomizationJob, processCustomizationJob } from "@/lib/stricker/customization-jobs";
+import { enqueueCustomizationJob, getCustomizationJob, processCustomizationJob } from "@/lib/stricker/customization-jobs";
 import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
 import { syncRestCustomizationTables } from "@/lib/stricker/rest/sync-customization-tables";
 import {
@@ -248,8 +248,13 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
       return syncRestOptionalsPrices({ lang: "PT" });
     case "customization-tables":
       return syncRestCustomizationTables({ lang: "PT" });
-    case "customization-options-source":
+    case "customization-options-source": {
+      const current = await getCustomizationJob();
+      if (current && ["pending", "running"].includes(current.status)) {
+        return { deferred: true, reason: "A captura é gerida pela geração em curso." };
+      }
       return syncRestCustomizationOptionsSource({ lang: "PT" });
+    }
     case "customization-options":
       return { job: await enqueueCustomizationJob("PT", true) };
     case "customization-options-worker":

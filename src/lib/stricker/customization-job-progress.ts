@@ -7,6 +7,7 @@ export type CustomizationJobProgress = {
   recordsTotal: number | null;
   optionsImported: number;
   attempts: number;
+  sourceCapturedAt?: string;
 };
 
 export function initialCustomizationProgress(): CustomizationJobProgress {
@@ -27,6 +28,7 @@ export function advanceCustomizationProgress(
     throw new Error("A geração devolveu uma paginação inválida. O progresso foi preservado.");
   }
   return {
+    ...progress,
     stage: "options",
     offset: progress.offset + result.recordsProcessed,
     cursor: result.nextCursor,
