@@ -162,7 +162,7 @@ export type SyncRestCustomizationOptionsResult = {
 };
 
 const QUERY_CHUNK_SIZE = 100;
-const UPSERT_CHUNK_SIZE = 10;
+const UPSERT_CHUNK_SIZE = 50;
 const UPSERT_MAX_ATTEMPTS = 4;
 
 function getErrorMessage(error: unknown): string {
@@ -448,6 +448,7 @@ async function fetchCachedSupplierOptions(params: {
         .eq("supplier_id", params.supplierId)
         .eq("language", params.lang)
         .in("product_reference", referenceChunk)
+        .order("service_code", { ascending: true })
         .range(page * pageSize, (page + 1) * pageSize - 1)
         .returns<SupplierCustomizationOptionCacheRow[]>();
 
@@ -480,8 +481,6 @@ function findSupplierOption(params: {
     params.supplierOptionsByProductAndTable.get(
       `${params.productReference}:${params.tableCodeOption}`,
     ) ?? [];
-
-  if (candidates.length === 1) return candidates[0] ?? null;
 
   const componentName = normalizeComparable(params.componentName);
   const locationName = normalizeComparable(params.locationName);
@@ -652,37 +651,25 @@ function getCustomizationPairsForLocation(
     ];
   }
 
-  const occurrencesByCode = new Map<string, number>();
-
-  return tableCodes.flatMap((code, sourceIndex) => {
-    const totalOccurrences = tableCodes.filter(
-      (candidate) => candidate === code,
-    ).length;
-    const occurrence = (occurrencesByCode.get(code) ?? 0) + 1;
-
-    occurrencesByCode.set(code, occurrence);
-
-    const areaPrefix = `${code}-${String(occurrence).padStart(2, "0")}`;
-    const matchingOptions = tableCodeOptions.filter((option) => {
-      if (option === code) {
-        return totalOccurrences === 1;
-      }
-
-      if (totalOccurrences > 1) {
-        return option === areaPrefix || option.startsWith(`${areaPrefix}-`);
-      }
-
-      return option.startsWith(`${code}-`);
+  // TableCodes lists the representative area for each technique. Options can
+  // include other areas of that same technique (e.g. LSR2-02 under LSR2-01).
+  // Every TableCodeOption carries its actual table followed by the colour count.
+  if (tableCodeOptions.length > 0) {
+    return tableCodeOptions.map((option) => {
+      const exactIndex = tableCodes.findIndex((code) => option === code || option.startsWith(`${code}-`));
+      const family = option.split("-")[0];
+      const sourceIndex = exactIndex >= 0 ? exactIndex : tableCodes.findIndex((code) => code.split("-")[0] === family);
+      const separator = option.lastIndexOf("-");
+      const tableCode = tableCodes.includes(option) ? option : separator > 0 ? option.slice(0, separator) : tableCodes[sourceIndex] ?? null;
+      return {
+        tableCode, tableCodeOption: option,
+        techniqueName: techniqueNames[sourceIndex] ?? null,
+        printingLinesFilename: printingLinesFilenames[sourceIndex] ?? null,
+      };
     });
-    const safeOptions = matchingOptions.length > 0 ? matchingOptions : [null];
-
-    return safeOptions.map((tableCodeOption) => ({
-      tableCode: code,
-      tableCodeOption,
-      techniqueName: techniqueNames[sourceIndex] ?? null,
-      printingLinesFilename: printingLinesFilenames[sourceIndex] ?? null,
-    }));
-  });
+  }
+  return tableCodes.map((code, index) => ({ tableCode: code, tableCodeOption: null,
+    techniqueName: techniqueNames[index] ?? null, printingLinesFilename: printingLinesFilenames[index] ?? null }));
 }
 
 async function fetchVariantsByIds(params: {
@@ -808,36 +795,18 @@ async function fetchPrintingPriceTables(params: {
       "area_cm2",
     ].join(",");
 
-    const { data: byCode, error: codeError } = await params.supabaseAdmin
-      .from("printing_price_tables")
-      .select(selectColumns)
-      .eq("supplier_id", params.supplierId)
-      .in("table_code", tableCodeChunk)
-      .order("quantity_min", { ascending: true })
-      .returns<PrintingPriceTableRow[]>();
-
-    if (codeError) {
-      throw new Error(codeError.message);
-    }
-
-    for (const row of byCode ?? []) {
-      rows.set(row.id, row);
-    }
-
-    const { data: byOption, error: optionError } = await params.supabaseAdmin
-      .from("printing_price_tables")
-      .select(selectColumns)
-      .eq("supplier_id", params.supplierId)
-      .in("table_code_option", tableCodeChunk)
-      .order("quantity_min", { ascending: true })
-      .returns<PrintingPriceTableRow[]>();
-
-    if (optionError) {
-      throw new Error(optionError.message);
-    }
-
-    for (const row of byOption ?? []) {
-      rows.set(row.id, row);
+    for (const column of ["table_code", "table_code_option"] as const) {
+      for (let page = 0; ; page += 1) {
+        const { data, error } = await params.supabaseAdmin
+          .from("printing_price_tables").select(selectColumns)
+          .eq("supplier_id", params.supplierId).in(column, tableCodeChunk)
+          .order("id", { ascending: true })
+          .range(page * 1_000, (page + 1) * 1_000 - 1)
+          .returns<PrintingPriceTableRow[]>();
+        if (error) throw new Error(error.message);
+        for (const row of data ?? []) rows.set(row.id, row);
+        if (!data || data.length < 1_000) break;
+      }
     }
   }
 
@@ -1075,10 +1044,8 @@ function buildCustomizationOptionRows(params: {
         logo_width: null,
         logo_height: null,
 
-        max_colors:
-          getInteger(getSlotString(payload, "MaxColors", locationIndex)) ??
-          priceTable?.max_colors ??
-          null,
+        max_colors: priceTable?.max_colors ??
+          (Math.max(0, ...splitCodes(getSlotString(payload, "MaxColors", locationIndex)).map((value) => getInteger(value) ?? 0)) || null),
         max_printing_area_mm: location.max_printing_area_mm,
         table_max_area_cm: priceTable?.area_cm ?? null,
         table_max_area_cm2:
@@ -1093,7 +1060,7 @@ function buildCustomizationOptionRows(params: {
         currency: "EUR",
 
         is_default: locationIndex === 1,
-        is_active: true,
+        is_active: priceTable !== null,
 
         printing_lines_image_url: buildStrickerPrintingLinesImageUrl(
           pair.printingLinesFilename,
@@ -1364,8 +1331,7 @@ export async function syncRestCustomizationOptions(params: {
     }
 
     const nextOffset = params.offset + locations.length;
-    const hasMore =
-      locations.length === params.limit && nextOffset < recordsTotal;
+    const hasMore = locations.length === params.limit;
     const normalizedNextOffset = hasMore ? nextOffset : null;
     const nextCursor = hasMore ? locationsResult.lastCursor : null;
     const status =

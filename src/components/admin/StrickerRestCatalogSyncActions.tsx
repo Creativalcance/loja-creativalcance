@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RefreshCw, ServerCog } from "lucide-react";
 
 type StrickerLanguage = "PT" | "EN" | "ES" | "FR" | "DE" | "IT" | "NL";
@@ -28,7 +28,13 @@ type SyncState = {
   error: string | null;
 };
 
+type CustomizationJob = {
+  id: string; language: string; status: string; errors: string[];
+  raw_payload: { stage: string; offset: number; recordsTotal: number | null; optionsImported: number };
+};
+
 type SyncResponse = {
+  job?: CustomizationJob;
   success: boolean;
   message: string;
   dataset?: string;
@@ -159,7 +165,7 @@ const ACTIONS: SyncActionCard[] = [
     action: "customizationOptions",
     title: "Gerar personalizações",
     description:
-      "Gera todas as opções de personalização por lotes a partir das variantes, localizações e tabelas.",
+      "Gera as opções em segundo plano, com progresso guardado. Pode fechar a página e retomar em caso de falha.",
   },
   {
     action: "stocksPT",
@@ -330,72 +336,6 @@ async function requestSync(params: {
   return payload;
 }
 
-async function requestAllCustomizationOptions(
-  language: StrickerLanguage,
-  onProgress: (processed: number, total: number) => void,
-): Promise<SyncResponse> {
-  const limit = 25;
-  let offset = 0;
-  let cursor: string | null = null;
-  let recordsTotal: number | null = null;
-  let recordsReceived = 0;
-  let recordsProcessed = 0;
-  let optionsImported = 0;
-  let optionsFailed = 0;
-  const failedOptionRecords: string[] = [];
-  let lastPayload: SyncResponse | null = null;
-
-  for (let batch = 0; batch < 10_000; batch += 1) {
-    const payload = await requestSync({
-      action: "customizationOptions",
-      body: {
-        lang: language,
-        offset,
-        limit,
-        cursor,
-        recordsTotal,
-      },
-    });
-
-    lastPayload = payload;
-    recordsReceived += payload.recordsReceived ?? 0;
-    recordsProcessed += payload.recordsProcessed ?? 0;
-    optionsImported += payload.optionsImported ?? 0;
-    optionsFailed += payload.optionsFailed ?? 0;
-    failedOptionRecords.push(...(payload.failedOptionRecords ?? []));
-    recordsTotal = payload.recordsTotal ?? recordsTotal;
-    onProgress(recordsProcessed, recordsTotal ?? recordsProcessed);
-
-    if (!payload.hasMore || payload.nextCursor === null) {
-      return {
-        ...payload,
-        recordsReceived,
-        recordsProcessed,
-        optionsImported,
-        optionsFailed,
-        failedOptionRecords,
-        hasMore: false,
-        nextOffset: null,
-      };
-    }
-
-    if (!payload.nextCursor || payload.nextCursor === cursor) {
-      throw new Error(
-        "A paginação de customizationOptions devolveu um cursor inválido.",
-      );
-    }
-
-    offset = payload.nextOffset ?? offset + (payload.recordsProcessed ?? 0);
-    cursor = payload.nextCursor;
-  }
-
-  throw new Error(
-    `A geração de customizationOptions excedeu o limite de segurança. Último lote: ${
-      lastPayload?.offset ?? offset
-    }.`,
-  );
-}
-
 async function requestAllOptionals(
   language: StrickerLanguage,
   onProgress: (processed: number, total: number) => void,
@@ -559,6 +499,29 @@ export default function StrickerRestCatalogSyncActions() {
     error: null,
   });
 
+  const [job, setJob] = useState<CustomizationJob | null>(null);
+  const [progressError, setProgressError] = useState<string | null>(null);
+  const jobActive = job?.status === "pending" || job?.status === "running";
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function poll() {
+      try {
+        const response = await fetch("/api/admin/stricker/rest/sync-customization-options?lang=PT", {
+          cache: "no-store", signal: controller.signal,
+        });
+        const payload = await response.json() as { success: boolean; job: CustomizationJob | null; message?: string };
+        if (!response.ok || !payload.success) throw new Error(payload.message ?? "Não foi possível consultar o progresso.");
+        if (!controller.signal.aborted) { setJob(payload.job); setProgressError(null); }
+      } catch {
+        if (!controller.signal.aborted) setProgressError("Não foi possível atualizar o progresso. A geração continua em segundo plano; a consulta será repetida.");
+      }
+    }
+    void poll();
+    const timer = window.setInterval(() => void poll(), 10_000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [selectedLanguage]);
+
   async function handleSync(action: SyncAction): Promise<void> {
     setState({
       loadingAction: action,
@@ -572,6 +535,13 @@ export default function StrickerRestCatalogSyncActions() {
         language: selectedLanguage,
       });
 
+      if (action === "customizationOptions") {
+        const payload = await requestSync({ action, body });
+        if (payload.job) setJob(payload.job);
+        setState({ loadingAction: null, message: payload.message, error: null });
+        return;
+      }
+
       const payload =
         action === "optionals"
           ? await requestAllOptionals(
@@ -580,17 +550,6 @@ export default function StrickerRestCatalogSyncActions() {
                 setState({
                   loadingAction: action,
                   message: `A sincronizar variantes: ${processed} de ${total} registos processados.`,
-                  error: null,
-                });
-              },
-            )
-          : action === "customizationOptions"
-          ? await requestAllCustomizationOptions(
-              selectedLanguage,
-              (processed, total) => {
-                setState({
-                  loadingAction: action,
-                  message: `A gerar personalizações: ${processed} de ${total} localizações processadas.`,
                   error: null,
                 });
               },
@@ -662,7 +621,7 @@ export default function StrickerRestCatalogSyncActions() {
             <select
               id="stricker-sync-language"
               value={selectedLanguage}
-              disabled={state.loadingAction !== null}
+              disabled={state.loadingAction !== null || jobActive}
               onChange={(event) => {
                 setSelectedLanguage(
                   event.target.value as StrickerLanguage,
@@ -693,13 +652,13 @@ export default function StrickerRestCatalogSyncActions() {
               onClick={() => {
                 void handleSync(item.action);
               }}
-              disabled={state.loadingAction !== null}
+              disabled={state.loadingAction !== null || jobActive}
               className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-left transition hover:border-neutral-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-semibold text-neutral-950">
-                    {item.title}
+                    {item.action === "customizationOptions" && job?.status === "failed" ? "Retomar personalizações" : item.title}
                   </p>
 
                   <p className="mt-2 text-sm leading-5 text-neutral-600">
@@ -721,10 +680,19 @@ export default function StrickerRestCatalogSyncActions() {
       <div className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
         Execute as sincronizações pela ordem apresentada e termine sempre em{" "}
         <strong>Atualizar disponibilidade</strong>. A geração de{" "}
-        <strong>product_customization_options</strong> percorre
-        automaticamente todos os lotes disponíveis. Os stocks PT e CZ
+        <strong>personalizações</strong> continua em segundo plano, mesmo depois de fechar esta página. Os stocks PT e CZ
         devem ser sincronizados separadamente.
       </div>
+
+      {job ? (
+        <div aria-live="polite" className="mt-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+          <strong>Personalizações ({job.language}): {job.status === "success" ? "concluído" : job.status === "failed" ? "interrompido — pode retomar" : job.status === "canceled" ? "cancelado" : job.raw_payload.stage === "source" ? "a preparar os dados do fornecedor" : "em processamento"}.</strong>
+          <p>{job.raw_payload.offset.toLocaleString("pt-PT")} de {job.raw_payload.recordsTotal?.toLocaleString("pt-PT") ?? "—"} localizações processadas. {job.raw_payload.optionsImported.toLocaleString("pt-PT")} opções gravadas.</p>
+          {job.errors?.length ? <p>{job.errors[0]}</p> : null}
+          {jobActive ? <p>Pode fechar esta página. O progresso fica guardado e atualiza automaticamente.</p> : null}
+        </div>
+      ) : null}
+      {progressError ? <p className="mt-3 text-sm text-amber-700">{progressError}</p> : null}
 
       {state.message ? (
         <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">

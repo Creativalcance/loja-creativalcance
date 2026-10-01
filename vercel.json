@@ -92,6 +92,10 @@
     {
       "path": "/api/cron/sales-commissions",
       "schedule": "7,22,37,52 * * * *"
+    },
+    {
+      "path": "/api/cron/stricker/customization-options-worker",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

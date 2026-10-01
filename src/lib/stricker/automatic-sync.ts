@@ -8,7 +8,7 @@ import {
   reconcileCommercialAvailability,
   syncCommercialDataset,
 } from "@/lib/stricker/rest/sync-commercial-status";
-import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
+import { enqueueCustomizationJob, processCustomizationJob } from "@/lib/stricker/customization-jobs";
 import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
 import { syncRestCustomizationTables } from "@/lib/stricker/rest/sync-customization-tables";
 import {
@@ -39,6 +39,7 @@ export const STRICKER_AUTOMATIC_SYNC_JOBS = [
   "customization-tables",
   "customization-options-source",
   "customization-options",
+  "customization-options-worker",
   "printing-slas",
   "canceled-products",
   "restricted-products",
@@ -52,7 +53,6 @@ type JsonResult = Record<string, unknown>;
 
 const LOCK_TTL_SECONDS = 330;
 const OPTIONALS_BATCH_SIZE = 500;
-const CUSTOMIZATION_BATCH_SIZE = 500;
 
 type CursorPayload = {
   hasMore?: unknown;
@@ -201,85 +201,6 @@ async function syncNextOptionalsBatch(): Promise<JsonResult> {
   });
 }
 
-async function syncNextCustomizationOptionsBatch(): Promise<JsonResult> {
-  const supabaseAdmin = createSupabaseAdminClient();
-  const supplierId = await getStrickerSupplierId();
-  const { data: cachedSource, error: cachedSourceError } = await supabaseAdmin
-    .from("supplier_customization_options_cache")
-    .select("last_seen_at")
-    .eq("supplier_id", supplierId)
-    .eq("language", "PT")
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (cachedSourceError) {
-    throw new Error(
-      `Não foi possível validar a captura local das personalizações: ${cachedSourceError.message}`,
-    );
-  }
-
-  if (!cachedSource) {
-    return {
-      dataset: "customizationOptions",
-      cycleComplete: false,
-      message:
-        "O processamento foi adiado porque ainda não existe uma captura local do fornecedor.",
-    };
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("supplier_dataset_imports")
-    .select("status, raw_payload, finished_at")
-    .eq("dataset_name", "customizationOptions")
-    .eq("supplier_id", supplierId)
-    .in("status", ["success", "partial_success"])
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(
-      `Não foi possível recuperar o progresso das personalizações: ${error.message}`,
-    );
-  }
-
-  const rawPayload = (data?.raw_payload ?? {}) as CursorPayload;
-  const previousCycleCompleted = rawPayload.hasMore === false;
-
-  if (
-    previousCycleCompleted &&
-    data?.finished_at &&
-    isSameUtcWeek(data.finished_at, new Date())
-  ) {
-    return {
-      dataset: "customizationOptions",
-      cycleComplete: true,
-      message: "O ciclo semanal de personalizações já foi concluído.",
-    };
-  }
-
-  const continuingCycle = rawPayload.hasMore === true;
-  const offset = continuingCycle
-    ? (getPositiveInteger(rawPayload.nextOffset) ?? 0)
-    : 0;
-  const cursor =
-    continuingCycle && typeof rawPayload.nextCursor === "string"
-      ? rawPayload.nextCursor
-      : null;
-  const recordsTotal = continuingCycle
-    ? getPositiveInteger(rawPayload.recordsTotal)
-    : null;
-
-  return syncRestCustomizationOptions({
-    lang: "PT",
-    offset,
-    limit: CUSTOMIZATION_BATCH_SIZE,
-    cursor,
-    recordsTotal,
-  });
-}
-
 async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
   switch (job) {
     case "stocks": {
@@ -330,7 +251,9 @@ async function runJob(job: StrickerAutomaticSyncJob): Promise<JsonResult> {
     case "customization-options-source":
       return syncRestCustomizationOptionsSource({ lang: "PT" });
     case "customization-options":
-      return syncNextCustomizationOptionsBatch();
+      return { job: await enqueueCustomizationJob("PT", true) };
+    case "customization-options-worker":
+      return processCustomizationJob();
     case "printing-slas":
       return syncRestPrintingSlas({ lang: "PT" });
     case "canceled-products":

@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
     const { data, error } = await supabase
       .from("supplier_dataset_imports")
       .select("id,dataset_name,language,country,status,records_received,records_imported,started_at,created_at")
-      .eq("status", "running")
+      .in("status", ["pending", "running"])
       .order("started_at", { ascending: false });
     if (error) throw new Error(error.message);
     return NextResponse.json({ success: true, items: data ?? [] });
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         errors: ["Sincronização cancelada pelo administrador."],
       })
       .eq("id", id)
-      .eq("status", "running")
+      .in("status", ["pending", "running"])
       .select("id")
       .maybeSingle();
     if (error) throw new Error(error.message);

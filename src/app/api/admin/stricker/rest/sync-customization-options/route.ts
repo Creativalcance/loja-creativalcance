@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { getDefaultStrickerLanguage } from "@/lib/stricker/rest/client";
-import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
-import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
+import { getCustomizationJob, startCustomizationJob } from "@/lib/stricker/customization-jobs";
 import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 
 export const runtime = "nodejs";
@@ -34,23 +33,6 @@ const ALLOWED_LANGUAGES: StrickerLanguage[] = [
   "UA",
 ];
 
-const DEFAULT_BATCH_LIMIT = 25;
-const MAX_BATCH_LIMIT = 50;
-
-function normalizeCursor(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const cursor = value.trim();
-
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    cursor,
-  )
-    ? cursor
-    : null;
-}
-
 function isAllowedLanguage(value: string): value is StrickerLanguage {
   return ALLOWED_LANGUAGES.includes(value as StrickerLanguage);
 }
@@ -63,108 +45,32 @@ function normalizeLanguage(value: unknown): string {
   return getDefaultStrickerLanguage();
 }
 
-function normalizePositiveInteger(params: {
-  value: unknown;
-  fallback: number;
-  min: number;
-  max: number;
-}): number {
-  const parsed =
-    typeof params.value === "number"
-      ? params.value
-      : typeof params.value === "string"
-        ? Number(params.value)
-        : Number.NaN;
-
-  if (!Number.isFinite(parsed)) {
-    return params.fallback;
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  try {
+    await assertAdminAccess();
+    const lang = normalizeLanguage(request.nextUrl.searchParams.get("lang"));
+    if (!isAllowedLanguage(lang)) return NextResponse.json({ success: false, message: "Idioma inválido." }, { status: 400 });
+    const latest = await getCustomizationJob();
+    const job = latest && ["pending", "running"].includes(latest.status) ? latest : await getCustomizationJob(lang);
+    return NextResponse.json({ success: true, job });
+  } catch (error) {
+    return NextResponse.json({ success: false, message: error instanceof Error ? error.message : "Não foi possível consultar o progresso." }, { status: 500 });
   }
-
-  return Math.min(params.max, Math.max(params.min, Math.floor(parsed)));
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     await assertAdminAccess();
-
-    const body = (await request.json().catch(() => ({}))) as {
-      lang?: unknown;
-      offset?: unknown;
-      limit?: unknown;
-      cursor?: unknown;
-      recordsTotal?: unknown;
-    };
-
-    const langRaw = normalizeLanguage(body.lang);
-
-    if (!isAllowedLanguage(langRaw)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Idioma do fornecedor inválido.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const offset = normalizePositiveInteger({
-      value: body.offset,
-      fallback: 0,
-      min: 0,
-      max: 1_000_000,
-    });
-
-    const limit = normalizePositiveInteger({
-      value: body.limit,
-      fallback: DEFAULT_BATCH_LIMIT,
-      min: 1,
-      max: MAX_BATCH_LIMIT,
-    });
-
-    const cursor = normalizeCursor(body.cursor);
-    const recordsTotal = normalizePositiveInteger({
-      value: body.recordsTotal,
-      fallback: 0,
-      min: 0,
-      max: 10_000_000,
-    });
-
-    // A primeira página de uma sincronização manual atualiza sempre a captura
-    // completa do fornecedor. Isto evita processar um cache REST truncado
-    // (por exemplo, apenas os primeiros 4000 ServiceCodes).
-    const sourceResult =
-      offset === 0 && cursor === null
-        ? await syncRestCustomizationOptionsSource({ lang: langRaw })
-        : null;
-
-    const result = await syncRestCustomizationOptions({
-      lang: langRaw,
-      offset,
-      limit,
-      cursor,
-      recordsTotal: recordsTotal > 0 ? recordsTotal : null,
-    });
-
-    const hasPendingRecords = result.optionsFailed > 0;
-
-    return NextResponse.json({
-      success: true,
-      message: hasPendingRecords
-        ? `Sincronização concluída com ${result.optionsFailed} opção pendente neste lote.`
-        : "Opções de personalização do fornecedor sincronizadas com sucesso.",
-      source: sourceResult,
-      ...result,
-    });
+    const body = await request.json().catch(() => ({})) as { lang?: unknown };
+    const lang = normalizeLanguage(body.lang);
+    if (!isAllowedLanguage(lang)) return NextResponse.json({ success: false, message: "Idioma inválido." }, { status: 400 });
+    // Technical options use the same canonical language as variants/locations.
+    // Display translations are independent; matching translated location names
+    // against the canonical catalogue would silently lose supplier services.
+    const job = await startCustomizationJob("PT");
+    return NextResponse.json({ success: true, job, lang: job.language,
+      message: "Geração agendada em segundo plano. Pode fechar esta página; o progresso fica guardado." }, { status: 202 });
   } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : "Erro inesperado na sincronização REST de customizationOptions.",
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ success: false, message: error instanceof Error ? error.message : "Não foi possível agendar a geração." }, { status: 500 });
   }
 }

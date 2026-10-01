@@ -13,6 +13,7 @@ import {
   buildStrickerPrintingLinesImageUrl,
 } from "@/lib/stricker/images";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { localizeProductColors } from "@/lib/i18n/colors";
@@ -317,6 +318,11 @@ function codeBelongsToSlot(
   );
 }
 
+function codeBelongsToTechnique(optionCode: string | null, slotCode: string): boolean {
+  return codeBelongsToSlot(optionCode, slotCode) ||
+    Boolean(optionCode && optionCode.split("-")[0] === slotCode.split("-")[0]);
+}
+
 function getLocationIndex(
   location: ProductCustomizationLocation,
 ): number {
@@ -523,7 +529,7 @@ function buildEditorLocations(params: {
         new Set(
           rawTableCodeOptions.filter((optionCode) =>
             techniqueSlotCodes.some((slotCode) =>
-              codeBelongsToSlot(optionCode, slotCode),
+              codeBelongsToTechnique(optionCode, slotCode),
             ),
           ),
         ),
@@ -533,8 +539,8 @@ function buildEditorLocations(params: {
         techniqueSlotCodes.length > 0
           ? techniqueSlotCodes.some(
               (slotCode) =>
-                codeBelongsToSlot(option.table_code, slotCode) ||
-                codeBelongsToSlot(option.table_code_option, slotCode),
+                codeBelongsToTechnique(option.table_code, slotCode) ||
+                codeBelongsToTechnique(option.table_code_option, slotCode),
             )
           : normalizeComparable(
               option.customization_type_name ?? "",
@@ -554,10 +560,8 @@ function buildEditorLocations(params: {
       );
       const techniqueTableCodes = Array.from(
         new Set(
-          (rawTechniqueTableCodes.length > 0
-            ? rawTechniqueTableCodes
-            : fallbackTechniqueTableCodes
-          ).filter((code): code is string => Boolean(code)),
+          [...rawTechniqueTableCodes, ...fallbackTechniqueTableCodes]
+            .filter((code): code is string => Boolean(code)),
         ),
       );
 
@@ -823,18 +827,16 @@ export default async function ProductPersonalizePage({
       requestedVariant.id !== selectedVariant.id,
   );
 
-  const { data: customizationOptionData } = customizationLocations.length > 0
-    ? await supabase
+  const customizationOptions = customizationLocations.length > 0
+    ? await readAllPages<ProductCustomizationOption>((from, to) => supabase
         .from("product_customization_options")
         .select(
           "id,variant_id,location_id,printing_price_table_id,customization_type_name,table_code,table_code_option,service_code,printing_lines_image_url,printing_lines_storage_url,is_active,raw_payload",
         )
         .eq("product_id", product.id)
         .eq("is_active", true)
-    : { data: [] };
-
-  const customizationOptions =
-    (customizationOptionData ?? []) as ProductCustomizationOption[];
+        .order("id", { ascending: true }).range(from, to).returns<ProductCustomizationOption[]>())
+    : [];
 
   const rawLocationTableCodes = customizationLocations.flatMap((location) => {
     const payload = getPayloadRecord(location.raw_payload);
@@ -860,8 +862,8 @@ export default async function ProductPersonalizePage({
     ),
   );
 
-  const { data: printingPriceData } = tableCodes.length
-    ? await supabase
+  const printingPriceData = tableCodes.length
+    ? await readAllPages<PrintingPriceTable>((from, to) => supabase
         .from("printing_price_tables")
         .select(
           "id,table_code,table_code_option,technique_name,quantity_min,quantity_max,supplier_price,final_price,supplier_handling_cost,handling_cost,handling_cost_code,currency,price_by_color,price_by_area,allow_full_color,max_colors,area_cm2",
@@ -871,8 +873,8 @@ export default async function ProductPersonalizePage({
         .or(
           `table_code.in.(${tableCodes.map((code) => `"${code.replace(/"/g, "")}"`).join(",")}),table_code_option.in.(${tableCodes.map((code) => `"${code.replace(/"/g, "")}"`).join(",")})`,
         )
-        .order("quantity_min", { ascending: true })
-    : { data: [] };
+        .order("id", { ascending: true }).range(from, to).returns<PrintingPriceTable[]>())
+    : [];
 
   const editorVariants: ProductEditorVariant[] = variants.map((variant) => ({
     id: variant.id,

@@ -123,6 +123,7 @@ test('new cron jobs use existing locking and dispatch the intended language', as
     'node:crypto': { randomUUID: () => 'owner-a' },
     '@/lib/supabase/admin': { createSupabaseAdminClient: () => ({ rpc: async (name, params) => { calls.push({ name, params }); return { data: true, error: null }; } }) },
     '@/lib/stricker/auth': {},
+    '@/lib/stricker/customization-jobs': { processCustomizationJob: async () => { calls.push({ worker: true }); return { idle: true }; } },
     '@/lib/stricker/orders/sync-order-status': {},
     '@/lib/stricker/rest/sync-products': { syncRestProducts: async params => { calls.push(params); return { lang: params.lang }; } },
   });
@@ -138,4 +139,9 @@ test('new cron jobs use existing locking and dispatch the intended language', as
     assert.equal(calls.at(-1).name, 'release_integration_sync_lock');
   }
   assert.equal(sync.isStrickerAutomaticSyncJob('products-unsupported'), false);
+  assert.equal(crons.find(c => c.path === '/api/cron/stricker/customization-options-worker').schedule, '*/2 * * * *');
+  await sync.runStrickerAutomaticSync('customization-options-worker');
+  assert.equal(calls.at(-3).params.target_lock_key, 'stricker:automatic-sync');
+  assert.equal(calls.at(-2).worker, true);
+  assert.equal(calls.at(-1).name, 'release_integration_sync_lock');
 });

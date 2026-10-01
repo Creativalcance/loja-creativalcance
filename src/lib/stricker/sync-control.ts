@@ -45,6 +45,7 @@ export async function expireStaleSupplierSyncs(params: {
       ],
     })
     .eq("status", "running")
+    .neq("dataset_name", "customizationOptionsJob")
     .lt("started_at", cutoff)
     .select("id");
 

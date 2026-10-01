@@ -30,3 +30,14 @@ O registo de importação CZ `d386e9a8-bcc7-4104-9a4e-5eea782d473c`, iniciado à
 - Checkout automático internacional permanece bloqueado; a primeira fase admite destinos portugueses e EUR. Não se ativaram isenções nem novos mercados.
 
 Não reprocessar automaticamente as encomendas de teste falhadas/parciais sem rever os eventos existentes: OrderV1 pode ter sido aceite mesmo quando ServiceOrderV1 falhou. Um reenvio indiscriminado pode duplicar pedidos.
+
+## Correção das opções de personalização
+
+- A ação administrativa agenda um trabalho persistente e responde imediatamente. Um cron autenticado processa os trabalhos a cada dois minutos, sob o bloqueio de integração existente, sem depender de uma página aberta. Captura do fornecedor e geração têm invocações separadas. A geração trabalha em lotes de 25 localizações, com checkpoints após escrita completa e orçamento de 180 segundos entre lotes.
+- Falhas e interrupções repetem o lote atual; não avançam sobre opções que ficaram por gravar. Três interrupções consecutivas suspendem o trabalho para retoma explícita. O administrador pode cancelar um trabalho pendente ou em execução. A expiração de importações individuais não encerra o trabalho duradouro.
+- A fonte técnica usa PT, como as variantes e localizações canónicas; não depende do idioma selecionado para as traduções do catálogo. O ciclo começa do início para regenerar também as opções produzidas pelas regras antigas.
+- As consultas do cache e dos preços têm paginação com ordenação estável. O editor também lê todas as páginas das opções e dos preços, sem cortar aos primeiros 1000 registos. Uma falha de leitura não é apresentada como catálogo completo.
+- A geração e o editor incluem áreas adicionais da mesma técnica, como LSR2-02 quando o campo representativo contém LSR2-01. Cada opção conserva a sua tabela concreta. Os limites de cores vêm da tabela correspondente, evitando interpretar a lista `1, 4` como um limite de uma cor. Uma opção sem tabela de preços fica inativa; um código único de outra localização não é associado à área escolhida.
+- Validação local: 212 testes aprovados, incluindo 16 novos casos de paginação, áreas, cores, checkpoints, interrupções e cancelamento; ESLint, TypeScript e build concluídos.
+
+As compras simples e manuais em TEST foram confirmadas pelo utilizador, incluindo emails e área de cliente. A compra personalizada continua por validar depois da regeneração; esta correção não ativa pagamentos ou submissões em LIVE.
