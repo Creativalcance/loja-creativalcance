@@ -802,7 +802,7 @@ async function fetchPrintingPriceTables(params: {
       for (let page = 0; ; page += 1) {
         const { data, error } = await params.supabaseAdmin
           .from("printing_price_tables").select(selectColumns)
-          .eq("supplier_id", params.supplierId).in(column, tableCodeChunk)
+          .eq("supplier_id", params.supplierId).eq("is_active", true).in(column, tableCodeChunk)
           .order("id", { ascending: true })
           .range(page * 1_000, (page + 1) * 1_000 - 1)
           .returns<PrintingPriceTableRow[]>();

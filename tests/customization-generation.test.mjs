@@ -68,14 +68,15 @@ test('four-colour table remains four-colour despite the slot containing the list
 });
 test('price reads paginate past 1000 rows with stable ordering and deduplicate overlap', async () => {
   const reads = []; const rows = Array.from({ length: 1400 }, (_, i) => ({ id: `p${i}`, quantity_min: i }));
-  const client = { from() { let column; let start = 0; let end = 999; const read = { orders: [] }; reads.push(read);
-    return { select() { return this; }, eq() { return this; }, in(key) { column = key; return this; },
+  const client = { from() { let column; let start = 0; let end = 999; const read = { orders: [], filters: [] }; reads.push(read);
+    return { select() { return this; }, eq(key,value) { read.filters.push([key,value]); return this; }, in(key) { column = key; return this; },
       order(key) { read.orders.push(key); return this; }, range(a,b) { start=a; end=b; return this; },
       returns() { return Promise.resolve({ data: column === 'table_code' ? rows.slice(start,end+1) : rows.slice(0,20), error: null }); },
     }; } };
   const fetched = await sync.fetchPrintingPriceTables({ supabaseAdmin: client, supplierId: 's', tableCodes: ['PDP6-01'] });
   assert.equal(fetched.length, 1400); assert.equal(reads.length, 3);
   assert.ok(reads.every(read => read.orders[0] === 'id'));
+  assert.ok(reads.every(read => read.filters.some(([key,value]) => key === 'is_active' && value === true)));
 });
 
 function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false } = {}) {
