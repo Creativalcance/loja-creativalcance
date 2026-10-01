@@ -129,6 +129,7 @@ function isRetryableFetchError(error: unknown): boolean {
 
     return (
       message.includes("fetch failed") ||
+      message.includes("falha de rede ao contactar o fornecedor") ||
       message.includes("terminated") ||
       message.includes("timeout") ||
       message.includes("econnreset") ||
@@ -227,7 +228,11 @@ async function fetchJson<TResponse>(
     body?: unknown;
   } = {},
 ): Promise<TResponse> {
-  const maxRetries = DEFAULT_RETRIES;
+  const maxRetries = options.maxRetries === undefined
+    ? DEFAULT_RETRIES
+    : Number.isFinite(options.maxRetries)
+      ? Math.max(0, Math.min(DEFAULT_RETRIES, Math.floor(options.maxRetries)))
+      : DEFAULT_RETRIES;
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {

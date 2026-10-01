@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { unstable_cache } from "next/cache";
 import { getCommercialPages } from "@/lib/seo/commercial-pages";
 import { getGuides } from "@/lib/seo/guide-pages";
 import { getInstitutionalPages } from "@/lib/seo/institutional-pages";
@@ -32,7 +33,7 @@ function parseDate(value: string | null): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-async function getActiveProducts(): Promise<SitemapProductRow[]> {
+const getActiveProducts = unstable_cache(async (): Promise<SitemapProductRow[]> => {
   const supabase = createSupabaseAdminClient();
   const products: SitemapProductRow[] = [];
 
@@ -45,7 +46,7 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
       .eq("status", "active")
       .eq("is_active", true)
       .not("slug", "is", null)
-      .order("updated_at", { ascending: false })
+      // Stable indexed pagination; updates do not move products between pages.
       .order("id", { ascending: true })
       .range(from, to);
 
@@ -62,7 +63,7 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
   }
 
   return products;
-}
+}, ["sitemap-active-products-v2"], { revalidate: 300 });
 
 function withLocalizedEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
   const locales: SiteLocale[] = Object.keys(SITE_LOCALES) as SiteLocale[];

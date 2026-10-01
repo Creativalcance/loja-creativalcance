@@ -209,23 +209,27 @@ function optionMatchesTableFamily(
 export async function resolveCustomizationServiceCode(
   params: ResolveCustomizationServiceCodeParams,
 ): Promise<string | null> {
-  const { data, error } = await params.supabaseAdmin
-    .from("product_customization_options")
-    .select(
+  // PostgREST caps each response. Textile products have thousands of options;
+  // a single product-wide read could silently miss the selected service.
+  const productOptions: SupplierCustomizationOption[] = [];
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    let query = params.supabaseAdmin.from("product_customization_options").select(
       "service_code,product_id,variant_id,location_id,printing_price_table_id,location_name,customization_type_name,table_code,table_code_option,max_colors,is_default",
     )
     .eq("product_id", params.productId)
     .eq("is_active", true);
-
-  if (error) {
-    throw new Error(
-      `Não foi possível validar a opção de personalização: ${error.message}`,
-    );
+    query = params.variantId
+      ? query.or(`variant_id.eq.${params.variantId},variant_id.is.null`)
+      : query.is("variant_id", null);
+    const { data, error } = await query.order("id", { ascending: true }).range(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(`Não foi possível validar a opção de personalização: ${error.message}`);
+    }
+    const rows = (data ?? []) as SupplierCustomizationOption[];
+    productOptions.push(...rows.filter((option) => isSupplierServiceCode(option.service_code)));
+    if (rows.length < pageSize) break;
   }
-
-  const productOptions = ((data ?? []) as SupplierCustomizationOption[]).filter(
-    (option) => isSupplierServiceCode(option.service_code),
-  );
 
   /*
    * O ServiceCode vem de CustomizationOptions e identifica a combinação
@@ -343,6 +347,14 @@ export async function resolveCustomizationServiceCode(
     (option) => getOptionColorCount(option) === params.selectedColorCount,
   );
 
+  // A tie-breaker must never choose the sole remaining code for the wrong
+  // technique, location or price family when a requested match was absent.
+  candidates = candidates.filter((option) =>
+    optionMatchesVariant(option, params.variantId) &&
+    optionMatchesTechnique(option, params.techniqueName) &&
+    optionMatchesTableFamily(option, params.tableCode, params.tableCodeOption) &&
+    optionMatchesLocation(option, params.locationId, params.locationName),
+  );
   const uniqueCode = getUniqueServiceCode(candidates);
   if (uniqueCode) return uniqueCode;
 

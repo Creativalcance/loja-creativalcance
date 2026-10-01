@@ -527,7 +527,10 @@ export async function syncRestStocksByCountry(params: {
         country: params.country,
       },
       {
-        timeoutMs: 180_000,
+        // Leave time for database writes and the failure record before Vercel
+        // stops the 300-second execution. The next hourly cron retries safely.
+        timeoutMs: 60_000,
+        maxRetries: 1,
       },
     );
 

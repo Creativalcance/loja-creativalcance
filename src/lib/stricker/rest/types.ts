@@ -88,6 +88,8 @@ export type StrickerStoredSession = {
 
 export type StrickerFetchOptions = {
   timeoutMs?: number;
+  // Retries after the first attempt; catalogue reads only, never order writes.
+  maxRetries?: number;
 };
 
 export type StrickerDatasetRequest = {

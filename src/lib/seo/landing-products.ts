@@ -8,6 +8,7 @@ function sanitizeSearchTerm(value: string): string {
     .trim()
     .replace(/[%_,()]/g, " ")
     .replace(/\s+/g, " ")
+    .trim()
     .slice(0, 60);
 }
 
@@ -30,6 +31,38 @@ function buildLandingFilter(terms: string[]): string {
     .join(",");
 }
 
+
+async function fetchLandingCandidates(filter: string, limit: number): Promise<ProductCardProduct[]> {
+  const supabase = await createSupabaseServerClient();
+  // Limit scalar matches before hydrating one-to-many relations. Keep both
+  // reads under RLS, with active filters; never cache prices or stock.
+  const { data: candidates, error } = await supabase.from("products")
+    .select("id,sku,name,slug,short_description,brand,material,type_name,subtype_name,is_featured,is_customizable,min_order_quantity")
+    .eq("status", "active").eq("is_active", true).or(filter)
+    .order("is_purchasable", { ascending: false })
+    .order("is_featured", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+  if (!candidates?.length) return [];
+
+  const { data: details, error: detailsError } = await supabase.from("products")
+    .select(`id,
+      product_images(external_url,storage_url,alt_text,is_primary,sort_order,image_type),
+      product_prices(final_price,quantity_min,currency),
+      product_stocks(available_quantity)`)
+    .in("id", candidates.map((product) => product.id))
+    .eq("status", "active").eq("is_active", true);
+  if (detailsError) throw detailsError;
+  const detailById = new Map((details ?? []).map((product) => [product.id, product]));
+  return candidates.flatMap((product) => {
+    const detail = detailById.get(product.id);
+    // A product deactivated between reads must not reappear.
+    return detail ? [{ ...product, ...detail } as unknown as ProductCardProduct] : [];
+  });
+}
+
 export async function getLandingProducts(
   terms: string[],
   locale: SiteLocale,
@@ -41,56 +74,13 @@ export async function getLandingProducts(
     return [];
   }
 
-  const supabase = await createSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from("products")
-    .select(
-      `
-        id,
-        sku,
-        name,
-        slug,
-        short_description,
-        brand,
-        material,
-        type_name,
-        subtype_name,
-        is_featured,
-        is_customizable,
-        min_order_quantity,
-        product_images (
-          external_url,
-          storage_url,
-          alt_text,
-          is_primary,
-          sort_order,
-          image_type
-        ),
-        product_prices (
-          final_price,
-          quantity_min,
-          currency
-        ),
-        product_stocks (
-          available_quantity
-        )
-      `,
-    )
-    .eq("status", "active")
-    .eq("is_active", true)
-    .or(filter)
-    .order("is_purchasable", { ascending: false })
-    .order("is_featured", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(Math.max(1, Math.min(limit, 24)));
-
-  if (error) {
+  let products: ProductCardProduct[];
+  try {
+    products = await fetchLandingCandidates(filter, Math.max(1, Math.min(limit, 24)));
+  } catch (error) {
     console.error("SEO landing product query failed:", error);
     return [];
   }
-
-  const products = (data ?? []) as unknown as ProductCardProduct[];
 
   const sorted = [...products].sort((a, b) => {
     const stockA = (a.product_stocks ?? []).reduce(
@@ -165,56 +155,13 @@ export async function getCommercialLandingProducts(
 
   const requestedLimit = Math.max(1, Math.min(options.limit ?? 12, 24));
   const fetchLimit = Math.min(Math.max(requestedLimit * 6, 48), 120);
-  const supabase = await createSupabaseServerClient();
-
-  const { data, error } = await supabase
-    .from("products")
-    .select(
-      `
-        id,
-        sku,
-        name,
-        slug,
-        short_description,
-        brand,
-        material,
-        type_name,
-        subtype_name,
-        is_featured,
-        is_customizable,
-        min_order_quantity,
-        product_images (
-          external_url,
-          storage_url,
-          alt_text,
-          is_primary,
-          sort_order,
-          image_type
-        ),
-        product_prices (
-          final_price,
-          quantity_min,
-          currency
-        ),
-        product_stocks (
-          available_quantity
-        )
-      `,
-    )
-    .eq("status", "active")
-    .eq("is_active", true)
-    .or(filter)
-    .order("is_purchasable", { ascending: false })
-    .order("is_featured", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(fetchLimit);
-
-  if (error) {
+  let products: ProductCardProduct[];
+  try {
+    products = await fetchLandingCandidates(filter, fetchLimit);
+  } catch (error) {
     console.error("SEO commercial landing product query failed:", error);
     return [];
   }
-
-  const products = (data ?? []) as unknown as ProductCardProduct[];
 
   const filtered = products.filter((product) => {
     if (options.requireCustomizable && !product.is_customizable) {
