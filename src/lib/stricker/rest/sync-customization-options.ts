@@ -8,6 +8,7 @@ import { type JsonRecord } from "@/lib/stricker/types";
 import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
 import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
+import { customizationFingerprint } from "@/lib/stricker/customization-fingerprint";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -35,10 +36,6 @@ type StrickerCustomizationOptionRecord = JsonRecord & {
   Location?: string | number | null;
   TableCode?: string | number | null;
   TableCodeOption?: string | number | null;
-};
-
-type SupplierCustomizationOptionCacheRow = {
-  raw_payload: JsonRecord;
 };
 
 type ProductCustomizationComponentRow = {
@@ -160,6 +157,9 @@ export type SyncRestCustomizationOptionsResult = {
   locationsMatched: number;
   priceTablesMatched: number;
   datasetImportId: string;
+  locationsSkipped?: number;
+  optionsWritten?: number;
+  timingsMs?: Record<string, number>;
 };
 
 const QUERY_CHUNK_SIZE = 100;
@@ -418,7 +418,9 @@ async function fetchCachedSupplierOptions(params: {
     while (true) {
       let query = params.supabaseAdmin
         .from("supplier_customization_options_cache")
-        .select("raw_payload")
+        // Generation uses these identifiers only. Avoid transferring each
+        // service's complete payload (including repeated pricing metadata).
+        .select("ProdReference:product_reference,ServiceCode:service_code,TableCode:table_code,TableCodeOption:table_code_option,Component:component_name,Location:location_name")
         .eq("supplier_id", params.supplierId)
         .eq("language", params.lang)
         .in("product_reference", referenceChunk)
@@ -426,14 +428,14 @@ async function fetchCachedSupplierOptions(params: {
       if (params.sourceCapturedAt) query = query.eq("last_seen_at", params.sourceCapturedAt);
       const { data, error } = await query
         .range(page * pageSize, (page + 1) * pageSize - 1)
-        .returns<SupplierCustomizationOptionCacheRow[]>();
+        .returns<StrickerCustomizationOptionRecord[]>();
 
       if (error) {
         throw new Error(error.message);
       }
 
       for (const row of data ?? []) {
-        records.push(row.raw_payload as StrickerCustomizationOptionRecord);
+        records.push(row);
       }
 
       if (!data || data.length < pageSize) break;
@@ -771,18 +773,19 @@ async function fetchPrintingPriceTables(params: {
       "area_cm2",
     ].join(",");
 
-    for (const column of ["table_code", "table_code_option"] as const) {
-      for (let page = 0; ; page += 1) {
+    // The generator only uses the first quantity tier for each code/option.
+    // The editor continues reading the full live price catalogue separately.
+    for (let page = 0; ; page += 1) {
         const { data, error } = await params.supabaseAdmin
-          .from("printing_price_tables").select(selectColumns)
-          .eq("supplier_id", params.supplierId).eq("is_active", true).in(column, tableCodeChunk)
-          .order("id", { ascending: true })
+          .rpc("customization_generation_prices", {
+            p_supplier_id: params.supplierId, p_table_codes: tableCodeChunk,
+          }).select(selectColumns)
+          .order("quantity_min", { ascending: true }).order("id", { ascending: true })
           .range(page * 1_000, (page + 1) * 1_000 - 1)
           .returns<PrintingPriceTableRow[]>();
         if (error) throw new Error(error.message);
         for (const row of data ?? []) rows.set(row.id, row);
         if (!data || data.length < 1_000) break;
-      }
     }
   }
 
@@ -1084,12 +1087,44 @@ function dedupeCustomizationOptionRows(
   return Array.from(map.values());
 }
 
+type GenerationInputs = Parameters<typeof buildCustomizationOptionRows>[0];
+type GenerationState = { location_id: string; input_hash: string; options_count: number };
+
+function locationInputHash(inputs: GenerationInputs, location: ProductCustomizationLocationRow): string {
+  const variant = inputs.variantsById.get(location.variant_id ?? "");
+  const reference = variant ? inputs.productReferencesById.get(variant.product_id) : null;
+  const pairs = getCustomizationPairsForLocation(location);
+  // Include all official services for this product: removals must also run
+  // reconciliation, even when they do not change the selected price table.
+  const services = [...inputs.supplierOptionsByProductAndTable.entries()]
+    .filter(([key]) => reference && key.startsWith(`${reference}:`))
+    .sort(([a], [b]) => a.localeCompare(b));
+  return customizationFingerprint({
+    language: inputs.lang, location, variant, reference,
+    component: findComponent({ location, componentMaps: inputs.componentMaps }),
+    prices: pairs.map((pair) => findPriceTable({
+      tableCode: pair.tableCode, tableCodeOption: pair.tableCodeOption, priceTableMaps: inputs.priceTableMaps,
+    })),
+    services,
+  });
+}
+
+async function readGenerationState(client: SupabaseAdminClient, supplierId: string, language: string, locationIds: string[]) {
+  if (locationIds.length === 0) return new Map<string, GenerationState>();
+  const { data, error } = await client.from("customization_generation_state")
+    .select("location_id,input_hash,options_count").eq("supplier_id", supplierId)
+    .eq("language", language).in("location_id", locationIds).returns<GenerationState[]>();
+  if (error) throw phaseError("estado-incremental", error);
+  return new Map((data ?? []).map((row) => [row.location_id, row]));
+}
+
 async function deactivateStaleCustomizationOptions(params: {
   supabaseAdmin: SupabaseAdminClient;
   supplierId: string;
   variants: ProductVariantRow[];
   productReferencesById: Map<string, string>;
   supplierOptions: StrickerCustomizationOptionRecord[];
+  generatedServicesByLocation?: Map<string, Set<string>>;
 }): Promise<void> {
   const allowed = new Map<string, Set<string>>();
   for (const option of params.supplierOptions) {
@@ -1105,14 +1140,16 @@ async function deactivateStaleCustomizationOptions(params: {
     const staleIds: string[] = [];
     for (let page = 0; ; page += 1) {
       const { data, error } = await params.supabaseAdmin.from("product_customization_options")
-        .select("id,variant_id,service_code").eq("supplier_id", params.supplierId)
+        .select("id,variant_id,location_id,service_code").eq("supplier_id", params.supplierId)
         .in("variant_id", ids).eq("is_active", true).order("id", { ascending: true })
         .range(page * 1_000, (page + 1) * 1_000 - 1)
-        .returns<{ id: string; variant_id: string; service_code: string }[]>();
+        .returns<{ id: string; variant_id: string; location_id: string | null; service_code: string }[]>();
       if (error) throw new Error(error.message);
       for (const row of data ?? []) {
         const reference = variantReferences.get(row.variant_id);
-        if (!reference || !allowed.get(reference)?.has(row.service_code)) staleIds.push(row.id);
+        const locationServices = row.location_id ? params.generatedServicesByLocation?.get(row.location_id) : undefined;
+        if (!reference || !allowed.get(reference)?.has(row.service_code) ||
+          (locationServices && !locationServices.has(row.service_code))) staleIds.push(row.id);
       }
       if (!data || data.length < 1_000) break;
     }
@@ -1182,7 +1219,14 @@ export async function syncRestCustomizationOptions(params: {
   cursor?: string | null;
   recordsTotal?: number | null;
   sourceCapturedAt?: string;
+  forceRegenerate?: boolean;
 }): Promise<SyncRestCustomizationOptionsResult> {
+  const timingsMs: Record<string, number> = {};
+  let phaseStartedAt = Date.now();
+  function finishPhase(name: string) {
+    timingsMs[name] = Date.now() - phaseStartedAt;
+    phaseStartedAt = Date.now();
+  }
   const supabaseAdmin = createSupabaseAdminClient();
   const supplierId = await getStrickerSupplierId();
 
@@ -1214,6 +1258,7 @@ export async function syncRestCustomizationOptions(params: {
 
     const locations = locationsResult.rows;
     const recordsTotal = locationsResult.total;
+    finishPhase("locations");
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
@@ -1243,6 +1288,7 @@ export async function syncRestCustomizationOptions(params: {
     const productReferencesById = new Map(
       products.map((product) => [product.id, product.external_id]),
     );
+    finishPhase("variantsAndProducts");
 
     const supplierOptionRecords = await fetchCachedSupplierOptions({
       supabaseAdmin,
@@ -1260,6 +1306,7 @@ export async function syncRestCustomizationOptions(params: {
     const supplierOptionsByProductAndTable = buildSupplierOptionMap(
       supplierOptionRecords,
     );
+    finishPhase("supplierServices");
 
     let components: ProductCustomizationComponentRow[];
 
@@ -1272,6 +1319,7 @@ export async function syncRestCustomizationOptions(params: {
     } catch (error) {
       throw phaseError("componentes", error);
     }
+    finishPhase("components");
 
     const tableCodes = locations.flatMap((location) => [
       ...getTableCodesForLocation(location),
@@ -1289,11 +1337,12 @@ export async function syncRestCustomizationOptions(params: {
     } catch (error) {
       throw phaseError("tabelas-precos", error);
     }
+    finishPhase("prices");
 
     const componentMaps = buildComponentMaps(components);
     const priceTableMaps = buildPriceTableMaps(priceTables);
 
-    const rows = buildCustomizationOptionRows({
+    const inputs: GenerationInputs = {
       lang: params.lang,
       locations,
       variantsById,
@@ -1301,7 +1350,16 @@ export async function syncRestCustomizationOptions(params: {
       priceTableMaps,
       productReferencesById,
       supplierOptionsByProductAndTable,
-    });
+    };
+    const previous = await readGenerationState(supabaseAdmin, supplierId, params.lang, locations.map((row) => row.id));
+    const hashes = new Map(locations.map((location) => [location.id, locationInputHash(inputs, location)]));
+    const changedLocations = locations.filter((location) => params.forceRegenerate ||
+      previous.get(location.id)?.input_hash !== hashes.get(location.id));
+    const changedIds = new Set(changedLocations.map((location) => location.id));
+    const skipped = locations.filter((location) => !changedIds.has(location.id));
+    const skippedOptions = skipped.reduce((total, location) => total + (previous.get(location.id)?.options_count ?? 0), 0);
+    const rows = buildCustomizationOptionRows({ ...inputs, locations: changedLocations });
+    finishPhase("fingerprintsAndGeneration");
 
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
@@ -1327,9 +1385,33 @@ export async function syncRestCustomizationOptions(params: {
 
     if (params.sourceCapturedAt && failedOptionRecords.length === 0) {
       await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
-      await deactivateStaleCustomizationOptions({ supabaseAdmin, supplierId, variants,
-        productReferencesById, supplierOptions: supplierOptionRecords });
+      const changedVariantIds = new Set(changedLocations.map((location) => location.variant_id));
+      const generatedServicesByLocation = new Map(changedLocations.map((location) => [location.id, new Set<string>()]));
+      for (const row of rows) if (row.location_id) generatedServicesByLocation.get(row.location_id)?.add(row.service_code);
+      await deactivateStaleCustomizationOptions({ supabaseAdmin, supplierId,
+        variants: variants.filter((variant) => changedVariantIds.has(variant.id)),
+        productReferencesById, supplierOptions: supplierOptionRecords, generatedServicesByLocation });
     }
+    finishPhase("writesAndReconciliation");
+
+    // Never publish a signature before all writes/reconciliation succeed. A
+    // failed checkpoint can repeat the batch using the saved signatures safely.
+    if (changedLocations.length > 0 && failedOptionRecords.length === 0) {
+      await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
+      const counts = new Map<string, number>();
+      for (const row of dedupeCustomizationOptionRows(rows)) {
+        if (row.location_id) counts.set(row.location_id, (counts.get(row.location_id) ?? 0) + 1);
+      }
+      const { error } = await supabaseAdmin.from("customization_generation_state").upsert(changedLocations.map((location) => ({
+        supplier_id: supplierId, language: params.lang, location_id: location.id,
+        input_hash: hashes.get(location.id)!, options_count: counts.get(location.id) ?? 0,
+        generated_at: new Date().toISOString(),
+      })), { onConflict: "supplier_id,language,location_id" });
+      if (error) throw phaseError("guardar-estado-incremental", error);
+    }
+    importedCount += skippedOptions;
+    unchangedCount += skippedOptions;
+    finishPhase("saveSignatures");
 
     const nextOffset = params.offset + locations.length;
     const hasMore = locations.length === params.limit;
@@ -1365,6 +1447,8 @@ export async function syncRestCustomizationOptions(params: {
         rowsBuilt: rows.length,
         optionsWritten: writtenCount,
         optionsUnchanged: unchangedCount,
+        locationsSkipped: skipped.length,
+        timingsMs,
         supplierOptionsReceived: supplierOptionRecords.length,
         failedOptionRecords,
         sampleLocationIds: locations.slice(0, 10).map((location) => location.id),
@@ -1400,6 +1484,9 @@ export async function syncRestCustomizationOptions(params: {
       locationsMatched: locations.length,
       priceTablesMatched: priceTables.length,
       datasetImportId,
+      locationsSkipped: skipped.length,
+      optionsWritten: writtenCount,
+      timingsMs,
     };
   } catch (error) {
     try {

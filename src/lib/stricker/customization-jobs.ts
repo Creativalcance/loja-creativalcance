@@ -4,7 +4,8 @@ import { getStrickerSupplierId } from "@/lib/stricker/auth";
 import type { StrickerLanguage } from "@/lib/stricker/rest/types";
 import { syncRestCustomizationOptions } from "@/lib/stricker/rest/sync-customization-options";
 import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
-import { advanceCustomizationProgress, initialCustomizationProgress, type CustomizationJobProgress } from "./customization-job-progress";
+import { advanceCustomizationProgress, initialCustomizationProgress, nextCustomizationBatch, type CustomizationJobProgress } from "./customization-job-progress";
+import { CUSTOMIZATION_GENERATION_VERSION } from "./customization-fingerprint";
 import { assertSyncNotCancelled, isSyncCancelledError } from "./sync-control";
 
 export const CUSTOMIZATION_JOB_DATASET = "customizationOptionsJob";
@@ -92,6 +93,18 @@ export async function processCustomizationJob(): Promise<Record<string, unknown>
   if (error) throw new Error(error.message);
   if (!job) return { idle: true };
   let progress = job.raw_payload;
+  async function catalogSignature() {
+    // This whole-catalogue shortcut is optional. Failure must fall back to
+    // bounded per-location comparisons, never stop or falsely certify a job.
+    try {
+      const { data, error } = await client.rpc("customization_generation_catalog_hash", {
+        p_supplier_id: await getStrickerSupplierId(), p_language: job!.language,
+        p_captured_at: progress.sourceCapturedAt,
+      }).abortSignal(AbortSignal.timeout(10_000));
+      if (error || typeof data !== "string") return undefined;
+      return `${CUSTOMIZATION_GENERATION_VERSION}:${data}`;
+    } catch { return undefined; }
+  }
   if (progress.nextRunAt && Date.parse(progress.nextRunAt) > Date.now()) {
     return { jobId: job.id, status: "cooldown", nextRunAt: progress.nextRunAt };
   }
@@ -125,18 +138,45 @@ export async function processCustomizationJob(): Promise<Record<string, unknown>
     // One bounded batch per cron tick. Never keep writing for minutes: the
     // database also serves the storefront, authentication and order processing.
     const batchStartedAt = Date.now();
-    await assertSyncNotCancelled({ supabaseAdmin: client, datasetImportId: job.id });
     progress = { ...progress, attempts: progress.attempts + 1 };
     await save("running");
+    if (progress.offset === 0 && !progress.catalogSignature) {
+      const signature = await catalogSignature();
+      const { data: previous, error: previousError } = await client.from("supplier_dataset_imports")
+        .select("raw_payload").eq("supplier_id", await getStrickerSupplierId())
+        .eq("dataset_name", CUSTOMIZATION_JOB_DATASET).eq("language", job.language)
+        .eq("status", "success").order("created_at", { ascending: false }).limit(1)
+        .maybeSingle<{ raw_payload: CustomizationJobProgress }>();
+      if (previousError) throw new Error(previousError.message);
+      progress = { ...progress, catalogSignature: signature };
+      const prior = previous?.raw_payload;
+      if (signature && prior?.completedCatalogSignature === signature && prior.recordsTotal !== null) {
+        progress = { ...progress, offset: prior.recordsTotal, recordsTotal: prior.recordsTotal,
+          locationsSkipped: prior.recordsTotal, completedCatalogSignature: signature,
+          skippedUnchangedCatalog: true, attempts: 0 };
+        await save("success");
+        return { jobId: job.id, status: "success", ...progress };
+      }
+    }
+    await assertSyncNotCancelled({ supabaseAdmin: client, datasetImportId: job.id });
+    const batchSize = Math.max(25, Math.min(100, progress.batchSize ?? 25));
     const result = await syncRestCustomizationOptions({ lang: job.language,
       offset: progress.offset, cursor: progress.cursor, recordsTotal: progress.recordsTotal,
-      sourceCapturedAt: progress.sourceCapturedAt, limit: 25 });
+      sourceCapturedAt: progress.sourceCapturedAt, limit: batchSize });
     await assertSyncNotCancelled({ supabaseAdmin: client, datasetImportId: job.id });
+    let completedCatalogSignature: string | undefined;
+    if (!result.hasMore && progress.catalogSignature) {
+      const signature = await catalogSignature();
+      if (signature === progress.catalogSignature) completedCatalogSignature = signature;
+    }
     progress = advanceCustomizationProgress(progress, result);
     const duration = Date.now() - batchStartedAt;
-    progress = { ...progress, lastBatchDurationMs: duration,
+    progress = { ...progress, ...nextCustomizationBatch(batchSize, duration, progress.fastBatches), lastBatchDurationMs: duration,
       // Slow batches get proportionally longer rest (at most 10% duty cycle).
       nextRunAt: new Date(Date.now() + Math.max(60_000, duration * 9)).toISOString() };
+    // A legacy job already halfway through has no start signature. It must not
+    // certify inputs that were processed before this version was deployed.
+    if (!result.hasMore) progress = { ...progress, completedCatalogSignature };
     await save(result.hasMore ? "running" : "success");
     if (!result.hasMore) return { jobId: job.id, status: "success", ...progress };
     return { jobId: job.id, status: "running", ...progress };
@@ -144,7 +184,8 @@ export async function processCustomizationJob(): Promise<Record<string, unknown>
     if (isSyncCancelledError(error)) return { jobId: job.id, status: "canceled" };
     const message = error instanceof Error ? error.message : "Falha na geração das personalizações.";
     // Back off across invocations instead of repeatedly hammering a busy database.
-    progress = { ...progress, nextRunAt: new Date(Date.now() + 10 * 60_000).toISOString() };
+    progress = { ...progress, batchSize: Math.max(25, Math.floor((progress.batchSize ?? 25) / 2)),
+      fastBatches: 0, nextRunAt: new Date(Date.now() + 10 * 60_000).toISOString() };
     await save(progress.attempts >= 3 ? "failed" : "running", [message]);
     return { jobId: job.id, status: progress.attempts >= 3 ? "failed" : "retrying", message };
   }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+import * as crypto from 'node:crypto';
 
 function load(file, imports = {}, extra = '', globals = {}) {
   const exports = {};
@@ -10,12 +11,13 @@ function load(file, imports = {}, extra = '', globals = {}) {
     fileName: file,
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  vm.runInNewContext(code, { exports, console, Date, Error, Map, Set, ...globals,
+  vm.runInNewContext(code, { exports, console, Date, Error, Map, Set, AbortSignal, ...globals,
     require(name) { if (!(name in imports)) throw Error(`Unexpected import ${name}`); return imports[name]; },
   });
   return exports;
 }
 const progressApi = load('src/lib/stricker/customization-job-progress.ts');
+const fingerprintApi = load('src/lib/stricker/customization-fingerprint.ts', { 'node:crypto': crypto });
 const result = (overrides = {}) => ({ recordsProcessed: 25, recordsTotal: 100,
   optionsImported: 75, optionsFailed: 0, hasMore: true, nextOffset: 25, nextCursor: 'next', ...overrides });
 
@@ -41,7 +43,8 @@ const sync = load('src/lib/stricker/rest/sync-customization-options.ts', {
   '@/lib/supabase/admin': {}, '@/lib/stricker/auth': {}, '@/lib/stricker/images': { buildStrickerPrintingLinesImageUrl: value => value },
   '@/lib/stricker/sync-control': {}, '@/lib/stricker/service-code': { isSupplierServiceCode: value => !!value },
   '@/lib/stricker/change-detection': load('src/lib/stricker/change-detection.ts'),
-}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps, deactivateStaleCustomizationOptions, upsertCustomizationOptions };');
+  '@/lib/stricker/customization-fingerprint': fingerprintApi,
+}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps, buildPriceTableMaps, locationInputHash, deactivateStaleCustomizationOptions, upsertCustomizationOptions };');
 const location = { id: 'loc', product_id: 'p', variant_id: 'v', supplier_id: 's', location_index: 2,
   location_name: 'Corpo', external_location_id: 'v:L2', raw_payload: {
     Component2: 'Esferográfica', Location2: 'Corpo', TableCodes2: 'LSR2-01, PDP6-01',
@@ -68,27 +71,29 @@ test('four-colour table remains four-colour despite the slot containing the list
   assert.equal(row.max_colors, 4); assert.equal(row.is_active, true); assert.equal(row.printing_price_table_id, 'price');
   assert.equal(JSON.stringify(row.raw_payload), '{}', 'Resolved options must be compact before reaching the DB trigger');
 });
-test('price reads paginate past 1000 rows with stable ordering and deduplicate overlap', async () => {
+test('reduced price reads still paginate past 1000 winners and scope supplier/codes', async () => {
   const reads = []; const rows = Array.from({ length: 1400 }, (_, i) => ({ id: `p${i}`, quantity_min: i }));
-  const client = { from() { let column; let start = 0; let end = 999; const read = { orders: [], filters: [] }; reads.push(read);
-    return { select() { return this; }, eq(key,value) { read.filters.push([key,value]); return this; }, in(key) { column = key; return this; },
+  const client = { rpc(name,args) { let start = 0; let end = 999; const read = { name, args, orders: [] }; reads.push(read);
+    return { select() { return this; },
       order(key) { read.orders.push(key); return this; }, range(a,b) { start=a; end=b; return this; },
-      returns() { return Promise.resolve({ data: column === 'table_code' ? rows.slice(start,end+1) : rows.slice(0,20), error: null }); },
+      returns() { return Promise.resolve({ data: rows.slice(start,end+1), error: null }); },
     }; } };
   const fetched = await sync.fetchPrintingPriceTables({ supabaseAdmin: client, supplierId: 's', tableCodes: ['PDP6-01'] });
-  assert.equal(fetched.length, 1400); assert.equal(reads.length, 3);
-  assert.ok(reads.every(read => read.orders[0] === 'id'));
-  assert.ok(reads.every(read => read.filters.some(([key,value]) => key === 'is_active' && value === true)));
+  assert.equal(fetched.length, 1400); assert.equal(reads.length, 2);
+  assert.ok(reads.every(read => read.orders.join(',') === 'quantity_min,id'));
+  assert.ok(reads.every(read => read.name === 'customization_generation_prices' && read.args.p_supplier_id === 's'));
+  assert.deepEqual(Array.from(reads[0].args.p_table_codes), ['PDP6-01']);
 });
 
-function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false, hasMore = false } = {}) {
+function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false, hasMore = false, prior, signatures = ['catalogue'] } = {}) {
   const job = { id: 'job', language: 'PT', status: 'pending', errors: [], raw_payload: {
     ...progressApi.initialCustomizationProgress(), stage, attempts, sourceCapturedAt: stage === 'options' ? '2026-10-01T21:00:00Z' : undefined,
   } };
   const writes = []; const batchCalls = []; let sourceCalls = 0;
-  const client = { from() { let update;
-    const q = { select() { return q; }, eq() { return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
-      update(value) { update = value; return q; }, maybeSingle() { return Promise.resolve({ data: job, error: null }); },
+  let signatureCalls = 0;
+  const client = { rpc() { return {abortSignal:async()=>({data: signatures[Math.min(signatureCalls++, signatures.length-1)], error:null})}; }, from() { let update; let previous = false;
+    const q = { select() { return q; }, eq(key,value) { if(key === 'status' && value === 'success') previous = true; return q; }, in() { return q; }, order() { return q; }, limit() { return q; },
+      update(value) { update = value; return q; }, maybeSingle() { return Promise.resolve({ data: previous ? (prior ? {raw_payload:prior} : null) : job, error: null }); },
       then(resolve, reject) { if (update) { writes.push(structuredClone(update)); Object.assign(job, update); }
         return Promise.resolve({ error: null }).then(resolve,reject); },
     }; return q; } };
@@ -98,6 +103,7 @@ function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0
     '@/lib/stricker/rest/sync-customization-options': { syncRestCustomizationOptions: async args => { batchCalls.push(args); if (batchError) throw Error(batchError); return result({ hasMore, nextCursor: hasMore ? 'next' : null, nextOffset: hasMore ? 25 : null, optionsFailed: failed }); } },
     '@/lib/stricker/rest/sync-customization-options-source': { syncRestCustomizationOptionsSource: async () => { sourceCalls++; return { capturedAt: '2026-10-01T21:00:00Z' }; } },
     './customization-job-progress': progressApi,
+    './customization-fingerprint': fingerprintApi,
     './sync-control': { assertSyncNotCancelled: async () => { if (canceled) throw Error('canceled'); }, isSyncCancelledError: error => error.message === 'canceled' },
   });
   return { api, job, writes, batchCalls, sourceCalls: () => sourceCalls };
@@ -256,4 +262,123 @@ test('obsolete and invented services become inactive while official services and
     supplierOptions: [{ ProdReference: '91777', ServiceCode: 'official' }],
   });
   assert.deepEqual(JSON.parse(JSON.stringify(updates)), [{ change: { is_active: false }, ids: ['invented','removed'] }]);
+});
+
+test('an identical complete catalogue skips generation only with certified matching signatures', async () => {
+  const prior = { completedCatalogSignature:'1:catalogue', recordsTotal:43015 };
+  const f = workerFixture({prior});
+  const outcome = await f.api.processCustomizationJob();
+  assert.equal(outcome.status,'success'); assert.equal(f.batchCalls.length,0);
+  assert.equal(f.job.raw_payload.offset,43015);
+  assert.equal(f.job.raw_payload.skippedUnchangedCatalog,true);
+  const legacy = workerFixture({prior:{catalogSignature:'1:catalogue',recordsTotal:43015}});
+  await legacy.api.processCustomizationJob(); assert.equal(legacy.batchCalls.length,1);
+});
+test('inputs changed during generation cannot certify an unchanged catalogue', async () => {
+  const f = workerFixture({signatures:['before','after']});
+  await f.api.processCustomizationJob();
+  assert.equal(f.job.status,'success');
+  assert.equal(f.job.raw_payload.completedCatalogSignature,undefined);
+});
+test('an unavailable catalogue shortcut falls back to normal bounded generation',async()=>{
+  const f=workerFixture({signatures:[null],prior:{recordsTotal:43}});
+  await f.api.processCustomizationJob();
+  assert.equal(f.batchCalls.length,1);assert.equal(f.job.status,'success');
+  assert.equal(f.job.raw_payload.completedCatalogSignature,undefined);
+});
+test('adaptive batches grow after two fast successes and shrink for slow work', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(progressApi.nextCustomizationBatch(25,3000))),{batchSize:25,fastBatches:1});
+  assert.equal(progressApi.nextCustomizationBatch(25,3000,1).batchSize,50);
+  assert.equal(progressApi.nextCustomizationBatch(50,3000,1).batchSize,100);
+  assert.equal(progressApi.nextCustomizationBatch(100,3000,1).batchSize,100);
+  assert.equal(progressApi.nextCustomizationBatch(100,18000).batchSize,50);
+  assert.equal(progressApi.nextCustomizationBatch(25,18000).batchSize,25);
+});
+
+function generationFixture() {
+  const fixture = { states:[], options:[], writes:[], failWrite:false,
+    services:[{ProdReference:'91777',ServiceCode:'91777.16.27.PDP6-01-04',Component:'Esferográfica',Location:'Corpo',TableCode:'PDP6-01',TableCodeOption:'PDP6-01-04'}],
+    price:{id:'price',table_code:'PDP6-01',table_code_option:'PDP6-01-04',quantity_min:1,max_colors:4,final_price:2},
+    locations:[structuredClone(location)] };
+  const client = {
+    rpc() { const q={select(){return q;},order(){return q;},range(){return q;},returns:async()=>({data:[fixture.price],error:null})};return q; },
+    from(table) { let action, values, ids;
+      function response() {
+        if(action === 'upsert') {
+          fixture.writes.push(table);
+          if(table === 'product_customization_options') {
+            if(fixture.failWrite) return {data:null,error:{message:'write interrupted'}};
+            fixture.options = structuredClone(values);
+          }
+          if(table === 'customization_generation_state') fixture.states = structuredClone(values);
+          return {error:null};
+        }
+        if(action === 'update' && table === 'product_customization_options') {
+          for(const row of fixture.options) if(!ids || ids.includes(row.id)) Object.assign(row,values);
+          return {error:null};
+        }
+        const rows = {
+          product_customization_locations:fixture.locations,
+          product_variants:[{id:'v',product_id:'p',supplier_id:'s',sku:'sku'}],
+          products:[{id:'p',external_id:'91777'}], product_customization_components:[],
+          supplier_customization_options_cache:fixture.services,
+          customization_generation_state:fixture.states,
+          product_customization_options:fixture.options.filter(row=>row.is_active).map((row,i)=>({...row,id:`option-${i}`})),
+        };
+        return {data:rows[table]??[],error:null,count:fixture.locations.length};
+      }
+      const q={select(){return q;},eq(){return q;},not(){return q;},gt(){return q;},order(){return q;},limit(){return q;},range(){return q;},
+        in(key,value){if(key==='id')ids=value;return q;},
+        insert(){return q;},update(value){action='update';values=value;return q;},
+        upsert(value){action='upsert';values=value;return q;},
+        single:async()=>({data:{id:'import'},error:null}),returns:async()=>response(),
+        then(resolve,reject){return Promise.resolve(response()).then(resolve,reject);}};return q;
+    }
+  };
+  const api=load('src/lib/stricker/rest/sync-customization-options.ts',{
+    '@/lib/supabase/admin':{createSupabaseAdminClient:()=>client},'@/lib/stricker/auth':{getStrickerSupplierId:async()=>'s'},
+    '@/lib/stricker/images':{buildStrickerPrintingLinesImageUrl:value=>value},
+    '@/lib/stricker/sync-control':{assertSyncNotCancelled:async()=>{}},
+    '@/lib/stricker/service-code':{isSupplierServiceCode:value=>!!value},
+    '@/lib/stricker/change-detection':load('src/lib/stricker/change-detection.ts'),
+    '@/lib/stricker/customization-fingerprint':fingerprintApi,
+  });
+  fixture.run=extra=>api.syncRestCustomizationOptions({lang:'PT',offset:0,limit:25,sourceCapturedAt:'snapshot',...extra});
+  return fixture;
+}
+test('incremental rerun skips unchanged locations and output writes, matching full generation',async()=>{
+  const f=generationFixture();
+  const first=await f.run(); const output=JSON.stringify(f.options);
+  assert.equal(first.locationsSkipped,0);assert.equal(f.states.length,1);
+  f.writes=[];
+  const second=await f.run();
+  assert.equal(second.locationsSkipped,1);assert.equal(second.optionsImported,first.optionsImported);
+  assert.deepEqual(f.writes,[]);assert.equal(JSON.stringify(f.options),output);
+  const forced=await f.run({forceRegenerate:true});
+  assert.equal(forced.locationsSkipped,0);assert.equal(JSON.stringify(f.options),output);
+});
+test('price or geometry changes invalidate signatures and reproduce full generation',async()=>{
+  for(const mutate of [f=>f.price.final_price=3,f=>f.locations[0].max_area_cm2=42]) {
+    const f=generationFixture();await f.run();const hash=f.states[0].input_hash;
+    mutate(f);const result=await f.run();assert.equal(result.locationsSkipped,0);assert.notEqual(f.states[0].input_hash,hash);
+    const full=generationFixture();mutate(full);await full.run();assert.equal(JSON.stringify(f.options),JSON.stringify(full.options));
+  }
+});
+test('failed option writes never publish a generation signature',async()=>{
+  const f=generationFixture();f.failWrite=true;
+  await assert.rejects(f.run(),/write interrupted|gravacao/);assert.equal(f.states.length,0);
+  f.failWrite=false;await f.run();assert.equal(f.states.length,1);
+});
+test('removed supplier services invalidate the signature and retain inactive history',async()=>{
+  const f=generationFixture();await f.run();f.options[0].id='option-0';
+  const hash=f.states[0].input_hash;f.services=[];await f.run();
+  assert.notEqual(f.states[0].input_hash,hash);assert.equal(f.states[0].options_count,0);
+  assert.equal(f.options.length,1);assert.equal(f.options[0].is_active,false);
+});
+test('a removed area retires its option even when the official service remains in the supplier feed',async()=>{
+  const f=generationFixture();await f.run();f.options[0].id='option-0';
+  f.locations[0].raw_payload.TableCodesOptions2='LSR2-01-01';
+  f.locations[0].raw_payload.TableCodes2='LSR2-01';
+  const result=await f.run();
+  assert.equal(result.locationsSkipped,0);assert.equal(f.options[0].is_active,false);
 });

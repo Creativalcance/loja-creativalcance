@@ -10,6 +10,12 @@ export type CustomizationJobProgress = {
   sourceCapturedAt?: string;
   nextRunAt?: string;
   lastBatchDurationMs?: number;
+  batchSize?: number;
+  fastBatches?: number;
+  locationsSkipped?: number;
+  catalogSignature?: string;
+  completedCatalogSignature?: string;
+  skippedUnchangedCatalog?: boolean;
 };
 
 export function initialCustomizationProgress(): CustomizationJobProgress {
@@ -37,5 +43,16 @@ export function advanceCustomizationProgress(
     recordsTotal: result.recordsTotal,
     optionsImported: progress.optionsImported + result.optionsImported,
     attempts: 0,
+    locationsSkipped: (progress.locationsSkipped ?? 0) + (result.locationsSkipped ?? 0),
   };
+}
+
+export function nextCustomizationBatch(current: number, durationMs: number, fastBatches = 0) {
+  const size = Math.max(25, Math.min(100, current));
+  if (durationMs > 15_000) return { batchSize: Math.max(25, Math.floor(size / 2)), fastBatches: 0 };
+  if (durationMs > 8_000) return { batchSize: size, fastBatches: 0 };
+  const successes = fastBatches + 1;
+  return successes >= 2
+    ? { batchSize: Math.min(100, size * 2), fastBatches: 0 }
+    : { batchSize: size, fastBatches: successes };
 }
