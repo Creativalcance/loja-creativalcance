@@ -276,6 +276,11 @@ export async function runStrickerAutomaticSync(
   | { skipped: true; reason: string }
   | { skipped: false; result: JsonResult }
 > {
+  // Incident containment: preserve checkpoints while the database is unavailable.
+  // This must precede lock acquisition: even an idle worker otherwise queries Postgres.
+  if (["customization-options", "customization-options-source", "customization-options-worker"].includes(job)) {
+    return { skipped: true, reason: "Personalizações temporariamente suspensas para recuperar a disponibilidade da base de dados. O progresso guardado será preservado." };
+  }
   const ownerToken = randomUUID();
   const lockKey = job === "orders-status"
     ? "stricker:automatic-sync:orders-status"
