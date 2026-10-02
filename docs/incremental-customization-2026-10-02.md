@@ -37,6 +37,11 @@ does not restart the source capture or add supplier requests to generation.
 - Cover reconciliation's active-option identifiers with a partial index, so
   each page no longer loads thousands of wide heap rows just to check service
   codes. Existing values and reconciliation rules remain unchanged.
+- Reconcile up to 100 variants in one worker-only database call. A materialized
+  identifier read checks the official service set and visited locations once,
+  then updates only stale rows. This replaces repeated ordered pagination over
+  all active options for the same variants. Other suppliers, variants and
+  unvisited locations retain the same scoping rules as the original code.
 - A catalogue-wide signature can bypass a wholly unchanged future cycle only
   when a previous complete cycle certified the same signature. Start and finish
   signatures must match. The guard is optional, has a ten-second client timeout,
@@ -84,3 +89,10 @@ The revised schedule addresses idle time while retaining sequential execution,
 small writes, checkpoints and automatic backoff. The captured supplier snapshot
 and existing location cursor are reused. No additional supplier requests are
 needed for these local batches.
+
+Live monitoring exposed a further 21.7-second batch, including 9.3 seconds
+of repeated reconciliation reads. The single reconciliation operation addresses
+this remaining bottleneck. Rolled-back service_role SQL checks confirmed exact
+service removal (one change), unchanged rerun (zero), foreign supplier isolation
+(zero), location-specific removal and retained historical rows. Public and
+authenticated roles have no execution privilege.

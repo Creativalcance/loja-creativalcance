@@ -1138,28 +1138,17 @@ async function deactivateStaleCustomizationOptions(params: {
   }
   const variantReferences = new Map(params.variants.map((variant) =>
     [variant.id, params.productReferencesById.get(variant.product_id)]));
+  const locationServices = Object.fromEntries(Array.from(params.generatedServicesByLocation ?? [],
+    ([id, codes]) => [id, Array.from(codes)]));
   for (const ids of chunkArray(Array.from(variantReferences.keys()), 100)) {
-    const staleIds: string[] = [];
-    for (let page = 0; ; page += 1) {
-      const { data, error } = await params.supabaseAdmin.from("product_customization_options")
-        .select("id,variant_id,location_id,service_code").eq("supplier_id", params.supplierId)
-        .in("variant_id", ids).eq("is_active", true).order("id", { ascending: true })
-        .range(page * 1_000, (page + 1) * 1_000 - 1)
-        .returns<{ id: string; variant_id: string; location_id: string | null; service_code: string }[]>();
-      if (error) throw new Error(error.message);
-      for (const row of data ?? []) {
-        const reference = variantReferences.get(row.variant_id);
-        const locationServices = row.location_id ? params.generatedServicesByLocation?.get(row.location_id) : undefined;
-        if (!reference || !allowed.get(reference)?.has(row.service_code) ||
-          (locationServices && !locationServices.has(row.service_code))) staleIds.push(row.id);
-      }
-      if (!data || data.length < 1_000) break;
-    }
-    // Read every page before changing the filter used by pagination.
-    for (const staleChunk of chunkArray(staleIds, 100)) {
-      const { error } = await params.supabaseAdmin.from("product_customization_options")
-        .update({ is_active: false }).eq("supplier_id", params.supplierId).in("id", staleChunk);
-      if (error) throw new Error(error.message);
+    const allowedServices = Object.fromEntries(ids.map((id) =>
+      [id, Array.from(allowed.get(variantReferences.get(id) ?? "") ?? [])]));
+    const { data, error } = await params.supabaseAdmin.rpc("reconcile_customization_generation_batch", {
+      p_supplier_id: params.supplierId, p_allowed_services: allowedServices, p_location_services: locationServices,
+    });
+    if (error) throw phaseError("reconciliacao", error);
+    if (!Number.isInteger(data) || data < 0) {
+      throw new Error("A reconciliação devolveu uma contagem inválida; o lote será repetido.");
     }
   }
 }

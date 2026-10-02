@@ -309,21 +309,53 @@ test('editor compression preserves all prices, service codes, areas and variants
   assert.equal(differentServices.prices.length, 2);
 });
 
-test('obsolete and invented services become inactive while official services and history remain', async () => {
-  const updates = [];
+function applyReconciliationFixture(rows, { p_supplier_id, p_allowed_services, p_location_services }) {
+  let changed = 0;
+  for (const row of rows) {
+    if (row.is_active === false || row.supplier_id !== p_supplier_id || !(row.variant_id in p_allowed_services)) continue;
+    const local = p_location_services[row.location_id];
+    if (!p_allowed_services[row.variant_id].includes(row.service_code) || (local && !local.includes(row.service_code))) {
+      row.is_active = false; changed++;
+    }
+  }
+  return changed;
+}
+
+test('obsolete services and removed areas retire only within the supplier, variant and visited location scope', async () => {
+  const calls = [];
   const existing = [{ id: 'good', variant_id: 'v', service_code: 'official' },
     { id: 'invented', variant_id: 'v', service_code: '91777-103:C2:L2:PDP6-01-04' },
-    { id: 'removed', variant_id: 'v', service_code: 'removed-supplier-code' }];
-  const client = { from() { let change; let ids;
-    const q = { select() { return q; }, eq() { return q; }, in(key,values) { if (key === 'id') ids = values; return q; },
-      order() { return q; }, range() { return q; }, returns() { return Promise.resolve({ data: existing, error: null }); },
-      update(value) { change = value; return q; }, then(resolve,reject) { updates.push({ change, ids: Array.from(ids) }); return Promise.resolve({ error: null }).then(resolve,reject); },
-    }; return q; } };
+    { id: 'removed', variant_id: 'v', service_code: 'removed-supplier-code' },
+    { id: 'removed-area', variant_id: 'v', location_id:'visited', service_code:'official' },
+    { id: 'other-area', variant_id: 'v', location_id:'not-visited', service_code:'official' },
+    { id: 'other-variant', variant_id: 'other', service_code:'removed-supplier-code' },
+    { id: 'other-supplier', variant_id: 'v', supplier_id:'foreign', service_code:'removed-supplier-code' },
+  ].map(row=>({supplier_id:'s',is_active:true,...row}));
+  const client = { rpc(name, args) {
+    assert.equal(name, 'reconcile_customization_generation_batch'); calls.push(args);
+    return Promise.resolve({ data: applyReconciliationFixture(existing,args), error: null });
+  } };
   await sync.deactivateStaleCustomizationOptions({ supabaseAdmin: client, supplierId: 's',
     variants: [{ id: 'v', product_id: 'p' }], productReferencesById: new Map([['p','91777']]),
     supplierOptions: [{ ProdReference: '91777', ServiceCode: 'official' }],
+    generatedServicesByLocation:new Map([['visited',new Set()]]),
   });
-  assert.deepEqual(JSON.parse(JSON.stringify(updates)), [{ change: { is_active: false }, ids: ['invented','removed'] }]);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(existing.filter(row=>!row.is_active).map(row=>row.id), ['invented','removed','removed-area']);
+  assert.equal(existing.length,7,'History is retained');
+});
+
+test('reconciliation chunks variants and propagates database failures without retrying', async () => {
+  const calls=[];
+  const input={supplierId:'s',variants:Array.from({length:205},(_,i)=>({id:`v${i}`,product_id:'p'})),
+    productReferencesById:new Map([['p','91777']]),supplierOptions:[{ProdReference:'91777',ServiceCode:'official'}]};
+  await sync.deactivateStaleCustomizationOptions({...input,supabaseAdmin:{rpc:async(name,args)=>{calls.push(args);return {data:0,error:null};}}});
+  assert.deepEqual(calls.map(args=>Object.keys(args.p_allowed_services).length),[100,100,5]);
+  let attempts=0;
+  await assert.rejects(()=>sync.deactivateStaleCustomizationOptions({...input,supabaseAdmin:{rpc:async()=>{
+    attempts++; return {data:null,error:{message:'database busy'}};
+  }}}),/database busy/);
+  assert.equal(attempts,1);
 });
 
 test('an identical complete catalogue skips generation only with certified matching signatures', async () => {
@@ -358,12 +390,17 @@ test('adaptive batches grow after two fast successes and shrink for slow work', 
 });
 
 function generationFixture() {
-  const fixture = { states:[], options:[], writes:[], failWrite:false,
+  const fixture = { states:[], options:[], writes:[], failWrite:false, failReconciliation:false,
     services:[{ProdReference:'91777',ServiceCode:'91777.16.27.PDP6-01-04',Component:'Esferográfica',Location:'Corpo',TableCode:'PDP6-01',TableCodeOption:'PDP6-01-04'}],
     price:{id:'price',table_code:'PDP6-01',table_code_option:'PDP6-01-04',quantity_min:1,max_colors:4,final_price:2},
     locations:[structuredClone(location)] };
   const client = {
-    rpc(name,{p_rows}={}) {
+    rpc(name,args={}) {
+      const {p_rows}=args;
+      if(name==='reconcile_customization_generation_batch') {
+        if(fixture.failReconciliation) return Promise.resolve({data:null,error:{message:'reconciliation interrupted'}});
+        return Promise.resolve({data:applyReconciliationFixture(fixture.options,args),error:null});
+      }
       if(name==='upsert_customization_generation_batch') {
         fixture.writes.push('product_customization_options');
         if(fixture.failWrite)return Promise.resolve({data:null,error:{message:'write interrupted'}});
@@ -438,6 +475,12 @@ test('failed option writes never publish a generation signature',async()=>{
   const f=generationFixture();f.failWrite=true;
   await assert.rejects(f.run(),/write interrupted|gravacao/);assert.equal(f.states.length,0);
   f.failWrite=false;await f.run();assert.equal(f.states.length,1);
+});
+test('failed reconciliation never certifies or skips the partially completed location',async()=>{
+  const f=generationFixture();f.failReconciliation=true;
+  await assert.rejects(f.run(),/reconciliation interrupted/);assert.equal(f.states.length,0);
+  f.failReconciliation=false;const result=await f.run();
+  assert.equal(result.locationsSkipped,0);assert.equal(f.states.length,1);
 });
 test('removed supplier services invalidate the signature and retain inactive history',async()=>{
   const f=generationFixture();await f.run();f.options[0].id='option-0';
