@@ -7,6 +7,7 @@ import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
+import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
 
@@ -163,37 +164,9 @@ export type SyncRestCustomizationOptionsResult = {
 
 const QUERY_CHUNK_SIZE = 100;
 const UPSERT_CHUNK_SIZE = 50;
-const UPSERT_MAX_ATTEMPTS = 4;
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function isStatementTimeout(error: unknown): boolean {
-  const message = getErrorMessage(error).toLowerCase();
-
-  return (
-    message.includes("statement timeout") ||
-    message.includes("canceling statement due to statement timeout") ||
-    message.includes("57014")
-  );
-}
-
-function isTransientFetchError(error: unknown): boolean {
-  const message = getErrorMessage(error).toLowerCase();
-
-  return (
-    error instanceof TypeError ||
-    message.includes("fetch failed") ||
-    message.includes("network") ||
-    message.includes("econnreset") ||
-    message.includes("socket") ||
-    message.includes("terminated")
-  );
-}
-
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function phaseError(phase: string, error: unknown): Error {
@@ -1070,7 +1043,9 @@ function buildCustomizationOptionRows(params: {
         ),
         printing_lines_storage_url: null,
 
-        raw_payload: {
+        // The database trigger already discards resolved payloads. Compact them
+        // before transport too; geometry remains on the canonical location.
+        raw_payload: priceTable ? {} : {
           ...payload,
           supplier_customization_option: supplierOption,
           language: params.lang,
@@ -1078,7 +1053,7 @@ function buildCustomizationOptionRows(params: {
           variant_id: variant.id,
           component_id: component?.id ?? location.component_id ?? null,
           location_id: location.id,
-          printing_price_table_id: priceTable?.id ?? null,
+          printing_price_table_id: null,
           table_code: pair.tableCode,
           table_code_option: pair.tableCodeOption,
           service_code: serviceCode,
@@ -1152,6 +1127,8 @@ async function deactivateStaleCustomizationOptions(params: {
 
 type UpsertCustomizationOptionsResult = {
   imported: number;
+  written: number;
+  unchanged: number;
   failedRecords: string[];
 };
 
@@ -1160,73 +1137,41 @@ async function upsertCustomizationOptions(params: {
   rows: ProductCustomizationOptionUpsertRow[];
 }): Promise<UpsertCustomizationOptionsResult> {
   const uniqueRows = dedupeCustomizationOptionRows(params.rows);
-  const failedRecords: string[] = [];
-
-  const getIdentity = (row: ProductCustomizationOptionUpsertRow | undefined) =>
-    row ? `${row.variant_id}/${row.service_code}` : "desconhecido";
-
-  const upsertChunk = async (
-    rowChunk: ProductCustomizationOptionUpsertRow[],
-  ): Promise<void> => {
-    let lastError: unknown = null;
-
-    for (let attempt = 1; attempt <= UPSERT_MAX_ATTEMPTS; attempt += 1) {
-      try {
-        const { error } = await params.supabaseAdmin
-          .from("product_customization_options")
-          .upsert(rowChunk, {
-            onConflict: "product_id,variant_id,supplier_id,service_code",
-          });
-
-        if (!error) {
-          return;
-        }
-
-        lastError = error;
-        if (!isStatementTimeout(error) && !isTransientFetchError(error)) {
-          break;
-        }
-      } catch (error) {
-        lastError = error;
-        if (!isTransientFetchError(error)) {
-          break;
-        }
-      }
-
-      if (attempt < UPSERT_MAX_ATTEMPTS) {
-        await wait(300 * 2 ** (attempt - 1));
-      }
-    }
-
-    if (lastError) {
-      if (
-        (isStatementTimeout(lastError) || isTransientFetchError(lastError)) &&
-        rowChunk.length > 1
-      ) {
-        const middle = Math.ceil(rowChunk.length / 2);
-        await upsertChunk(rowChunk.slice(0, middle));
-        await upsertChunk(rowChunk.slice(middle));
-        return;
-      }
-
-      const identity = getIdentity(rowChunk[0]);
-
-      if (rowChunk.length === 1 && isTransientFetchError(lastError)) {
-        failedRecords.push(identity);
-        return;
-      }
-
-      throw new Error(`${getErrorMessage(lastError)} Registo: ${identity}.`);
-    }
-  };
-
+  let written = 0;
+  const identity = (row: ProductCustomizationOptionUpsertRow) =>
+    JSON.stringify([row.product_id, row.variant_id, row.supplier_id, row.service_code]);
   for (const rowChunk of chunkArray(uniqueRows, UPSERT_CHUNK_SIZE)) {
-    await upsertChunk(rowChunk);
+    const columns = Object.keys(rowChunk[0]) as Array<keyof ProductCustomizationOptionUpsertRow>;
+    const existing = new Map<string, ProductCustomizationOptionUpsertRow>();
+    for (let page = 0; ; page += 1) {
+      const { data, error } = await params.supabaseAdmin.from("product_customization_options")
+        .select(columns.join(","))
+        .in("supplier_id", Array.from(new Set(rowChunk.map((row) => row.supplier_id))))
+        .in("variant_id", Array.from(new Set(rowChunk.map((row) => row.variant_id))))
+        .in("service_code", Array.from(new Set(rowChunk.map((row) => row.service_code))))
+        .order("id", { ascending: true }).range(page * 1_000, (page + 1) * 1_000 - 1)
+        .returns<ProductCustomizationOptionUpsertRow[]>();
+      if (error) throw new Error(error.message);
+      for (const row of data ?? []) existing.set(identity(row), row);
+      if (!data || data.length < 1_000) break;
+    }
+    const changed = rowChunk.filter((row) => {
+      const current = existing.get(identity(row));
+      return !current || columns.some((key) => hasSupplierPayloadChanged(current[key], row[key]));
+    });
+    if (changed.length === 0) continue;
+    const { error } = await params.supabaseAdmin.from("product_customization_options")
+      .upsert(changed, { onConflict: "product_id,variant_id,supplier_id,service_code" });
+    // On any error the worker preserves the checkpoint and waits ten minutes.
+    // Retrying/splitting chunks here would multiply load on an overloaded DB.
+    if (error) throw new Error(error.message);
+    written += changed.length;
   }
-
   return {
-    imported: uniqueRows.length - failedRecords.length,
-    failedRecords,
+    imported: uniqueRows.length,
+    written,
+    unchanged: uniqueRows.length - written,
+    failedRecords: [],
   };
 }
 
@@ -1361,6 +1306,8 @@ export async function syncRestCustomizationOptions(params: {
     await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
 
     let importedCount = 0;
+    let writtenCount = 0;
+    let unchangedCount = 0;
     let failedOptionRecords: string[] = [];
 
     if (rows.length > 0) {
@@ -1370,6 +1317,8 @@ export async function syncRestCustomizationOptions(params: {
           rows,
         });
         importedCount = upsertResult.imported;
+        writtenCount = upsertResult.written;
+        unchangedCount = upsertResult.unchanged;
         failedOptionRecords = upsertResult.failedRecords;
       } catch (error) {
         throw phaseError("gravacao", error);
@@ -1414,6 +1363,8 @@ export async function syncRestCustomizationOptions(params: {
         componentsMatched: components.length,
         priceTablesMatched: priceTables.length,
         rowsBuilt: rows.length,
+        optionsWritten: writtenCount,
+        optionsUnchanged: unchangedCount,
         supplierOptionsReceived: supplierOptionRecords.length,
         failedOptionRecords,
         sampleLocationIds: locations.slice(0, 10).map((location) => location.id),

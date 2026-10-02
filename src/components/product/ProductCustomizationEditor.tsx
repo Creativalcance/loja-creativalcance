@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import CustomizationLocationImage from "@/components/product/CustomizationLocationImage";
 import { saveCustomizationDraftAction } from "@/lib/customization/actions";
+import { unpackEditorCatalog, type EditorCatalog } from "@/lib/customization/editor-catalog";
 
 export type ProductEditorVariant = {
   id: string;
@@ -1235,8 +1236,9 @@ type EditorResume = {
   selectedPrintColorMode: PrintColorMode | null;
 };
 
-export default function ProductCustomizationEditor(props: ProductCustomizationEditorProps) {
-  return <ShoppingResume<EditorResume>>{(resume) => <CustomizationEditor {...props} resume={resume} />}</ShoppingResume>;
+export default function ProductCustomizationEditor({ catalog, ...props }: Omit<ProductCustomizationEditorProps, "locations"> & { catalog: EditorCatalog }) {
+  const locations = useMemo(() => unpackEditorCatalog(catalog), [catalog]);
+  return <ShoppingResume<EditorResume>>{(resume) => <CustomizationEditor {...props} locations={locations} resume={resume} />}</ShoppingResume>;
 }
 
 function CustomizationEditor({

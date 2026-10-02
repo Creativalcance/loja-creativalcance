@@ -140,11 +140,8 @@ test('new cron jobs use existing locking and dispatch the intended language', as
   }
   assert.equal(sync.isStrickerAutomaticSyncJob('products-unsupported'), false);
   assert.equal(crons.find(c => c.path === '/api/cron/stricker/customization-options-worker').schedule, '*/2 * * * *');
-  const callsBeforePause = calls.length;
-  for (const job of ['customization-options-worker', 'customization-options-source', 'customization-options']) {
-    const paused = await sync.runStrickerAutomaticSync(job);
-    assert.equal(paused.skipped, true);
-    assert.match(paused.reason, /temporariamente suspensas/);
-    assert.equal(calls.length, callsBeforePause, 'Paused jobs must not query the database or supplier');
-  }
+  await sync.runStrickerAutomaticSync('customization-options-worker');
+  assert.equal(calls.at(-3).params.target_lock_key, 'stricker:automatic-sync');
+  assert.equal(calls.at(-2).worker, true);
+  assert.equal(calls.at(-1).name, 'release_integration_sync_lock');
 });

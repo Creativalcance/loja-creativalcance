@@ -8,6 +8,8 @@ export type CustomizationJobProgress = {
   optionsImported: number;
   attempts: number;
   sourceCapturedAt?: string;
+  nextRunAt?: string;
+  lastBatchDurationMs?: number;
 };
 
 export function initialCustomizationProgress(): CustomizationJobProgress {

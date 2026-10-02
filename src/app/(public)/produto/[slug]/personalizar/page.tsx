@@ -20,6 +20,7 @@ import { localizeProductColors } from "@/lib/i18n/colors";
 import { getLocalizedProductText } from "@/lib/i18n/catalog";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
+import { packEditorCatalog } from "@/lib/customization/editor-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -973,7 +974,7 @@ export default async function ProductPersonalizePage({
             productSlug={product.slug}
             productImageUrl={productImageUrl}
             variants={editorVariants}
-            locations={editorLocations}
+            catalog={packEditorCatalog(editorLocations)}
             productPrices={editorPrices}
             initialDraftId={selectedDraftId}
             initialVariantId={selectedVariant?.id ?? null}

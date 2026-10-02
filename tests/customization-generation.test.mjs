@@ -40,7 +40,8 @@ test('completion preserves cumulative totals even on an empty sentinel page', ()
 const sync = load('src/lib/stricker/rest/sync-customization-options.ts', {
   '@/lib/supabase/admin': {}, '@/lib/stricker/auth': {}, '@/lib/stricker/images': { buildStrickerPrintingLinesImageUrl: value => value },
   '@/lib/stricker/sync-control': {}, '@/lib/stricker/service-code': { isSupplierServiceCode: value => !!value },
-}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps, deactivateStaleCustomizationOptions };');
+  '@/lib/stricker/change-detection': load('src/lib/stricker/change-detection.ts'),
+}, '\nexport { fetchPrintingPriceTables, fetchCachedSupplierOptions, findSupplierOption, getCustomizationPairsForLocation, buildCustomizationOptionRows, buildComponentMaps, deactivateStaleCustomizationOptions, upsertCustomizationOptions };');
 const location = { id: 'loc', product_id: 'p', variant_id: 'v', supplier_id: 's', location_index: 2,
   location_name: 'Corpo', external_location_id: 'v:L2', raw_payload: {
     Component2: 'Esferográfica', Location2: 'Corpo', TableCodes2: 'LSR2-01, PDP6-01',
@@ -65,6 +66,7 @@ test('four-colour table remains four-colour despite the slot containing the list
     supplierOptionsByProductAndTable: new Map([['91777:PDP6-01-04', [{ Component: 'Esferográfica', Location: 'Corpo', ServiceCode: '91777.16.27.PDP6-01-04' }]]]),
   })[0];
   assert.equal(row.max_colors, 4); assert.equal(row.is_active, true); assert.equal(row.printing_price_table_id, 'price');
+  assert.equal(JSON.stringify(row.raw_payload), '{}', 'Resolved options must be compact before reaching the DB trigger');
 });
 test('price reads paginate past 1000 rows with stable ordering and deduplicate overlap', async () => {
   const reads = []; const rows = Array.from({ length: 1400 }, (_, i) => ({ id: `p${i}`, quantity_min: i }));
@@ -79,7 +81,7 @@ test('price reads paginate past 1000 rows with stable ordering and deduplicate o
   assert.ok(reads.every(read => read.filters.some(([key,value]) => key === 'is_active' && value === true)));
 });
 
-function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false } = {}) {
+function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false, hasMore = false } = {}) {
   const job = { id: 'job', language: 'PT', status: 'pending', errors: [], raw_payload: {
     ...progressApi.initialCustomizationProgress(), stage, attempts, sourceCapturedAt: stage === 'options' ? '2026-10-01T21:00:00Z' : undefined,
   } };
@@ -93,7 +95,7 @@ function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0
   const api = load('src/lib/stricker/customization-jobs.ts', {
     'node:crypto': { randomUUID: () => 'owner' }, '@/lib/supabase/admin': { createSupabaseAdminClient: () => client },
     '@/lib/stricker/auth': { getStrickerSupplierId: async () => 's' },
-    '@/lib/stricker/rest/sync-customization-options': { syncRestCustomizationOptions: async args => { batchCalls.push(args); if (batchError) throw Error(batchError); return result({ hasMore: false, nextCursor: null, nextOffset: null, optionsFailed: failed }); } },
+    '@/lib/stricker/rest/sync-customization-options': { syncRestCustomizationOptions: async args => { batchCalls.push(args); if (batchError) throw Error(batchError); return result({ hasMore, nextCursor: hasMore ? 'next' : null, nextOffset: hasMore ? 25 : null, optionsFailed: failed }); } },
     '@/lib/stricker/rest/sync-customization-options-source': { syncRestCustomizationOptionsSource: async () => { sourceCalls++; return { capturedAt: '2026-10-01T21:00:00Z' }; } },
     './customization-job-progress': progressApi,
     './sync-control': { assertSyncNotCancelled: async () => { if (canceled) throw Error('canceled'); }, isSyncCancelledError: error => error.message === 'canceled' },
@@ -160,6 +162,7 @@ const helpers = load('src/app/(public)/produto/[slug]/personalizar/page.tsx', {
   '@/lib/stricker/images': {}, '@/lib/supabase/server': {}, '@/lib/supabase/read-all-pages': pages,
   '@/lib/stricker/service-code': { isSupplierServiceCode: value => !!value },
   '@/lib/i18n/config': {}, '@/lib/i18n/colors': {}, '@/lib/i18n/catalog': {}, '@/lib/i18n/messages': {}, '@/lib/i18n/server': {},
+  '@/lib/customization/editor-catalog': {},
 }, '\nexport { codeBelongsToTechnique, codeBelongsToSlot };');
 test('editor groups areas of the same technique while price selection keeps the precise area', () => {
   assert.equal(helpers.codeBelongsToTechnique('LSR2-02-01', 'LSR2-01'), true);
@@ -167,6 +170,75 @@ test('editor groups areas of the same technique while price selection keeps the 
   assert.equal(helpers.codeBelongsToSlot('LSR2-02-01', 'LSR2-01'), false);
   assert.match(pageSource, /readAllPages<ProductCustomizationOption>/);
   assert.match(pageSource, /readAllPages<PrintingPriceTable>/);
+});
+
+test('worker runs only one batch and enforces the saved cooldown on the next invocation', async () => {
+  const f = workerFixture({ hasMore: true });
+  await f.api.processCustomizationJob();
+  assert.equal(f.batchCalls.length, 1);
+  assert.equal(f.batchCalls[0].limit, 25);
+  assert.equal(f.sourceCalls(), 0);
+  assert.equal(f.job.status, 'running');
+  assert.equal(f.job.raw_payload.offset, 25);
+  const next = await f.api.processCustomizationJob();
+  assert.equal(next.status, 'cooldown');
+  assert.equal(f.batchCalls.length, 1);
+});
+
+test('failed work waits ten minutes without advancing or requesting supplier data', async () => {
+  const f = workerFixture({ batchError: 'statement timeout' });
+  const before = Date.now();
+  await f.api.processCustomizationJob();
+  assert.ok(Date.parse(f.job.raw_payload.nextRunAt) >= before + 600000);
+  assert.equal(f.job.raw_payload.offset, 0);
+  await f.api.processCustomizationJob();
+  assert.equal(f.batchCalls.length, 1);
+  assert.equal(f.sourceCalls(), 0);
+});
+
+function writeFixture(existing, error = null) {
+  const writes = [];
+  const client = { from() { const q = {
+    select() { return q; }, in() { return q; }, order() { return q; }, range() { return q; },
+    returns() { return Promise.resolve({ data: existing, error: null }); },
+    upsert(rows) { writes.push(rows); return Promise.resolve({ error }); },
+  }; return q; } };
+  return { client, writes };
+}
+test('sync writes only changed or new options, preserving rows from other variants', async () => {
+  const first = { product_id:'p', variant_id:'v1', supplier_id:'s', service_code:'code', max_colors:4, is_active:true, raw_payload:{} };
+  const second = { ...first, variant_id:'v2', max_colors:1 };
+  const f = writeFixture([first, second]);
+  const result = await sync.upsertCustomizationOptions({ supabaseAdmin:f.client,
+    rows:[{...first}, {...second, max_colors:4}, {...first, service_code:'new'}] });
+  assert.equal(result.imported, 3); assert.equal(result.written, 2); assert.equal(result.unchanged, 1);
+  assert.deepEqual(Array.from(f.writes[0], r => [r.variant_id,r.service_code]), [['v2','code'],['v1','new']]);
+});
+test('unchanged options cause no writes, including nested payloads with different key order', async () => {
+  const row = { product_id:'p',variant_id:'v',supplier_id:'s',service_code:'code',raw_payload:{ a:1,b:2 } };
+  const f = writeFixture([{...row,raw_payload:{ b:2,a:1 }}]);
+  const result = await sync.upsertCustomizationOptions({ supabaseAdmin:f.client,rows:[row] });
+  assert.equal(result.written, 0); assert.equal(f.writes.length, 0);
+});
+test('database overload aborts a batch after one write attempt instead of recursively retrying', async () => {
+  const f = writeFixture([], { message:'canceling statement due to statement timeout' });
+  await assert.rejects(() => sync.upsertCustomizationOptions({ supabaseAdmin:f.client,
+    rows:[{ product_id:'p',variant_id:'v',supplier_id:'s',service_code:'code',raw_payload:{} }] }), /statement timeout/);
+  assert.equal(f.writes.length, 1);
+});
+
+const catalog = load('src/lib/customization/editor-catalog.ts');
+test('editor compression preserves all prices, service codes, areas and variants losslessly', () => {
+  const prices = Array.from({ length:80 }, (_,i) => ({ id:`p${i}`,table_code:'PDP6-01',table_code_option:'PDP6-01-04',
+    service_code:'91777.16.27.PDP6-01-04',quantity_min:i+1,quantity_max:null,final_price:1.25,max_colors:4,area_cm2:10 }));
+  const locations = Array.from({ length:20 }, (_,i) => ({ id:`l${i}`,variant_id:`v${i}`,source_location_id:`s${i}`,
+    print_area_geometry:{left:5,top:7,width:100,height:120},price_tiers:prices.map(p => ({...p})) }));
+  const packed = catalog.packEditorCatalog(locations);
+  assert.equal(packed.prices.length, 80);
+  assert.deepEqual(JSON.parse(JSON.stringify(catalog.unpackEditorCatalog(packed))), locations);
+  assert.ok(JSON.stringify(packed).length < JSON.stringify(locations).length * 0.15);
+  const differentServices = catalog.packEditorCatalog([{...locations[0],price_tiers:[prices[0],{...prices[0],service_code:'different-area'}]}]);
+  assert.equal(differentServices.prices.length, 2);
 });
 
 test('obsolete and invented services become inactive while official services and history remain', async () => {
