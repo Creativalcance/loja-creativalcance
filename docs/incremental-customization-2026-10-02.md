@@ -19,6 +19,12 @@ does not restart the source capture or add supplier requests to generation.
 - Only save signatures after all option writes and reconciliation succeed.
   Removed supplier services and removed areas become inactive; order references
   and history are retained. A failed batch keeps its durable cursor.
+- Compare and upsert at most 100 generated options in one database operation.
+  The conditional update leaves unchanged rows (and their updated_at) intact,
+  rejects mixed suppliers and returns the actual write count. This removes the
+  per-chunk HTTP read and broad cross-product variant/service filters. Verified
+  under service_role in a rolled-back transaction: identical input writes zero,
+  a changed price writes one, and supplier/size violations are rejected.
 - Increase batches from 25 to 50 and then at most 100 only after two executions
   under eight seconds. Reduce the batch after an execution over fifteen seconds
   or a failure. Keep the two-minute cron, adaptive rest and ten-minute error

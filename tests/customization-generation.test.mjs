@@ -204,11 +204,17 @@ test('failed work waits ten minutes without advancing or requesting supplier dat
 
 function writeFixture(existing, error = null) {
   const writes = [];
-  const client = { from() { const q = {
-    select() { return q; }, in() { return q; }, order() { return q; }, range() { return q; },
-    returns() { return Promise.resolve({ data: existing, error: null }); },
-    upsert(rows) { writes.push(rows); return Promise.resolve({ error }); },
-  }; return q; } };
+  const compare=load('src/lib/stricker/change-detection.ts').hasSupplierPayloadChanged;
+  const client = { rpc(name,{p_rows:rows,p_supplier_id}) {
+    assert.equal(name,'upsert_customization_generation_batch');
+    assert.ok(rows.every(row=>row.supplier_id===p_supplier_id));assert.ok(rows.length<=100);
+    const changed=rows.filter(row=>{
+      const current=existing.find(item=>['product_id','variant_id','supplier_id','service_code'].every(key=>row[key]===item[key]));
+      return !current || Object.keys(row).some(key=>compare(current[key],row[key]));
+    });
+    if(changed.length || error) writes.push(changed);
+    return Promise.resolve({data:changed.length,error});
+  } };
   return { client, writes };
 }
 test('sync writes only changed or new options, preserving rows from other variants', async () => {
@@ -301,7 +307,15 @@ function generationFixture() {
     price:{id:'price',table_code:'PDP6-01',table_code_option:'PDP6-01-04',quantity_min:1,max_colors:4,final_price:2},
     locations:[structuredClone(location)] };
   const client = {
-    rpc() { const q={select(){return q;},order(){return q;},range(){return q;},returns:async()=>({data:[fixture.price],error:null})};return q; },
+    rpc(name,{p_rows}={}) {
+      if(name==='upsert_customization_generation_batch') {
+        fixture.writes.push('product_customization_options');
+        if(fixture.failWrite)return Promise.resolve({data:null,error:{message:'write interrupted'}});
+        fixture.options=structuredClone(p_rows);
+        return Promise.resolve({data:p_rows.length,error:null});
+      }
+      const q={select(){return q;},order(){return q;},range(){return q;},returns:async()=>({data:[fixture.price],error:null})};return q;
+    },
     from(table) { let action, values, ids;
       function response() {
         if(action === 'upsert') {

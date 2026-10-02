@@ -7,7 +7,6 @@ import { type StrickerLanguage } from "@/lib/stricker/rest/types";
 import { type JsonRecord } from "@/lib/stricker/types";
 import { assertSyncNotCancelled } from "@/lib/stricker/sync-control";
 import { isSupplierServiceCode } from "@/lib/stricker/service-code";
-import { hasSupplierPayloadChanged } from "@/lib/stricker/change-detection";
 import { customizationFingerprint } from "@/lib/stricker/customization-fingerprint";
 
 type SupabaseAdminClient = ReturnType<typeof createSupabaseAdminClient>;
@@ -163,9 +162,12 @@ export type SyncRestCustomizationOptionsResult = {
 };
 
 const QUERY_CHUNK_SIZE = 100;
-const UPSERT_CHUNK_SIZE = 50;
+const UPSERT_CHUNK_SIZE = 100;
 
 function getErrorMessage(error: unknown): string {
+  if (typeof error === "object" && error !== null && "message" in error && typeof error.message === "string") {
+    return error.message;
+  }
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -1175,34 +1177,19 @@ async function upsertCustomizationOptions(params: {
 }): Promise<UpsertCustomizationOptionsResult> {
   const uniqueRows = dedupeCustomizationOptionRows(params.rows);
   let written = 0;
-  const identity = (row: ProductCustomizationOptionUpsertRow) =>
-    JSON.stringify([row.product_id, row.variant_id, row.supplier_id, row.service_code]);
   for (const rowChunk of chunkArray(uniqueRows, UPSERT_CHUNK_SIZE)) {
-    const columns = Object.keys(rowChunk[0]) as Array<keyof ProductCustomizationOptionUpsertRow>;
-    const existing = new Map<string, ProductCustomizationOptionUpsertRow>();
-    for (let page = 0; ; page += 1) {
-      const { data, error } = await params.supabaseAdmin.from("product_customization_options")
-        .select(columns.join(","))
-        .in("supplier_id", Array.from(new Set(rowChunk.map((row) => row.supplier_id))))
-        .in("variant_id", Array.from(new Set(rowChunk.map((row) => row.variant_id))))
-        .in("service_code", Array.from(new Set(rowChunk.map((row) => row.service_code))))
-        .order("id", { ascending: true }).range(page * 1_000, (page + 1) * 1_000 - 1)
-        .returns<ProductCustomizationOptionUpsertRow[]>();
-      if (error) throw new Error(error.message);
-      for (const row of data ?? []) existing.set(identity(row), row);
-      if (!data || data.length < 1_000) break;
-    }
-    const changed = rowChunk.filter((row) => {
-      const current = existing.get(identity(row));
-      return !current || columns.some((key) => hasSupplierPayloadChanged(current[key], row[key]));
+    const supplierId = rowChunk[0].supplier_id;
+    if (rowChunk.some((row) => row.supplier_id !== supplierId)) throw new Error("O lote mistura fornecedores.");
+    const { data, error } = await params.supabaseAdmin.rpc("upsert_customization_generation_batch", {
+      p_supplier_id: supplierId, p_rows: rowChunk,
     });
-    if (changed.length === 0) continue;
-    const { error } = await params.supabaseAdmin.from("product_customization_options")
-      .upsert(changed, { onConflict: "product_id,variant_id,supplier_id,service_code" });
     // On any error the worker preserves the checkpoint and waits ten minutes.
     // Retrying/splitting chunks here would multiply load on an overloaded DB.
     if (error) throw new Error(error.message);
-    written += changed.length;
+    if (!Number.isInteger(data) || data < 0 || data > rowChunk.length) {
+      throw new Error("A gravação devolveu uma contagem inválida; o lote será repetido.");
+    }
+    written += data;
   }
   return {
     imported: uniqueRows.length,
@@ -1382,6 +1369,7 @@ export async function syncRestCustomizationOptions(params: {
         throw phaseError("gravacao", error);
       }
     }
+    finishPhase("optionWrites");
 
     if (params.sourceCapturedAt && failedOptionRecords.length === 0) {
       await assertSyncNotCancelled({ supabaseAdmin, datasetImportId });
@@ -1392,7 +1380,7 @@ export async function syncRestCustomizationOptions(params: {
         variants: variants.filter((variant) => changedVariantIds.has(variant.id)),
         productReferencesById, supplierOptions: supplierOptionRecords, generatedServicesByLocation });
     }
-    finishPhase("writesAndReconciliation");
+    finishPhase("serviceReconciliation");
 
     // Never publish a signature before all writes/reconciliation succeed. A
     // failed checkpoint can repeat the batch using the saved signatures safely.
