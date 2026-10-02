@@ -139,7 +139,7 @@ test('new cron jobs use existing locking and dispatch the intended language', as
     assert.equal(calls.at(-1).name, 'release_integration_sync_lock');
   }
   assert.equal(sync.isStrickerAutomaticSyncJob('products-unsupported'), false);
-  assert.equal(crons.find(c => c.path === '/api/cron/stricker/customization-options-worker').schedule, '*/2 * * * *');
+  assert.equal(crons.find(c => c.path === '/api/cron/stricker/customization-options-worker').schedule, '* * * * *');
   await sync.runStrickerAutomaticSync('customization-options-worker');
   assert.equal(calls.at(-3).params.target_lock_key, 'stricker:automatic-sync');
   assert.equal(calls.at(-2).worker, true);

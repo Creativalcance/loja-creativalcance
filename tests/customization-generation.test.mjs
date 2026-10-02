@@ -85,7 +85,10 @@ test('reduced price reads still paginate past 1000 winners and scope supplier/co
   assert.deepEqual(Array.from(reads[0].args.p_table_codes), ['PDP6-01']);
 });
 
-function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0, canceled = false, hasMore = false, prior, signatures = ['catalogue'] } = {}) {
+function workerFixture({ stage = 'options', attempts = 0, batchError, batchErrorAt = 1, failed = 0, canceled = false,
+  cancelAfterCheckpoint = false, durationMs = 5000, hasMore = false, prior, signatures = ['catalogue'] } = {}) {
+  let now = Date.now();
+  class Clock extends Date { constructor(...args) { super(...(args.length ? args : [now])); } static now() { return now; } }
   const job = { id: 'job', language: 'PT', status: 'pending', errors: [], raw_payload: {
     ...progressApi.initialCustomizationProgress(), stage, attempts, sourceCapturedAt: stage === 'options' ? '2026-10-01T21:00:00Z' : undefined,
   } };
@@ -100,13 +103,20 @@ function workerFixture({ stage = 'options', attempts = 0, batchError, failed = 0
   const api = load('src/lib/stricker/customization-jobs.ts', {
     'node:crypto': { randomUUID: () => 'owner' }, '@/lib/supabase/admin': { createSupabaseAdminClient: () => client },
     '@/lib/stricker/auth': { getStrickerSupplierId: async () => 's' },
-    '@/lib/stricker/rest/sync-customization-options': { syncRestCustomizationOptions: async args => { batchCalls.push(args); if (batchError) throw Error(batchError); return result({ hasMore, nextCursor: hasMore ? 'next' : null, nextOffset: hasMore ? 25 : null, optionsFailed: failed }); } },
+    '@/lib/stricker/rest/sync-customization-options': { syncRestCustomizationOptions: async args => {
+      batchCalls.push(args); now += durationMs;
+      if (batchError && batchCalls.length === batchErrorAt) throw Error(batchError);
+      return result({ recordsProcessed: args.limit, hasMore, nextCursor: hasMore ? `next-${args.offset + args.limit}` : null,
+        nextOffset: hasMore ? args.offset + args.limit : null, optionsFailed: failed });
+    } },
     '@/lib/stricker/rest/sync-customization-options-source': { syncRestCustomizationOptionsSource: async () => { sourceCalls++; return { capturedAt: '2026-10-01T21:00:00Z' }; } },
     './customization-job-progress': progressApi,
     './customization-fingerprint': fingerprintApi,
-    './sync-control': { assertSyncNotCancelled: async () => { if (canceled) throw Error('canceled'); }, isSyncCancelledError: error => error.message === 'canceled' },
-  });
-  return { api, job, writes, batchCalls, sourceCalls: () => sourceCalls };
+    './sync-control': { assertSyncNotCancelled: async () => {
+      if (canceled || (cancelAfterCheckpoint && job.raw_payload.offset > 0)) throw Error('canceled');
+    }, isSyncCancelledError: error => error.message === 'canceled' },
+  }, '', { Date: Clock });
+  return { api, job, writes, batchCalls, sourceCalls: () => sourceCalls, clockNow: () => now, advanceClock: ms => { now += ms; } };
 }
 test('source capture and batch generation use separate invocation budgets', async () => {
   const f = workerFixture({ stage: 'source' }); await f.api.processCustomizationJob();
@@ -178,17 +188,63 @@ test('editor groups areas of the same technique while price selection keeps the 
   assert.match(pageSource, /readAllPages<PrintingPriceTable>/);
 });
 
-test('worker runs only one batch and enforces the saved cooldown on the next invocation', async () => {
-  const f = workerFixture({ hasMore: true });
+test('worker checkpoints each fast batch and enforces cooldown between bounded bursts', async () => {
+  const f = workerFixture({ hasMore: true, durationMs: 1000 });
   await f.api.processCustomizationJob();
-  assert.equal(f.batchCalls.length, 1);
+  assert.equal(f.batchCalls.length, 4);
   assert.equal(f.batchCalls[0].limit, 25);
   assert.equal(f.sourceCalls(), 0);
   assert.equal(f.job.status, 'running');
-  assert.equal(f.job.raw_payload.offset, 25);
+  assert.equal(f.job.raw_payload.offset, 150);
+  assert.deepEqual(f.writes.filter(w => w.raw_payload.attempts === 0).map(w => w.raw_payload.offset), [25,50,100,150]);
+  assert.equal(f.job.raw_payload.lastInvocationBatches, 4);
   const next = await f.api.processCustomizationJob();
   assert.equal(next.status, 'cooldown');
+  assert.equal(f.batchCalls.length, 4);
+  f.advanceClock(15000);
+  await f.api.processCustomizationJob();
+  assert.equal(f.job.raw_payload.offset, 550);
+  assert.ok(f.batchCalls.every(call => call.limit <= 100));
+  assert.equal(f.sourceCalls(), 0);
+});
+
+test('worker stops when the next growing batch would exceed its time budget', async () => {
+  const f = workerFixture({ hasMore: true, durationMs: 7000 });
+  await f.api.processCustomizationJob();
+  assert.equal(f.batchCalls.length, 2);
+  assert.equal(f.job.raw_payload.offset, 50);
+  assert.equal(f.job.raw_payload.lastInvocationDurationMs, 14000);
+});
+
+test('a slow batch shrinks and rests instead of continuing the burst', async () => {
+  const f = workerFixture({ hasMore: true, durationMs: 16000 });
+  f.job.raw_payload.batchSize = 50;
+  const before = f.clockNow();
+  await f.api.processCustomizationJob();
   assert.equal(f.batchCalls.length, 1);
+  assert.equal(f.job.raw_payload.offset, 50);
+  assert.equal(f.job.raw_payload.batchSize, 25);
+  assert.ok(Date.parse(f.job.raw_payload.nextRunAt) >= before + 76000);
+});
+
+test('failure later in a burst preserves the last successful checkpoint and backs off', async () => {
+  const f = workerFixture({ hasMore: true, durationMs: 1000, batchError: 'database busy', batchErrorAt: 2 });
+  const before = Date.now();
+  await f.api.processCustomizationJob();
+  assert.equal(f.batchCalls.length, 2);
+  assert.equal(f.job.raw_payload.offset, 25);
+  assert.equal(f.job.raw_payload.cursor, 'next-25');
+  assert.equal(f.job.raw_payload.attempts, 1);
+  assert.ok(Date.parse(f.job.raw_payload.nextRunAt) >= before + 600000);
+  assert.equal(f.sourceCalls(), 0);
+});
+
+test('cancellation between checkpoints prevents another batch', async () => {
+  const f = workerFixture({ hasMore: true, durationMs: 1000, cancelAfterCheckpoint: true });
+  const outcome = await f.api.processCustomizationJob();
+  assert.equal(outcome.status, 'canceled');
+  assert.equal(f.batchCalls.length, 1);
+  assert.equal(f.job.raw_payload.offset, 25);
 });
 
 test('failed work waits ten minutes without advancing or requesting supplier data', async () => {

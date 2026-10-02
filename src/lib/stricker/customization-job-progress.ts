@@ -10,6 +10,8 @@ export type CustomizationJobProgress = {
   sourceCapturedAt?: string;
   nextRunAt?: string;
   lastBatchDurationMs?: number;
+  lastInvocationBatches?: number;
+  lastInvocationDurationMs?: number;
   batchSize?: number;
   fastBatches?: number;
   locationsSkipped?: number;
@@ -55,4 +57,17 @@ export function nextCustomizationBatch(current: number, durationMs: number, fast
   return successes >= 2
     ? { batchSize: Math.min(100, size * 2), fastBatches: 0 }
     : { batchSize: size, fastBatches: successes };
+}
+
+// Estimate before starting another batch, rather than writing continuously.
+// The time budget is a scheduling bound, not cancellation of an in-flight write.
+export function customizationInvocationPolicy(params: {
+  batches: number; elapsedMs: number; durationMs: number; batchSize: number; nextBatchSize: number;
+}) {
+  const slow = params.durationMs > 15_000;
+  const predictedMs = Math.max(2_000, params.durationMs * params.nextBatchSize / params.batchSize);
+  return {
+    continueNow: !slow && params.batches < 4 && params.elapsedMs + predictedMs <= 20_000,
+    cooldownMs: slow ? Math.max(60_000, params.durationMs * 3) : 15_000,
+  };
 }

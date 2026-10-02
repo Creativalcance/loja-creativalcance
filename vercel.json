@@ -96,7 +96,7 @@
     },
     {
       "path": "/api/cron/stricker/customization-options-worker",
-      "schedule": "*/2 * * * *"
+      "schedule": "* * * * *"
     }
   ]
 }
