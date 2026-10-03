@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   BadgeCheck,
   PackageCheck,
@@ -31,6 +31,7 @@ type AdminTrackingFormProps = {
 };
 
 type AdminInvoiceFormProps = {
+  invoiceStoragePath?: string | null;
   orderId: string;
   invoiceNumber: string | null;
   invoiceUrl: string | null;
@@ -347,99 +348,31 @@ export function AdminTrackingForm({
   );
 }
 
-export function AdminInvoiceForm({
-  orderId,
-  invoiceNumber,
-  invoiceUrl,
-  invoiceStatus,
-}: AdminInvoiceFormProps) {
-  const [state, formAction, isPending] = useActionState(
-    updateOrderInvoiceAction,
-    initialState,
-  );
-
+export function AdminInvoiceForm({ orderId, invoiceNumber, invoiceStoragePath, invoiceStatus }: AdminInvoiceFormProps) {
+  const [state, formAction, isPending] = useActionState(updateOrderInvoiceAction, initialState);
+  const [fileError, setFileError] = useState("");
   return (
-    <form action={formAction} className="space-y-4">
-      <input
-        type="hidden"
-        name="orderId"
-        value={orderId}
-      />
-
+    <form action={formAction} className="mt-5 space-y-4">
+      <input type="hidden" name="orderId" value={orderId} />
+      <p className="text-sm text-neutral-600">Carrega a fatura emitida no teu programa de faturação. Ao guardar, o PDF fica na área de cliente e é enviado por email ao cliente.</p>
       <div>
-        <label
-          htmlFor={`invoice-number-${orderId}`}
-          className="block text-sm font-medium text-neutral-700"
-        >
-          Número da fatura
-        </label>
-
-        <input
-          id={`invoice-number-${orderId}`}
-          name="invoiceNumber"
-          type="text"
-          defaultValue={invoiceNumber ?? ""}
-          placeholder="Ex.: FT 2026/0001"
-          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-        />
+        <label htmlFor={`invoice-number-${orderId}`} className="block text-sm font-medium text-neutral-700">Número da fatura</label>
+        <input id={`invoice-number-${orderId}`} name="invoiceNumber" type="text" required maxLength={100}
+          defaultValue={invoiceNumber ?? ""} placeholder="Ex.: FT 2026/0001"
+          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 focus:border-neutral-950" />
       </div>
-
       <div>
-        <label
-          htmlFor={`invoice-url-${orderId}`}
-          className="block text-sm font-medium text-neutral-700"
-        >
-          Ligação para a fatura
-        </label>
-
-        <input
-          id={`invoice-url-${orderId}`}
-          name="invoiceUrl"
-          type="url"
-          defaultValue={invoiceUrl ?? ""}
-          placeholder="https://..."
-          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-        />
+        <label htmlFor={`invoice-file-${orderId}`} className="block text-sm font-medium text-neutral-700">{invoiceStoragePath ? "Substituir PDF" : "Fatura em PDF"}</label>
+        <input id={`invoice-file-${orderId}`} name="invoiceFile" type="file" accept="application/pdf,.pdf" required={!invoiceStoragePath}
+          onChange={event => setFileError((event.target.files?.[0]?.size ?? 0) > 3 * 1024 * 1024 ? "O PDF deve ter até 3 MB." : "")}
+          aria-describedby={`invoice-file-help-${orderId}`}
+          className="mt-2 block w-full text-sm file:mr-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:px-4 file:py-3 file:font-semibold" />
+        <p id={`invoice-file-help-${orderId}`} className="mt-2 text-xs text-neutral-500">Até 3 MB.{invoiceStoragePath ? " Sem um novo ficheiro, mantém-se a fatura guardada. Uma fatura já enviada não é reenviada ao guardar novamente." : ""}</p>
+        {fileError && <p role="alert" className="text-sm text-red-700">{fileError}</p>}
       </div>
-
-      <div>
-        <label
-          htmlFor={`invoice-status-${orderId}`}
-          className="block text-sm font-medium text-neutral-700"
-        >
-          Estado da fatura
-        </label>
-
-        <select
-          id={`invoice-status-${orderId}`}
-          name="invoiceStatus"
-          defaultValue={invoiceStatus ?? "pending"}
-          className="mt-2 w-full rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
-        >
-          <option value="pending">
-            Pendente
-          </option>
-
-          <option value="issued">
-            Emitida
-          </option>
-
-          <option value="sent">
-            Enviada ao cliente
-          </option>
-
-          <option value="cancelled">
-            Cancelada
-          </option>
-        </select>
-      </div>
-
-      <FormSubmitButton
-        isPending={isPending}
-        pendingLabel="A guardar..."
-        label="Guardar faturação"
-      />
-
+      <button type="submit" disabled={isPending || Boolean(fileError)} className="w-full rounded-2xl bg-neutral-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+        {isPending ? "A guardar e enviar..." : invoiceStatus === "sent" ? "Guardar fatura" : "Guardar e enviar fatura"}
+      </button>
       <StateMessage state={state} />
     </form>
   );

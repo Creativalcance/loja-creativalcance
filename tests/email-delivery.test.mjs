@@ -9,7 +9,7 @@ function load(path, imports = {}, globals = {}) {
   const exports = {};
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(path, 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-  }).outputText, { exports, URL, Intl, Buffer, console, process: { env: {} }, ...globals,
+  }).outputText, { exports, URL, Intl, Buffer, AbortSignal, console, process: { env: {} }, ...globals,
     require: name => { if (!(name in imports)) throw new Error(`Unexpected import ${name}`); return imports[name]; },
   });
   return exports;
@@ -74,6 +74,12 @@ function fixture(locale = 'pt') {
 }
 function harness(seed = {}, options = {}) {
   const db = database(seed), requests = [], errors = [];
+  const downloads = [];
+  db.storage = { from: bucket => ({ download: async path => {
+    assert.equal(bucket, 'order-invoices'); downloads.push(path);
+    return options.storageFailure ? { data: null, error: { message: 'private file unavailable' } }
+      : { data: new Blob(['%PDF-1.7 invoice-fixture']), error: null };
+  } }) };
   const state = { fail: options.fail || false, translationFailure: false };
   const globals = {
     console: { error: (...args) => errors.push(args) },
@@ -87,6 +93,8 @@ function harness(seed = {}, options = {}) {
     },
   };
   const imports = {
+    '@/lib/orders/invoice-file': load('src/lib/orders/invoice-file.ts', {'node:crypto': crypto}),
+    '@/lib/notifications/invoice-email': load('src/lib/notifications/invoice-email.ts'),
     'node:crypto': crypto, 'node:timers/promises': { setTimeout: async () => {} },
     '@/lib/i18n/config': config, '@/lib/customer/order-status': statuses,
     '@/lib/supabase/admin': { createSupabaseAdminClient: () => db },
@@ -95,7 +103,7 @@ function harness(seed = {}, options = {}) {
       return new Map([['supplier-product', { name: { en: 'Bottle', fr: 'Bouteille', es: 'Botella', de: 'Flasche', it: 'Bottiglia' }[locale] }]]);
     } },
   };
-  return { db, requests, state, errors, globals,
+  return { db, requests, state, errors, globals, downloads,
     customer: load('src/lib/notifications/customer-email.ts', imports, globals),
     internal: load('src/lib/notifications/internal-order.ts', imports, globals),
     newsletter: load('src/lib/newsletter/welcome-email.ts', imports, globals) };
@@ -244,4 +252,86 @@ test('repeated genuine status transitions have distinct events while retries kee
   assert.equal(h.requests.length,2);
   assert.notEqual(h.requests[0].headers['Idempotency-Key'],h.requests[1].headers['Idempotency-Key']);
   assert.equal(h.requests[1].body.tags.find(tag=>tag.name==='locale').value,'es');
+});
+
+
+function invoiceFixture(locale = 'pt') {
+  const order = fixture(locale);
+  order.invoice_storage_path = `${order.id}/${'a'.repeat(64)}.pdf`;
+  order.invoice_number = 'FT 2026/123'; order.invoice_status = 'issued';
+  const email = { id: 'invoice-mail', event_key: `order-invoice:${order.id}:${'a'.repeat(64)}`,
+    event_type: 'order_invoice_available', email_to: order.customer_email, locale,
+    email_status: 'pending', email_attempts: 0,
+    payload: { orderId: order.id, orderNumber: order.order_number, invoiceNumber: order.invoice_number,
+      invoicePath: order.invoice_storage_path, invoiceFileName: 'Fatura-2026-123.pdf' } };
+  return { order, email };
+}
+for (const [locale, word] of Object.entries({ pt: 'Fatura', en: 'Invoice', fr: 'Facture', es: 'Factura', de: 'Rechnung', it: 'Fattura' })) {
+  test(`${locale}: invoice PDF is attached to the customer email once and available through the customer area`, async () => {
+    const { order, email } = invoiceFixture(locale);
+    const h = harness({ orders: [order], customer_email_notifications: [email] });
+    assert.equal(await h.customer.deliverSavedOrderInvoice(order.id, order.invoice_storage_path), 'sent');
+    assert.equal(h.requests.length, 1);
+    const mail = h.requests[0].body;
+    assert.match(mail.subject, new RegExp(word));
+    assert.deepEqual(mail.to, [order.customer_email]);
+    assert.deepEqual(mail.attachments, [{ filename: 'Fatura-2026-123.pdf', content: Buffer.from('%PDF-1.7 invoice-fixture').toString('base64') }]);
+    assert.match(mail.text, /FT 2026\/123/);
+    assert.ok(mail.text.includes(`${locale === 'pt' ? '' : '/' + locale}/area-cliente/encomendas/${order.id}`));
+    assert.doesNotMatch(mail.text, /order-invoices|fornecedor|supplier/);
+    assert.equal(h.db.tables.orders[0].invoice_status, 'sent');
+    await h.customer.deliverSavedOrderInvoice(order.id, order.invoice_storage_path);
+    assert.equal(h.requests.length, 1);
+  });
+}
+test('invoice provider failure is retried with identical PDF, recipient, content and idempotency key', async () => {
+  const { order, email } = invoiceFixture('de');
+  const h = harness({ orders: [order], customer_email_notifications: [email] }, { fail: true });
+  assert.equal(await h.customer.deliverSavedOrderInvoice(order.id, order.invoice_storage_path), 'failed');
+  assert.equal(h.db.tables.orders[0].invoice_status, 'issued');
+  h.state.fail = false;
+  await h.customer.retryPendingCustomerEmails();
+  assert.equal(h.db.tables.orders[0].invoice_status, 'sent');
+  assert.deepEqual(h.requests[0], h.requests[1]);
+});
+test('an unavailable invoice file stays queued without sending an attachment-free email', async () => {
+  const { order, email } = invoiceFixture();
+  const h = harness({ orders: [order], customer_email_notifications: [email] }, { storageFailure: true });
+  assert.equal(await h.customer.deliverSavedOrderInvoice(order.id, order.invoice_storage_path), 'failed');
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.db.tables.customer_email_notifications[0].email_status, 'failed');
+});
+test('superseded and deleted invoices are cancelled before signing, downloading or emailing any document', async () => {
+  for (const change of [{ invoice_storage_path: 'replacement.pdf' }, { deleted_at: '2026-10-03' }, { invoice_status: 'cancelled' }]) {
+    const { order, email } = invoiceFixture(); Object.assign(order, change);
+    const h = harness({ orders: [order], customer_email_notifications: [email] });
+    await h.customer.retryPendingCustomerEmails();
+    assert.equal(h.requests.length, 0); assert.equal(h.downloads.length, 0);
+    assert.equal(h.db.tables.customer_email_notifications[0].email_status, 'cancelled');
+  }
+});
+test('internal invoice alert includes the customer amounts and addresses, never provider costs or internal notes', async () => {
+  const order = fixture(); order.status = 'shipped'; order.fulfillment_status = 'shipped';
+  const email = { id: 'alert', event_key: `invoice-required:${order.id}`, event_type: 'invoice_required',
+    email_to: 'info@creativalcance.com', locale: 'pt', email_status: 'pending', email_attempts: 0,
+    payload: { orderId: order.id, orderNumber: order.order_number, testMode: true, customerName: '<script>Client</script>',
+      customerEmail: order.customer_email, taxId: '123456789', currency: 'EUR', grandTotal: 49.69, amountPaid: 49.69,
+      taxTotal: 9.29, shippingTotal: 4.90, subtotal: 1.40, personalizationTotal: 34.10,
+      billingAddress: { line1: 'Rua de Teste', postalCode: '3000-123', city: 'Coimbra', country: 'PT' },
+      supplierCost: 'SECRET_COST', internalNotes: 'SECRET_NOTE', items: [{ sku: 'SKU-1', name: 'Bloco', quantity: 10, total: 35.5 }] } };
+  const h = harness({ orders: [order], customer_email_notifications: [email] });
+  await h.customer.retryPendingCustomerEmails();
+  const mail = h.requests[0].body;
+  assert.deepEqual(mail.to, ['info@creativalcance.com']); assert.match(mail.subject, /^\[TESTE\]/);
+  for (const value of ['49,69', '9,29', '4,90', 'Rua de Teste', '123456789', 'SKU-1']) assert.ok(mail.text.includes(value), value);
+  assert.doesNotMatch(mail.html, /<script>|SECRET_COST|SECRET_NOTE/);
+  assert.match(mail.html, /&lt;script&gt;/); assert.equal(mail.attachments, undefined);
+  await h.customer.retryPendingCustomerEmails(); assert.equal(h.requests.length, 1);
+});
+test('invoice alert is cancelled if the invoice is already uploaded before the worker runs', async () => {
+  const { order } = invoiceFixture(); order.status = 'shipped';
+  const h = harness({ orders: [order], customer_email_notifications: [{ id: 'alert', event_key: `invoice-required:${order.id}`,
+    event_type: 'invoice_required', email_status: 'pending', email_attempts: 0, email_to: 'info@creativalcance.com', locale: 'pt', payload: { orderId: order.id } }] });
+  await h.customer.retryPendingCustomerEmails();
+  assert.equal(h.requests.length, 0); assert.equal(h.db.tables.customer_email_notifications[0].email_status, 'cancelled');
 });

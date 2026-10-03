@@ -24,7 +24,7 @@ export default async function SalesOrder({
     admin
       .from("orders")
       .select(
-        "id,order_number,customer_name,company_name,status,payment_status,currency,grand_total,invoice_url,tracking_url,tracking_number,shipping_carrier,created_at",
+        "id,order_number,customer_name,company_name,status,payment_status,currency,grand_total,invoice_url,invoice_storage_path,tracking_url,tracking_number,shipping_carrier,created_at",
       )
       .eq("id", id)
       .is("deleted_at", null)
@@ -73,7 +73,7 @@ export default async function SalesOrder({
               locale,
             )}
           </span>
-          {safeDocumentUrl(order.invoice_url) && (
+          {(order.invoice_storage_path || safeDocumentUrl(order.invoice_url)) && (
             <Link
               className="rounded-full bg-[#162334] px-4 py-2 text-sm text-white"
               href={path(

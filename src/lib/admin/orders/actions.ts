@@ -7,7 +7,9 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import {
   notifyOrderStatusChanged,
   notifyOrderTrackingAvailable,
+  deliverSavedOrderInvoice,
 } from "@/lib/notifications/customer-email";
+import { INVOICE_BUCKET, prepareInvoiceFile } from "@/lib/orders/invoice-file";
 
 export type AdminOrderActionState = {
   success: boolean;
@@ -29,6 +31,7 @@ type OrderRecord = {
   invoice_number: string | null;
   invoice_url: string | null;
   invoice_status: string | null;
+  invoice_storage_path: string | null;
   shipped_at: string | null;
   delivered_at: string | null;
   metadata: JsonRecord | null;
@@ -65,13 +68,6 @@ const FULFILLMENT_STATUSES = new Set([
   "fulfilled",
   "shipped",
   "delivered",
-  "cancelled",
-]);
-
-const INVOICE_STATUSES = new Set([
-  "pending",
-  "issued",
-  "sent",
   "cancelled",
 ]);
 
@@ -228,6 +224,7 @@ async function getOrder(
         invoice_number,
         invoice_url,
         invoice_status,
+        invoice_storage_path,
         shipped_at,
         delivered_at,
         metadata,
@@ -507,118 +504,62 @@ export async function updateOrderInvoiceAction(
   formData: FormData,
 ): Promise<AdminOrderActionState> {
   try {
-    const access = await assertAdminAccess(
-      "/admin/encomendas",
-    );
-
-    const orderId = getRequiredFormString(
-      formData,
-      "orderId",
-    );
-
-    const invoiceNumber = getFormString(
-      formData,
-      "invoiceNumber",
-    );
-
-    const invoiceUrl = getFormString(
-      formData,
-      "invoiceUrl",
-    );
-
-    const invoiceStatus =
-      getFormString(
-        formData,
-        "invoiceStatus",
-      ) ?? "issued";
-
-    if (!invoiceNumber && !invoiceUrl) {
-      return {
-        success: false,
-        message:
-          "Indica o número ou a ligação da fatura.",
-      };
-    }
-
-    if (
-      !INVOICE_STATUSES.has(invoiceStatus)
-    ) {
-      return {
-        success: false,
-        message:
-          "O estado da fatura não é válido.",
-      };
-    }
-
-    if (!isValidHttpUrl(invoiceUrl)) {
-      return {
-        success: false,
-        message:
-          "A ligação da fatura não é válida.",
-      };
-    }
-
+    const access = await assertAdminAccess("/admin/encomendas");
+    const orderId = getRequiredFormString(formData, "orderId");
+    const invoiceNumber = getRequiredFormString(formData, "invoiceNumber");
     const order = await getOrder(orderId);
-    const now = new Date().toISOString();
+    const file = formData.get("invoiceFile");
+    let path = order.invoice_storage_path;
+    const admin = createSupabaseAdminClient();
 
-    const supabaseAdmin =
-      createSupabaseAdminClient();
-
-    const currentMetadata =
-      getMetadataRecord(order.metadata);
-
-    const { error } = await supabaseAdmin
-      .from("orders")
-      .update({
-        invoice_number: invoiceNumber,
-        invoice_url: invoiceUrl,
-        invoice_status: invoiceStatus,
-        metadata: {
-          ...currentMetadata,
-          invoiceUpdatedAt: now,
-          invoiceUpdatedBy:
-            access.userId,
-        },
-      })
-      .eq("id", order.id);
-
-    if (error) {
-      throw new Error(error.message);
+    if (file instanceof File && file.size > 0) {
+      const invoice = await prepareInvoiceFile(order.id, invoiceNumber, file);
+      path = invoice.path;
+      if (path !== order.invoice_storage_path || invoiceNumber !== order.invoice_number) {
+        const upload = await admin.storage.from(INVOICE_BUCKET).upload(path, invoice.bytes, {
+          contentType: "application/pdf", upsert: false, cacheControl: "0",
+        });
+        if (upload.error && !["409", "Duplicate"].includes(String(upload.error.statusCode)) && !/already exists/i.test(upload.error.message)) {
+          throw new Error("Não foi possível carregar o PDF. Tenta novamente.");
+        }
+        const now = new Date().toISOString();
+        const changed = await admin.from("orders").update({
+          invoice_number: invoiceNumber, invoice_storage_path: path, invoice_file_name: invoice.fileName,
+          invoice_uploaded_at: now, invoice_url: null, invoice_status: "issued",
+          metadata: { ...getMetadataRecord(order.metadata), invoiceUpdatedAt: now, invoiceUpdatedBy: access.userId },
+        }).eq("id", order.id).eq("updated_at", order.updated_at).is("deleted_at", null).select("id").maybeSingle();
+        if (changed.error) throw new Error(changed.error.message);
+        if (!changed.data) throw new Error("A encomenda foi alterada entretanto. Atualiza a página e volta a carregar a fatura.");
+        // The database has atomically queued the email with the saved invoice.
+        try {
+          await insertOrderHistory({ orderId: order.id, previousStatus: order.status, newStatus: order.status,
+            changedBy: access.userId, notes: `Fatura ${invoiceNumber} carregada para envio ao cliente.`,
+            metadata: { action: "invoice_uploaded", invoiceNumber, invoicePath: path } });
+        } catch (cause) {
+          console.error("Invoice saved; history unavailable", { orderId: order.id, message: cause instanceof Error ? cause.message : "Unknown error" });
+        }
+      }
+    } else if (!path || invoiceNumber !== order.invoice_number) {
+      return { success: false, message: "Indica o número da fatura e carrega o respetivo PDF (até 3 MB)." };
     }
-
-    await insertOrderHistory({
-      orderId: order.id,
-      previousStatus: order.status,
-      newStatus: order.status,
-      changedBy: access.userId,
-      notes: `Fatura ${
-        invoiceNumber ?? ""
-      } atualizada. Estado: ${getStatusLabel(
-        invoiceStatus,
-      )}.`,
-      metadata: {
-        action: "invoice_updated",
-        invoiceNumber,
-        invoiceUrl,
-        invoiceStatus,
-      },
-    });
-
+    if (!path) throw new Error("Carrega o PDF da fatura.");
+    // Also recovers an invoice saved during the schema/application rollout.
+    if (path === order.invoice_storage_path && order.invoice_status === "issued") {
+      const queued = await admin.from("orders").update({ invoice_status: "issued" })
+        .eq("id", order.id).eq("invoice_storage_path", path).eq("invoice_status", "issued").is("deleted_at", null);
+      if (queued.error) throw new Error(queued.error.message);
+    }
+    const delivery = await deliverSavedOrderInvoice(order.id, path);
     revalidateOrderPaths(order.id);
-
-    return {
-      success: true,
-      message:
-        "Fatura atualizada com sucesso.",
-    };
+    return { success: true, message: delivery === "sent"
+      ? "Fatura guardada e enviada por email ao cliente."
+      : delivery === "failed"
+        ? "Fatura guardada. O email falhou. Podes voltar a tentar neste formulário."
+        : delivery === "cancelled"
+          ? "Fatura guardada. O envio foi cancelado porque os dados foram alterados. Atualiza a página."
+          : "Fatura guardada. O envio ao cliente está em processamento." };
   } catch (error) {
-    return {
-      success: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "Não foi possível atualizar a fatura.",
-    };
+    return { success: false, message: error instanceof Error ? error.message : "Não foi possível guardar a fatura." };
   }
 }
 

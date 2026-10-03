@@ -34,7 +34,7 @@ import AdminRetrySupplierSubmissionForm from "@/components/admin/orders/AdminRet
 import OrderArtworkPreview from "@/components/orders/OrderArtworkPreview";
 import { buildOrderArtworkPreview } from "@/lib/orders/artwork-preview";
 import { hydrateOrderArtworkGeometry } from "@/lib/orders/artwork-geometry";
-import { AdminOrderStatusForm, AdminTrackingForm } from "@/components/admin/orders/AdminOrderOperations";
+import { AdminOrderStatusForm, AdminTrackingForm, AdminInvoiceForm } from "@/components/admin/orders/AdminOrderOperations";
 import { replaceSupplierBrandName } from "@/lib/supplier/display";
 
 export const dynamic = "force-dynamic";
@@ -80,6 +80,7 @@ type OrderRecord = {
   invoice_number: string | null;
   invoice_url: string | null;
   invoice_status: string | null;
+  invoice_storage_path: string | null;
   supplier_invoice_number: string | null;
   supplier_invoice_url: string | null;
   supplier_invoice_status: string | null;
@@ -912,6 +913,7 @@ const supabaseAdmin = createSupabaseAdminClient();
     checkoutSessionsResult,
     historyResult,
     stripeEventsResult,
+    invoiceEmailsResult,
   ] = await Promise.all([
     supabaseAdmin
       .from("orders")
@@ -944,6 +946,7 @@ const supabaseAdmin = createSupabaseAdminClient();
           invoice_number,
           invoice_url,
           invoice_status,
+          invoice_storage_path,
           supplier_invoice_number,
           supplier_invoice_url,
           supplier_invoice_status,
@@ -1158,6 +1161,10 @@ const supabaseAdmin = createSupabaseAdminClient();
         ascending: false,
       })
       .returns<StripeWebhookEventRecord[]>(),
+    supabaseAdmin.from("customer_email_notifications")
+      .select("id,event_type,email_status,email_sent_at,email_error,payload")
+      .eq("order_id", id).in("event_type", ["invoice_required", "order_invoice_available"])
+      .order("created_at", { ascending: false }).limit(6),
   ]);
 
   if (orderResult.error || !orderResult.data) {
@@ -2301,6 +2308,17 @@ const supabaseAdmin = createSupabaseAdminClient();
                 />
               </dl>
 
+              <AdminInvoiceForm orderId={order.id} invoiceNumber={order.invoice_number} invoiceUrl={order.invoice_url}
+                invoiceStatus={order.invoice_status} invoiceStoragePath={order.invoice_storage_path} />
+              <div className="mt-4 space-y-2 text-sm text-neutral-600">
+                <p>O alerta para emitir a fatura segue para info@creativalcance.com após a expedição.</p>
+                {invoiceEmailsResult.error ? <p>Não foi possível consultar os envios de faturação.</p> : (invoiceEmailsResult.data ?? []).map(email => (
+                  <p key={email.id} className={email.email_status === "failed" ? "text-amber-800" : ""}>
+                    {email.event_type === "invoice_required" ? "Alerta de faturação" : `Email da fatura ${String((email.payload as JsonRecord)?.invoiceNumber ?? "")}`}: {({ sent: "enviado", pending: "a aguardar envio", sending: "em envio", failed: email.event_type === "invoice_required" ? "falhou; emitir a fatura desta encomenda" : "falhou; volta a guardar a fatura para tentar novamente", cancelled: "cancelado por alteração da encomenda ou documento" } as Record<string, string>)[email.email_status] ?? "a verificar"}.
+                  </p>
+                ))}
+              </div>
+
               {billingAddress ? (
                 <div className="mt-4 rounded-2xl bg-neutral-50 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
@@ -2326,9 +2344,9 @@ const supabaseAdmin = createSupabaseAdminClient();
                 </div>
               ) : null}
 
-              {order.invoice_url ? (
+              {(order.invoice_storage_path || order.invoice_url) ? (
                 <a
-                  href={order.invoice_url}
+                  href={`/admin/encomendas/${order.id}/fatura`}
                   target="_blank"
                   rel="noreferrer"
                   className="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-neutral-300 bg-white px-4 py-3 text-sm font-semibold text-neutral-950 transition hover:bg-neutral-50"

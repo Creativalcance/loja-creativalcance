@@ -35,6 +35,8 @@ test('all six languages preserve product identity and shopping parameters when s
 
 test('customer email templates keep the order language, localized URLs, totals and HTML escaping', () => {
   const email = load('src/lib/notifications/customer-email.ts', {
+    '@/lib/orders/invoice-file': {},
+    '@/lib/notifications/invoice-email': load('src/lib/notifications/invoice-email.ts'),
     'node:crypto': crypto,
     'node:timers/promises': { setTimeout: async () => {} },
     '@/lib/i18n/catalog': { getLocalizedProductTexts: async () => new Map() },

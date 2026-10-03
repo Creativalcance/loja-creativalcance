@@ -4,12 +4,16 @@ import { setTimeout as pause } from "node:timers/promises";
 import { getLocalizedProductTexts } from "@/lib/i18n/catalog";
 import { getSiteLocale, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { INVOICE_BUCKET, MAX_INVOICE_BYTES, invoiceEventKey, isOrderInvoicePath } from "@/lib/orders/invoice-file";
+import { invoiceCustomerCopy, renderInvoiceRequired } from "@/lib/notifications/invoice-email";
 
 type CustomerEmailEvent =
   | "account_welcome"
   | "order_confirmation"
   | "order_status_changed"
-  | "order_tracking_available";
+  | "order_tracking_available"
+  | "invoice_required"
+  | "order_invoice_available";
 
 type EmailNotification = {
   id: string;
@@ -18,7 +22,7 @@ type EmailNotification = {
   email_to: string;
   locale: SiteLocale;
   payload: Record<string, unknown>;
-  email_status: "pending" | "sending" | "sent" | "failed";
+  email_status: "pending" | "sending" | "sent" | "failed" | "cancelled";
   email_attempts: number;
 };
 
@@ -144,6 +148,14 @@ function renderEmail(notification: EmailNotification): { subject: string; html: 
   const orderId = asString(p.orderId);
   const orderUrl = localPath(locale, `/area-cliente/encomendas${/^[0-9a-f-]{36}$/i.test(orderId) ? `/${orderId}` : ""}`);
 
+  if (notification.event_type === "invoice_required") return renderInvoiceRequired(p, getSiteUrl());
+  if (notification.event_type === "order_invoice_available") {
+    const copy = invoiceCustomerCopy(locale, p);
+    return { subject: copy.subject, ...renderLayout({ locale, preview: copy.subject, eyebrow: "360 MERCHANDISING", heading: copy.heading,
+      bodyHtml: `<p style="margin:0;font-size:16px;line-height:1.7;">${escapeHtml(copy.body)}</p>`, bodyText: copy.body,
+      button: { label: copy.button, url: orderUrl } }) };
+  }
+
   if (notification.event_type === "account_welcome") {
     const copy = (locale === "es" ? ({ subject: "Te damos la bienvenida a 360 Merchandising", eyebrow: "CUENTA CONFIRMADA", heading: `\u00A1Te damos la bienvenida${name ? `, ${name}` : ""}!`, intro: "Tu cuenta se ha confirmado correctamente.", body: "Ya puedes gestionar tus datos, seguir pedidos y consultar tu historial de compras en el \u00E1rea de cliente.", button: "Ir a mi cuenta" }) : locale === "de" ? ({ subject: "Willkommen bei 360 Merchandising", eyebrow: "KONTO BEST\u00C4TIGT", heading: `Willkommen${name ? `, ${name}` : ""}!`, intro: "Ihr Konto wurde erfolgreich best\u00E4tigt.", body: "Sie k\u00F6nnen jetzt Ihre Angaben verwalten, Bestellungen verfolgen und Ihre Kaufhistorie im Kundenbereich einsehen.", button: "Zu meinem Konto" }) : locale === "it" ? ({ subject: "Benvenuto in 360 Merchandising", eyebrow: "ACCOUNT CONFERMATO", heading: `Benvenuto${name ? `, ${name}` : ""}!`, intro: "Il tuo account \u00E8 stato confermato correttamente.", body: "Ora puoi gestire i tuoi dati, seguire gli ordini e consultare la cronologia degli acquisti nell'area cliente.", button: "Vai al mio account" }) : locale === "en" ? { subject: "Welcome to 360 Merchandising", eyebrow: "ACCOUNT CONFIRMED", heading: `Welcome${name ? `, ${name}` : ""}!`, intro: "Your account has been confirmed successfully.", body: "You can now manage your details, follow orders and access your purchase history in your customer area.", button: "Go to my account" }
       : locale === "fr" ? { subject: "Bienvenue chez 360 Merchandising", eyebrow: "COMPTE CONFIRMÉ", heading: `Bienvenue${name ? `, ${name}` : ""} !`, intro: "Votre compte a été confirmé avec succès.", body: "Vous pouvez désormais gérer vos coordonnées, suivre vos commandes et consulter votre historique dans votre espace client.", button: "Accéder à mon compte" }
@@ -200,8 +212,8 @@ async function ensureNotification(params: {
   return existing.data;
 }
 
-export async function deliverCustomerEmail(notification: EmailNotification): Promise<boolean> {
-  if (notification.email_status === "sent" || notification.email_attempts >= MAX_DELIVERY_ATTEMPTS) return false;
+export async function deliverCustomerEmail(notification: EmailNotification, manualRetry = false): Promise<boolean> {
+  if (["sent", "cancelled"].includes(notification.email_status) || (!manualRetry && notification.email_attempts >= MAX_DELIVERY_ATTEMPTS)) return false;
   const admin = createSupabaseAdminClient();
   const claimed = await admin.from("customer_email_notifications").update({
     email_status: "sending", email_attempted_at: new Date().toISOString(),
@@ -212,6 +224,35 @@ export async function deliverCustomerEmail(notification: EmailNotification): Pro
   try {
     const apiKey = process.env.RESEND_API_KEY?.trim();
     if (!apiKey) throw new Error("RESEND_API_KEY não está configurada.");
+    let attachments: Array<{ filename: string; content: string }> | undefined;
+    const isInvoice = notification.event_type === "order_invoice_available" || notification.event_type === "invoice_required";
+    if (isInvoice) {
+      const orderId = asString(notification.payload.orderId);
+      const current = await admin.from("orders").select("id,invoice_storage_path,invoice_number,invoice_status,invoice_url,status,payment_status,fulfillment_status,deleted_at")
+        .eq("id", orderId).maybeSingle();
+      if (current.error) throw new Error(current.error.message);
+      const order = current.data;
+      const path = asString(notification.payload.invoicePath);
+      const stillRelevant = order && !order.deleted_at && (notification.event_type === "invoice_required"
+        ? order.payment_status === "paid" && !["cancelled", "refunded", "failed"].includes(order.status)
+          && [order.status, order.fulfillment_status].some(value => ["shipped", "delivered"].includes(value))
+          && (!order.invoice_status || order.invoice_status === "pending") && !order.invoice_storage_path && !order.invoice_url
+        : order.invoice_storage_path === path && order.invoice_number === notification.payload.invoiceNumber && ["issued", "sent"].includes(order.invoice_status));
+      if (!stillRelevant) {
+        const cancelled = await admin.from("customer_email_notifications").update({ email_status: "cancelled", email_error: "A encomenda ou fatura foi alterada; este envio deixou de ser necessário.", updated_at: new Date().toISOString() }).eq("id", notification.id);
+        if (cancelled.error) throw new Error(cancelled.error.message);
+        return false;
+      }
+      if (notification.event_type === "order_invoice_available") {
+        if (!isOrderInvoicePath(orderId, path)) throw new Error("Documento de faturação inválido.");
+        const download = await admin.storage.from(INVOICE_BUCKET).download(path);
+        if (download.error || !download.data) throw new Error("Não foi possível obter o PDF da fatura para envio.");
+        if (download.data.size > MAX_INVOICE_BYTES) throw new Error("O PDF da fatura excede o tamanho permitido.");
+        const bytes = Buffer.from(await download.data.arrayBuffer());
+        if (bytes.subarray(0, 5).toString("ascii") !== "%PDF-") throw new Error("O documento guardado não é um PDF válido.");
+        attachments = [{ filename: asString(notification.payload.invoiceFileName) || "Fatura.pdf", content: bytes.toString("base64") }];
+      }
+    }
     // Persist translated item names once, so retries use the same email snapshot.
     if (notification.event_type === "order_confirmation" && notification.locale !== "pt" && !notification.payload.itemsLocalized) {
       const items = Array.isArray(notification.payload.items) ? notification.payload.items as Array<Record<string, unknown>> : [];
@@ -224,18 +265,40 @@ export async function deliverCustomerEmail(notification: EmailNotification): Pro
     const content = renderEmail(notification);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": notification.event_key.slice(0, 256) },
-      body: JSON.stringify({ from: brandedFromEmail(), to: [notification.email_to], subject: content.subject, html: content.html, text: content.text, tags: [{ name: "event", value: notification.event_type }, { name: "locale", value: notification.locale }] }),
+      ...(isInvoice ? { signal: AbortSignal.timeout(10_000) } : {}),
+      body: JSON.stringify({ from: brandedFromEmail(), to: [notification.email_to], subject: content.subject, html: content.html, text: content.text, ...(attachments ? { attachments } : {}), tags: [{ name: "event", value: notification.event_type }, { name: "locale", value: notification.locale }] }),
     });
     const result = (await response.json().catch(() => ({}))) as ResendResponse;
     if (!response.ok || !result.id) throw new Error(result.message || result.name || `Resend respondeu com HTTP ${response.status}.`);
     const saved = await admin.from("customer_email_notifications").update({ email_status: "sent", email_provider_id: result.id, email_sent_at: new Date().toISOString(), email_error: null, updated_at: new Date().toISOString() }).eq("id", notification.id);
     if (saved.error) throw new Error(`Email enviado, mas o estado não foi guardado: ${saved.error.message}`);
+    if (notification.event_type === "order_invoice_available") {
+      try {
+        const marked = await admin.from("orders").update({ invoice_status: "sent" })
+          .eq("id", asString(notification.payload.orderId)).eq("invoice_storage_path", asString(notification.payload.invoicePath)).eq("invoice_status", "issued");
+        if (marked.error) throw new Error(marked.error.message);
+      } catch (cause) {
+        // The provider accepted the email: never resend for a display-state failure.
+        console.error("Invoice email sent; order status update failed", { orderId: notification.payload.orderId, message: cause instanceof Error ? cause.message : "Unknown error" });
+      }
+    }
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erro desconhecido no envio do email.";
     await admin.from("customer_email_notifications").update({ email_status: "failed", email_error: message.slice(0, 1000), updated_at: new Date().toISOString() }).eq("id", notification.id);
     throw error;
   }
+}
+
+export async function deliverSavedOrderInvoice(orderId: string, path: string): Promise<string> {
+  const admin = createSupabaseAdminClient();
+  const eventKey = invoiceEventKey(orderId, path);
+  const result = await admin.from("customer_email_notifications").select("id,event_key,event_type,email_to,locale,payload,email_status,email_attempts")
+    .eq("event_key", eventKey).single<EmailNotification>();
+  if (result.error || !result.data) throw new Error("A fatura foi guardada, mas não foi possível consultar o estado do email.");
+  if (result.data.email_status === "sent") return "sent";
+  try { return await deliverCustomerEmail(result.data, true) ? "sent" : result.data.email_status; }
+  catch { return "failed"; }
 }
 
 async function getOrder(orderId: string): Promise<OrderEmailRecord> {

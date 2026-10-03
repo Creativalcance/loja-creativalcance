@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSiteLocale, localizePath } from "@/lib/i18n/config";
 import { notFound } from "next/navigation";
 import { ownedCustomerOrder, safeDocumentUrl } from "@/lib/customer/order-details";
+import { orderInvoiceUrl } from "@/lib/orders/invoice-access";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const { order, admin } = await ownedCustomerOrder(id, `/area-cliente/encomendas/${id}`);
   const kind = request.nextUrl.searchParams.get("tipo");
   let url: string | null = null;
-  if (kind === "fatura") url = safeDocumentUrl(order.invoice_url);
+  if (kind === "fatura") url = await orderInvoiceUrl(admin, order);
   else if (kind === "logo" || kind === "mockup") {
     const itemId = request.nextUrl.searchParams.get("artigo");
     if (!itemId || !/^[0-9a-f-]{36}$/i.test(itemId)) notFound();

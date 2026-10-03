@@ -76,6 +76,7 @@ test('document downloads check both item and owned order before signing a file',
   const filters = []; let signed = false;
   const q = {select:()=>q,eq:(key,value)=>{filters.push([key,value]);return q;},maybeSingle:async()=>({data:null,error:null})};
   const route = load('src/app/area-cliente/encomendas/[id]/documento/route.ts', {
+    '@/lib/orders/invoice-access': {},
     '@/lib/i18n/config':{getSiteLocale:()=> 'pt',localizePath:path=>path},
     'next/server':{NextResponse:{redirect:()=>{throw new Error('Unexpected redirect');}}},
     'next/navigation':{notFound:()=>{throw new Error('NOT_FOUND');}},

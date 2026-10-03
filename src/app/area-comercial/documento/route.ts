@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { assertSalesAccess, assertSalesOrder } from "@/lib/sales/access";
 import { payoutDocument } from "@/lib/sales/documents";
 import { safeDocumentUrl } from "@/lib/customer/order-details";
+import { orderInvoiceUrl } from "@/lib/orders/invoice-access";
 export async function GET(request: NextRequest) {
   const { agent } = await assertSalesAccess();
   const payout = request.nextUrl.searchParams.get("pagamento");
@@ -14,12 +15,12 @@ export async function GET(request: NextRequest) {
   const type = request.nextUrl.searchParams.get("tipo");
   const order = await admin
     .from("orders")
-    .select("invoice_url")
+    .select("id,invoice_url,invoice_storage_path")
     .eq("id", orderId)
     .is("deleted_at", null)
     .maybeSingle();
   if (order.error || !order.data) notFound();
-  if (type === "fatura") url = safeDocumentUrl(order.data.invoice_url);
+  if (type === "fatura") url = await orderInvoiceUrl(admin, order.data);
   else if (type === "logo" || type === "mockup") {
     const itemId = request.nextUrl.searchParams.get("artigo");
     if (!itemId || !/^[\da-f-]{36}$/i.test(itemId)) notFound();
