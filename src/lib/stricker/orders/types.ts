@@ -56,7 +56,7 @@ export type StrickerServiceOrderLinePayload = {
   LogoWidth: number;
   LogoHeight: number;
 
-  Group?: number;
+  Group: number;
   Appproved: boolean;
 
   Files: StrickerServiceArtworkFile[];

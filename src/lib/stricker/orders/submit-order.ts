@@ -537,6 +537,8 @@ async function markOrderAsFailed(params: {
   message: string;
   response?: JsonRecord;
 }): Promise<void> {
+  // Uma rejeição do fornecedor não anula o pagamento nem o estado
+  // comercial da encomenda. A falha fica nos campos próprios do fornecedor.
   await updateOrderSubmissionState({
     supabaseAdmin: params.supabaseAdmin,
     orderId: params.order.id,
@@ -545,10 +547,6 @@ async function markOrderAsFailed(params: {
       supplier_submission_error: params.message,
       supplier_failed_at: new Date().toISOString(),
       supplier_last_response: params.response ?? {},
-      status:
-        params.order.status === "paid"
-          ? "failed"
-          : params.order.status,
     },
   });
 
@@ -556,22 +554,14 @@ async function markOrderAsFailed(params: {
     supabaseAdmin: params.supabaseAdmin,
     orderId: params.order.id,
     previousStatus: params.order.status,
-    newStatus: "failed",
+    newStatus: params.order.status,
     notes:
       "Falha na submissão automática da encomenda ao fornecedor.",
     metadata: {
       source: "stricker_submission",
+      supplierSubmissionStatus: "failed",
       error: params.message,
     },
-  });
-
-  await notifyOrderStatusChanged({
-    orderId: params.order.id,
-    previousStatus: params.order.status,
-    newStatus:
-      params.order.status === "paid"
-        ? "failed"
-        : params.order.status,
   });
 }
 

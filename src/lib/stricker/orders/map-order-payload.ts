@@ -232,6 +232,7 @@ function getLogoHeight(
 
 function buildServiceOrderLine(
   item: StrickerOrderDatabaseItem,
+  group: number,
 ): StrickerServiceOrderLinePayload {
   const colors = getCustomizationColors(item);
 
@@ -244,6 +245,7 @@ function buildServiceOrderLine(
       item.supplier_order_line_stamp ?? "",
 
     ServCode: getServiceCode(item) ?? "",
+    Group: group,
 
     Color1: colors[0],
     Color2: colors[1],
@@ -608,14 +610,25 @@ export function mapOrderToStricker(
     order: productLines,
   };
 
+  // O manual OrderV1/ServiceOrderV1 identifica com Group (1, 2, 3...)
+  // as opções de serviço que usam o mesmo logótipo. O nome do ficheiro
+  // não é suficiente: uploads distintos podem ter o mesmo nome.
+  const artworkGroups = new Map<string, number>();
   const serviceItems = order.order_items
     .filter(
       (item) => item.personalization_required,
     )
-    .map((item) => ({
-      orderItemId: item.id,
-      servicePayload: buildServiceOrderLine(item),
-    }));
+    .map((item) => {
+      const artworkKey =
+        item.logo_storage_path?.trim() || item.logo_url?.trim() || item.id;
+      const group = artworkGroups.get(artworkKey) ?? artworkGroups.size + 1;
+      artworkGroups.set(artworkKey, group);
+
+      return {
+        orderItemId: item.id,
+        servicePayload: buildServiceOrderLine(item, group),
+      };
+    });
 
   return {
     orderId: order.id,
