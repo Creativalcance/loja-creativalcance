@@ -829,14 +829,21 @@ export async function createPaymentCheckoutSessionAction(
       userId: user.id,
     };
 
+    // Keep the configured payment methods, without the Link wallet taking over
+    // the hosted checkout for customers recognised by Link.
+    const walletOptions: Stripe.Checkout.SessionCreateParams.WalletOptions = {
+      link: { display: "never" },
+    };
+
     const stripeIdempotencyKey = `checkout:${order.id}:${createHash("sha256")
-      .update(JSON.stringify(lineItems))
+      .update(JSON.stringify({ lineItems, walletOptions }))
       .digest("hex")
       .slice(0, 32)}`;
 
     const checkoutSession = await stripe.checkout.sessions.create(
       {
         mode: "payment",
+        wallet_options: walletOptions,
         customer_email: cart.customer_email,
         line_items: lineItems,
         success_url:
