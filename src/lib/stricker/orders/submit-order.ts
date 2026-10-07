@@ -26,7 +26,6 @@ import {
   type StrickerMappedOrder,
   type StrickerOrderDatabaseItem,
   type StrickerOrderDatabaseRecord,
-  type StrickerPlaceOrderPayload,
   type StrickerServiceArtworkFile,
   type SubmitOrderToStrickerResult,
 } from "@/lib/stricker/orders/types";
@@ -651,128 +650,6 @@ async function downloadArtworkFile(params: {
   };
 }
 
-async function prepareProductPayloadWithArtwork(params: {
-  supabaseAdmin: SupabaseAdminClient;
-  order: StrickerOrderDatabaseRecord;
-  mappedOrder: StrickerMappedOrder;
-}): Promise<{
-  payload: StrickerPlaceOrderPayload;
-  embeddedArtworkItemIds: string[];
-}> {
-  const serviceItemsByOrderItemId = new Map(
-    params.mappedOrder.serviceItems.map((item) => [
-      item.orderItemId,
-      item.servicePayload,
-    ]),
-  );
-  const embeddedArtworkItemIds: string[] = [];
-
-  const orderLines = await Promise.all(
-    params.mappedOrder.productPayload.order.map(
-      async (line, index) => {
-        const item = params.order.order_items[index];
-
-        if (!item?.personalization_required) {
-          return line;
-        }
-
-        const servicePayload = serviceItemsByOrderItemId.get(item.id);
-
-        if (!servicePayload) {
-          throw new Error(
-            `Não foi possível preparar a personalização de "${item.product_name}".`,
-          );
-        }
-
-        if (!item.logo_storage_path && !item.logo_url) {
-          return {
-            ...line,
-            WaitArtWork: true,
-          };
-        }
-
-        const artworkFile = await downloadArtworkFile({
-          supabaseAdmin: params.supabaseAdmin,
-          item,
-        });
-        const embeddedServiceLine: Omit<typeof servicePayload, "OrderLineStamp"> & { OrderLineStamp?: string } = { ...servicePayload };
-        delete embeddedServiceLine.OrderLineStamp;
-
-        embeddedArtworkItemIds.push(item.id);
-
-        return {
-          ...line,
-          WaitArtWork: false,
-          ServiceOrderLines: [
-            {
-              ...embeddedServiceLine,
-              Files: [artworkFile],
-            },
-          ],
-        };
-      },
-    ),
-  );
-
-  return {
-    payload: {
-      ...params.mappedOrder.productPayload,
-      order: orderLines,
-    },
-    embeddedArtworkItemIds,
-  };
-}
-
-function redactArtworkBytes(
-  payload: StrickerPlaceOrderPayload,
-): JsonRecord {
-  return {
-    ...payload,
-    order: payload.order.map((line) => ({
-      ...line,
-      ServiceOrderLines: line.ServiceOrderLines?.map(
-        (serviceLine) => ({
-          ...serviceLine,
-          Files: serviceLine.Files.map((file) => ({
-            FileName: file.FileName,
-            FileExtension: file.FileExtension,
-            FileSize: file.FileBytes.length,
-          })),
-        })),
-    })),
-  } as unknown as JsonRecord;
-}
-
-async function markEmbeddedArtworkAsSubmitted(params: {
-  supabaseAdmin: SupabaseAdminClient;
-  orderStamp: string;
-  orderItemIds: string[];
-  response: JsonRecord;
-}): Promise<void> {
-  if (params.orderItemIds.length === 0) {
-    return;
-  }
-
-  const submittedAt = new Date().toISOString();
-
-  for (const orderItemId of params.orderItemIds) {
-    await updateOrderItemSubmissionState({
-      supabaseAdmin: params.supabaseAdmin,
-      orderItemId,
-      values: {
-        supplier_order_stamp: params.orderStamp,
-        supplier_line_status: "submitted",
-        supplier_submission_status: "submitted",
-        supplier_submission_error: null,
-        supplier_submitted_at: submittedAt,
-        supplier_artwork_submission_status: "submitted",
-        supplier_artwork_submitted_at: submittedAt,
-        supplier_line_response: params.response,
-      },
-    });
-  }
-}
-
 function buildOrderLineAssignments(params: {
   mappedOrder: StrickerMappedOrder;
   responseLines: JsonRecord[];
@@ -852,8 +729,10 @@ async function submitPersonalizations(params: {
 }): Promise<{
   success: boolean;
   errors: string[];
+  supplierStatus: string | null;
 }> {
   const errors: string[] = [];
+  let supplierStatus: string | null = null;
 
   for (const serviceItem of params.mappedOrder.serviceItems) {
     const freshItem = params.order.order_items.find(
@@ -971,6 +850,11 @@ async function submitPersonalizations(params: {
           },
         );
 
+      if (result.orderDetails) {
+        supplierStatus =
+          extractStrickerOrderStatus(result.orderDetails) ?? supplierStatus;
+      }
+
       await completeSupplierEvent({
         supabaseAdmin: params.supabaseAdmin,
         eventId,
@@ -1040,6 +924,7 @@ async function submitPersonalizations(params: {
   return {
     success: errors.length === 0,
     errors,
+    supplierStatus,
   };
 }
 
@@ -1244,14 +1129,8 @@ export async function submitPaidOrderToStricker(
 
   try {
     if (!supplierOrderStamp) {
-      const preparedOrder =
-        await prepareProductPayloadWithArtwork({
-          supabaseAdmin,
-          order,
-          mappedOrder,
-        });
       const persistedProductPayload =
-        redactArtworkBytes(preparedOrder.payload);
+        mappedOrder.productPayload as unknown as JsonRecord;
 
       productEventId =
         await createSupplierEvent({
@@ -1276,7 +1155,7 @@ export async function submitPaidOrderToStricker(
 
       const productResult =
         await submitStrickerProductOrder(
-          preparedOrder.payload,
+          mappedOrder.productPayload,
           {
             testMode: mappedOrder.testMode,
           },
@@ -1324,15 +1203,6 @@ export async function submitPaidOrderToStricker(
         supabaseAdmin,
         orderStamp: supplierOrderStamp,
         assignments,
-      });
-
-      await markEmbeddedArtworkAsSubmitted({
-        supabaseAdmin,
-        orderStamp: supplierOrderStamp,
-        orderItemIds:
-          preparedOrder.embeddedArtworkItemIds,
-        response:
-          productResult.response as unknown as JsonRecord,
       });
 
       await completeSupplierEvent({
@@ -1410,6 +1280,10 @@ export async function submitPaidOrderToStricker(
 
     personalizationSubmitted =
       personalizationResult.success;
+
+    if (personalizationResult.success && personalizationResult.supplierStatus) {
+      supplierStatus = personalizationResult.supplierStatus;
+    }
 
     const finalSubmissionStatus =
       personalizationResult.errors.length > 0

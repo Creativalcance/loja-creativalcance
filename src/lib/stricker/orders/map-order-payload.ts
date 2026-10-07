@@ -563,14 +563,11 @@ export function mapOrderToStricker(
           ? "PRINT"
           : "SIMPLE",
 
-        // O checkout exige o ficheiro antes do pagamento. A Stricker confirmou
-        // que, nesse caso, a linha PRINT deve seguir com WaitArtWork=false e
-        // ServiceOrderLines no próprio OrderV1. O payload com os bytes é
-        // completado em submit-order.ts imediatamente antes do pedido.
-        WaitArtWork:
-          item.personalization_required &&
-          !item.logo_storage_path &&
-          !item.logo_url,
+        // Fluxo documentado em duas etapas: OrderV1 cria a linha PRINT e
+        // devolve os stamps; ServiceOrderV1 envia depois a personalização.
+        // A mesma arte de sublimação rejeitada com erro 80 quando embutida
+        // no OrderV1 foi aceite, sem alterar as medidas, por ServiceOrderV1.
+        WaitArtWork: item.personalization_required,
 
         Sample: false,
       };

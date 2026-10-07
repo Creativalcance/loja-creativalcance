@@ -10,7 +10,7 @@ function load(file, imports = {}, suffix = '') {
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, 'utf8') + suffix, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText, {
-    exports, console, Date, URL, Uint8Array, process: { env: {} },
+    exports, console, Date, URL, Uint8Array, Error, process: { env: {} },
     require(name) {
       if (!(name in imports)) throw new Error(`Unexpected dependency: ${name}`);
       return imports[name];
@@ -24,7 +24,7 @@ const plain = value => JSON.parse(JSON.stringify(value));
 
 function item(overrides = {}) {
   return {
-    id: 'item-a', product_name: 'A6 notebook fixture', supplier_sku: '93670-106',
+    id: 'item-a', fulfillment_route: 'supplier_api', product_name: 'A6 notebook fixture', supplier_sku: '93670-106',
     quantity: 30, personalization_required: true, service_code: '93670.4.4.SUB1-01-F',
     personalization_data: { printColorMode: 'full', printColors: [] },
     table_code_option: 'SUB1-01-F', logo_storage_path: 'fixture/artwork-a.png',
@@ -44,16 +44,36 @@ function order(items = [item()], overrides = {}) {
   };
 }
 
-function submissionHarness() {
-  const writes = [], notifications = [];
+function submissionHarness({ personalized = true } = {}) {
+  const writes = [], notifications = [], requests = [];
+  const state = order([item({ personalization_required: personalized })], {
+    supplier_submission_status: 'failed', supplier_order_stamp: null,
+    supplier_submission_attempts: 1,
+  });
+  const h = { failService: false };
   const admin = {
     from(table) {
-      return {
-        update(value) { writes.push({ table, operation: 'update', value: plain(value) }); return this; },
-        insert(value) { writes.push({ table, operation: 'insert', value: plain(value) }); return this; },
-        eq(key, value) { assert.equal(key, 'id'); assert.equal(value, 'order-fixture'); return this; },
-        then(resolve) { resolve({ error: null }); },
+      let operation = 'select';
+      const query = {
+        select() { return this; }, eq() { return this; }, neq() { return this; },
+        update(value) {
+          operation = 'update'; writes.push({ table, operation, value: plain(value) });
+          if (table === 'orders') Object.assign(state, plain(value));
+          if (table === 'order_items') Object.assign(state.order_items[0], plain(value));
+          return this;
+        },
+        insert(value) { operation = 'insert'; writes.push({ table, operation, value: plain(value) }); return this; },
+        result() {
+          if (table === 'orders') return { data: operation === 'select' ? plain(state) : { id: state.id }, error: null };
+          if (table === 'order_items') return { data: plain(state.order_items[0]), error: null };
+          if (table === 'supplier_order_events') return { data: { id: 'event-fixture' }, error: null };
+          return { data: null, error: null };
+        },
+        async maybeSingle() { return this.result(); },
+        async single() { return this.result(); },
+        then(resolve) { resolve(this.result()); },
       };
+      return query;
     },
     storage: { from(bucket) {
       assert.equal(bucket, 'customization-artwork');
@@ -63,40 +83,85 @@ function submissionHarness() {
       } };
     } },
   };
+  const client = load('src/lib/stricker/orders/client.ts', {
+    '@/lib/stricker/config': {}, '@/lib/stricker/auth': {},
+  });
   const api = load('src/lib/stricker/orders/submit-order.ts', {
     'node:path': { default: path },
-    '@/lib/notifications/stricker-order-submitted': {},
+    '@/lib/notifications/stricker-order-submitted': { async notifyStrickerOrderSubmitted() {} },
     '@/lib/notifications/customer-email': {
       async notifyOrderStatusChanged(value) { notifications.push(value); },
+      async notifyOrderTrackingAvailable() {},
     },
-    '@/lib/supabase/admin': {},
-    '@/lib/stricker/orders/client': {},
+    '@/lib/supabase/admin': { createSupabaseAdminClient: () => admin },
+    '@/lib/stricker/orders/client': {
+      ...client,
+      async submitStrickerProductOrder(payload, options) {
+        requests.push({ method: 'OrderV1', payload: plain(payload), options });
+        return { response: {}, orderDetails: { OrderStamp: 'supplier-order-fixture',
+          Status: personalized ? 'WAITING_ART_WORK' : 'PROCESSING',
+          OrderLines: [{ Sku: '93670-106', OrderLineStamp: 'supplier-line-fixture' }] } };
+      },
+      async submitStrickerServiceOrder(payload, options) {
+        requests.push({ method: 'ServiceOrderV1', payload: plain(payload), options });
+        if (h.failService) throw new Error('Supplier service temporarily unavailable');
+        return { response: {}, orderDetails: { OrderStamp: 'supplier-order-fixture', Status: 'PROCESSING' } };
+      },
+    },
     '@/lib/stricker/orders/map-order-payload': mapping,
     '@/lib/stricker/resolve-customization-service-code': {},
-  }, '\nexport { markOrderAsFailed, prepareProductPayloadWithArtwork };');
-  return { api, admin, writes, notifications };
+  }, '\nexport { markOrderAsFailed };');
+  return Object.assign(h, { api, admin, writes, notifications, requests, state });
 }
 
-test('OrderV1 embeds the documented artwork group without changing print specifications or approval', async () => {
+test('paid print order uses OrderV1 then ServiceOrderV1 with the same artwork, dimensions and approval', async () => {
   const h = submissionHarness();
-  const fixture = order();
-  const mappedOrder = mapping.mapOrderToStricker(fixture);
-  const { payload } = await h.api.prepareProductPayloadWithArtwork({
-    supabaseAdmin: h.admin, order: fixture, mappedOrder,
-  });
-  const line = plain(payload.order[0]);
-  assert.equal(line.Quantity, 30);
-  assert.equal(line.Sku, '93670-106');
-  assert.equal(line.LineType, 'PRINT');
-  assert.equal(line.WaitArtWork, false);
-  assert.deepEqual(line.ServiceOrderLines, [{
-    ServCode: '93670.4.4.SUB1-01-F', Group: 1,
+  const result = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(result.success, true);
+  assert.deepEqual(h.requests.map(request => request.method), ['OrderV1', 'ServiceOrderV1']);
+  const product = h.requests[0].payload;
+  assert.deepEqual(product.order, [{ Sku: '93670-106', Quantity: 30, LineType: 'PRINT', WaitArtWork: true, Sample: false }]);
+  assert.equal(product.internalReference, 'LC-FIXTURE');
+  assert.equal(product.shippingDate, null);
+  assert.deepEqual(h.requests[1].payload, { orderStamp: 'supplier-order-fixture', order: [{
+    OrderLineStamp: 'supplier-line-fixture', ServCode: '93670.4.4.SUB1-01-F', Group: 1,
     Color1: '', Color2: '', Color3: '', Color4: '', Color5: '',
     LogoArea: 150.2208, LogoWidth: 104.32, LogoHeight: 144, Appproved: false,
     Files: [{ FileName: 'artwork', FileExtension: '.png', FileBytes: [1, 2, 3] }],
-  }]);
-  assert.equal(payload.internalReference, 'LC-FIXTURE');
-  assert.equal(payload.shippingDate, null);
+  }] });
+  assert.ok(h.requests.every(request => request.options.testMode === true));
+  assert.equal(h.state.payment_status, 'paid');
+  assert.equal(h.state.supplier_submission_status, 'submitted');
+  assert.equal(h.state.supplier_last_status, 'PROCESSING');
+  assert.equal(h.state.order_items[0].supplier_artwork_submission_status, 'submitted');
+  const event = h.writes.find(write => write.value.event_type === 'service_order_submission');
+  assert.deepEqual(event.value.request_payload.order[0].Files, [{ FileName: 'artwork', FileExtension: '.png', FileSize: 3 }]);
+  const repeated = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(repeated.alreadySubmitted, true);
+  assert.equal(h.requests.length, 2);
+});
+
+test('personalization retry reuses the accepted product order and cannot create a duplicate order', async () => {
+  const h = submissionHarness();
+  h.failService = true;
+  const failed = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(failed.success, false);
+  assert.equal(h.state.supplier_submission_status, 'partially_submitted');
+  assert.equal(h.state.supplier_order_stamp, 'supplier-order-fixture');
+  assert.equal(h.state.payment_status, 'paid');
+  h.failService = false;
+  const retried = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(retried.success, true);
+  assert.deepEqual(h.requests.map(request => request.method), ['OrderV1', 'ServiceOrderV1', 'ServiceOrderV1']);
+  assert.deepEqual(h.requests[2].payload, h.requests[1].payload);
+});
+
+test('non-personalized orders still use a single product request without waiting for artwork', async () => {
+  const h = submissionHarness({ personalized: false });
+  assert.equal((await h.api.submitPaidOrderToStricker('order-fixture')).success, true);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].payload.order[0].LineType, 'SIMPLE');
+  assert.equal(h.requests[0].payload.order[0].WaitArtWork, false);
 });
 
 test('services sharing an artwork share a group; different uploads with the same filename stay separate', () => {
