@@ -12,7 +12,6 @@ import ProductDirectPurchasePanel, {
   type ProductPurchaseStock,
 } from "@/components/product/ProductDirectPurchasePanel";
 import { getEffectiveMinimumOrderQuantity } from "@/lib/commerce/minimum-order-quantity";
-import { type ProductCustomizationOption } from "@/components/product/ProductCustomizationOptions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { buildStrickerProductHighResolutionImageUrl } from "@/lib/stricker/images";
@@ -29,8 +28,6 @@ import { localizeProductColors } from "@/lib/i18n/colors";
 import { getLocalizedProductText } from "@/lib/i18n/catalog";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
-
-type JsonRecord = Record<string, unknown>;
 
 type ProductImage = {
   variant_id: string | null;
@@ -78,34 +75,6 @@ type ProductVariant = {
   optional_image_2_url: string | null;
 };
 
-type ProductCustomizationComponent = {
-  id: string;
-  variant_id: string | null;
-  component_code: string | null;
-  component_name: string | null;
-};
-
-type ProductCustomizationLocation = {
-  id: string;
-  variant_id: string | null;
-  component_id: string | null;
-  external_location_id: string;
-  location_code: string | null;
-  location_name: string | null;
-  location_index: number | null;
-  max_printing_area_mm: string | null;
-  max_area_cm2: number | null;
-  location_image_url: string | null;
-  location_storage_url: string | null;
-  area_image_url: string | null;
-  area_storage_url: string | null;
-  printing_lines_image_url: string | null;
-  printing_lines_storage_url: string | null;
-  is_default: boolean;
-  is_active: boolean;
-  raw_payload: JsonRecord | null;
-};
-
 type ProductDetail = {
   all_image_list: string | null;
   properties: unknown;
@@ -131,8 +100,7 @@ type ProductDetail = {
   product_stocks: ProductStock[] | null;
   product_future_stocks: ProductFutureStock[] | null;
   product_variants: ProductVariant[] | null;
-  product_customization_components: ProductCustomizationComponent[] | null;
-  product_customization_locations: ProductCustomizationLocation[] | null;
+  product_customization_locations: { id: string }[] | null;
 };
 
 type ProductMetadataRow = {
@@ -318,205 +286,6 @@ function buildCategoryHref(product: ProductDetail): string {
   return `/categorias/${encodeURIComponent(categoryName)}`;
 }
 
-function getPayloadRecord(value: unknown): JsonRecord {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return value as JsonRecord;
-}
-
-function getNullableString(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(value);
-  }
-
-  return null;
-}
-
-function getSlotString(
-  record: JsonRecord,
-  prefix: string,
-  index: number,
-): string | null {
-  return getNullableString(record[`${prefix}${index}`]);
-}
-
-function splitCodes(value: string | null): string[] {
-  if (!value) {
-    return [];
-  }
-
-  return value
-    .split(/[,;|]/g)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
-}
-
-function getLocationIndex(location: ProductCustomizationLocation): number {
-  if (location.location_index && location.location_index > 0) {
-    return location.location_index;
-  }
-
-  const match = location.external_location_id.match(/:L(\d+)$/i);
-  const parsed = match?.[1] ? Number(match[1]) : null;
-
-  if (parsed && Number.isFinite(parsed) && parsed > 0) {
-    return parsed;
-  }
-
-  return 1;
-}
-
-function getCustomizationTypesForLocation(
-  location: ProductCustomizationLocation,
-): string[] {
-  const payload = getPayloadRecord(location.raw_payload);
-  const index = getLocationIndex(location);
-
-  return Array.from(
-    new Set(splitCodes(getSlotString(payload, "CustomizationTypes", index))),
-  );
-}
-
-function buildComponentMap(
-  components: ProductCustomizationComponent[],
-): Map<string, ProductCustomizationComponent> {
-  return new Map(components.map((component) => [component.id, component]));
-}
-
-function getComponentForLocation(params: {
-  location: ProductCustomizationLocation;
-  componentsById: Map<string, ProductCustomizationComponent>;
-}): ProductCustomizationComponent | null {
-  if (!params.location.component_id) {
-    return null;
-  }
-
-  return params.componentsById.get(params.location.component_id) ?? null;
-}
-
-function getLocationImageCandidates(
-  location: ProductCustomizationLocation,
-): string[] {
-  return [
-    location.location_storage_url,
-    location.area_storage_url,
-    location.printing_lines_storage_url,
-    location.location_image_url,
-    location.area_image_url,
-    location.printing_lines_image_url,
-  ].filter((url): url is string => Boolean(url?.trim()));
-}
-
-function getCustomizationKey(params: {
-  technique: string;
-  componentName: string | null;
-  locationName: string;
-  maxPrintingAreaMm: string | null;
-}): string {
-  return [
-    params.technique,
-    params.componentName ?? "component",
-    params.locationName,
-    params.maxPrintingAreaMm ?? "area",
-  ]
-    .join(":")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
-
-function buildCustomizationOptions(params: {
-  productSlug: string;
-  locations: ProductCustomizationLocation[];
-  componentsById: Map<string, ProductCustomizationComponent>;
-}): ProductCustomizationOption[] {
-  const map = new Map<string, ProductCustomizationOption>();
-
-  for (const location of params.locations) {
-    const component = getComponentForLocation({
-      location,
-      componentsById: params.componentsById,
-    });
-
-    const customizationTypes = getCustomizationTypesForLocation(location);
-
-    const technique = customizationTypes[0] ?? "Personalização";
-    const componentName =
-      component?.component_name ?? component?.component_code ?? null;
-    const locationName =
-      location.location_name ??
-      location.location_code ??
-      `Local ${getLocationIndex(location)}`;
-    const imageUrls = getLocationImageCandidates(location);
-
-    const option: ProductCustomizationOption = {
-      id: location.id,
-      technique,
-      componentName,
-      locationName,
-      maxPrintingAreaMm: location.max_printing_area_mm,
-      maxAreaCm2: location.max_area_cm2,
-      imageUrls,
-      isRecommended: location.is_default,
-      href: `/produto/${params.productSlug}/personalizar?local=${encodeURIComponent(
-        location.id,
-      )}`,
-    };
-
-    const key = getCustomizationKey({
-      technique: option.technique,
-      componentName: option.componentName,
-      locationName: option.locationName,
-      maxPrintingAreaMm: option.maxPrintingAreaMm,
-    });
-
-    const existingOption = map.get(key);
-
-    if (!existingOption) {
-      map.set(key, option);
-      continue;
-    }
-
-    const shouldReplace =
-      (!existingOption.isRecommended && option.isRecommended) ||
-      (existingOption.imageUrls.length === 0 && option.imageUrls.length > 0);
-
-    if (shouldReplace) {
-      map.set(key, option);
-    }
-  }
-
-  return Array.from(map.values())
-    .sort((a, b) => {
-      if (a.isRecommended && !b.isRecommended) {
-        return -1;
-      }
-
-      if (!a.isRecommended && b.isRecommended) {
-        return 1;
-      }
-
-      const techniqueComparison = a.technique.localeCompare(
-        b.technique,
-        "pt-PT",
-      );
-
-      if (techniqueComparison !== 0) {
-        return techniqueComparison;
-      }
-
-      return a.locationName.localeCompare(b.locationName, "pt-PT");
-    })
-    .slice(0, 24);
-}
-
 export default async function ProductDetailPage({
   params,
   searchParams,
@@ -592,37 +361,14 @@ export default async function ProductDetailPage({
           optional_image_1_url,
           optional_image_2_url
         ),
-        product_customization_components (
-          id,
-          variant_id,
-          component_code,
-          component_name
-        ),
-        product_customization_locations (
-          id,
-          variant_id,
-          component_id,
-          external_location_id,
-          location_code,
-          location_name,
-          location_index,
-          max_printing_area_mm,
-          max_area_cm2,
-          location_image_url,
-          location_storage_url,
-          area_image_url,
-          area_storage_url,
-          printing_lines_image_url,
-          printing_lines_storage_url,
-          is_default,
-          is_active,
-          raw_payload
-        )
+        product_customization_locations (id)
       `,
     )
     .eq("slug", slug)
     .eq("status", "active")
     .eq("is_active", true)
+    .eq("product_customization_locations.is_active", true)
+    .limit(1, { referencedTable: "product_customization_locations" })
     .maybeSingle();
 
   if (!data) {
@@ -725,19 +471,6 @@ export default async function ProductDetailPage({
   );
 
   const colors = await localizeProductColors(product.product_variants ?? [], product.supplier_id, locale);
-  const components = product.product_customization_components ?? [];
-  const componentsById = buildComponentMap(components);
-
-  const activeCustomizationLocations = (
-    product.product_customization_locations ?? []
-  ).filter((location) => location.is_active);
-
-  const customizationOptions = buildCustomizationOptions({
-    productSlug: product.slug,
-    locations: activeCustomizationLocations,
-    componentsById,
-  });
-
   const purchaseColors: ProductPurchaseColor[] = colors.map((color) => ({
     id: color.id,
     sku: color.sku,
@@ -855,7 +588,7 @@ export default async function ProductDetailPage({
   weight={product.weight}
   minimumQuantity={getEffectiveMinimumOrderQuantity(product.min_order_quantity)}
   totalStock={getTotalStock(product)}
-  isCustomizable={customizationOptions.length > 0}
+  isCustomizable={Boolean(product.product_customization_locations?.length)}
   prices={purchasePrices}
   colors={purchaseColors}
   stocks={purchaseStocks}

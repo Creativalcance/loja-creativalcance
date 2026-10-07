@@ -1246,11 +1246,7 @@ function PurchasePanel({
 
     setSelectedVariantId(variant.id);
 
-    if (hasSizes) {
-      setSelectedColorGroupKey(
-        getColorKey(variant),
-      );
-    }
+    setSelectedColorGroupKey(getColorKey(variant));
   }
 
   function updateVariantQuantity(params: {
@@ -1275,7 +1271,7 @@ function PurchasePanel({
         color.id === params.variantId,
     );
 
-    if (variant && hasSizes) {
+    if (variant) {
       setSelectedColorGroupKey(
         getColorKey(variant),
       );
