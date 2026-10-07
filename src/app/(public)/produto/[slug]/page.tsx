@@ -1,3 +1,4 @@
+import { buildProductGallery } from "@/lib/catalog/product-gallery";
 import { getMaterialClaims, materialMessages } from "@/lib/catalog/materials-collection";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -32,6 +33,7 @@ import { getCurrentLocale } from "@/lib/i18n/server";
 type JsonRecord = Record<string, unknown>;
 
 type ProductImage = {
+  variant_id: string | null;
   external_url: string | null;
   storage_url: string | null;
   alt_text: string | null;
@@ -105,6 +107,7 @@ type ProductCustomizationLocation = {
 };
 
 type ProductDetail = {
+  all_image_list: string | null;
   properties: unknown;
   id: string;
   supplier_id: string | null;
@@ -536,6 +539,7 @@ export default async function ProductDetailPage({
         name,
         slug,
         properties,
+        all_image_list:supplier_payload->>AllImageList,
         short_description,
         description,
         brand,
@@ -549,6 +553,7 @@ export default async function ProductDetailPage({
         lead_time_days,
         is_customizable,
         product_images (
+          variant_id,
           external_url,
           storage_url,
           alt_text,
@@ -737,6 +742,7 @@ export default async function ProductDetailPage({
     id: color.id,
     sku: color.sku,
     color_name: color.color_name,
+    color_code: color.color_code,
     color_label: color.color_label,
     color_hex: color.color_hex,
     size: color.size,
@@ -837,7 +843,12 @@ export default async function ProductDetailPage({
   shortDescription={product.short_description}
   productDescription={product.description}
   productImageUrl={imageUrl ?? null}
-  productHighResolutionImageUrl={highResolutionImageUrl}
+  productGallery={buildProductGallery({
+    sku: product.sku,
+    allImageList: product.all_image_list,
+    images: product.product_images ?? [],
+    variants: product.product_variants ?? [],
+  })}
   brand={product.brand}
   material={product.material}
   dimensions={product.dimensions}

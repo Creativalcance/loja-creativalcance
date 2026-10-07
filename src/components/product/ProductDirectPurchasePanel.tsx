@@ -1,6 +1,7 @@
 "use client";
 
-import NextImage from "next/image";
+import ProductGallery from "@/components/product/ProductGallery";
+import { getGalleryColorKey, type ProductGalleryImage } from "@/lib/catalog/product-gallery";
 
 import { ShoppingResume, useShoppingLoginSnapshot } from "@/lib/cart/login-snapshot";
 
@@ -36,6 +37,7 @@ export type ProductPurchaseColor = {
   id: string;
   sku: string;
   color_name: string | null;
+  color_code?: string | null;
   color_label?: string | null;
   color_hex: string | null;
   size: string | null;
@@ -110,7 +112,7 @@ type ProductDirectPurchasePanelProps = {
   shortDescription: string | null;
   productDescription: string | null;
   productImageUrl: string | null;
-  productHighResolutionImageUrl: string | null;
+  productGallery: ProductGalleryImage[];
   brand: string | null;
   material: string | null;
   dimensions: string | null;
@@ -521,40 +523,6 @@ function buildColorGroups(params: {
     );
 }
 
-function ProductDetailImage({
-  highResolutionUrl,
-  fallbackUrl,
-  alt,
-}: {
-  highResolutionUrl: string | null;
-  fallbackUrl: string | null;
-  alt: string;
-}) {
-  const sourceKey = `${highResolutionUrl ?? ""}|${fallbackUrl ?? ""}`;
-  const [failedSources, setFailedSources] = useState<{ key: string; urls: string[] }>({ key: "", urls: [] });
-  const failed = failedSources.key === sourceKey ? failedSources.urls : [];
-  const imageUrl = [highResolutionUrl, fallbackUrl].find(url => url && !failed.includes(url));
-
-  if (!imageUrl) {
-    return (
-      <div className="text-sm text-neutral-400">
-        Imagem indisponível
-      </div>
-    );
-  }
-
-  return (
-    <NextImage unoptimized width={1000} height={1000}
-      src={imageUrl}
-      alt={alt}
-      className="h-full w-full object-contain p-8"
-      onError={() => {
-        setFailedSources({ key: sourceKey, urls: [...failed, imageUrl] });
-      }}
-    />
-  );
-}
-
 function dedupePriceTiers(
   prices: ProductPurchasePrice[],
 ): ProductPurchasePrice[] {
@@ -679,7 +647,7 @@ function PurchasePanel({
   shortDescription,
   productDescription,
   productImageUrl,
-  productHighResolutionImageUrl,
+  productGallery,
   brand,
   material,
   dimensions,
@@ -1234,10 +1202,7 @@ function PurchasePanel({
     selectedVariant?.image_url ??
     productImageUrl;
 
-  const displayHighResolutionImageUrl =
-    selectedColorGroup?.high_resolution_image_url ??
-    selectedVariant?.high_resolution_image_url ??
-    productHighResolutionImageUrl;
+  const galleryColorKey = getGalleryColorKey(selectedColorGroup?.variants[0] ?? selectedVariant);
 
   const canProceed =
     selectedStock.orderable > 0 &&
@@ -1332,13 +1297,14 @@ function PurchasePanel({
     <div className="mt-8 grid min-w-0 max-w-full items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(460px,0.85fr)] lg:gap-10">
       <div className="min-w-0 max-w-full space-y-6">
         <div className="h-fit rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-          <div className="mx-auto flex aspect-[4/3] max-h-[560px] items-center justify-center overflow-hidden rounded-3xl bg-neutral-50">
-            <ProductDetailImage
-              highResolutionUrl={displayHighResolutionImageUrl}
-              fallbackUrl={displayImageUrl}
-              alt={productName}
-            />
-          </div>
+          <ProductGallery
+            key={`${productId}:${galleryColorKey ?? "all"}`}
+            images={productGallery}
+            selectedColorKey={galleryColorKey}
+            preferredImageUrl={displayImageUrl}
+            productName={productName}
+            locale={locale}
+          />
 
           {colorGroups.length > 0 ? (
             <div className="mt-6 space-y-6">
