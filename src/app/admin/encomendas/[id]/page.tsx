@@ -32,6 +32,8 @@ import AdminOrderCommercialForm from "@/components/admin/orders/AdminOrderCommer
 import AdminDeleteOrderForm from "@/components/admin/orders/AdminDeleteOrderForm";
 import AdminRetrySupplierSubmissionForm from "@/components/admin/orders/AdminRetrySupplierSubmissionForm";
 import OrderArtworkPreview from "@/components/orders/OrderArtworkPreview";
+import OrderMockups from "@/components/orders/OrderMockups";
+import type { OrderMockup } from "@/lib/orders/mockup";
 import { buildOrderArtworkPreview } from "@/lib/orders/artwork-preview";
 import { hydrateOrderArtworkGeometry } from "@/lib/orders/artwork-geometry";
 import { AdminOrderStatusForm, AdminTrackingForm, AdminInvoiceForm } from "@/components/admin/orders/AdminOrderOperations";
@@ -52,6 +54,7 @@ type OrderRecord = {
   user_id: string | null;
   order_number: string;
   customer_email: string;
+  artwork_email: string | null;
   customer_name: string;
   customer_phone: string | null;
   company_name: string | null;
@@ -914,6 +917,8 @@ const supabaseAdmin = createSupabaseAdminClient();
     historyResult,
     stripeEventsResult,
     invoiceEmailsResult,
+    mockupsResult,
+    mockupEmailsResult,
   ] = await Promise.all([
     supabaseAdmin
       .from("orders")
@@ -923,6 +928,7 @@ const supabaseAdmin = createSupabaseAdminClient();
           user_id,
           order_number,
           customer_email,
+          artwork_email,
           customer_name,
           customer_phone,
           company_name,
@@ -1165,6 +1171,10 @@ const supabaseAdmin = createSupabaseAdminClient();
       .select("id,event_type,email_status,email_sent_at,email_error,payload")
       .eq("order_id", id).in("event_type", ["invoice_required", "order_invoice_available"])
       .order("created_at", { ascending: false }).limit(6),
+    supabaseAdmin.from("order_mockups").select("id,order_id,version,approval_url,state,first_seen_at,last_seen_at")
+      .eq("order_id", id).order("first_seen_at", { ascending: false }).returns<OrderMockup[]>(),
+    supabaseAdmin.from("customer_email_notifications").select("id,email_to,email_status,email_sent_at,email_error,payload")
+      .eq("order_id", id).eq("event_type", "order_mockup_available").order("created_at", { ascending: false }).limit(10),
   ]);
 
   if (orderResult.error || !orderResult.data) {
@@ -1192,6 +1202,7 @@ const supabaseAdmin = createSupabaseAdminClient();
   }
 
   const order = orderResult.data;
+  if (mockupsResult.error || mockupEmailsResult.error) throw new Error("Não foi possível consultar as maquetes.");
   const canRetrySupplierSubmission =
     order.payment_status === "paid" &&
     ["failed", "not_submitted", "partially_submitted"].includes(
@@ -1408,6 +1419,15 @@ const supabaseAdmin = createSupabaseAdminClient();
 
         <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-6">
+            <OrderMockups mockups={mockupsResult.data ?? []} locale="pt" recipient={order.artwork_email} order={order} />
+            {Boolean(mockupEmailsResult.data?.length) && <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold">Envio das maquetes por email</h2>
+              <ul className="mt-4 space-y-3">{(mockupEmailsResult.data ?? []).map(email => <li key={email.id} className="break-words text-sm">
+                <p>Versão {String((email.payload as JsonRecord)?.version ?? "—")} · {email.email_to}</p>
+                <p className="text-neutral-600">{({ pending: "Em fila", sending: "A enviar", sent: "Enviado", failed: "Falha no envio", cancelled: "Envio cancelado" } as Record<string, string>)[email.email_status] ?? "Em atualização"}{email.email_sent_at ? ` · ${new Date(email.email_sent_at).toLocaleString("pt-PT", { timeZone: "Europe/Lisbon" })}` : ""}</p>
+                {email.email_error && <p className="text-red-700">{email.email_error}</p>}
+              </li>)}</ul>
+            </section>}
             <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
               <div className="flex items-center justify-between gap-4">
                 <div>

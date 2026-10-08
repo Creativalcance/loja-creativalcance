@@ -6,6 +6,7 @@ import { getSiteLocale, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { INVOICE_BUCKET, MAX_INVOICE_BYTES, invoiceEventKey, isOrderInvoicePath } from "@/lib/orders/invoice-file";
 import { invoiceCustomerCopy, renderInvoiceRequired } from "@/lib/notifications/invoice-email";
+import { canRequestMockupApproval, mockupCopy, safeMockupUrl } from "@/lib/orders/mockup";
 
 type CustomerEmailEvent =
   | "account_welcome"
@@ -13,7 +14,8 @@ type CustomerEmailEvent =
   | "order_status_changed"
   | "order_tracking_available"
   | "invoice_required"
-  | "order_invoice_available";
+  | "order_invoice_available"
+  | "order_mockup_available";
 
 type EmailNotification = {
   id: string;
@@ -149,6 +151,16 @@ function renderEmail(notification: EmailNotification): { subject: string; html: 
   const orderUrl = localPath(locale, `/area-cliente/encomendas${/^[0-9a-f-]{36}$/i.test(orderId) ? `/${orderId}` : ""}`);
 
   if (notification.event_type === "invoice_required") return renderInvoiceRequired(p, getSiteUrl());
+  if (notification.event_type === "order_mockup_available") {
+    const copy = mockupCopy[locale];
+    const url = safeMockupUrl(p.approvalUrl);
+    if (!url) throw new Error("Ligação de aprovação inválida.");
+    const subject = `${copy.subject} ${orderNumber} · ${copy.version} ${p.version}`;
+    const body = `${copy.intro} ${orderNumber} · ${copy.version} ${p.version}. ${copy.instruction}`;
+    return { subject, ...renderLayout({ locale, preview: subject, eyebrow: "360 MERCHANDISING", heading: copy.heading,
+      bodyHtml: `<p style="margin:0;font-size:16px;line-height:1.7;">${escapeHtml(body)}</p>`, bodyText: body,
+      button: { label: copy.action, url } }) };
+  }
   if (notification.event_type === "order_invoice_available") {
     const copy = invoiceCustomerCopy(locale, p);
     return { subject: copy.subject, ...renderLayout({ locale, preview: copy.subject, eyebrow: "360 MERCHANDISING", heading: copy.heading,
@@ -225,6 +237,23 @@ export async function deliverCustomerEmail(notification: EmailNotification, manu
     const apiKey = process.env.RESEND_API_KEY?.trim();
     if (!apiKey) throw new Error("RESEND_API_KEY não está configurada.");
     let attachments: Array<{ filename: string; content: string }> | undefined;
+    if (notification.event_type === "order_mockup_available") {
+      const [current, proof] = await Promise.all([
+        admin.from("orders").select("id,status,payment_status,deleted_at,artwork_email")
+          .eq("id", asString(notification.payload.orderId)).maybeSingle(),
+        admin.from("order_mockups").select("id,state,version,approval_url")
+          .eq("id", asString(notification.payload.mockupId)).eq("order_id", asString(notification.payload.orderId)).maybeSingle(),
+      ]);
+      if (current.error || proof.error) throw new Error("Não foi possível verificar a maquete antes do envio.");
+      if (!current.data || !canRequestMockupApproval(current.data) || !proof.data || proof.data.state !== "pending"
+        || proof.data.version !== notification.payload.version || proof.data.approval_url !== notification.payload.approvalUrl
+        || !safeMockupUrl(proof.data.approval_url) || current.data.artwork_email !== notification.email_to) {
+        const cancelled = await admin.from("customer_email_notifications").update({ email_status: "cancelled",
+          email_error: "A maquete, encomenda ou destinatário mudou; este envio deixou de ser necessário.", updated_at: new Date().toISOString() }).eq("id", notification.id);
+        if (cancelled.error) throw new Error(cancelled.error.message);
+        return false;
+      }
+    }
     const isInvoice = notification.event_type === "order_invoice_available" || notification.event_type === "invoice_required";
     if (isInvoice) {
       const orderId = asString(notification.payload.orderId);
@@ -265,7 +294,7 @@ export async function deliverCustomerEmail(notification: EmailNotification, manu
     const content = renderEmail(notification);
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST", headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "Idempotency-Key": notification.event_key.slice(0, 256) },
-      ...(isInvoice ? { signal: AbortSignal.timeout(10_000) } : {}),
+      ...((isInvoice || notification.event_type === "order_mockup_available") ? { signal: AbortSignal.timeout(10_000) } : {}),
       body: JSON.stringify({ from: brandedFromEmail(), to: [notification.email_to], subject: content.subject, html: content.html, text: content.text, ...(attachments ? { attachments } : {}), tags: [{ name: "event", value: notification.event_type }, { name: "locale", value: notification.locale }] }),
     });
     const result = (await response.json().catch(() => ({}))) as ResendResponse;

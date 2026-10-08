@@ -1,5 +1,7 @@
 import Link from "next/link";
 import OrderArtworkPreview from "@/components/orders/OrderArtworkPreview";
+import OrderMockups from "@/components/orders/OrderMockups";
+import { mockupCopy, type OrderMockup } from "@/lib/orders/mockup";
 import { buildOrderArtworkPreview, hasOrderArtworkPreview } from "@/lib/orders/artwork-preview";
 import { hydrateOrderArtworkGeometry } from "@/lib/orders/artwork-geometry";
 import SiteHeader from "@/components/layout/SiteHeader";
@@ -18,14 +20,15 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
   const path = localizePath(`/area-cliente/encomendas/${id}`, locale);
   const { order, user, admin } = await ownedCustomerOrder(id, path);
   // Privileged reads occur only after verifying ownership of this exact order.
-  const [items, payments, history, notifications, addresses] = await Promise.all([
+  const [items, payments, history, notifications, addresses, mockups] = await Promise.all([
     admin.from("order_items").select("id,product_name,quantity,unit_price,total,personalization_required,personalization_notes,customization_component_name,customization_location_name,customization_technique_name,logo_file_name,logo_storage_path,logo_url,mockup_storage_path,mockup_url,technical_preview_url,artwork_approved,customization_location_id,service_code,personalization_data,printing_width_mm,printing_height_mm,logo_position_x,logo_position_y,logo_scale,logo_rotation,logo_width_mm,logo_height_mm").eq("order_id", id).order("created_at"),
     admin.from("payments").select("id,status,amount,amount_received,amount_refunded,currency,created_at,paid_at,refunded_at").eq("order_id", id).order("created_at", { ascending: false }),
     admin.from("order_status_history").select("id,new_status,created_at").eq("order_id", id).order("created_at", { ascending: false }),
     admin.from("customer_email_notifications").select("id,event_type,payload,created_at").eq("order_id", id).eq("user_id", user.id).in("event_type", ["order_confirmation", "order_status_changed", "order_tracking_available"]).order("created_at", { ascending: false }),
     admin.from("customer_addresses").select("id,contact_name,company_name,address_line_1,address_line_2,postal_code,city,country_code").eq("user_id", user.id).in("id", [order.shipping_address_id, order.billing_address_id].filter(Boolean)),
+    admin.from("order_mockups").select("id,order_id,version,approval_url,state,first_seen_at,last_seen_at").eq("order_id", id).order("first_seen_at", { ascending: false }).returns<OrderMockup[]>(),
   ]);
-  if ([items, payments, history, notifications, addresses].some(result => result.error)) throw new Error("Não foi possível carregar todos os detalhes da encomenda. Tenta novamente.");
+  if ([items, payments, history, notifications, addresses, mockups].some(result => result.error)) throw new Error("Não foi possível carregar todos os detalhes da encomenda. Tenta novamente.");
   const orderItems = await hydrateOrderArtworkGeometry(admin, items.data ?? []);
   const money = (value: number | string | null, currency = order.currency) => new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, { style: "currency", currency }).format(Number(value ?? 0));
   const date = (value: string) => new Intl.DateTimeFormat(SITE_LOCALES[locale].intlLocale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
@@ -44,6 +47,7 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
     if (label) events.push({ id: row.id, time: row.created_at, label });
   }
   // Email delivery failures do not erase the underlying order event.
+  for (const proof of mockups.data ?? []) events.push({ id: proof.id, time: proof.first_seen_at, label: `${mockupCopy[locale].heading} · ${mockupCopy[locale].version} ${proof.version}` });
   const timeline = events.sort((a, b) => Date.parse(b.time) - Date.parse(a.time)).filter((event, index, all) => !all.slice(0, index).some(previous => previous.label === event.label && Math.abs(Date.parse(previous.time) - Date.parse(event.time)) < 60000));
   const panel = "rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm";
   const link = "inline-flex rounded-xl border border-neutral-300 px-4 py-2 text-sm font-semibold underline-offset-4 hover:underline";
@@ -53,6 +57,7 @@ export default async function CustomerOrderPage({ params }: { params: Promise<{ 
     <Link href={localizePath("/area-cliente/encomendas", locale)} className={link}>← {t.back}</Link>
     <header><h1 className="break-words text-3xl font-semibold">{order.order_number}</h1><p className="mt-2 text-neutral-600">{date(order.created_at)}</p><p className="mt-3 font-semibold">{customerStatus(order.status, locale)}</p></header>
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"><div className="min-w-0 space-y-6">
+      <OrderMockups mockups={mockups.data ?? []} locale={locale} recipient={order.artwork_email} order={order} />
       <section className={panel}><h2 className="text-xl font-semibold">{t.history}</h2><ol className="mt-5 space-y-4">{timeline.map(event => <li key={event.id} className="border-l-2 border-orange-500 pl-4"><p className="font-medium">{event.label}</p><time className="text-sm text-neutral-500" dateTime={event.time}>{date(event.time)}</time></li>)}</ol></section>
       <section className={panel}><h2 className="text-xl font-semibold">{t.items}</h2><div className="mt-5 divide-y">{orderItems.map(item => {
         const preview = buildOrderArtworkPreview(item, { logoUrl: item.logo_storage_path || safeDocumentUrl(item.logo_url) ? document("logo", item.id) : null, mockupUrl: item.mockup_storage_path || safeDocumentUrl(item.mockup_url) ? document("mockup", item.id) : null });

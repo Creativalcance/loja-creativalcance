@@ -19,6 +19,11 @@ function load(path, imports = {}) {
 }
 const status = load('src/lib/customer/order-status.ts');
 const copy = load('src/lib/customer/order-copy.ts');
+const mockup = load('src/lib/orders/mockup.ts');
+const i18n = load('src/lib/i18n/config.ts');
+const mockupComponent = load('src/components/orders/OrderMockups.tsx', {
+  'react/jsx-runtime': jsx, '@/lib/orders/mockup': mockup, '@/lib/i18n/config': i18n,
+});
 
 test('customer status labels never disclose internal status codes or supplier references', () => {
   for (const locale of ['pt','en','fr','es','de','it']) {
@@ -50,14 +55,18 @@ test('order page presents customer events despite email failure, and distinguish
     order_status_history: [{id:'history',new_status:'sent_to_supplier',created_at:'2026-09-02T10:00:00Z'}],
     customer_email_notifications: [{id:'email',event_type:'order_status_changed',email_status:'failed',payload:{newStatus:'PRODUCTION',internalNotes:'SECRET'},created_at:'2026-09-03T10:00:00Z'}],
     customer_addresses: [],
+    order_mockups: [{id:'proof',order_id:'order',version:1,state:'pending',first_seen_at:'2026-10-08T09:00:00Z',
+      approval_url:'https://online-mockup.com/pt/11111111-1111-4111-8111-111111111111/'}],
   };
   const admin = {from: name => {
-    const q = {select:()=>q,eq:()=>q,in:()=>q,order:()=>q,then:(resolve)=>Promise.resolve({data:rows[name],error:null}).then(resolve)};return q;
+    const q = {select:()=>q,eq:()=>q,in:()=>q,order:()=>q,returns:()=>q,then:(resolve)=>Promise.resolve({data:rows[name],error:null}).then(resolve)};return q;
   }};
   const order = {id:'order',order_number:'TEST-360',status:'processing',payment_status:'paid',fulfillment_status:'unfulfilled',created_at:'2026-09-01T10:00:00Z',currency:'EUR',subtotal:20,personalization_total:0,setup_total:0,shipping_total:0,discount_total:0,tax_total:4.6,grand_total:24.6,customer_name:'Test customer',invoice_url:null};
   const page = load('src/app/area-cliente/encomendas/[id]/page.tsx', {
     'react/jsx-runtime':jsx, 'next/link':({children,...props})=>React.createElement('a',props,children),
     '@/components/layout/SiteHeader':()=>null,
+    '@/components/orders/OrderMockups':mockupComponent.default,
+    '@/lib/orders/mockup':mockup,
     '@/components/orders/OrderArtworkPreview':({alt})=>React.createElement('img',{alt}),
     '@/lib/orders/artwork-preview':load('src/lib/orders/artwork-preview.ts'),
     '@/lib/orders/artwork-geometry':{hydrateOrderArtworkGeometry:async(_admin,items)=>items},
@@ -69,7 +78,17 @@ test('order page presents customer events despite email failure, and distinguish
   const html = renderToStaticMarkup(await page.default({params:Promise.resolve({id:'order'})}));
   for(const text of ['Em produção','Pagamentos','Ficheiro de personalização','Ver simulação','A fatura ainda não está disponível']) assert.ok(html.includes(text),text);
   assert.ok(html.includes('/documento?tipo=mockup'));
+  assert.ok(html.includes('Ver e aprovar maquete'));
+  assert.ok(html.includes('https://online-mockup.com/pt/11111111-1111-4111-8111-111111111111/'));
   for(const text of ['SECRET','private/logo.svg','sent_to_supplier','email_status','fornecedor']) assert.ok(!html.includes(text),text);
+});
+
+test('proof panel suppresses actions for old versions, unconfirmed decisions and completed orders',()=>{
+  const proof={id:'proof',order_id:'order',version:1,first_seen_at:'2026-10-08T09:00:00Z',approval_url:'https://online-mockup.com/pt/11111111-1111-4111-8111-111111111111/'};
+  for(const state of ['superseded','awaiting_confirmation','closed']){
+    const html=renderToStaticMarkup(React.createElement(mockupComponent.default,{mockups:[{...proof,state}],locale:'pt',recipient:'approver@example.test',order:{status:'sent_to_supplier',payment_status:'paid'}}));
+    assert.ok(html.includes('approver@example.test'));assert.doesNotMatch(html,/href=|online-mockup.com|aprovada/i);
+  }
 });
 
 test('document downloads check both item and owned order before signing a file', async () => {

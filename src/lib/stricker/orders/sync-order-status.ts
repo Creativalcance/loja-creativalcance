@@ -5,6 +5,7 @@ import {
   notifyOrderTrackingAvailable,
 } from "@/lib/notifications/customer-email";
 import { extractStrickerOrderStatus, extractStrickerShippingDate, extractStrickerTrackingNumber, extractStrickerTrackingUrl, getStrickerOrderDetails } from "@/lib/stricker/orders/client";
+import { effectiveMockupOrderStatus, syncStrickerMockups } from "@/lib/stricker/orders/mockups";
 
 const MAX_ORDERS_PER_EXECUTION = 50;
 const ORDER_DETAILS_TIMEOUT_MS = 20_000;
@@ -65,6 +66,9 @@ async function processInBatches<T>(
 
 export async function syncSubmittedStrickerOrders() {
   const admin = createSupabaseAdminClient();
+  let mockups: unknown;
+  try { mockups = await syncStrickerMockups(); }
+  catch { mockups = { failed: true, message: "A consulta das maquetes falhou; os dados anteriores foram preservados." }; }
   const { data, error } = await admin.from("orders")
     .select("id,order_number,supplier_order_stamp,supplier_test_mode,supplier_last_status,supplier_shipping_date,supplier_tracking_number,supplier_tracking_url,supplier_last_checked_at,status,fulfillment_status,shipped_at,cancelled_at")
     .not("supplier_order_stamp", "is", null).is("deleted_at", null)
@@ -75,6 +79,15 @@ export async function syncSubmittedStrickerOrders() {
   if (error) throw new Error(error.message);
 
   const orders = data ?? [];
+  const proofStates = new Map<string, string>();
+  if (orders.length) {
+    const proofs = await admin.from("order_mockups").select("order_id,state")
+      .in("order_id", orders.map(order => order.id)).in("state", ["pending", "awaiting_confirmation"]);
+    if (proofs.error) throw new Error("Não foi possível consultar o estado das maquetes.");
+    for (const proof of proofs.data ?? []) {
+      if (proofStates.get(proof.order_id) !== "pending") proofStates.set(proof.order_id, proof.state);
+    }
+  }
   let updated = 0;
   let unchanged = 0;
   const failures: Array<{ orderId: string; message: string }> = [];
@@ -88,9 +101,10 @@ export async function syncSubmittedStrickerOrders() {
         testMode: order.supplier_test_mode,
         timeoutMs: ORDER_DETAILS_TIMEOUT_MS,
       });
-      const status = normalizeText(
+      const rawStatus = normalizeText(
         extractStrickerOrderStatus(result.orderDetails),
       )?.toUpperCase() ?? null;
+      const status = effectiveMockupOrderStatus(rawStatus, proofStates.get(order.id));
       const shippingDate = normalizeDate(
         extractStrickerShippingDate(result.orderDetails),
       );
@@ -138,6 +152,10 @@ export async function syncSubmittedStrickerOrders() {
         });
       }
 
+      if (status === "PRODUCTION" && !["shipped", "delivered", "cancelled"].includes(order.status)) {
+        values.status = "in_production";
+      }
+
       const { error: updateError } = await admin.from("orders").update(values).eq("id", order.id);
       if (updateError) throw new Error(updateError.message);
 
@@ -180,7 +198,7 @@ export async function syncSubmittedStrickerOrders() {
           );
           if (hasNewTracking) {
             await notifyOrderTrackingAvailable(order.id);
-          } else {
+          } else if (status !== "PENDING_MOCKUP_APPROVAL" && status === rawStatus) {
             await notifyOrderStatusChanged({
               orderId: order.id,
               previousStatus: normalizeText(order.supplier_last_status)?.toUpperCase() ?? null,
@@ -208,6 +226,7 @@ export async function syncSubmittedStrickerOrders() {
   });
 
   return {
+    mockups,
     checked: orders.length,
     updated,
     unchanged,

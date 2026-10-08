@@ -21,7 +21,7 @@ const clone = value => JSON.parse(JSON.stringify(value));
 // A small stateful database double: conditional updates really claim rows, and
 // duplicate event keys return the existing record rather than creating mail.
 function database(seed = {}) {
-  const tables = { orders: [], customer_email_notifications: [], admin_notifications: [],
+  const tables = { orders: [], order_mockups: [], customer_email_notifications: [], admin_notifications: [],
     newsletter_subscribers: [], fulfillment_groups: [], fulfillment_group_items: [], ...clone(seed) };
   const db = { tables, failGroupSave: false, from(table) {
     assert.ok(table in tables, `Unexpected table or supplier operation: ${table}`);
@@ -93,6 +93,7 @@ function harness(seed = {}, options = {}) {
     },
   };
   const imports = {
+    '@/lib/orders/mockup': load('src/lib/orders/mockup.ts'),
     '@/lib/orders/invoice-file': load('src/lib/orders/invoice-file.ts', {'node:crypto': crypto}),
     '@/lib/notifications/invoice-email': load('src/lib/notifications/invoice-email.ts'),
     'node:crypto': crypto, 'node:timers/promises': { setTimeout: async () => {} },
@@ -334,4 +335,38 @@ test('invoice alert is cancelled if the invoice is already uploaded before the w
     event_type: 'invoice_required', email_status: 'pending', email_attempts: 0, email_to: 'info@creativalcance.com', locale: 'pt', payload: { orderId: order.id } }] });
   await h.customer.retryPendingCustomerEmails();
   assert.equal(h.requests.length, 0); assert.equal(h.db.tables.customer_email_notifications[0].email_status, 'cancelled');
+});
+
+function mockupFixture(locale = 'pt') {
+  const order = fixture(locale); order.artwork_email = 'artwork-approver@example.test';
+  const proof = { id: 'proof-1', order_id: order.id, state: 'pending', version: 1,
+    approval_url: 'https://online-mockup.com/pt/11111111-1111-4111-8111-111111111111/' };
+  const email = { id: 'proof-mail', event_key: 'order-mockup:proof-1:stable-key', event_type: 'order_mockup_available',
+    email_to: order.artwork_email, locale, email_status: 'pending', email_attempts: 0,
+    payload: { orderId: order.id, orderNumber: order.order_number, mockupId: proof.id, version: proof.version, approvalUrl: proof.approval_url } };
+  return {order,proof,email};
+}
+for(const locale of ['pt','en','fr','es','de','it']) test(`${locale}: branded proof goes only to the checkout approver, once`,async()=>{
+  const {order,proof,email}=mockupFixture(locale);
+  const h=harness({orders:[order],order_mockups:[proof],customer_email_notifications:[email]});
+  await h.customer.retryPendingCustomerEmails();await h.customer.retryPendingCustomerEmails();
+  assert.equal(h.requests.length,1);const mail=h.requests[0].body;
+  assert.deepEqual(mail.to,[order.artwork_email]);assert.notEqual(order.artwork_email,order.customer_email);
+  assert.match(mail.from,/^360 Merchandising/);assert.ok(mail.text.includes(proof.approval_url));
+  assert.ok(mail.html.includes(`<html lang="${locale}">`));assert.doesNotMatch(mail.text,/stricker|CCO-26|info@creativalcance/i);
+});
+test('proof delivery failures retry with the exact same recipient, version and provider idempotency key',async()=>{
+  const {order,proof,email}=mockupFixture();const h=harness({orders:[order],order_mockups:[proof],customer_email_notifications:[email]},{fail:true});
+  await h.customer.retryPendingCustomerEmails();h.state.fail=false;await h.customer.retryPendingCustomerEmails();
+  assert.equal(h.requests.length,2);assert.deepEqual(h.requests[0],h.requests[1]);
+});
+test('stale proofs, altered links or recipients and cancelled orders never send pending emails',async()=>{
+  for(const change of [x=>x.proof.state='superseded',x=>x.proof.state='awaiting_confirmation',x=>x.proof.version=2,
+    x=>x.proof.approval_url='https://evil.test',x=>x.order.artwork_email='new-approver@example.test',
+    x=>x.order.deleted_at='2026-10-08',x=>x.order.status='cancelled',x=>x.order.status='shipped',
+    x=>x.proof.order_id='different-order',x=>x.order.payment_status='refunded']) {
+    const f=mockupFixture();change(f);const h=harness({orders:[f.order],order_mockups:[f.proof],customer_email_notifications:[f.email]});
+    await h.customer.retryPendingCustomerEmails();assert.equal(h.requests.length,0);
+    assert.equal(h.db.tables.customer_email_notifications[0].email_status,'cancelled');
+  }
 });

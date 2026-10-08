@@ -141,11 +141,13 @@ test('the legacy mockup document link opens the protected composition, never the
 test('supplier status changes and tracking trigger customer mail; unchanged polling does not',async()=>{
   const order={id:'supplier-order',order_number:'SUPPLIER-TEST',supplier_order_stamp:'stamp',supplier_last_status:'PROCESSING',status:'sent_to_supplier'};
   let nextStatus='PRODUCTION',nextTracking=null;const mail=[];
-  const admin={from:()=>{
+  const admin={from:table=>{
+    if(table==='order_mockups'){const q={select:()=>q,in:()=>q,then:resolve=>Promise.resolve({data:[],error:null}).then(resolve)};return q;}
     let update;const q={select:()=>q,not:()=>q,is:()=>q,or:()=>q,order:()=>q,limit:()=>q,eq:()=>q,returns:()=>q,
       update:value=>{update=value;return q;},then:resolve=>{const data=[JSON.parse(JSON.stringify(order))];if(update)Object.assign(order,update);return Promise.resolve({data,error:null}).then(resolve);}};return q;
   }};
   const sync=load('src/lib/stricker/orders/sync-order-status.ts',{
+    '@/lib/stricker/orders/mockups':{syncStrickerMockups:async()=>({matched:0,queued:0}),effectiveMockupOrderStatus:raw=>raw},
     '@/lib/supabase/admin':{createSupabaseAdminClient:()=>admin},
     '@/lib/notifications/supplier-order-status-changed':{notifySupplierOrderStatusChanged:async()=>{}},
     '@/lib/notifications/customer-email':{notifyOrderStatusChanged:async event=>mail.push({type:'status',...event}),notifyOrderTrackingAvailable:async()=>mail.push({type:'tracking'})},
