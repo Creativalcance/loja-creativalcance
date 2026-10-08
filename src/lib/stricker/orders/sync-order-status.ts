@@ -68,7 +68,12 @@ export async function syncSubmittedStrickerOrders() {
   const admin = createSupabaseAdminClient();
   let mockups: unknown;
   try { mockups = await syncStrickerMockups(); }
-  catch { mockups = { failed: true, message: "A consulta das maquetes falhou; os dados anteriores foram preservados." }; }
+  catch (cause) {
+    // The mockup client reports sanitized errors, without private links or tokens.
+    const message = cause instanceof Error ? cause.message : "A consulta das maquetes falhou; os dados anteriores foram preservados.";
+    console.error("Order mockup sync failed", { message });
+    mockups = { failed: true, message };
+  }
   const { data, error } = await admin.from("orders")
     .select("id,order_number,supplier_order_stamp,supplier_test_mode,supplier_last_status,supplier_shipping_date,supplier_tracking_number,supplier_tracking_url,supplier_last_checked_at,status,fulfillment_status,shipped_at,cancelled_at")
     .not("supplier_order_stamp", "is", null).is("deleted_at", null)

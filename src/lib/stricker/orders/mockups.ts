@@ -10,6 +10,10 @@ export function parseApprovalMockups(value: unknown): ApprovalMockup[] {
   const invalid = () => new Error("Resposta de maquetes inválida; o estado anterior foi preservado.");
   if (!value || typeof value !== "object") throw invalid();
   const body = value as Record<string, unknown>;
+  if (body.ErrorCode != null && body.ErrorCode !== 0 && body.ErrorCode !== "0") {
+    const code = /^\d{1,6}$/.test(String(body.ErrorCode)) ? String(body.ErrorCode) : "desconhecido";
+    throw new Error(`Consulta de maquetes recusada (código ${code}); o estado anterior foi preservado.`);
+  }
   if ((body.ErrorCode != null && body.ErrorCode !== 0 && body.ErrorCode !== "0") || body.ErrorMessage
     || !Array.isArray(body.ApprovalMockups) || body.Count !== body.ApprovalMockups.length) throw invalid();
   const latest = new Map<string, ApprovalMockup>();
@@ -33,18 +37,26 @@ export function parseApprovalMockups(value: unknown): ApprovalMockup[] {
 
 // One account-wide GET per scheduled run. Customer pages never call the provider.
 export async function syncStrickerMockups() {
-  const token = await getValidStrickerSessionToken();
-  const url = new URL(`${getStrickerConfig().apiBaseUrl}/ApprovalMockups`);
+  let token: string;
+  let baseUrl: string;
+  try { token = await getValidStrickerSessionToken(); baseUrl = getStrickerConfig().apiBaseUrl; }
+  catch { throw new Error("Falha na sessão da consulta de maquetes; o estado anterior foi preservado."); }
+  const url = new URL(`${baseUrl}/ApprovalMockups`);
   url.searchParams.set("token", token);
-  let payload: unknown;
+  let response: Response;
   try {
-    const response = await fetch(url, { method: "GET", cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
-    if (!response.ok) throw new Error();
-    payload = await response.json();
-  } catch { throw new Error("Não foi possível consultar as maquetes; o estado anterior foi preservado."); }
+    response = await fetch(url, { method: "GET", cache: "no-store", headers: { Accept: "application/json" }, signal: AbortSignal.timeout(60_000) });
+  } catch (cause) { throw new Error(`Consulta de maquetes interrompida (${cause instanceof Error && cause.name === "TimeoutError" ? "tempo limite" : "ligação"}); o estado anterior foi preservado.`); }
+  if (!response.ok) throw new Error(`Consulta de maquetes respondeu HTTP ${response.status}; o estado anterior foi preservado.`);
+  let payload: unknown;
+  try { payload = await response.json(); }
+  catch { throw new Error("Formato da consulta de maquetes inválido; o estado anterior foi preservado."); }
   const mockups = parseApprovalMockups(payload);
   const result = await createSupabaseAdminClient().rpc("reconcile_order_mockups", { p_mockups: mockups });
-  if (result.error) throw new Error("Não foi possível guardar a sincronização das maquetes.");
+  if (result.error) {
+    const code = /^[A-Z0-9_]{1,12}$/.test(result.error.code ?? "") ? result.error.code : "desconhecido";
+    throw new Error(`Não foi possível guardar a sincronização das maquetes (código ${code}).`);
+  }
   return result.data;
 }
 
