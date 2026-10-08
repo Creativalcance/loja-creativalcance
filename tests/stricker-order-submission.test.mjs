@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import ts from 'typescript';
 
@@ -50,7 +51,7 @@ function submissionHarness({ personalized = true } = {}) {
     supplier_submission_status: 'failed', supplier_order_stamp: null,
     supplier_submission_attempts: 1,
   });
-  const h = { failService: false };
+  const h = { failService: false, files: new Map([['fixture/artwork-a.png', [1, 2, 3]]]), downloads: [] };
   const admin = {
     from(table) {
       let operation = 'select';
@@ -78,8 +79,10 @@ function submissionHarness({ personalized = true } = {}) {
     storage: { from(bucket) {
       assert.equal(bucket, 'customization-artwork');
       return { async download(storagePath) {
-        assert.equal(storagePath, 'fixture/artwork-a.png');
-        return { data: { async arrayBuffer() { return new Uint8Array([1, 2, 3]).buffer; } }, error: null };
+        h.downloads.push(storagePath);
+        const bytes = h.files.get(storagePath);
+        if (!bytes) return { data: null, error: { message: 'Artwork file unavailable' } };
+        return { data: { async arrayBuffer() { return new Uint8Array(bytes).buffer; } }, error: null };
       } };
     } },
   };
@@ -88,6 +91,7 @@ function submissionHarness({ personalized = true } = {}) {
   });
   const api = load('src/lib/stricker/orders/submit-order.ts', {
     'node:path': { default: path },
+    'node:crypto': { createHash },
     '@/lib/notifications/stricker-order-submitted': { async notifyStrickerOrderSubmitted() {} },
     '@/lib/notifications/customer-email': {
       async notifyOrderStatusChanged(value) { notifications.push(value); },
@@ -135,10 +139,79 @@ test('paid print order uses OrderV1 then ServiceOrderV1 with the same artwork, d
   assert.equal(h.state.supplier_last_status, 'PROCESSING');
   assert.equal(h.state.order_items[0].supplier_artwork_submission_status, 'submitted');
   const event = h.writes.find(write => write.value.event_type === 'service_order_submission');
-  assert.deepEqual(event.value.request_payload.order[0].Files, [{ FileName: 'artwork', FileExtension: '.png', FileSize: 3 }]);
+  assert.deepEqual(event.value.request_payload.order[0].Files, [{
+    FileName: 'artwork', FileExtension: '.png', FileSize: 3,
+    FileSHA256: createHash('sha256').update(new Uint8Array([1, 2, 3])).digest('hex'),
+  }]);
   const repeated = await h.api.submitPaidOrderToStricker('order-fixture');
   assert.equal(repeated.alreadySubmitted, true);
   assert.equal(h.requests.length, 2);
+});
+
+test('composed artwork includes the unchanged customer original in the same service request', async () => {
+  const h = submissionHarness();
+  const sourceBytes = Array.from({ length: 256 }, (_, i) => i);
+  h.files.set('fixture/source.pdf', sourceBytes);
+  Object.assign(h.state.order_items[0].personalization_data, {
+    hasComposedArtwork: true, sourceArtworkStoragePath: 'fixture/source.pdf',
+    sourceArtworkFileName: 'Logótipo final.PDF',
+  });
+  const result = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(result.success, true);
+  assert.deepEqual(h.requests.map(request => request.method), ['OrderV1', 'ServiceOrderV1']);
+  const files = h.requests[1].payload.order[0].Files;
+  assert.deepEqual(files, [
+    { FileName: 'artwork', FileExtension: '.png', FileBytes: [1, 2, 3] },
+    { FileName: 'original-Logotipo-final', FileExtension: '.pdf', FileBytes: sourceBytes },
+  ]);
+  const loggedFiles = h.writes.find(write => write.value.event_type === 'service_order_submission')
+    .value.request_payload.order[0].Files;
+  assert.equal(loggedFiles[1].FileSize, 256);
+  assert.equal(loggedFiles[1].FileSHA256, createHash('sha256').update(new Uint8Array(sourceBytes)).digest('hex'));
+  assert.ok(loggedFiles.every(file => !('FileBytes' in file)));
+  assert.ok(files.every(file => !('FileSHA256' in file)));
+  assert.equal(h.requests[1].payload.order[0].Appproved, false);
+  await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(h.requests.length, 2);
+});
+
+test('a missing original blocks incomplete artwork submission and retry reuses the accepted order', async () => {
+  const h = submissionHarness();
+  Object.assign(h.state.order_items[0].personalization_data, {
+    sourceArtworkStoragePath: 'fixture/missing.png', sourceArtworkFileName: 'original.png',
+  });
+  const result = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(result.success, false);
+  assert.equal(h.state.order_items[0].supplier_artwork_submission_status, 'failed');
+  assert.equal(h.state.payment_status, 'paid');
+  assert.deepEqual(h.requests.map(request => request.method), ['OrderV1']);
+  h.files.set('fixture/missing.png', [128, 255, 0]);
+  const retry = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(retry.success, true);
+  assert.deepEqual(h.requests.map(request => request.method), ['OrderV1', 'ServiceOrderV1']);
+  assert.equal(h.requests[1].payload.orderStamp, 'supplier-order-fixture');
+  assert.equal(h.requests[1].payload.order[0].Files.length, 2);
+});
+
+test('an empty original cannot be reported as successfully sent', async () => {
+  const h = submissionHarness();
+  h.files.set('fixture/empty.png', []);
+  Object.assign(h.state.order_items[0].personalization_data, {
+    sourceArtworkStoragePath: 'fixture/empty.png', sourceArtworkFileName: 'empty.png',
+  });
+  const result = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(result.success, false);
+  assert.deepEqual(h.requests.map(request => request.method), ['OrderV1']);
+  assert.match(result.errors.join(' '), /vazio/);
+});
+
+test('an original referencing the same storage object is not attached twice', async () => {
+  const h = submissionHarness();
+  h.state.order_items[0].personalization_data.sourceArtworkStoragePath = 'fixture/artwork-a.png';
+  const result = await h.api.submitPaidOrderToStricker('order-fixture');
+  assert.equal(result.success, true);
+  assert.equal(h.requests[1].payload.order[0].Files.length, 1);
+  assert.deepEqual(h.downloads, ['fixture/artwork-a.png']);
 });
 
 test('personalization retry reuses the accepted product order and cannot create a duplicate order', async () => {

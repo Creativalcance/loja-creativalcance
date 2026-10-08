@@ -315,8 +315,9 @@ export async function submitStrickerServiceOrder(
     : null;
 
   /*
-   * A resposta do próprio ServiceOrderV1 é a confirmação autoritativa da
-   * receção da personalização. A Stricker mantém WaitArtWork=true na linha
+   * A resposta do próprio ServiceOrderV1 confirma a aceitação do pedido de
+   * personalização pela API, mas não comprova que cada anexo é descarregável
+   * pela equipa de produção. A Stricker mantém WaitArtWork=true na linha
    * mesmo depois de aceitar o serviço e mudar o estado para PROCESSING; esse
    * campo representa a forma como a linha PRINT foi criada no OrderV1 e não
    * deve ser tratado como um estado atual de receção do ficheiro.

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { notifyStrickerOrderSubmitted } from "@/lib/notifications/stricker-order-submitted";
 import {
   notifyOrderStatusChanged,
@@ -650,6 +651,39 @@ async function downloadArtworkFile(params: {
   };
 }
 
+async function downloadArtworkFiles(params: {
+  supabaseAdmin: SupabaseAdminClient;
+  item: StrickerOrderDatabaseItem;
+}): Promise<StrickerServiceArtworkFile[]> {
+  const files = [await downloadArtworkFile(params)];
+  const personalization = toJsonRecord(params.item.personalization_data);
+  const sourcePath = typeof personalization.sourceArtworkStoragePath === "string"
+    ? personalization.sourceArtworkStoragePath.trim()
+    : "";
+
+  // The editor stores the customer's original separately from its composed PNG.
+  // ServiceOrderV1 accepts both in Files; send bytes, never temporary download URLs.
+  if (sourcePath && sourcePath !== params.item.logo_storage_path?.trim()) {
+    const sourceName = typeof personalization.sourceArtworkFileName === "string"
+      ? personalization.sourceArtworkFileName.trim()
+      : "";
+    const original = await downloadArtworkFile({
+      supabaseAdmin: params.supabaseAdmin,
+      item: {
+        ...params.item,
+        logo_storage_path: sourcePath,
+        logo_url: null,
+        logo_file_name: sourceName || path.basename(sourcePath),
+      },
+    });
+    // Distinct names also disambiguate an original named like the editor export.
+    original.FileName = `original-${original.FileName}`.slice(0, 100);
+    files.push(original);
+  }
+
+  return files;
+}
+
 function buildOrderLineAssignments(params: {
   mappedOrder: StrickerMappedOrder;
   responseLines: JsonRecord[];
@@ -795,7 +829,7 @@ async function submitPersonalizations(params: {
     let eventId: string | null = null;
 
     try {
-      const artworkFile = await downloadArtworkFile({
+      const artworkFiles = await downloadArtworkFiles({
         supabaseAdmin: params.supabaseAdmin,
         item: freshItem,
       });
@@ -806,7 +840,7 @@ async function submitPersonalizations(params: {
           {
             ...serviceItem.servicePayload,
             OrderLineStamp: orderLineStamp,
-            Files: [artworkFile],
+            Files: artworkFiles,
           },
         ],
       };
@@ -825,6 +859,9 @@ async function submitPersonalizations(params: {
               FileName: file.FileName,
               FileExtension: file.FileExtension,
               FileSize: file.FileBytes.length,
+              FileSHA256: createHash("sha256")
+                .update(new Uint8Array(file.FileBytes))
+                .digest("hex"),
             })),
           })),
         },

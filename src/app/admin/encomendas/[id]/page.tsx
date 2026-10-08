@@ -309,6 +309,8 @@ type TimelineEvent = {
 };
 
 type OrderItemView = OrderItemRecord & {
+  originalArtworkUrl: string | null;
+  originalArtworkFileName: string | null;
   logoPreviewUrl: string | null;
   mockupPreviewUrl: string | null;
 };
@@ -614,6 +616,7 @@ function getPrintAreaLabel(item: OrderItemRecord): string {
 
 async function createSignedAssetUrl(
   storagePath: string | null,
+  download = false,
 ): Promise<string | null> {
   if (!storagePath) {
     return null;
@@ -623,7 +626,7 @@ async function createSignedAssetUrl(
 
   const { data, error } = await supabaseAdmin.storage
     .from(ARTWORK_BUCKET)
-    .createSignedUrl(storagePath, 60 * 60);
+    .createSignedUrl(storagePath, 60 * 60, { download });
 
   if (error || !data?.signedUrl) {
     return null;
@@ -638,13 +641,22 @@ async function getOrderItemViews(
   const hydrated = await hydrateOrderArtworkGeometry(createSupabaseAdminClient(), items);
   return Promise.all(
     hydrated.map(async (item) => {
-      const [signedLogoUrl, signedMockupUrl] = await Promise.all([
+      const sourcePath = typeof item.personalization_data?.sourceArtworkStoragePath === "string"
+        ? item.personalization_data.sourceArtworkStoragePath.trim()
+        : null;
+      const sourceName = typeof item.personalization_data?.sourceArtworkFileName === "string"
+        ? item.personalization_data.sourceArtworkFileName
+        : null;
+      const [signedLogoUrl, signedMockupUrl, originalArtworkUrl] = await Promise.all([
         createSignedAssetUrl(item.logo_storage_path),
         createSignedAssetUrl(item.mockup_storage_path),
+        createSignedAssetUrl(sourcePath, true),
       ]);
 
       return {
         ...item,
+        originalArtworkUrl,
+        originalArtworkFileName: sourceName,
         logoPreviewUrl:
           signedLogoUrl ??
           item.logo_url ??
@@ -1762,7 +1774,7 @@ const supabaseAdmin = createSupabaseAdminClient();
                               <FileImage className="h-4 w-4 text-neutral-500" />
 
                               <p className="text-sm font-semibold text-neutral-950">
-                                Ficheiro do logótipo
+                                Arte-final da personalização
                               </p>
                             </div>
 
@@ -1800,6 +1812,24 @@ const supabaseAdmin = createSupabaseAdminClient();
                             {item.logo_file_name ??
                               "Sem nome de ficheiro"}
                           </p>
+                          {item.originalArtworkUrl ? (
+                            <div className="mt-4 border-t border-neutral-200 pt-4">
+                              <p className="text-sm font-semibold text-neutral-950">
+                                Original carregado pelo cliente
+                              </p>
+                              <p className="mt-1 break-all text-xs text-neutral-500">
+                                {item.originalArtworkFileName || "Ficheiro original"}
+                              </p>
+                              <a
+                                href={item.originalArtworkUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-3 inline-flex items-center text-sm font-semibold text-neutral-950 underline underline-offset-4"
+                              >
+                                Descarregar original
+                              </a>
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="rounded-2xl border border-neutral-200 p-4">
