@@ -39,7 +39,7 @@ test("newsletter template uses official palette and site", () => {
 
 test("legacy escaped newlines become separate HTML paragraphs", () => {
   const html = renderNewsletterPreview({ ...campaign, body_text: String.raw`Primeiro bloco.\n\nSegundo bloco.` });
-  assert.equal(html.includes(String.raw`\\n`), false);
+  assert.equal(html.includes(String.raw`\n`), false);
   assert.match(html, /Primeiro bloco/);
   assert.match(html, /Segundo bloco/);
   assert.match(html, /<h1[^>]*>Primeiro bloco/);
