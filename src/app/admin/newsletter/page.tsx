@@ -27,7 +27,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
   const allowedCount = (data ?? []).filter(item => item.status === "active" && item.consented_at).length;
   const { data: campaignRows, error: campaignError } = await supabase.from("newsletter_campaigns")
     .select("id,title,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,hero_image_url,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
-  const campaigns = campaignRows ?? [];
+  const campaigns = [...(campaignRows ?? [])].sort((a, b) => Number(a.status === "cancelled") - Number(b.status === "cancelled"));
   const campaignsReady = !campaignError;
   const editing = campaigns.find(item => item.id === edit && item.status === "draft");
   const subscribers = data ?? [];
@@ -74,20 +74,20 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
         <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
           <section className="rounded-3xl border border-white/10 bg-white/[.03] p-6">
             <div className="flex items-center gap-3"><FilePenLine className="h-5 w-5 text-[#ff6a00]" /><h2 className="text-xl font-semibold">Criar campanha</h2></div>
-            <p className="mt-2 text-sm leading-6 text-white/55">Cria ou edita um rascunho. Podes pré-visualizar antes da aprovação; o envio permanece bloqueado.</p>
+            <p className="mt-2 text-sm leading-6 text-white/55">Para editar uma campanha existente, utiliza o botão Editar na respetiva ficha. Este formulário vazio cria uma campanha nova.</p>
             {!campaignsReady ? (
               <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">A migração de campanhas ainda não foi aplicada à base de dados. A criação de rascunhos ficará disponível após a migração.</p>
             ) : (
               <form key={editing?.id ?? "new"} action={saveNewsletterDraft} className="mt-6 grid gap-4">
                 {editing ? <input type="hidden" name="campaign_id" value={editing.id} /> : null}
                 <label className="grid gap-2 text-sm text-white/75">Nome interno da campanha
-                  <input required name="title" minLength={3} maxLength={160} defaultValue={editing?.title ?? "Lançamento 360 Merchandising"} className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
+                  <input required name="title" minLength={3} maxLength={160} defaultValue={editing?.title ?? ""} placeholder="Nome da nova campanha" className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
                 </label>
                 <label className="grid gap-2 text-sm text-white/75">Assunto
-                  <input required name="subject" minLength={3} maxLength={200} defaultValue={editing?.subject ?? "A tua marca merece mais do que um logótipo esquecido."} className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
+                  <input required name="subject" minLength={3} maxLength={200} defaultValue={editing?.subject ?? ""} placeholder="Assunto do email" className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
                 </label>
                 <label className="grid gap-2 text-sm text-white/75">Pré-cabeçalho
-                  <input name="preview" maxLength={250} defaultValue={editing?.preview_text ?? "A 360 Merchandising chegou. Escolhe, personaliza e encomenda."} className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
+                  <input name="preview" maxLength={250} defaultValue={editing?.preview_text ?? ""} placeholder="Texto de pré-visualização" className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
                 </label>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2 text-sm text-white/75">Idioma
@@ -98,7 +98,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   </label>
                 </div>
                 <label className="grid gap-2 text-sm text-white/75">Texto da campanha
-                  <textarea name="body" rows={7} maxLength={30000} defaultValue={editing?.body_text ?? "A tua marca não nasceu para ficar parada.\n\nA 360 Merchandising chegou. Escolhe os teus produtos, personaliza e encomenda online.\n\nPortes gratuitos em encomendas a partir de 50 €.\n\nhttps://360-merchandising.com"} className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
+                  <textarea name="body" rows={7} maxLength={30000} defaultValue={editing?.body_text ?? ""} placeholder="Escreve o conteúdo da nova campanha" className="rounded-xl border border-white/15 bg-neutral-900 px-4 py-3 text-white outline-none focus:border-[#ff6a00]" />
                 </label>
                 <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#ff6a00] px-5 py-3 font-semibold text-white hover:bg-[#e65f00]"><FilePenLine className="h-4 w-4" />{editing ? "Guardar alterações" : "Guardar rascunho"}</button>
                 <p className="text-xs text-white/45">Sem envio ou agendamento. Os segmentos não são utilizados enquanto não existir uma validação de elegibilidade.</p>
@@ -115,6 +115,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{item.title}</h3><span className="rounded-full bg-white/10 px-2.5 py-1 text-xs uppercase text-white/70">{item.status}</span></div>
                   <p className="mt-1 text-sm text-white/65">{item.subject}</p>
                   <p className="mt-2 text-xs uppercase text-white/40">{item.locale} · {item.audience} · {new Intl.DateTimeFormat("pt-PT", { dateStyle: "short" }).format(new Date(item.created_at))}</p>
+                  {item.status === "draft" && item.hero_image_url ? <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-400/5 px-3 py-2 text-xs text-emerald-200">Imagem principal associada. Esta campanha está pronta para pré-visualização.</div> : null}
                   {item.status === "draft" ? <NewsletterHeroUpload campaignId={item.id} hasImage={Boolean(item.hero_image_url)} /> : null}
                   <div className="mt-3 flex flex-wrap gap-3 text-sm">{item.status === "draft" ? <Link className="text-[#ff6a00] hover:underline" href={`/admin/newsletter?edit=${item.id}`}>Editar</Link> : null}<Link className="text-white/80 hover:underline" href={`/admin/newsletter/preview/${item.id}`} target="_blank" rel="noopener noreferrer">Pré-visualizar</Link></div>
                 {item.status === "draft" && testEmails.length > 0 && senderConfigured ? (
