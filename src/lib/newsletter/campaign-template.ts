@@ -30,7 +30,7 @@ export function renderNewsletterPreview(campaign: NewsletterPreview): string {
 <div style="display:none!important;max-height:0;overflow:hidden;opacity:0">${preview}</div>
 <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse"><tr><td style="padding:26px 12px">
 <table role="presentation" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;width:100%;background:#fff;border-collapse:collapse">
-<tr><td style="background:#162334;padding:25px 30px;color:white;font-size:23px;font-weight:700"><span style="color:#FF6A00">360</span> Merchandising</td></tr>
+<tr><td style="background:#162334;padding:25px 30px;color:white;font-size:23px;font-weight:700"><img src="https://360-merchandising.com/brand/360-merchandising.png" alt="360 Merchandising" width="240" style="display:block;max-width:100%;height:auto;border:0"><span style="color:#FF6A00">360</span> Merchandising</td></tr>
 <tr><td style="padding:34px 30px"><div style="font-size:12px;letter-spacing:2px;font-weight:700;color:#ff6a00;margin-bottom:22px">360 MERCHANDISING</div>
 ${paragraphs}
 <a href="${WEBSITE}" style="display:inline-block;background:#ff6a00;color:#fff;text-decoration:none;font-size:15px;font-weight:700;padding:15px 22px;border-radius:6px">Descobrir a 360 Merchandising</a>
@@ -48,10 +48,6 @@ export function renderNewsletterBroadcast(campaign: NewsletterPreview): string {
     .replace(
       '<span style="color:#cbd5e1">Pré-visualização interna. O envio final exigirá mecanismo de cancelamento de subscrição e validação de consentimentos.</span>',
       '',
-    )
-    .replace(
-      '<a href="${WEBSITE}" style="display:inline-block;background:#ff6a00',
-      '<a href="${WEBSITE}" style="display:inline-block;background:#ff6a00',
     )
     .replace(
       '</td></tr>\n<tr><td style="background:#162334;color:#ffffff',
