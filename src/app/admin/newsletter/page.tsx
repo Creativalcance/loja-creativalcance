@@ -87,7 +87,6 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   <p className="mt-1 text-sm text-white/65">{item.subject}</p>
                   <p className="mt-2 text-xs uppercase text-white/40">{item.locale} · {item.audience} · {new Intl.DateTimeFormat("pt-PT", { dateStyle: "short" }).format(new Date(item.created_at))}</p>
                   <div className="mt-3 flex flex-wrap gap-3 text-sm">{item.status === "draft" ? <Link className="text-[#ff6a00] hover:underline" href={`/admin/newsletter?edit=${item.id}`}>Editar</Link> : null}<Link className="text-white/80 hover:underline" href={`/admin/newsletter/preview/${item.id}`} target="_blank" rel="noopener noreferrer">Pré-visualizar</Link></div>
-                </article>
                 {item.status === "draft" ? (
                   <form action={prepareNewsletterBroadcastDraft} className="mt-4 border-t border-white/10 pt-3">
                     <input type="hidden" name="campaign_id" value={item.id} />
@@ -99,6 +98,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   </form>
                 ) : null}
                 {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id}</p> : null}
+                </article>
               ))}</div> : <p className="mt-5 text-sm text-white/50">Ainda não existem campanhas.</p>
             ) : <p className="mt-5 text-sm text-white/50">A aguardar a migração da base de dados.</p>}
           </section>
