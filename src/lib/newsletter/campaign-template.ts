@@ -41,10 +41,20 @@ A tua marca em toda a parte.<br><a href="${WEBSITE}" style="color:#ff9a56">${WEB
 </td></tr></table></td></tr></table></body></html>`;
 }
 
-/** Renderiza um rascunho comercial com o link de cancelamento gerido pelo Resend. */
+/** Email comercial; o marcador de unsubscribe é substituído pelo Resend no envio. */
 export function renderNewsletterBroadcast(campaign: NewsletterPreview): string {
-  const link = '<p style="margin-top:22px;font-size:12px;color:#536071">Para deixar de receber estas comunicações, <a style="color:#162334" href="{{{RESEND_UNSUBSCRIBE_URL}}}">cancele a subscrição</a>.</p>';
+  const unsubscribe = '<p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#536071">Para deixar de receber estes emails, <a href="{{{RESEND_UNSUBSCRIBE_URL}}}" style="color:#162334;text-decoration:underline">cancela a subscrição</a>.</p>';
   return renderNewsletterPreview(campaign)
-    .replace("Pré-visualização interna. O envio final exigirá mecanismo de cancelamento de subscrição e validação de consentimentos.", "")
-    .replace("</td></tr>\n<tr><td style=\"background:#162334", link + "</td></tr>\n<tr><td style=\"background:#162334");
+    .replace(
+      '<span style="color:#cbd5e1">Pré-visualização interna. O envio final exigirá mecanismo de cancelamento de subscrição e validação de consentimentos.</span>',
+      '',
+    )
+    .replace(
+      '<a href="${WEBSITE}" style="display:inline-block;background:#ff6a00',
+      '<a href="${WEBSITE}" style="display:inline-block;background:#ff6a00',
+    )
+    .replace(
+      '</td></tr>\n<tr><td style="background:#162334;color:#ffffff',
+      unsubscribe + '</td></tr>\n<tr><td style="background:#162334;color:#ffffff',
+    );
 }
