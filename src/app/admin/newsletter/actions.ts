@@ -63,10 +63,21 @@ export async function prepareNewsletterBroadcastDraft(formData: FormData): Promi
   }
   const db = createSupabaseAdminClient();
   const { data: campaign, error } = await db.from("newsletter_campaigns")
-    .select("id,subject,preview_text,body_text,locale,status,resend_broadcast_id")
+    .select("id,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id")
     .eq("id", id).maybeSingle();
   if (error || !campaign || campaign.status !== "draft" || campaign.resend_broadcast_id) {
     throw new Error("A campanha já foi preparada ou não está em rascunho.");
+  }
+  // Segmentação empresarial/particular e traduções requerem segmentos separados no Resend.
+  // Impedir que uma campanha dirigida a um subconjunto use o segmento geral.
+  if (campaign.audience !== "all" || campaign.locale !== "pt") {
+    throw new Error("Segmentação por perfil ou idioma ainda não configurada no Resend.");
+  }
+  const { count, error: subscribersError } = await db.from("newsletter_subscribers")
+    .select("id", { count: "exact", head: true }).eq("status", "active")
+    .eq("locale", "pt").is("unsubscribed_at", null);
+  if (subscribersError || !count) {
+    throw new Error("Não há subscritores autorizados para este idioma.");
   }
   // Reserva a campanha no servidor para impedir preparações concorrentes.
   const { data: claimed, error: claimError } = await db.from("newsletter_campaigns")
