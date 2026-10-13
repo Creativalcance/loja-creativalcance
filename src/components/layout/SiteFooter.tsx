@@ -89,6 +89,25 @@ export default async function SiteFooter() {
             <Sparkles className="h-4 w-4" />
             {messages.trySmart}
           </Link>
+
+          <div className="mt-6 flex flex-wrap items-center gap-5">
+            <a
+              href="https://www.facebook.com/share/1CZxnFoA2M/?mibextid=wwXIfr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-white/70 transition hover:text-white"
+            >
+              Facebook <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </a>
+            <a
+              href="https://instagram.com/360.merchandising?obrf=a25heTRlbnJrY3R3&utm_source=qr"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-sm text-white/70 transition hover:text-white"
+            >
+              Instagram <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+            </a>
+          </div>
         </div>
 
         {footerGroups.map((group) => (
