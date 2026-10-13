@@ -158,6 +158,7 @@ export async function sendNewsletterTestEmail(formData: FormData): Promise<void>
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
+      "Idempotency-Key": `360-preview-${campaignId}-${Buffer.from(to).toString("hex").slice(0,50)}-${Math.floor(Date.now() / 300000)}`,
     },
     body: JSON.stringify({
       from: sender,
