@@ -26,6 +26,7 @@ function verifySignature(raw: string, headers: Headers, secret: string): boolean
 
 type WebhookData = {
   type?: unknown;
+  created_at?: unknown;
   data?: { email?: unknown; unsubscribed?: unknown };
 };
 
@@ -48,11 +49,13 @@ export async function POST(req: Request): Promise<Response> {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
       return new Response("Email inválido", { status: 400 });
     }
+    const happened = typeof event.created_at === "string" ? new Date(event.created_at) : null;
+    if (!happened || Number.isNaN(happened.getTime())) return new Response("Evento sem data válida", { status: 400 });
     const now = new Date().toISOString();
     const { error } = await createSupabaseAdminClient()
       .from("newsletter_subscribers")
       .update({ status: "unsubscribed", unsubscribed_at: now, updated_at: now })
-      .eq("email", email).eq("status", "active");
+      .eq("email", email).eq("status", "active").lte("consented_at", happened.toISOString());
     if (error) return new Response("Falha de atualização", { status: 500 });
   }
   return Response.json({ received: true });
