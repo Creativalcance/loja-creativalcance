@@ -3,6 +3,7 @@ import { Download, Mail, Users, Send, FilePenLine } from "lucide-react";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { prepareNewsletterBroadcastDraft, saveNewsletterDraft } from "./actions";
+import { syncNewsletterContacts } from "./sync-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +11,13 @@ type Campaign = { id: string; title: string; subject: string; preview_text: stri
 
 type Subscriber = { id: string; name: string; email: string; locale: string; status: string; source: string; consented_at: string; created_at: string };
 
-export default async function NewsletterAdminPage({ searchParams }: { searchParams: Promise<{ edit?: string }> }) {
+export default async function NewsletterAdminPage({ searchParams }: { searchParams: Promise<{ edit?: string; sync?: string; added?: string; skipped?: string; failed?: string }> }) {
   await assertAdminAccess("/admin/newsletter");
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.from("newsletter_subscribers").select("id,name,email,locale,status,source,consented_at,created_at").order("created_at", { ascending: false }).returns<Subscriber[]>();
   if (error) throw new Error(`Não foi possível carregar a newsletter: ${error.message}`);
-  const { edit } = await searchParams;
+  const { edit, sync, added, skipped, failed } = await searchParams;
+  const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_NEWSLETTER_SEGMENT_ID);
   const { data: campaignRows, error: campaignError } = await supabase.from("newsletter_campaigns")
     .select("id,title,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
   const campaigns = campaignRows ?? [];
@@ -38,6 +40,16 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
             <Download className="mr-2 h-4 w-4" />Exportar lista CSV
           </Link>
         </div>
+        <section className="mt-8 rounded-3xl border border-white/10 bg-white/[.03] p-5">
+          <h2 className="text-lg font-semibold">Sincronização com Resend</h2>
+          <p className="mt-2 text-sm text-white/60">Apenas contactos que autorizaram comunicações comerciais e não cancelaram a subscrição. Não envia emails.</p>
+          <p className="mt-2 text-sm text-white/60">Estado: {resendConfigured ? "Segmento configurado" : "A aguardar configuração do segmento Resend"}</p>
+          {sync === "done" ? <p className="mt-3 rounded-xl bg-white/5 p-3 text-sm text-white/75">Resultado: {added ?? "0"} associados, {skipped ?? "0"} excluídos, {failed ?? "0"} falhas. Máximo de 25 contactos por operação.</p> : null}
+          <form action={syncNewsletterContacts} className="mt-4 flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="confirm" value="yes" required disabled={!resendConfigured} /> Confirmo a sincronização dos contactos elegíveis</label>
+            <button type="submit" disabled={!resendConfigured} className="rounded-xl bg-[#ff6a00] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Sincronizar contactos</button>
+          </form>
+        </section>
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <article className="rounded-3xl border border-white/10 bg-white/[.03] p-5"><Users className="h-6 w-6" /><p className="mt-4 text-sm text-white/50">Subscritores ativos</p><p className="mt-1 text-3xl font-semibold">{active}</p></article>
           <article className="rounded-3xl border border-white/10 bg-white/[.03] p-5"><Mail className="h-6 w-6" /><p className="mt-4 text-sm text-white/50">Registos totais</p><p className="mt-1 text-3xl font-semibold">{subscribers.length}</p></article>
