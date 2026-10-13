@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { uploadNewsletterHero } from "./hero-actions";
 
 type Props = { campaignId: string; hasImage: boolean };
@@ -10,7 +10,7 @@ export default function NewsletterHeroUpload({ campaignId, hasImage }: Props) {
   const [error, setError] = useState("");
   const [filename, setFilename] = useState("");
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     const input = event.currentTarget.elements.namedItem("hero") as HTMLInputElement | null;
