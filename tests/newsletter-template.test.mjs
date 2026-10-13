@@ -36,3 +36,18 @@ test("newsletter template uses official palette and site", () => {
   assert.match(output, /https:\/\/360-merchandising\.com/);
   assert.equal(escapeNewsletterHtml("A&B"), "A&amp;B");
 });
+
+test("legacy escaped newlines become separate HTML paragraphs", () => {
+  const html = renderNewsletterPreview({ ...campaign, body_text: String.raw`Primeiro bloco.\n\nSegundo bloco.` });
+  assert.doesNotMatch(html, /\\\\n/);
+  assert.match(html, /Primeiro bloco/);
+  assert.match(html, /Segundo bloco/);
+  assert.match(html, /<h1[^>]*>Primeiro bloco/);
+  assert.match(html, /<p[^>]*>Segundo bloco/);
+});
+
+test("official logo sits on a white high-contrast header", () => {
+  const html = renderNewsletterPreview(campaign);
+  assert.match(html, /background:#ffffff;padding:26px 30px/);
+  assert.match(html, /\/brand\/360-merchandising\.png/);
+});
