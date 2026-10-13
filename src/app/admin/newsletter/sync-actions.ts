@@ -61,6 +61,7 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
           body: JSON.stringify({
             email,
             first_name: subscriber.name.trim().split(/\s+/)[0] ?? "",
+            unsubscribed: false,
           }),
         });
         if (!created.ok) { failed++; continue; }
