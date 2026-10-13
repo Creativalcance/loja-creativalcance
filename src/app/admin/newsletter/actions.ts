@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { renderNewsletterBroadcast } from "@/lib/newsletter/campaign-template";
+import { renderNewsletterBroadcast, renderNewsletterPreview } from "@/lib/newsletter/campaign-template";
 
 function readDraft(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
@@ -152,7 +152,7 @@ export async function sendNewsletterTestEmail(formData: FormData): Promise<void>
     throw new Error("Só são permitidos testes de campanhas em rascunho.");
   }
   // Enviar via /emails unicamente para um destinatário interno aprovado.
-  // O email de teste não contém um link de unsubscribe funcional.
+  // Usa o template de pré-visualização, sem simular um cancelamento funcional.
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -163,8 +163,7 @@ export async function sendNewsletterTestEmail(formData: FormData): Promise<void>
       from: sender,
       to: [to],
       subject: `[TESTE 360] ${campaign.subject}`,
-      html: renderNewsletterBroadcast(campaign)
-        .replaceAll("{{{RESEND_UNSUBSCRIBE_URL}}}", "https://360-merchandising.com"),
+      html: renderNewsletterPreview(campaign),
       text: `TESTE INTERNO — NÃO DISTRIBUIR\n\n${campaign.body_text}\n\nhttps://360-merchandising.com`,
     }),
     cache: "no-store",
