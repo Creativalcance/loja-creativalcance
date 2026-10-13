@@ -51,3 +51,13 @@ test("official logo sits on a white high-contrast header", () => {
   assert.match(html, /background:#ffffff;padding:26px 30px/);
   assert.match(html, /\/brand\/360-merchandising\.png/);
 });
+
+test("hero appears only for an approved Supabase Storage public URL", () => {
+  const good = "https://qidoyvhwuvjttoihodvm.supabase.co/storage/v1/object/public/newsletter-assets/campaign/image.jpg";
+  const preview = renderNewsletterPreview({ ...campaign, hero_image_url: good });
+  assert.match(preview, /alt="Lançamento da 360 Merchandising"/);
+  assert.match(preview, /width="600"/);
+  const bad = renderNewsletterPreview({ ...campaign, hero_image_url: 'https://example.com/fake.jpg" onerror="alert(1)' });
+  assert.doesNotMatch(bad, /onerror=/);
+  assert.doesNotMatch(bad, /fake.jpg/);
+});
