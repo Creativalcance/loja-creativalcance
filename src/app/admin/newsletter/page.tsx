@@ -12,12 +12,12 @@ type Campaign = { id: string; title: string; subject: string; preview_text: stri
 
 type Subscriber = { id: string; name: string; email: string; locale: string; status: string; source: string; consented_at: string; created_at: string };
 
-export default async function NewsletterAdminPage({ searchParams }: { searchParams: Promise<{ edit?: string; sync?: string; added?: string; skipped?: string; failed?: string }> }) {
+export default async function NewsletterAdminPage({ searchParams }: { searchParams: Promise<{ edit?: string; sync?: string; added?: string; skipped?: string; failed?: string; heroError?: string; heroUploaded?: string }> }) {
   await assertAdminAccess("/admin/newsletter");
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.from("newsletter_subscribers").select("id,name,email,locale,status,source,consented_at,created_at").order("created_at", { ascending: false }).returns<Subscriber[]>();
   if (error) throw new Error(`Não foi possível carregar a newsletter: ${error.message}`);
-  const { edit, sync, added, skipped, failed } = await searchParams;
+  const { edit, sync, added, skipped, failed, heroError, heroUploaded } = await searchParams;
   const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_NEWSLETTER_SEGMENT_ID);
   const syncingAllowed = resendConfigured && Boolean(process.env.RESEND_WEBHOOK_SECRET) && process.env.RESEND_NEWSLETTER_SYNC_ENABLED === "true";
   const senderConfigured = Boolean(process.env.RESEND_MARKETING_FROM_EMAIL);
@@ -69,6 +69,8 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
           <article className="rounded-3xl border border-white/10 bg-white/[.03] p-5"><Mail className="h-6 w-6" /><p className="mt-4 text-sm text-white/50">Registos totais</p><p className="mt-1 text-3xl font-semibold">{subscribers.length}</p></article>
         </div>
 
+        {heroError ? <div id="campaigns" role="alert" className="mt-8 rounded-xl border border-red-400/40 bg-red-400/10 p-4 text-sm text-red-200">{heroError}</div> : null}
+        {heroUploaded ? <div id="campaigns" role="status" className="mt-8 rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-4 text-sm text-emerald-200">Imagem carregada e associada à campanha.</div> : null}
         <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
           <section className="rounded-3xl border border-white/10 bg-white/[.03] p-6">
             <div className="flex items-center gap-3"><FilePenLine className="h-5 w-5 text-[#ff6a00]" /><h2 className="text-xl font-semibold">Criar campanha</h2></div>
@@ -115,8 +117,8 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   <p className="mt-2 text-xs uppercase text-white/40">{item.locale} · {item.audience} · {new Intl.DateTimeFormat("pt-PT", { dateStyle: "short" }).format(new Date(item.created_at))}</p>
                   {item.status === "draft" ? <form action={uploadNewsletterHero} className="mt-4 rounded-xl border border-white/10 p-3">
                     <input type="hidden" name="campaign_id" value={item.id} />
-                    <label className="block text-xs font-semibold text-white/75">Imagem principal (JPG, máximo 1,5 MB)</label>
-                    <input type="file" name="hero" accept="image/jpeg,.jpg,.jpeg" required className="mt-2 block w-full text-xs text-white/70 file:mr-2 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
+                    <label className="block text-xs font-semibold text-white/75">Imagem principal (JPG, PNG ou WebP, até 1,5 MB)</label>
+                    <input type="file" name="hero" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" required className="mt-2 block w-full text-xs text-white/70 file:mr-2 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
                     <button type="submit" className="mt-3 rounded-xl bg-[#ff6a00] px-3 py-2 text-xs font-semibold text-white">Carregar imagem</button>
                     {item.hero_image_url ? <p className="mt-2 text-xs text-emerald-300">Imagem associada à campanha</p> : <p className="mt-2 text-xs text-amber-300">A imagem ainda não foi carregada</p>}
                   </form> : null}
