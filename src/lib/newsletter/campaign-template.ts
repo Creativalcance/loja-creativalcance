@@ -40,3 +40,11 @@ A tua marca em toda a parte.<br><a href="${WEBSITE}" style="color:#ff9a56">${WEB
 <span style="color:#cbd5e1">Pré-visualização interna. O envio final exigirá mecanismo de cancelamento de subscrição e validação de consentimentos.</span>
 </td></tr></table></td></tr></table></body></html>`;
 }
+
+/** Renderiza um rascunho comercial com o link de cancelamento gerido pelo Resend. */
+export function renderNewsletterBroadcast(campaign: NewsletterPreview): string {
+  const link = '<p style="margin-top:22px;font-size:12px;color:#536071">Para deixar de receber estas comunicações, <a style="color:#162334" href="{{{RESEND_UNSUBSCRIBE_URL}}}">cancele a subscrição</a>.</p>';
+  return renderNewsletterPreview(campaign)
+    .replace("Pré-visualização interna. O envio final exigirá mecanismo de cancelamento de subscrição e validação de consentimentos.", "")
+    .replace("</td></tr>\n<tr><td style=\"background:#162334", link + "</td></tr>\n<tr><td style=\"background:#162334");
+}
