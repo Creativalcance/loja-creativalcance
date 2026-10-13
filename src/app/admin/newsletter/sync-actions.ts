@@ -31,7 +31,7 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
   const db = createSupabaseAdminClient();
   const { data, error } = await db.from("newsletter_subscribers")
     .select("id,email,name,locale,consented_at")
-    .eq("status", "active").is("unsubscribed_at", null)
+    .eq("status", "active").eq("locale", "pt").is("unsubscribed_at", null)
     .not("consented_at", "is", null).order("created_at", { ascending: true }).limit(25)
     .returns<Sub[]>();
   if (error) throw new Error("Falha ao consultar consentimentos.");
@@ -69,7 +69,7 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
       // Reconfirmar no Supabase imediatamente antes de associar ao segmento.
       const { data: current } = await db.from("newsletter_subscribers")
         .select("id").eq("id", subscriber.id).eq("status", "active")
-        .eq("consented_at", subscriber.consented_at).is("unsubscribed_at", null).maybeSingle();
+        .eq("consented_at", subscriber.consented_at).eq("locale", "pt").is("unsubscribed_at", null).maybeSingle();
       if (!current) { skipped++; continue; }
       const add = await requestResend(
         `/contacts/${encodeURIComponent(email)}/segments/${encodeURIComponent(segment)}`,
