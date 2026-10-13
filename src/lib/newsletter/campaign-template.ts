@@ -11,6 +11,7 @@ export type NewsletterPreview = {
   preview_text: string;
   body_text: string;
   locale: string;
+  hero_image_url?: string | null;
 };
 const SITE = "https://360-merchandising.com";
 const BRAND_LOGO = SITE + "/brand/360-merchandising.png";
@@ -35,7 +36,21 @@ function contentHtml(value: string): string {
   }).join("");
 }
 
+function safeHeroUrl(raw?: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:" || !url.hostname.endsWith(".supabase.co") ||
+        !url.pathname.includes("/storage/v1/object/public/newsletter-assets/")) return null;
+    return escapeNewsletterHtml(url.toString());
+  } catch { return null; }
+}
+
 function renderEmail(campaign: NewsletterPreview, mode: "preview" | "broadcast"): string {
+  const heroUrl = safeHeroUrl(campaign.hero_image_url);
+  const hero = heroUrl
+    ? `<tr><td style="padding:0;background:#ffffff"><img src="${heroUrl}" alt="Lançamento da 360 Merchandising" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>`
+    : "";
   const lang = ["pt","en","fr","es","de","it"].includes(campaign.locale) ? campaign.locale : "pt";
   const subject = escapeNewsletterHtml(campaign.subject);
   const preview = escapeNewsletterHtml(campaign.preview_text);
@@ -51,6 +66,7 @@ function renderEmail(campaign: NewsletterPreview, mode: "preview" | "broadcast")
 <tr><td style="background:#ffffff;padding:26px 30px;border-bottom:3px solid #ff6a00">
 <img src="${BRAND_LOGO}" alt="360 Merchandising" width="260" style="display:block;max-width:100%;height:auto;border:0;color:#162334;font-size:20px;font-weight:bold">
 </td></tr>
+${hero}
 <tr><td style="padding:34px 30px 38px">
 <div style="font-size:11px;font-weight:bold;letter-spacing:2px;color:#ff6a00;margin-bottom:18px">LANÇAMENTO 360 MERCHANDISING</div>
 ${contentHtml(campaign.body_text)}
