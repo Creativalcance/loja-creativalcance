@@ -4,10 +4,11 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { prepareNewsletterBroadcastDraft, saveNewsletterDraft, sendNewsletterTestEmail } from "./actions";
 import { syncNewsletterContacts } from "./sync-actions";
+import { uploadNewsletterHero } from "./hero-actions";
 
 export const dynamic = "force-dynamic";
 
-type Campaign = { id: string; title: string; subject: string; preview_text: string; body_text: string; locale: string; audience: string; status: string; resend_broadcast_id: string | null; created_at: string };
+type Campaign = { id: string; title: string; subject: string; preview_text: string; body_text: string; locale: string; audience: string; status: string; resend_broadcast_id: string | null; hero_image_url: string | null; created_at: string };
 
 type Subscriber = { id: string; name: string; email: string; locale: string; status: string; source: string; consented_at: string; created_at: string };
 
@@ -25,7 +26,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
   const testEmails = (process.env.RESEND_NEWSLETTER_TEST_EMAILS ?? "").split(",").map(item => item.trim()).filter(Boolean);
   const allowedCount = (data ?? []).filter(item => item.status === "active" && item.consented_at).length;
   const { data: campaignRows, error: campaignError } = await supabase.from("newsletter_campaigns")
-    .select("id,title,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
+    .select("id,title,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,hero_image_url,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
   const campaigns = campaignRows ?? [];
   const campaignsReady = !campaignError;
   const editing = campaigns.find(item => item.id === edit && item.status === "draft");
@@ -112,6 +113,13 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{item.title}</h3><span className="rounded-full bg-white/10 px-2.5 py-1 text-xs uppercase text-white/70">{item.status}</span></div>
                   <p className="mt-1 text-sm text-white/65">{item.subject}</p>
                   <p className="mt-2 text-xs uppercase text-white/40">{item.locale} · {item.audience} · {new Intl.DateTimeFormat("pt-PT", { dateStyle: "short" }).format(new Date(item.created_at))}</p>
+                  {item.status === "draft" ? <form action={uploadNewsletterHero} className="mt-4 rounded-xl border border-white/10 p-3">
+                    <input type="hidden" name="campaign_id" value={item.id} />
+                    <label className="block text-xs font-semibold text-white/75">Imagem principal (JPG, máximo 1,5 MB)</label>
+                    <input type="file" name="hero" accept="image/jpeg,.jpg,.jpeg" required className="mt-2 block w-full text-xs text-white/70 file:mr-2 file:rounded-lg file:border-0 file:bg-white/10 file:px-3 file:py-2 file:text-white" />
+                    <button type="submit" className="mt-3 rounded-xl bg-[#ff6a00] px-3 py-2 text-xs font-semibold text-white">Carregar imagem</button>
+                    {item.hero_image_url ? <p className="mt-2 text-xs text-emerald-300">Imagem associada à campanha</p> : <p className="mt-2 text-xs text-amber-300">A imagem ainda não foi carregada</p>}
+                  </form> : null}
                   <div className="mt-3 flex flex-wrap gap-3 text-sm">{item.status === "draft" ? <Link className="text-[#ff6a00] hover:underline" href={`/admin/newsletter?edit=${item.id}`}>Editar</Link> : null}<Link className="text-white/80 hover:underline" href={`/admin/newsletter/preview/${item.id}`} target="_blank" rel="noopener noreferrer">Pré-visualizar</Link></div>
                 {item.status === "draft" && testEmails.length > 0 && senderConfigured ? (
                   <form action={sendNewsletterTestEmail} className="mt-4 rounded-xl border border-white/10 p-3">
