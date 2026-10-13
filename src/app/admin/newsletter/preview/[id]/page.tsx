@@ -6,7 +6,7 @@ import { renderNewsletterPreview } from "@/lib/newsletter/campaign-template";
 
 export const dynamic = "force-dynamic";
 
-type Campaign = { title: string; subject: string; preview_text: string; body_text: string; locale: string; status: string };
+type Campaign = { title: string; subject: string; preview_text: string; body_text: string; locale: string; status: string; hero_image_url: string | null };
 
 export default async function PreviewNewsletterCampaign({
   params,
@@ -15,7 +15,7 @@ export default async function PreviewNewsletterCampaign({
   const { id } = await params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) notFound();
   const { data, error } = await createSupabaseAdminClient().from("newsletter_campaigns")
-    .select("title,subject,preview_text,body_text,locale,status").eq("id", id).maybeSingle<Campaign>();
+    .select("title,subject,preview_text,body_text,locale,status,hero_image_url").eq("id", id).maybeSingle<Campaign>();
   if (error || !data) notFound();
   const html = renderNewsletterPreview(data);
 
