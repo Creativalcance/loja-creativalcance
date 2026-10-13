@@ -35,6 +35,11 @@ export async function saveNewsletterDraft(formData: FormData): Promise<void> {
       .select("id").maybeSingle();
     if (error || !data) throw new Error("Não foi possível atualizar o rascunho.");
   } else {
+    const { data: existing, error: duplicateCheckError } = await supabase
+      .from("newsletter_campaigns").select("id")
+      .eq("title", draft.title).eq("status", "draft").limit(1).maybeSingle();
+    if (duplicateCheckError) throw new Error("Não foi possível verificar campanhas existentes.");
+    if (existing) throw new Error("Já existe uma campanha em rascunho com este nome. Utiliza Editar na campanha existente.");
     const { error } = await supabase.from("newsletter_campaigns")
       .insert({ ...draft, status: "draft", created_by: admin.userId });
     if (error) throw new Error("Não foi possível guardar o rascunho.");
