@@ -2,11 +2,11 @@ import Link from "next/link";
 import { Download, Mail, Users, Send, FilePenLine } from "lucide-react";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { saveNewsletterDraft } from "./actions";
+import { prepareNewsletterBroadcastDraft, saveNewsletterDraft } from "./actions";
 
 export const dynamic = "force-dynamic";
 
-type Campaign = { id: string; title: string; subject: string; preview_text: string; body_text: string; locale: string; audience: string; status: string; created_at: string };
+type Campaign = { id: string; title: string; subject: string; preview_text: string; body_text: string; locale: string; audience: string; status: string; resend_broadcast_id: string | null; created_at: string };
 
 type Subscriber = { id: string; name: string; email: string; locale: string; status: string; source: string; consented_at: string; created_at: string };
 
@@ -17,7 +17,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
   if (error) throw new Error(`Não foi possível carregar a newsletter: ${error.message}`);
   const { edit } = await searchParams;
   const { data: campaignRows, error: campaignError } = await supabase.from("newsletter_campaigns")
-    .select("id,title,subject,preview_text,body_text,locale,audience,status,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
+    .select("id,title,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
   const campaigns = campaignRows ?? [];
   const campaignsReady = !campaignError;
   const editing = campaigns.find(item => item.id === edit && item.status === "draft");
@@ -88,6 +88,17 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   <p className="mt-2 text-xs uppercase text-white/40">{item.locale} · {item.audience} · {new Intl.DateTimeFormat("pt-PT", { dateStyle: "short" }).format(new Date(item.created_at))}</p>
                   <div className="mt-3 flex flex-wrap gap-3 text-sm">{item.status === "draft" ? <Link className="text-[#ff6a00] hover:underline" href={`/admin/newsletter?edit=${item.id}`}>Editar</Link> : null}<Link className="text-white/80 hover:underline" href={`/admin/newsletter/preview/${item.id}`} target="_blank" rel="noopener noreferrer">Pré-visualizar</Link></div>
                 </article>
+                {item.status === "draft" ? (
+                  <form action={prepareNewsletterBroadcastDraft} className="mt-4 border-t border-white/10 pt-3">
+                    <input type="hidden" name="campaign_id" value={item.id} />
+                    <label className="flex items-start gap-2 text-xs leading-5 text-white/60">
+                      <input name="confirm" value="yes" required type="checkbox" className="mt-1" />
+                      Preparar no Resend apenas como rascunho, sem envio. A lista de contactos precisa de validação antes da distribuição.
+                    </label>
+                    <button type="submit" className="mt-3 rounded-xl border border-[#ff6a00]/50 px-3 py-2 text-xs font-semibold text-[#ff6a00] hover:bg-[#ff6a00]/10">Preparar rascunho Resend</button>
+                  </form>
+                ) : null}
+                {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id}</p> : null}
               ))}</div> : <p className="mt-5 text-sm text-white/50">Ainda não existem campanhas.</p>
             ) : <p className="mt-5 text-sm text-white/50">A aguardar a migração da base de dados.</p>}
           </section>
