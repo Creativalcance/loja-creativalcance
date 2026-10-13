@@ -18,6 +18,10 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
   if (error) throw new Error(`Não foi possível carregar a newsletter: ${error.message}`);
   const { edit, sync, added, skipped, failed } = await searchParams;
   const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_NEWSLETTER_SEGMENT_ID);
+  const senderConfigured = Boolean(process.env.RESEND_MARKETING_FROM_EMAIL);
+  const webhookConfigured = Boolean(process.env.RESEND_WEBHOOK_SECRET);
+  const marketingDraftConfigured = resendConfigured && senderConfigured;
+  const allowedCount = (data ?? []).filter(item => item.status === "active" && item.consented_at).length;
   const { data: campaignRows, error: campaignError } = await supabase.from("newsletter_campaigns")
     .select("id,title,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,created_at").order("created_at", { ascending: false }).limit(40).returns<Campaign[]>();
   const campaigns = campaignRows ?? [];
@@ -43,7 +47,13 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
         <section className="mt-8 rounded-3xl border border-white/10 bg-white/[.03] p-5">
           <h2 className="text-lg font-semibold">Sincronização com Resend</h2>
           <p className="mt-2 text-sm text-white/60">Apenas contactos que autorizaram comunicações comerciais e não cancelaram a subscrição. Não envia emails.</p>
-          <p className="mt-2 text-sm text-white/60">Estado: {resendConfigured ? "Segmento configurado" : "A aguardar configuração do segmento Resend"}</p>
+          <div className="mt-4 grid gap-2 text-sm text-white/70 sm:grid-cols-2">
+            <p>API Resend: {process.env.RESEND_API_KEY ? "Configurada" : "Por configurar"}</p>
+            <p>Segmento: {process.env.RESEND_NEWSLETTER_SEGMENT_ID ? "Configurado" : "Por configurar"}</p>
+            <p>Remetente de marketing: {senderConfigured ? "Configurado" : "Por configurar"}</p>
+            <p>Webhook assinado: {webhookConfigured ? "Configurado" : "Por configurar"}</p>
+          </div>
+          <p className="mt-2 text-xs text-white/50">Contactos ativos registados: {allowedCount}. Este número não comprova que estejam sincronizados ou que aceitem receber emails no Resend.</p>
           {sync === "done" ? <p className="mt-3 rounded-xl bg-white/5 p-3 text-sm text-white/75">Resultado: {added ?? "0"} associados, {skipped ?? "0"} excluídos, {failed ?? "0"} falhas. Máximo de 25 contactos por operação.</p> : null}
           <form action={syncNewsletterContacts} className="mt-4 flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="confirm" value="yes" required disabled={!resendConfigured} /> Confirmo a sincronização dos contactos elegíveis</label>
@@ -92,6 +102,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
           <section className="rounded-3xl border border-white/10 bg-white/[.03] p-6">
             <div className="flex items-center gap-3"><Send className="h-5 w-5 text-[#ff6a00]" /><h2 className="text-xl font-semibold">Campanhas</h2></div>
             <p className="mt-2 text-sm text-white/55">Histórico de rascunhos e respetivos estados.</p>
+            {!marketingDraftConfigured ? <p className="mt-3 rounded-xl bg-amber-500/10 p-3 text-xs text-amber-200">É necessário configurar o segmento e o remetente comercial antes de preparar rascunhos externos.</p> : null}
             {campaignsReady ? (
               campaigns.length > 0 ? <div className="mt-5 grid gap-3">{campaigns.map((item) => (
                 <article key={item.id} className="rounded-2xl border border-white/10 p-4">
@@ -106,7 +117,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                       <input name="confirm" value="yes" required type="checkbox" className="mt-1" />
                       Preparar no Resend apenas como rascunho, sem envio. A lista de contactos precisa de validação antes da distribuição.
                     </label>
-                    <button type="submit" className="mt-3 rounded-xl border border-[#ff6a00]/50 px-3 py-2 text-xs font-semibold text-[#ff6a00] hover:bg-[#ff6a00]/10">Preparar rascunho Resend</button>
+                    <button type="submit" disabled={!marketingDraftConfigured} className="mt-3 rounded-xl border border-[#ff6a00]/50 px-3 py-2 text-xs font-semibold text-[#ff6a00] hover:bg-[#ff6a00]/10 disabled:cursor-not-allowed disabled:opacity-40">Preparar rascunho Resend</button>
                   </form>
                 ) : null}
                 {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id}</p> : null}
