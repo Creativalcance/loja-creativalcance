@@ -63,7 +63,7 @@ export async function prepareNewsletterBroadcastDraft(formData: FormData): Promi
   }
   const db = createSupabaseAdminClient();
   const { data: campaign, error } = await db.from("newsletter_campaigns")
-    .select("id,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id")
+    .select("id,subject,preview_text,body_text,locale,audience,status,resend_broadcast_id,hero_image_url")
     .eq("id", id).maybeSingle();
   if (error || !campaign || campaign.status !== "draft" || campaign.resend_broadcast_id) {
     throw new Error("A campanha já foi preparada ou não está em rascunho.");
@@ -147,7 +147,7 @@ export async function sendNewsletterTestEmail(formData: FormData): Promise<void>
 
   const db = createSupabaseAdminClient();
   const { data: campaign, error } = await db.from("newsletter_campaigns")
-    .select("id,subject,preview_text,body_text,locale,status").eq("id", campaignId).maybeSingle();
+    .select("id,subject,preview_text,body_text,locale,status,hero_image_url").eq("id", campaignId).maybeSingle();
   if (error || !campaign || campaign.status !== "draft") {
     throw new Error("Só são permitidos testes de campanhas em rascunho.");
   }
