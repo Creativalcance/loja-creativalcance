@@ -22,6 +22,9 @@ async function requestResend(path: string, key: string, init?: RequestInit): Pro
  */
 export async function syncNewsletterContacts(formData: FormData): Promise<never> {
   await assertAdminAccess("/admin/newsletter");
+  if (process.env.RESEND_NEWSLETTER_SYNC_ENABLED !== "true" || !process.env.RESEND_WEBHOOK_SECRET) {
+    throw new Error("Sincronização suspensa até à ativação e validação do webhook.");
+  }
   if (formData.get("confirm") !== "yes") throw new Error("Confirme a sincronização.");
   const key = process.env.RESEND_API_KEY?.trim();
   const segment = process.env.RESEND_NEWSLETTER_SEGMENT_ID?.trim();
