@@ -4,7 +4,7 @@ create table if not exists public.newsletter_campaigns (
  title text not null check(length(title) between 3 and 160),
  subject text not null check(length(subject) between 3 and 200),
  preview_text text not null default '',
- body_html text not null default '',
+ body_text text not null default '',
  locale text not null default 'pt' check(locale in ('pt','en','fr','es','de','it')),
  audience text not null default 'all' check(audience in ('all','b2b','b2c')),
  status text not null default 'draft' check(status in ('draft','ready','scheduled','sending','sent','cancelled','failed')),
