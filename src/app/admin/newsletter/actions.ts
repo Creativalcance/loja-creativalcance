@@ -122,3 +122,60 @@ export async function prepareNewsletterBroadcastDraft(formData: FormData): Promi
   }
   revalidatePath("/admin/newsletter");
 }
+
+
+/**
+ * Envio exclusivamente de teste, solicitado por um administrador e apenas para
+ * endereços autorizados por variável de ambiente. Nunca usa segmentos.
+ */
+export async function sendNewsletterTestEmail(formData: FormData): Promise<void> {
+  await assertAdminAccess("/admin/newsletter");
+  if (formData.get("confirm") !== "yes") throw new Error("Confirme o teste.");
+  const campaignId = String(formData.get("campaign_id") ?? "").trim();
+  const to = String(formData.get("test_email") ?? "").trim().toLowerCase();
+  const allowed = new Set(
+    (process.env.RESEND_NEWSLETTER_TEST_EMAILS ?? "").split(",")
+      .map((value) => value.trim().toLowerCase()).filter(Boolean),
+  );
+  if (!/^[0-9a-f-]{36}$/i.test(campaignId) || !allowed.has(to) ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    throw new Error("Destinatário de teste não autorizado.");
+  }
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const sender = process.env.RESEND_MARKETING_FROM_EMAIL?.trim();
+  if (!apiKey || !sender) throw new Error("Remetente de marketing não configurado.");
+
+  const db = createSupabaseAdminClient();
+  const { data: campaign, error } = await db.from("newsletter_campaigns")
+    .select("id,subject,preview_text,body_text,locale,status").eq("id", campaignId).maybeSingle();
+  if (error || !campaign || campaign.status !== "draft") {
+    throw new Error("Só são permitidos testes de campanhas em rascunho.");
+  }
+  // Enviar via /emails unicamente para um destinatário interno aprovado.
+  // O email de teste não contém um link de unsubscribe funcional.
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: sender,
+      to: [to],
+      subject: `[TESTE 360] ${campaign.subject}`,
+      html: renderNewsletterBroadcast(campaign)
+        .replaceAll("{{{RESEND_UNSUBSCRIBE_URL}}}", "https://360-merchandising.com"),
+      text: `TESTE INTERNO — NÃO DISTRIBUIR\n\n${campaign.body_text}\n\nhttps://360-merchandising.com`,
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) throw new Error(`O Resend rejeitou o teste (HTTP ${response.status}).`);
+  const { error: eventError } = await db.from("newsletter_campaign_events").insert({
+    campaign_id: campaignId,
+    event_type: "internal_test_requested",
+    details: { destination_domain: to.split("@")[1] },
+  });
+  if (eventError) console.error("Newsletter test audit event failed", { code: eventError.code });
+  revalidatePath("/admin/newsletter");
+}
