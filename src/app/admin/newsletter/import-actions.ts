@@ -21,7 +21,7 @@ export async function importNewsletterContacts(formData: FormData): Promise<Impo
   if (!["pt","en","fr","es","de","it"].includes(locale)) return { ok: false, message: "Idioma inválido." };
   const date = new Date(consentDate + "T12:00:00Z");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(consentDate) || Number.isNaN(date.valueOf()) ||
-      date.toISOString().slice(0, 10) !== consentDate || date > new Date())
+      date.toISOString().slice(0, 10) !== consentDate || consentDate > new Date().toISOString().slice(0,10))
     return { ok: false, message: "Indica uma data válida, no passado, para o consentimento." };
   if (!(file instanceof File) || file.size < 5 || file.size > MAX_FILE_BYTES)
     return { ok: false, message: "Seleciona um CSV válido com até 150 KB." };
