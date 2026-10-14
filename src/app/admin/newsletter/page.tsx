@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { prepareNewsletterBroadcastDraft, saveNewsletterDraft, sendNewsletterTestEmail } from "./actions";
 import { syncNewsletterContacts } from "./sync-actions";
 import NewsletterHeroUpload from "./NewsletterHeroUpload";
+import NewsletterContactImport from "./NewsletterContactImport";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
             <button type="submit" disabled={!syncingAllowed} className="rounded-xl bg-[#ff6a00] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Sincronizar contactos</button>
           </form>
         </section>
+        <NewsletterContactImport />
         <div className="mt-8 grid gap-4 sm:grid-cols-2">
           <article className="rounded-3xl border border-white/10 bg-white/[.03] p-5"><Users className="h-6 w-6" /><p className="mt-4 text-sm text-white/50">Subscritores ativos</p><p className="mt-1 text-3xl font-semibold">{active}</p></article>
           <article className="rounded-3xl border border-white/10 bg-white/[.03] p-5"><Mail className="h-6 w-6" /><p className="mt-4 text-sm text-white/50">Registos totais</p><p className="mt-1 text-3xl font-semibold">{subscribers.length}</p></article>
