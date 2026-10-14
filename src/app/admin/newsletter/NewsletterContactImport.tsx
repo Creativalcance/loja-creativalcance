@@ -28,15 +28,16 @@ export default function NewsletterContactImport() {
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!file || busy) return;
+    const form = e.currentTarget;
     setBusy(true); setResult(null);
     try {
-      const data = new FormData(e.currentTarget);
+      const data = new FormData(form);
       data.set("file", file);
       const outcome = await importNewsletterContacts(data);
       setResult(outcome);
       if (outcome.ok) {
         setFile(null); setPreview(null);
-        const input = e.currentTarget.querySelector('input[type="file"]') as HTMLInputElement | null;
+        const input = form.querySelector('input[type="file"]') as HTMLInputElement | null;
         if (input) input.value = "";
       }
     } catch {
