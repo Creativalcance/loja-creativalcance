@@ -1,10 +1,10 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-type Sub = { id: string; email: string; name: string; locale: string; consented_at: string };
+type Sub = { id: string; email: string; name: string; locale: string; consented_at: string; created_at: string };
+export type SyncBatchResult = { processed: number; synced: number; skipped: number; failed: number; cursor: string | null; hasMore: boolean };
 type RemoteContact = { unsubscribed?: boolean };
 
 async function requestResend(path: string, key: string, init?: RequestInit): Promise<Response> {
@@ -20,7 +20,7 @@ async function requestResend(path: string, key: string, init?: RequestInit): Pro
  * Operação manual e limitada. Não envia emails; insere contactos elegíveis num
  * segmento já validado. Nunca reativa contactos cancelados no Resend.
  */
-export async function syncNewsletterContacts(formData: FormData): Promise<never> {
+export async function syncNewsletterContacts(formData: FormData): Promise<SyncBatchResult> {
   await assertAdminAccess("/admin/newsletter");
   if (process.env.RESEND_NEWSLETTER_SYNC_ENABLED !== "true" || !process.env.RESEND_WEBHOOK_SECRET) {
     throw new Error("Sincronização suspensa até à ativação e validação do webhook.");
@@ -31,12 +31,17 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
   if (!key || !segment || !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment)) {
     throw new Error("Resend ainda não tem um segmento de marketing configurado.");
   }
+  const cursor = String(formData.get("cursor") ?? "");
+  if (cursor && (!/^\\d{4}-\\d{2}-\\d{2}T/.test(cursor) || !Number.isFinite(Date.parse(cursor)))) {
+    throw new Error("Marcador de sincronização inválido.");
+  }
   const db = createSupabaseAdminClient();
-  const { data, error } = await db.from("newsletter_subscribers")
-    .select("id,email,name,locale,consented_at")
+  let query = db.from("newsletter_subscribers")
+    .select("id,email,name,locale,consented_at,created_at")
     .eq("status", "active").eq("locale", "pt").is("unsubscribed_at", null)
-    .not("consented_at", "is", null).is("resend_synced_at", null).order("created_at", { ascending: true }).limit(25)
-    .returns<Sub[]>();
+    .not("consented_at", "is", null).is("resend_synced_at", null).order("created_at", { ascending: true }).limit(25);
+  if (cursor) query = query.gt("created_at", cursor);
+  const { data, error } = await query.returns<Sub[]>();
   if (error) throw new Error("Falha ao consultar consentimentos.");
 
   let synced = 0;
@@ -93,5 +98,10 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
       failed++;
     }
   }
-  redirect(`/admin/newsletter?sync=done&added=${synced}&skipped=${skipped}&failed=${failed}`);
+  const processed = data?.length ?? 0;
+  return {
+    processed, synced, skipped, failed,
+    cursor: processed ? data![processed - 1].created_at : cursor || null,
+    hasMore: processed === 25,
+  };
 }
