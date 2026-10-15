@@ -33,6 +33,9 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
   const editing = campaigns.find(item => item.id === edit && item.status === "draft");
   const subscribers = data ?? [];
   const active = subscribers.filter((item) => item.status === "active").length;
+  const { count: syncPending } = await supabase.from("newsletter_subscribers")
+    .select("id", { count: "exact", head: true }).eq("status", "active")
+    .eq("locale", "pt").is("unsubscribed_at", null).is("resend_synced_at", null);
 
   return (
     <main className="min-h-screen bg-neutral-950 px-6 py-12 text-white">
@@ -58,8 +61,8 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
             <p>Webhook assinado: {webhookConfigured ? "Configurado" : "Por configurar"}</p>
           </div>
           {!syncingAllowed ? <p className="mt-2 text-xs text-amber-300">Sincronização bloqueada: o webhook está desativado ou ainda não foi aprovado para operar.</p> : null}
-          <p className="mt-2 text-xs text-white/50">Contactos ativos registados: {allowedCount}. Este número não comprova que estejam sincronizados ou que aceitem receber emails no Resend.</p>
-          {sync === "done" ? <p className="mt-3 rounded-xl bg-white/5 p-3 text-sm text-white/75">Resultado: {added ?? "0"} associados, {skipped ?? "0"} excluídos, {failed ?? "0"} falhas. Máximo de 25 contactos por operação.</p> : null}
+          <p className="mt-2 text-xs text-white/50">Contactos ativos registados: {allowedCount}. Por sincronizar ou revalidar no Resend (PT): {syncPending ?? "—"}.</p>
+          {sync === "done" ? <p className="mt-3 rounded-xl bg-white/5 p-3 text-sm text-white/75">Resultado: {added ?? "0"} associados, {skipped ?? "0"} excluídos, {failed ?? "0"} falhas. Máximo de 25 contactos pendentes por operação. Repete até não existirem pendentes.</p> : null}
           <form action={syncNewsletterContacts} className="mt-4 flex flex-wrap items-center gap-4">
             <label className="flex items-center gap-2 text-sm text-white/70"><input type="checkbox" name="confirm" value="yes" required disabled={!syncingAllowed} /> Confirmo a sincronização dos contactos elegíveis</label>
             <button type="submit" disabled={!syncingAllowed} className="rounded-xl bg-[#ff6a00] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Sincronizar contactos</button>
