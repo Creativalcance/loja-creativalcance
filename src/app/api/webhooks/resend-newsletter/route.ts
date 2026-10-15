@@ -54,7 +54,7 @@ export async function POST(req: Request): Promise<Response> {
     const now = new Date().toISOString();
     const { error } = await createSupabaseAdminClient()
       .from("newsletter_subscribers")
-      .update({ status: "unsubscribed", unsubscribed_at: now, updated_at: now })
+      .update({ status: "unsubscribed", unsubscribed_at: now, resend_synced_at: null, updated_at: now })
       .eq("email", email).eq("status", "active").lte("consented_at", happened.toISOString());
     if (error) return new Response("Falha de atualização", { status: 500 });
   }
