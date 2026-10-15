@@ -33,24 +33,31 @@ export async function importNewsletterContacts(formData: FormData): Promise<Impo
   if (parsed.total < 1 || parsed.total > MAX_ROWS)
     return { ok: false, message: "Importa entre 1 e 200 linhas por lote." };
   const db = createSupabaseAdminClient();
-  let added = 0, existing = 0;
-  for (const row of parsed.valid) {
-    // Nunca reativar contactos cancelados, alterar dados de consentimento anteriores,
-    // ou enviar emails de boas-vindas para importações administrativas.
-    const { data: found, error: checkError } = await db.from("newsletter_subscribers")
-      .select("id").eq("email", row.email).maybeSingle();
-    if (checkError) return { ok: false, message: "Erro a verificar duplicados. Tenta novamente." };
-    if (found) { existing++; continue; }
-    const { error } = await db.from("newsletter_subscribers").insert({
-      name: row.name, email: row.email, locale, status: "active",
-      source: "admin_csv", consented_at: date.toISOString(), unsubscribed_at: null,
-      consent_evidence: consentEvidence, imported_by: admin.userId,
-      imported_at: new Date().toISOString(), welcome_email_status: "skipped",
-    });
-    if (error?.code === "23505") { existing++; continue; }
-    if (error) return { ok: false, message: `Importação interrompida após ${added} contactos: erro ao guardar os restantes. Repete o lote; os duplicados serão ignorados.` };
-    added++;
+  const importedAt = new Date().toISOString();
+  // Uma única operação SQL com ON CONFLICT DO NOTHING evita centenas de pedidos
+  // à base de dados, sem reativar contactos previamente cancelados.
+  const rows = parsed.valid.map(row => ({
+    name: row.name,
+    email: row.email,
+    locale,
+    status: "active",
+    source: "admin_csv",
+    consented_at: date.toISOString(),
+    unsubscribed_at: null,
+    consent_evidence: consentEvidence,
+    imported_by: admin.userId,
+    imported_at: importedAt,
+    welcome_email_status: "skipped",
+  }));
+  const { data: inserted, error: importError } = await db.from("newsletter_subscribers")
+    .upsert(rows, { onConflict: "email", ignoreDuplicates: true })
+    .select("id");
+  if (importError || !inserted) {
+    console.error("Newsletter bulk import failed", { code: importError?.code });
+    return { ok: false, message: "Falha ao guardar este lote. Podes repetir a importação sem reativar ou duplicar contactos existentes." };
   }
+  const added = inserted.length;
+  const existing = parsed.valid.length - added;
   const { error: auditError } = await db.from("newsletter_import_batches").insert({
     imported_by: admin.userId, source_filename: file.name.slice(0, 200),
     consent_evidence: consentEvidence, consented_at: date.toISOString(), locale,
