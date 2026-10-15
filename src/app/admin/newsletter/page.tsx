@@ -6,6 +6,7 @@ import { prepareNewsletterBroadcastDraft, saveNewsletterDraft, sendNewsletterTes
 import { syncNewsletterContacts } from "./sync-actions";
 import NewsletterHeroUpload from "./NewsletterHeroUpload";
 import NewsletterContactImport from "./NewsletterContactImport";
+import { refreshNewsletterBroadcastStatus } from "./send-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +158,12 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                   </div>
                 ) : null}
                 {item.status === "sending" ? <p className="mt-3 text-xs text-amber-300">Envio solicitado. Confirma o estado no Resend; não repitas a operação.</p> : null}
+                {item.resend_broadcast_id && ["ready","sending","sent","scheduled"].includes(item.status) ? (
+                  <form action={refreshNewsletterBroadcastStatus} className="mt-3">
+                    <input type="hidden" name="campaign_id" value={item.id} />
+                    <button type="submit" className="rounded-lg border border-white/20 px-3 py-2 text-xs text-white/70">Atualizar estado no Resend</button>
+                  </form>
+                ) : null}
                 {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id} · <a className="underline" href={`https://resend.com/broadcasts/${item.resend_broadcast_id}`} target="_blank" rel="noopener noreferrer">Consultar no Resend</a></p> : null}
                 </article>
               ))}</div> : <p className="mt-5 text-sm text-white/50">Ainda não existem campanhas.</p>
