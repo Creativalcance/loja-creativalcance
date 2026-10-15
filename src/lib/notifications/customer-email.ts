@@ -369,28 +369,30 @@ export async function notifyOrderConfirmed(orderId: string): Promise<void> {
   }
 }
 
-export async function notifyOrderStatusChanged(params: { orderId: string; previousStatus: string | null; newStatus: string | null; eventId?: string }): Promise<void> {
+export async function notifyOrderStatusChanged(params: { orderId: string; previousStatus: string | null; newStatus: string | null; eventId?: string; enqueueOnly?: boolean }): Promise<void> {
   if (!params.newStatus || params.previousStatus === params.newStatus) return;
   try {
     const order = await getOrder(params.orderId);
     const locale = normalizeLocale(order.metadata?.locale);
     const fingerprint = createHash("sha256").update(`${params.previousStatus ?? "none"}:${params.newStatus}${params.eventId ? `:${params.eventId}` : ""}`).digest("hex").slice(0, 20);
     const notification = await ensureNotification({ eventKey: `order-status:${order.id}:${fingerprint}`, eventType: "order_status_changed", emailTo: order.customer_email, locale, userId: order.user_id, orderId: order.id, payload: { ...orderPayload(order), previousStatus: params.previousStatus, newStatus: params.newStatus } });
-    await sendPrepared(notification);
+    if (!params.enqueueOnly) await sendPrepared(notification);
   } catch (error) {
+    if (params.enqueueOnly) throw error;
     console.error("Could not enqueue order status email", { orderId: params.orderId, message: error instanceof Error ? error.message : "Unknown error" });
   }
 }
 
-export async function notifyOrderTrackingAvailable(orderId: string): Promise<void> {
+export async function notifyOrderTrackingAvailable(orderId: string, options: { enqueueOnly?: boolean } = {}): Promise<void> {
   try {
     const order = await getOrder(orderId);
     if (!order.tracking_number && !order.tracking_url) return;
     const locale = normalizeLocale(order.metadata?.locale);
     const fingerprint = createHash("sha256").update(`${order.tracking_number ?? ""}:${order.tracking_url ?? ""}`).digest("hex").slice(0, 20);
     const notification = await ensureNotification({ eventKey: `order-tracking:${order.id}:${fingerprint}`, eventType: "order_tracking_available", emailTo: order.customer_email, locale, userId: order.user_id, orderId: order.id, payload: { ...orderPayload(order), trackingNumber: order.tracking_number, trackingUrl: order.tracking_url } });
-    await sendPrepared(notification);
+    if (!options.enqueueOnly) await sendPrepared(notification);
   } catch (error) {
+    if (options.enqueueOnly) throw error;
     console.error("Could not enqueue order tracking email", { orderId, message: error instanceof Error ? error.message : "Unknown error" });
   }
 }

@@ -81,7 +81,8 @@ function unwrapMethodResult(
   resultKey:
     | "OrderV1Result"
     | "ServiceOrderV1Result"
-    | "OrderDetailsV1Result",
+    | "OrderDetailsV1Result"
+    | "OrdersV1Result",
 ): StrickerOrderApiResponse {
   const wrappedResult = response[resultKey];
 
@@ -196,7 +197,7 @@ async function readJsonResponse(
 }
 
 async function callStrickerOrderMethod(params: {
-  method: "OrderV1" | "ServiceOrderV1" | "OrderDetailsV1";
+  method: "OrderV1" | "ServiceOrderV1" | "OrderDetailsV1" | "OrdersV1";
   payload: JsonRecord;
   testMode: boolean;
   timeoutMs?: number;
@@ -214,6 +215,11 @@ async function callStrickerOrderMethod(params: {
   if (params.method === "OrderDetailsV1") {
     url.searchParams.set("orderStamp", String(params.payload.OrderStamp ?? ""));
   }
+  if (params.method === "OrdersV1") {
+    url.searchParams.set("status", "");
+    url.searchParams.set("number", "100");
+  }
+  const readOnly = params.method === "OrderDetailsV1" || params.method === "OrdersV1";
 
   const abortController = new AbortController();
 
@@ -223,12 +229,12 @@ async function callStrickerOrderMethod(params: {
 
   try {
     const response = await fetch(url.toString(), {
-      method: params.method === "OrderDetailsV1" ? "GET" : "POST",
+      method: readOnly ? "GET" : "POST",
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: params.method === "OrderDetailsV1" ? undefined : JSON.stringify(params.payload),
+      body: readOnly ? undefined : JSON.stringify(params.payload),
       cache: "no-store",
       signal: abortController.signal,
     });
@@ -362,6 +368,27 @@ export async function getStrickerOrderDetails(
   return { response, orderDetails };
 }
 
+// OrdersV1 reflects dispatch even when OrderDetailsV1 still returns the original
+// PRINT/WAITING_ART_WORK snapshot. Match by exact stamp, never by SKU or customer.
+export async function getStrickerOrders(options: StrickerOrderRequestOptions) {
+  const raw = await callStrickerOrderMethod({ method: "OrdersV1", payload: {},
+    testMode: options.testMode, timeoutMs: options.timeoutMs });
+  const response = unwrapMethodResult(raw, "OrdersV1Result");
+  assertSuccessfulResponse(response, "OrdersV1");
+  if (!Array.isArray(response.OrdersDetails) || response.Count !== response.OrdersDetails.length) {
+    throw new Error("A listagem de encomendas do fornecedor está incompleta ou inválida.");
+  }
+  const orders = new Map<string, StrickerOrderDetails>();
+  for (const row of response.OrdersDetails) {
+    if (!isJsonRecord(row) || typeof row.OrderStamp !== "string" || !row.OrderStamp.trim()
+      || typeof row.Status !== "string" || !row.Status.trim() || orders.has(row.OrderStamp)) {
+      throw new Error("A listagem de encomendas do fornecedor contém referências inválidas ou duplicadas.");
+    }
+    orders.set(row.OrderStamp, row as StrickerOrderDetails);
+  }
+  return { orders, truncated: orders.size === 100 };
+}
+
 export function extractStrickerOrderStamp(
   orderDetails: StrickerOrderDetails,
 ): string | null {
@@ -383,24 +410,44 @@ export function extractStrickerOrderStatus(
 export function extractStrickerTrackingNumber(
   orderDetails: StrickerOrderDetails,
 ): string | null {
-  return (
+  const value = (
     getNullableString(orderDetails.TrackingID) ??
     getNullableString(orderDetails.Tracking) ??
     getNullableString(orderDetails.tracking)
   );
+  return value && !/^https?:\/\//i.test(value) ? value : null;
 }
 
 export function extractStrickerTrackingUrl(
   orderDetails: StrickerOrderDetails,
 ): string | null {
-  return (
+  const value = (
     getNullableString(orderDetails.TrackingLink) ??
-    getNullableString(orderDetails.trackingLink)
+    getNullableString(orderDetails.trackingLink) ??
+    getNullableString(orderDetails.Tracking) ??
+    getNullableString(orderDetails.tracking)
   );
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return ["https:", "http:"].includes(url.protocol) && !url.username && !url.password ? url.href : null;
+  } catch { return null; }
 }
 
 export function extractStrickerShippingDate(orderDetails: StrickerOrderDetails): string | null {
-  return getNullableString(orderDetails.ShippingDate) ?? getNullableString(orderDetails.shippingDate);
+  return normalizeStrickerDate(getNullableString(orderDetails.ShippingDate) ?? getNullableString(orderDetails.shippingDate));
+}
+
+export function normalizeStrickerDate(value: string | null): string | null {
+  if (!value) return null;
+  const european = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value.trim());
+  const iso = /^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/.exec(value.trim());
+  const date = european
+    ? `${european[3]}-${european[2].padStart(2, "0")}-${european[1].padStart(2, "0")}`
+    : iso ? `${iso[1]}-${iso[2]}-${iso[3]}` : null;
+  if (!date) return null;
+  const parsed = new Date(`${date}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date ? date : null;
 }
 
 export function extractStrickerOrderLines(

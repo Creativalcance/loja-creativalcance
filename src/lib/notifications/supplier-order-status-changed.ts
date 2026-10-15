@@ -41,6 +41,7 @@ const STATUS_LABELS: Record<string, string> = {
   INVOICED: "Faturada",
   SENT: "Expedida",
   SHIPPED: "Expedida",
+  DELIVERED: "Entregue",
   CANCELED: "Cancelada",
   CANCELLED: "Cancelada",
 };

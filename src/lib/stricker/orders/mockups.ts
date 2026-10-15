@@ -61,7 +61,7 @@ export async function syncStrickerMockups() {
 }
 
 export function effectiveMockupOrderStatus(raw: string | null, state: string | undefined): string | null {
-  if (["SHIPPED", "SENT", "CANCELED", "CANCELLED"].includes(raw ?? "")) return raw;
+  if (["SHIPPED", "SENT", "DELIVERED", "CANCELED", "CANCELLED"].includes(raw ?? "")) return raw;
   if (state === "pending") return "PENDING_MOCKUP_APPROVAL";
   // The pending list does not say whether the client approved or requested changes.
   if (state === "awaiting_confirmation" && ["WAITING_ART_WORK", "PENDING_MOCKUP_APPROVAL"].includes(raw ?? "")) return "PROCESSING";

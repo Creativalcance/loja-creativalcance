@@ -1,243 +1,160 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { notifySupplierOrderStatusChanged } from "@/lib/notifications/supplier-order-status-changed";
-import {
-  notifyOrderStatusChanged,
-  notifyOrderTrackingAvailable,
-} from "@/lib/notifications/customer-email";
-import { extractStrickerOrderStatus, extractStrickerShippingDate, extractStrickerTrackingNumber, extractStrickerTrackingUrl, getStrickerOrderDetails } from "@/lib/stricker/orders/client";
+import { notifyOrderStatusChanged, notifyOrderTrackingAvailable } from "@/lib/notifications/customer-email";
+import { extractStrickerOrderStatus, extractStrickerShippingDate, extractStrickerTrackingNumber,
+  extractStrickerTrackingUrl, getStrickerOrderDetails, getStrickerOrders, normalizeStrickerDate } from "@/lib/stricker/orders/client";
 import { effectiveMockupOrderStatus, syncStrickerMockups } from "@/lib/stricker/orders/mockups";
 
-const MAX_ORDERS_PER_EXECUTION = 50;
-const ORDER_DETAILS_TIMEOUT_MS = 20_000;
-const CONCURRENCY = 5;
-
+type Snapshot = { status: string | null; shippingDate: string | null; trackingNumber: string | null; trackingUrl: string | null };
+type NotificationIntent = { previous: Snapshot; next: Snapshot; previousLocalStatus: string; nextLocalStatus: string; hasNewTracking: boolean };
 type SubmittedOrder = {
-  id: string;
-  order_number: string;
-  supplier_order_stamp: string;
-  supplier_test_mode: boolean;
-  supplier_last_status: string | null;
-  supplier_shipping_date: string | null;
-  supplier_tracking_number: string | null;
-  supplier_tracking_url: string | null;
-  supplier_last_checked_at: string | null;
-  status: string;
-  fulfillment_status: string;
-  shipped_at: string | null;
-  cancelled_at: string | null;
+  id: string; order_number: string; supplier_order_stamp: string; supplier_test_mode: boolean;
+  supplier_last_status: string | null; supplier_shipping_date: string | null;
+  supplier_tracking_number: string | null; supplier_tracking_url: string | null;
+  supplier_last_checked_at: string | null; status: string; fulfillment_status: string;
+  shipped_at: string | null; delivered_at: string | null; cancelled_at: string | null;
+  supplier_status_notification: NotificationIntent | null;
 };
+const TERMINAL = ["delivered", "cancelled", "refunded"];
+const text = (value: string | null | undefined) => value?.trim() || null;
+const terminal = (order: SubmittedOrder) => TERMINAL.includes(order.status) || TERMINAL.includes(order.fulfillment_status);
 
-function normalizeDate(value: string | null): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value.slice(0, 10) : date.toISOString().slice(0, 10);
+export function nextLocalOrderStatus(current: string, supplier: string | null): string {
+  if (TERMINAL.includes(current)) return current;
+  if (supplier === "DELIVERED") return "delivered";
+  if (["SHIPPED", "SENT"].includes(supplier ?? "")) return "shipped";
+  if (current === "shipped") return current;
+  if (["CANCELLED", "CANCELED"].includes(supplier ?? "")) return "cancelled";
+  if (supplier === "PRODUCTION") return "in_production";
+  if (supplier === "PROCESSING" && current !== "in_production") return "processing";
+  return current;
 }
 
-function normalizeText(value: string | null): string | null {
-  const normalized = value?.trim() ?? "";
-  return normalized.length > 0 ? normalized : null;
-}
-
-function hasOrderChanged(
-  order: SubmittedOrder,
-  next: {
-    status: string | null;
-    shippingDate: string | null;
-    trackingNumber: string | null;
-    trackingUrl: string | null;
-  },
-): boolean {
-  return (
-    normalizeText(order.supplier_last_status)?.toUpperCase() !== next.status ||
-    normalizeDate(order.supplier_shipping_date) !== next.shippingDate ||
-    normalizeText(order.supplier_tracking_number) !== next.trackingNumber ||
-    normalizeText(order.supplier_tracking_url) !== next.trackingUrl
-  );
-}
-
-async function processInBatches<T>(
-  items: T[],
-  handler: (item: T) => Promise<void>,
-): Promise<void> {
-  for (let offset = 0; offset < items.length; offset += CONCURRENCY) {
-    await Promise.all(items.slice(offset, offset + CONCURRENCY).map(handler));
-  }
-}
-
-export async function syncSubmittedStrickerOrders() {
+// dryRun performs provider reads only: no mockup reconciliation, writes or emails.
+export async function syncSubmittedStrickerOrders(options: { dryRun?: boolean } = {}) {
   const admin = createSupabaseAdminClient();
-  let mockups: unknown;
-  try { mockups = await syncStrickerMockups(); }
-  catch (cause) {
-    // The mockup client reports sanitized errors, without private links or tokens.
-    const message = cause instanceof Error ? cause.message : "A consulta das maquetes falhou; os dados anteriores foram preservados.";
-    console.error("Order mockup sync failed", { message });
-    mockups = { failed: true, message };
-  }
   const { data, error } = await admin.from("orders")
-    .select("id,order_number,supplier_order_stamp,supplier_test_mode,supplier_last_status,supplier_shipping_date,supplier_tracking_number,supplier_tracking_url,supplier_last_checked_at,status,fulfillment_status,shipped_at,cancelled_at")
+    .select("id,order_number,supplier_order_stamp,supplier_test_mode,supplier_last_status,supplier_shipping_date,supplier_tracking_number,supplier_tracking_url,supplier_last_checked_at,status,fulfillment_status,shipped_at,delivered_at,cancelled_at,supplier_status_notification")
     .not("supplier_order_stamp", "is", null).is("deleted_at", null)
-    .or("supplier_last_status.is.null,supplier_last_status.not.in.(SHIPPED,SENT,CANCELED,CANCELLED),and(supplier_last_status.in.(SHIPPED,SENT),supplier_tracking_number.is.null,supplier_tracking_url.is.null)")
-    .order("supplier_last_checked_at", { ascending: true, nullsFirst: true })
-    .limit(MAX_ORDERS_PER_EXECUTION)
-    .returns<SubmittedOrder[]>();
+    .eq("supplier_test_mode", false).eq("payment_status", "paid")
+    .or("and(status.not.in.(delivered,cancelled,refunded),fulfillment_status.not.in.(delivered,cancelled,refunded)),supplier_status_notification.not.is.null")
+    .order("supplier_last_checked_at", { ascending: true, nullsFirst: true }).limit(50).returns<SubmittedOrder[]>();
   if (error) throw new Error(error.message);
-
-  const orders = data ?? [];
-  const proofStates = new Map<string, string>();
-  if (orders.length) {
-    const proofs = await admin.from("order_mockups").select("order_id,state")
-      .in("order_id", orders.map(order => order.id)).in("state", ["pending", "awaiting_confirmation"]);
-    if (proofs.error) throw new Error("Não foi possível consultar o estado das maquetes.");
-    for (const proof of proofs.data ?? []) {
-      if (proofStates.get(proof.order_id) !== "pending") proofStates.set(proof.order_id, proof.state);
-    }
-  }
-  let updated = 0;
-  let unchanged = 0;
+  const orders = (data ?? []).filter(order => !order.supplier_test_mode && (!terminal(order) || order.supplier_status_notification));
   const failures: Array<{ orderId: string; message: string }> = [];
   const notificationFailures: Array<{ orderId: string; message: string }> = [];
+  let updated = 0, unchanged = 0;
+  let mockups: unknown = { skipped: true };
+  if (!orders.length) return { checked: 0, updated, unchanged, failed: 0, failures, notificationsFailed: 0, notificationFailures, mockups };
 
-  await processInBatches(orders, async (order) => {
-    const checkedAt = new Date().toISOString();
+  // One account-wide list. Do not silently fall back to stale details if it fails.
+  const listed = await getStrickerOrders({ testMode: false, timeoutMs: 20_000 });
+  if (!options.dryRun) {
+    try { mockups = await syncStrickerMockups(); }
+    catch { mockups = { failed: true }; console.error("Order mockup sync failed; previous proof state preserved"); }
+  }
+  const proofs = await admin.from("order_mockups").select("order_id,state")
+    .in("order_id", orders.map(order => order.id)).in("state", ["pending", "awaiting_confirmation"]);
+  if (proofs.error) throw new Error("Não foi possível consultar o estado das maquetes.");
+  const proofStates = new Map<string, string>();
+  for (const proof of proofs.data ?? []) if (proofStates.get(proof.order_id) !== "pending") proofStates.set(proof.order_id, proof.state);
 
-    try {
-      const result = await getStrickerOrderDetails(order.supplier_order_stamp, {
-        testMode: order.supplier_test_mode,
-        timeoutMs: ORDER_DETAILS_TIMEOUT_MS,
-      });
-      const rawStatus = normalizeText(
-        extractStrickerOrderStatus(result.orderDetails),
-      )?.toUpperCase() ?? null;
-      const status = effectiveMockupOrderStatus(rawStatus, proofStates.get(order.id));
-      const shippingDate = normalizeDate(
-        extractStrickerShippingDate(result.orderDetails),
-      );
-      const trackingNumber = normalizeText(
-        extractStrickerTrackingNumber(result.orderDetails),
-      );
-      const trackingUrl = normalizeText(
-        extractStrickerTrackingUrl(result.orderDetails),
-      );
-      const changed = hasOrderChanged(order, {
-        status,
-        shippingDate,
-        trackingNumber,
-        trackingUrl,
-      });
-      const values: Record<string, unknown> = {
-        supplier_last_response: result.response,
-        supplier_last_checked_at: checkedAt,
-      };
-
-      if (changed) {
-        Object.assign(values, {
-          supplier_last_status: status,
-          supplier_shipping_date: shippingDate,
-          supplier_tracking_number: trackingNumber,
-          supplier_tracking_url: trackingUrl,
-        });
-      }
-
-      if (status === "SHIPPED" || status === "SENT") {
-        Object.assign(values, {
-          status: "shipped",
-          fulfillment_status: "shipped",
-          shipped_at: order.shipped_at ?? checkedAt,
-          tracking_number: trackingNumber,
-          tracking_url: trackingUrl,
-        });
-      }
-
-      if (status === "CANCELED" || status === "CANCELLED") {
-        Object.assign(values, {
-          status: "cancelled",
-          fulfillment_status: "cancelled",
-          cancelled_at: order.cancelled_at ?? checkedAt,
-        });
-      }
-
-      if (status === "PRODUCTION" && !["shipped", "delivered", "cancelled"].includes(order.status)) {
-        values.status = "in_production";
-      }
-
-      const { error: updateError } = await admin.from("orders").update(values).eq("id", order.id);
-      if (updateError) throw new Error(updateError.message);
-
-      if (changed) updated += 1;
-      else unchanged += 1;
-
-      if (changed) {
-        try {
-          await notifySupplierOrderStatusChanged({
-            orderId: order.id,
-            orderNumber: order.order_number,
-            testMode: order.supplier_test_mode,
-            previous: {
-              status: normalizeText(order.supplier_last_status)?.toUpperCase() ?? null,
-              shippingDate: normalizeDate(order.supplier_shipping_date),
-              trackingNumber: normalizeText(order.supplier_tracking_number),
-              trackingUrl: normalizeText(order.supplier_tracking_url),
-            },
-            next: {
-              status,
-              shippingDate,
-              trackingNumber,
-              trackingUrl,
-            },
-          });
-        } catch (cause) {
-          notificationFailures.push({
-            orderId: order.id,
-            message:
-              cause instanceof Error
-                ? cause.message
-                : "Erro desconhecido na notificação.",
-          });
-        }
-
-        try {
-          const hasNewTracking = Boolean(
-            (trackingNumber && trackingNumber !== normalizeText(order.supplier_tracking_number)) ||
-            (trackingUrl && trackingUrl !== normalizeText(order.supplier_tracking_url)),
-          );
-          if (hasNewTracking) {
-            await notifyOrderTrackingAvailable(order.id);
-          } else if (status !== "PENDING_MOCKUP_APPROVAL" && status === rawStatus) {
-            await notifyOrderStatusChanged({
-              orderId: order.id,
-              previousStatus: normalizeText(order.supplier_last_status)?.toUpperCase() ?? null,
-              newStatus: status,
-              eventId: `supplier:${checkedAt}`,
-            });
-          }
-        } catch (cause) {
-          notificationFailures.push({
-            orderId: order.id,
-            message:
-              cause instanceof Error
-                ? `Cliente: ${cause.message}`
-                : "Erro desconhecido na notificação ao cliente.",
-          });
-        }
-      }
-    } catch (cause) {
-      await admin
-        .from("orders")
-        .update({ supplier_last_checked_at: checkedAt })
-        .eq("id", order.id);
-      failures.push({ orderId: order.id, message: cause instanceof Error ? cause.message : "Erro desconhecido" });
+  async function deliverIntent(order: SubmittedOrder, intent: NotificationIntent) {
+    // Recheck manual completion/cancellation before touching either notification queue.
+    const current = await admin.from("orders").select("status,fulfillment_status,deleted_at")
+      .eq("id", order.id).single();
+    if (current.error) throw new Error(current.error.message);
+    if (current.data.deleted_at || current.data.status !== intent.nextLocalStatus
+      || (TERMINAL.includes(current.data.fulfillment_status) && current.data.fulfillment_status !== intent.nextLocalStatus)) {
+      await admin.from("orders").update({ supplier_status_notification: null }).eq("id", order.id);
+      return;
     }
-  });
+    if (intent.hasNewTracking && intent.nextLocalStatus === "shipped") {
+      await notifyOrderTrackingAvailable(order.id, { enqueueOnly: true });
+    } else if (intent.previousLocalStatus !== intent.nextLocalStatus) {
+      await notifyOrderStatusChanged({ orderId: order.id, previousStatus: intent.previousLocalStatus,
+        newStatus: intent.nextLocalStatus, eventId: `supplier:${order.supplier_order_stamp}:${intent.nextLocalStatus}`, enqueueOnly: true });
+    }
+    await notifySupplierOrderStatusChanged({ orderId: order.id, orderNumber: order.order_number,
+      testMode: false, previous: intent.previous, next: intent.next });
+    const cleared = await admin.from("orders").update({ supplier_status_notification: null }).eq("id", order.id);
+    if (cleared.error) throw new Error(cleared.error.message);
+  }
 
-  return {
-    mockups,
-    checked: orders.length,
-    updated,
-    unchanged,
-    failed: failures.length,
-    failures,
-    notificationsFailed: notificationFailures.length,
-    notificationFailures,
-  };
+  for (let offset = 0; offset < orders.length; offset += 5) {
+    await Promise.all(orders.slice(offset, offset + 5).map(async order => {
+      const checkedAt = new Date().toISOString();
+      try {
+        if (order.supplier_status_notification && !options.dryRun) {
+          try { await deliverIntent(order, order.supplier_status_notification); }
+          catch (cause) {
+            notificationFailures.push({ orderId: order.id, message: cause instanceof Error ? cause.message : "Falha na notificação" });
+            return; // Preserve the intent; unchanged snapshots must retry it next cycle.
+          }
+        }
+        if (terminal(order)) return;
+        const listedOrder = listed.orders.get(order.supplier_order_stamp);
+        const result = listedOrder
+          ? { orderDetails: listedOrder, response: { source: "OrdersV1", OrderDetails: listedOrder } }
+          : await getStrickerOrderDetails(order.supplier_order_stamp, { testMode: false, timeoutMs: 20_000 });
+        const returnedStamp = result.orderDetails.OrderStamp ?? result.orderDetails.orderStamp;
+        if (returnedStamp !== order.supplier_order_stamp) throw new Error("O fornecedor devolveu uma referência de encomenda diferente.");
+        const rawStatus = text(extractStrickerOrderStatus(result.orderDetails))?.toUpperCase() ?? null;
+        if (!rawStatus) throw new Error("O fornecedor não devolveu o estado da encomenda.");
+        let status = effectiveMockupOrderStatus(rawStatus, proofStates.get(order.id));
+        // Missing list entries can use details, but may never regress a known dispatch.
+        if (order.status === "shipped" && !["SHIPPED", "SENT", "DELIVERED"].includes(status ?? "")) status = order.supplier_last_status || "SHIPPED";
+        const previous: Snapshot = { status: text(order.supplier_last_status)?.toUpperCase() ?? null,
+          shippingDate: normalizeStrickerDate(order.supplier_shipping_date),
+          trackingNumber: text(order.supplier_tracking_number), trackingUrl: text(order.supplier_tracking_url) };
+        const next: Snapshot = { status,
+          shippingDate: extractStrickerShippingDate(result.orderDetails) ?? previous.shippingDate,
+          trackingNumber: text(extractStrickerTrackingNumber(result.orderDetails)) ?? previous.trackingNumber,
+          trackingUrl: text(extractStrickerTrackingUrl(result.orderDetails)) ?? previous.trackingUrl };
+        // The old parser put URLs in tracking_number; keep only the URL in that case.
+        if (next.trackingUrl && /^https?:\/\//i.test(next.trackingNumber ?? "")) next.trackingNumber = null;
+        const newLocalStatus = nextLocalOrderStatus(order.status, status);
+        const changed = JSON.stringify(previous) !== JSON.stringify(next) || newLocalStatus !== order.status;
+        if (options.dryRun) { if (changed) updated++; else unchanged++; return; }
+        const values: Record<string, unknown> = { supplier_last_response: result.response, supplier_last_checked_at: checkedAt };
+        let intent: NotificationIntent | null = null;
+        if (changed) {
+          intent = { previous, next, previousLocalStatus: order.status, nextLocalStatus: newLocalStatus,
+            hasNewTracking: Boolean((next.trackingNumber && next.trackingNumber !== previous.trackingNumber) || (next.trackingUrl && next.trackingUrl !== previous.trackingUrl)) };
+          Object.assign(values, { supplier_last_status: next.status, supplier_shipping_date: next.shippingDate,
+            supplier_tracking_number: next.trackingNumber, supplier_tracking_url: next.trackingUrl,
+            supplier_status_notification: intent });
+        }
+        if (["shipped", "delivered"].includes(newLocalStatus)) {
+          Object.assign(values, { tracking_number: next.trackingNumber, tracking_url: next.trackingUrl });
+          const carrier = text(result.orderDetails.Courier ?? result.orderDetails.courier);
+          if (carrier) values.shipping_carrier = carrier;
+        }
+        if (newLocalStatus !== order.status) {
+          values.status = newLocalStatus;
+          if (["shipped", "delivered", "cancelled"].includes(newLocalStatus)) values.fulfillment_status = newLocalStatus;
+          if (["shipped", "delivered"].includes(newLocalStatus)) values.shipped_at = order.shipped_at ?? checkedAt;
+          if (newLocalStatus === "delivered") values.delivered_at = order.delivered_at ?? checkedAt;
+          if (newLocalStatus === "cancelled") values.cancelled_at = order.cancelled_at ?? checkedAt;
+        }
+        // Compare-and-set: a concurrent manual completion must win, without any email.
+        const saved = await admin.from("orders").update(values).eq("id", order.id)
+          .eq("status", order.status).eq("fulfillment_status", order.fulfillment_status)
+          .is("deleted_at", null).select("id").maybeSingle();
+        if (saved.error) throw new Error(saved.error.message);
+        if (!saved.data) return;
+        if (changed) updated++; else unchanged++;
+        if (intent) {
+          try { await deliverIntent(order, intent); }
+          catch (cause) { notificationFailures.push({ orderId: order.id, message: cause instanceof Error ? cause.message : "Falha na notificação" }); }
+        }
+      } catch (cause) {
+        if (!options.dryRun) await admin.from("orders").update({ supplier_last_checked_at: checkedAt }).eq("id", order.id)
+          .eq("status", order.status).eq("fulfillment_status", order.fulfillment_status);
+        failures.push({ orderId: order.id, message: cause instanceof Error ? cause.message : "Erro desconhecido" });
+      }
+    }));
+  }
+  return { mockups, checked: orders.length, updated, unchanged, failed: failures.length, failures,
+    notificationsFailed: notificationFailures.length, notificationFailures, listAtCapacity: listed.truncated, dryRun: !!options.dryRun };
 }

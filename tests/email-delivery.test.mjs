@@ -370,3 +370,23 @@ test('stale proofs, altered links or recipients and cancelled orders never send 
     assert.equal(h.db.tables.customer_email_notifications[0].email_status,'cancelled');
   }
 });
+
+test('supplier enqueue-only mode persists one customer event without contacting the email provider', async () => {
+  const order = fixture(); const h = harness({ orders: [order] });
+  for (let i = 0; i < 2; i++) {
+    await h.customer.notifyOrderStatusChanged({ orderId: order.id, previousStatus: 'processing', newStatus: 'shipped',
+      eventId: 'supplier:fixture:shipped', enqueueOnly: true });
+    await h.customer.notifyOrderTrackingAvailable(order.id, { enqueueOnly: true });
+  }
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.db.tables.customer_email_notifications.length, 2);
+  assert.ok(h.db.tables.customer_email_notifications.every(row => row.email_status === 'pending'));
+});
+
+test('supplier enqueue-only failures propagate so the saved intent can retry', async () => {
+  const h = harness({ orders: [] });
+  await assert.rejects(h.customer.notifyOrderStatusChanged({ orderId: 'missing', previousStatus: 'processing',
+    newStatus: 'shipped', enqueueOnly: true }));
+  await assert.rejects(h.customer.notifyOrderTrackingAvailable('missing', { enqueueOnly: true }));
+  assert.equal(h.requests.length, 0);
+});
