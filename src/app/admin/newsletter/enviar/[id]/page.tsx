@@ -6,9 +6,10 @@ import { confirmNewsletterBroadcastSend } from "../../send-actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewsletterSendConfirmation({ params }: { params: Promise<{ id: string }> }) {
+export default async function NewsletterSendConfirmation({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }) {
   await assertAdminAccess("/admin/newsletter");
   const { id } = await params;
+  const { error } = await searchParams;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const db = createSupabaseAdminClient();
   const { data: campaign } = await db.from("newsletter_campaigns")
@@ -38,6 +39,13 @@ export default async function NewsletterSendConfirmation({ params }: { params: P
         <a className="ml-4 inline-block text-sm text-[#ff6a00] underline" href={`https://resend.com/broadcasts/${campaign.resend_broadcast_id}`} target="_blank" rel="noopener noreferrer">Ver no Resend</a>
       </div>
       {!enabled ? <p className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">Envio bloqueado: sincroniza primeiro todos os contactos elegíveis ou verifica a configuração do público.</p> : null}
+      {error === "checkbox" || error === "keyword" ? (
+        <p role="alert" className="mt-6 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+          {error === "checkbox"
+            ? "O envio não foi efetuado. Assinala a caixa de autorização antes de continuar."
+            : "O envio não foi efetuado. Escreve exatamente ENVIAR, em maiúsculas, sem espaços adicionais."}
+        </p>
+      ) : null}
       <form action={confirmNewsletterBroadcastSend} className="mt-8 space-y-5 rounded-2xl border border-orange-500/30 p-6">
         <input type="hidden" name="campaign_id" value={campaign.id} />
         <input type="hidden" name="expected_recipients" value={eligible ?? 0} />
