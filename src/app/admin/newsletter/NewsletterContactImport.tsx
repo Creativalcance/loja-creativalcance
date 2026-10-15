@@ -27,6 +27,7 @@ export default function NewsletterContactImport() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ParsedContacts | null>(null);
   const [busy, setBusy] = useState(false);
+  const [locale, setLocale] = useState("pt");
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
   const [totals, setTotals] = useState<Totals>(ZERO);
   const [nextBatch, setNextBatch] = useState(0);
@@ -59,6 +60,7 @@ export default function NewsletterContactImport() {
     setBusy(true); setResult(null);
     try {
       const common = new FormData(form);
+      common.set("locale", locale);
       common.delete("file");
       for (let i = cursor.current; i < batches; i++) {
         const rows = preview.valid.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
@@ -123,7 +125,7 @@ export default function NewsletterContactImport() {
       </div> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="grid gap-2 text-sm text-white/75">Idioma da lista
-          <select name="locale" defaultValue="pt" disabled={busy || nextBatch > 0} className="rounded-xl border border-white/15 bg-neutral-900 p-3">
+          <select name="locale" value={locale} onChange={event => setLocale(event.target.value)} disabled={busy || nextBatch > 0} className="rounded-xl border border-white/15 bg-neutral-900 p-3">
             <option value="pt">Português</option><option value="en">Inglês</option><option value="fr">Francês</option><option value="es">Espanhol</option><option value="de">Alemão</option><option value="it">Italiano</option>
           </select>
         </label>
