@@ -8,12 +8,19 @@ export type SyncBatchResult = { processed: number; synced: number; skipped: numb
 type RemoteContact = { unsubscribed?: boolean };
 
 async function requestResend(path: string, key: string, init?: RequestInit): Promise<Response> {
-  return fetch(`https://api.resend.com${path}`, {
-    ...init,
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...init?.headers },
-    cache: "no-store",
-    signal: AbortSignal.timeout(12000),
-  });
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const response = await fetch(`https://api.resend.com${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json", ...init?.headers },
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+    if (response.status !== 429 || attempt === 2) return response;
+    const seconds = Number(response.headers.get("retry-after"));
+    const delay = Number.isFinite(seconds) && seconds > 0 ? Math.min(3000, seconds * 1000) : 700 * (attempt + 1);
+    await new Promise<void>(resolve => setTimeout(resolve, delay));
+  }
+  throw new Error("Limite de pedidos ao Resend.");
 }
 
 /**
