@@ -100,3 +100,39 @@ export async function confirmNewsletterBroadcastSend(formData: FormData): Promis
   revalidatePath("/admin/newsletter");
   redirect("/admin/newsletter?send=accepted");
 }
+
+/**
+ * Consulta o estado remoto sem lançar outro envio. Mantém o estado "sending"
+ * quando o Resend ainda não confirma "sent" ou "scheduled".
+ */
+export async function refreshNewsletterBroadcastStatus(formData: FormData): Promise<void> {
+  await assertAdminAccess("/admin/newsletter");
+  const id = String(formData.get("campaign_id") ?? "");
+  if (!UUID.test(id)) throw new Error("Identificador inválido.");
+  const key = process.env.RESEND_API_KEY?.trim();
+  if (!key) throw new Error("Resend não configurado.");
+  const db = createSupabaseAdminClient();
+  const { data: campaign } = await db.from("newsletter_campaigns")
+    .select("status,resend_broadcast_id").eq("id", id).maybeSingle();
+  if (!campaign?.resend_broadcast_id || !["ready","sending","sent","scheduled"].includes(campaign.status))
+    throw new Error("Campanha indisponível para consulta.");
+  const response = await fetch(`https://api.resend.com/broadcasts/${campaign.resend_broadcast_id}`, {
+    headers: { Authorization: `Bearer ${key}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(12000),
+  });
+  if (!response.ok) throw new Error("Falha na consulta do estado remoto.");
+  const remote = await response.json() as { status?: string };
+  const newStatus = remote.status === "sent" ? "sent" :
+                    remote.status === "scheduled" ? "scheduled" : null;
+  if (newStatus && campaign.status !== newStatus) {
+    await db.from("newsletter_campaigns").update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq("id", id).in("status", ["sending","scheduled"]);
+    await db.from("newsletter_campaign_events").insert({
+      campaign_id: id, event_type: "broadcast_status_checked",
+      details: { provider_status: remote.status },
+    });
+  }
+  revalidatePath("/admin/newsletter");
+  redirect("/admin/newsletter");
+}
