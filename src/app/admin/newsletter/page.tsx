@@ -6,6 +6,7 @@ import { prepareNewsletterBroadcastDraft, saveNewsletterDraft, sendNewsletterTes
 import { syncNewsletterContacts } from "./sync-actions";
 import NewsletterHeroUpload from "./NewsletterHeroUpload";
 import NewsletterContactImport from "./NewsletterContactImport";
+import { refreshNewsletterBroadcastStatus } from "./send-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,12 @@ type Campaign = { id: string; title: string; subject: string; preview_text: stri
 
 type Subscriber = { id: string; name: string; email: string; locale: string; status: string; source: string; consented_at: string; created_at: string };
 
-export default async function NewsletterAdminPage({ searchParams }: { searchParams: Promise<{ edit?: string; sync?: string; added?: string; skipped?: string; failed?: string; heroError?: string; heroUploaded?: string }> }) {
+export default async function NewsletterAdminPage({ searchParams }: { searchParams: Promise<{ edit?: string; sync?: string; added?: string; skipped?: string; failed?: string; heroError?: string; heroUploaded?: string; send?: string }> }) {
   await assertAdminAccess("/admin/newsletter");
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.from("newsletter_subscribers").select("id,name,email,locale,status,source,consented_at,created_at").order("created_at", { ascending: false }).returns<Subscriber[]>();
   if (error) throw new Error(`Não foi possível carregar a newsletter: ${error.message}`);
-  const { edit, sync, added, skipped, failed, heroError, heroUploaded } = await searchParams;
+  const { edit, sync, added, skipped, failed, heroError, heroUploaded, send } = await searchParams;
   const resendConfigured = Boolean(process.env.RESEND_API_KEY && process.env.RESEND_NEWSLETTER_SEGMENT_ID);
   const syncingAllowed = resendConfigured && Boolean(process.env.RESEND_WEBHOOK_SECRET) && process.env.RESEND_NEWSLETTER_SYNC_ENABLED === "true";
   const senderConfigured = Boolean(process.env.RESEND_MARKETING_FROM_EMAIL);
@@ -74,6 +75,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
           <article className="rounded-3xl border border-white/10 bg-white/[.03] p-5"><Mail className="h-6 w-6" /><p className="mt-4 text-sm text-white/50">Registos totais</p><p className="mt-1 text-3xl font-semibold">{subscribers.length}</p></article>
         </div>
 
+        {send === "accepted" ? <div role="status" className="mt-8 rounded-xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm text-emerald-200">Pedido de envio aceite pelo Resend. Consulta o histórico e o estado do Broadcast antes de considerares a campanha entregue.</div> : null}
         {heroError ? <div id="campaigns" role="alert" className="mt-8 rounded-xl border border-red-400/40 bg-red-400/10 p-4 text-sm text-red-200">{heroError}</div> : null}
         {heroUploaded ? <div id="campaigns" role="status" className="mt-8 rounded-xl border border-emerald-400/40 bg-emerald-400/10 p-4 text-sm text-emerald-200">Imagem carregada e associada à campanha.</div> : null}
         <div className="mt-10 grid gap-6 lg:grid-cols-[1.1fr_.9fr]">
@@ -149,7 +151,20 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                     <button type="submit" disabled={!marketingDraftConfigured} className="mt-3 rounded-xl border border-[#ff6a00]/50 px-3 py-2 text-xs font-semibold text-[#ff6a00] hover:bg-[#ff6a00]/10 disabled:cursor-not-allowed disabled:opacity-40">Preparar rascunho Resend</button>
                   </form>
                 ) : null}
-                {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id}</p> : null}
+                {item.status === "ready" && item.resend_broadcast_id ? (
+                  <div className="mt-4 rounded-xl border border-[#ff6a00]/30 p-3">
+                    <p className="text-xs text-white/60">Rascunho preparado no Resend. A distribuição exige confirmação administrativa separada.</p>
+                    <Link href={`/admin/newsletter/enviar/${item.id}`} className="mt-3 inline-block rounded-xl bg-[#ff6a00] px-4 py-2 text-sm font-semibold text-white">Rever destinatários e autorizar envio</Link>
+                  </div>
+                ) : null}
+                {item.status === "sending" ? <p className="mt-3 text-xs text-amber-300">Envio solicitado. Confirma o estado no Resend; não repitas a operação.</p> : null}
+                {item.resend_broadcast_id && ["ready","sending","sent","scheduled"].includes(item.status) ? (
+                  <form action={refreshNewsletterBroadcastStatus} className="mt-3">
+                    <input type="hidden" name="campaign_id" value={item.id} />
+                    <button type="submit" className="rounded-lg border border-white/20 px-3 py-2 text-xs text-white/70">Atualizar estado no Resend</button>
+                  </form>
+                ) : null}
+                {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id} · <a className="underline" href={`https://resend.com/broadcasts/${item.resend_broadcast_id}`} target="_blank" rel="noopener noreferrer">Consultar no Resend</a></p> : null}
                 </article>
               ))}</div> : <p className="mt-5 text-sm text-white/50">Ainda não existem campanhas.</p>
             ) : <p className="mt-5 text-sm text-white/50">A aguardar a migração da base de dados.</p>}
