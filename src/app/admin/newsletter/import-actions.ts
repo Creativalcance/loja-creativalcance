@@ -19,7 +19,7 @@ export async function importNewsletterContacts(formData: FormData): Promise<Impo
   if (consentEvidence.length < 15 || consentEvidence.length > 500)
     return { ok: false, message: "Indica onde e como foi obtido o consentimento (15–500 caracteres)." };
   if (!["pt","en","fr","es","de","it"].includes(locale)) return { ok: false, message: "Idioma inválido." };
-  const date = new Date(consentDate + "T12:00:00Z");
+  const date = new Date(consentDate + "T00:00:00Z");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(consentDate) || Number.isNaN(date.valueOf()) ||
       date.toISOString().slice(0, 10) !== consentDate || consentDate > new Date().toISOString().slice(0,10))
     return { ok: false, message: "Indica uma data válida, no passado, para o consentimento." };
