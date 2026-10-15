@@ -15,9 +15,12 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export async function confirmNewsletterBroadcastSend(formData: FormData): Promise<void> {
   const admin = await assertAdminAccess("/admin/newsletter");
   const id = String(formData.get("campaign_id") ?? "");
-  if (!UUID.test(id) || formData.get("confirm") !== "yes" ||
-      String(formData.get("confirmation_text") ?? "").trim() !== "ENVIAR") {
-    throw new Error("É necessária confirmação expressa antes do envio.");
+  if (!UUID.test(id)) throw new Error("Campanha inválida.");
+  if (formData.get("confirm") !== "yes") {
+    redirect(`/admin/newsletter/enviar/${id}?error=checkbox`);
+  }
+  if (String(formData.get("confirmation_text") ?? "").trim() !== "ENVIAR") {
+    redirect(`/admin/newsletter/enviar/${id}?error=keyword`);
   }
 
   const apiKey = process.env.RESEND_API_KEY?.trim();
