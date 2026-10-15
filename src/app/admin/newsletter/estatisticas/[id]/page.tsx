@@ -12,7 +12,26 @@ const TYPES = [
 ] as const;
 
 type RecipientList = { data?: Array<{ id: string }>; has_more?: boolean };
-type Metric = { type: string; label: string; count: number | null; partial: boolean; error: boolean };
+type Metric = { type: string; label: string; count: number | null; partial: boolean; error: boolean; reason?: string };
+const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+async function fetchRecipients(url: URL, apiKey: string): Promise<Response> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+    if (response.status !== 429 && response.status < 500) return response;
+    if (attempt === 3) return response;
+    const retryAfter = Number(response.headers.get("retry-after"));
+    const wait = Number.isFinite(retryAfter) && retryAfter > 0
+      ? Math.min(5000, retryAfter * 1000)
+      : 950 * (attempt + 1);
+    await sleep(wait);
+  }
+  throw new Error("Limite de pedidos ao Resend.");
+}
 
 async function getMetric(id: string, type: string, apiKey: string): Promise<Metric> {
   const label = TYPES.find(([key]) => key === type)?.[1] ?? type;
@@ -25,10 +44,7 @@ async function getMetric(id: string, type: string, apiKey: string): Promise<Metr
       const url = new URL(`https://api.resend.com/broadcasts/${id}/recipients`);
       url.searchParams.set("type", type); url.searchParams.set("limit", "100");
       if (cursor) url.searchParams.set("after", cursor);
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${apiKey}` }, cache: "no-store",
-        signal: AbortSignal.timeout(10000),
-      });
+      const response = await fetchRecipients(url, apiKey);
       if (!response.ok) throw new Error("Resend status " + response.status);
       const data = await response.json() as RecipientList;
       const rows = data.data ?? [];
@@ -39,8 +55,10 @@ async function getMetric(id: string, type: string, apiKey: string): Promise<Metr
     }
     partial = true;
     return { type, label, count, partial, error: false };
-  } catch {
-    return { type, label, count: null, partial, error: true };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "Falha de ligação ao Resend.";
+    console.warn("Newsletter stats unavailable", { eventType: type, reason });
+    return { type, label, count: null, partial, error: true, reason };
   }
 }
 
@@ -53,9 +71,19 @@ export default async function NewsletterCampaignStats({ params }: { params: Prom
     .select("id,title,subject,status,resend_broadcast_id").eq("id", id).maybeSingle();
   if (!campaign?.resend_broadcast_id) notFound();
   const apiKey = process.env.RESEND_API_KEY?.trim();
-  const metrics: Metric[] = apiKey
-    ? await Promise.all(TYPES.map(([type]) => getMetric(campaign.resend_broadcast_id!, type, apiKey)))
-    : TYPES.map(([type,label]) => ({ type, label, count: null, partial: false, error: true }));
+  const metrics: Metric[] = [];
+  if (apiKey) {
+    // Consultas sequenciais para não ultrapassar os limites de pedidos da API.
+    for (const [index, [type]] of TYPES.entries()) {
+      if (index > 0) await sleep(650);
+      metrics.push(await getMetric(campaign.resend_broadcast_id, type, apiKey));
+    }
+  } else {
+    metrics.push(...TYPES.map(([type,label]) => ({
+      type, label, count: null, partial: false, error: true,
+      reason: "Chave Resend não configurada.",
+    })));
+  }
   const delivered = metrics.find(m => m.type === "delivered")?.count;
   const sent = metrics.find(m => m.type === "sent")?.count;
   const deliveryRate = sent && delivered !== null && delivered !== undefined ? Math.round(1000 * delivered / sent) / 10 : null;
@@ -71,7 +99,7 @@ export default async function NewsletterCampaignStats({ params }: { params: Prom
         {metrics.map(metric => <article key={metric.type} className="rounded-2xl border border-white/10 bg-white/[.03] p-5">
           <p className="text-sm text-white/55">{metric.label}</p>
           <p className="mt-3 text-3xl font-semibold">{metric.count === null ? "—" : `${metric.partial ? "≥ " : ""}${metric.count}`}</p>
-          {metric.error ? <p className="mt-2 text-xs text-amber-300">Indisponível; tenta atualizar</p> : null}
+          {metric.error ? <p className="mt-2 text-xs text-amber-300">{metric.reason?.startsWith("Resend status") ? "A consulta ao Resend foi recusada (" + metric.reason + ")." : "Dados indisponíveis. Verifica a configuração e volta a tentar."}</p> : null}
           {metric.partial ? <p className="mt-2 text-xs text-amber-300">Contagem parcial (mais de 5000 registos)</p> : null}
         </article>)}
       </div>
