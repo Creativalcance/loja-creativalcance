@@ -35,7 +35,7 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
   const { data, error } = await db.from("newsletter_subscribers")
     .select("id,email,name,locale,consented_at")
     .eq("status", "active").eq("locale", "pt").is("unsubscribed_at", null)
-    .not("consented_at", "is", null).order("created_at", { ascending: true }).limit(25)
+    .not("consented_at", "is", null).is("resend_synced_at", null).order("created_at", { ascending: true }).limit(25)
     .returns<Sub[]>();
   if (error) throw new Error("Falha ao consultar consentimentos.");
 
@@ -78,8 +78,17 @@ export async function syncNewsletterContacts(formData: FormData): Promise<never>
         `/contacts/${encodeURIComponent(email)}/segments/${encodeURIComponent(segment)}`,
         key, { method: "POST" },
       );
-      if (add.ok || add.status === 409) synced++;
-      else failed++;
+      if (add.ok || add.status === 409) {
+        // Só marcar como sincronizado se o consentimento continuar válido.
+        const { data: marked, error: markError } = await db.from("newsletter_subscribers")
+          .update({ resend_synced_at: new Date().toISOString() })
+          .eq("id", subscriber.id).eq("status", "active")
+          .eq("consented_at", subscriber.consented_at).eq("locale", "pt")
+          .is("unsubscribed_at", null).is("resend_synced_at", null)
+          .select("id").maybeSingle();
+        if (markError || !marked) failed++;
+        else synced++;
+      } else failed++;
     } catch {
       failed++;
     }
