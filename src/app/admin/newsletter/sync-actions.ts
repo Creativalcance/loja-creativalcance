@@ -32,7 +32,7 @@ export async function syncNewsletterContacts(formData: FormData): Promise<SyncBa
     throw new Error("Resend ainda não tem um segmento de marketing configurado.");
   }
   const cursor = String(formData.get("cursor") ?? "");
-  if (cursor && (!/^\\d{4}-\\d{2}-\\d{2}T/.test(cursor) || !Number.isFinite(Date.parse(cursor)))) {
+  if (cursor && (!/^\d{4}-\d{2}-\d{2}T/.test(cursor) || !Number.isFinite(Date.parse(cursor)))) {
     throw new Error("Marcador de sincronização inválido.");
   }
   const db = createSupabaseAdminClient();
