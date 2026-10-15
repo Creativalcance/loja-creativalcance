@@ -6,6 +6,7 @@ import { prepareNewsletterBroadcastDraft, saveNewsletterDraft, sendNewsletterTes
 import { syncNewsletterContacts } from "./sync-actions";
 import NewsletterHeroUpload from "./NewsletterHeroUpload";
 import NewsletterContactImport from "./NewsletterContactImport";
+import { repeatNewsletterCampaign } from "./repeat-actions";
 import { refreshNewsletterBroadcastStatus } from "./send-actions";
 
 export const dynamic = "force-dynamic";
@@ -164,6 +165,17 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                     <button type="submit" className="rounded-lg border border-white/20 px-3 py-2 text-xs text-white/70">Atualizar estado no Resend</button>
                   </form>
                 ) : null}
+                {item.resend_broadcast_id ? <Link className="mt-3 inline-block text-sm text-[#ff6a00] hover:underline" href={`/admin/newsletter/estatisticas/${item.id}`}>Ver estatísticas da campanha</Link> : null}
+                {item.status === "sent" ? <form action={repeatNewsletterCampaign} className="mt-3 rounded-xl border border-white/15 p-3">
+                  <input type="hidden" name="campaign_id" value={item.id} />
+                  <label className="flex gap-2 text-xs leading-5 text-white/70">
+                    <input type="checkbox" name="confirm" value="yes" required className="mt-1" />
+                    Criar novo rascunho com este conteúdo. Não envia emails nem altera a campanha original.
+                  </label>
+                  <button type="submit" className="mt-3 rounded-xl border border-[#ff6a00]/40 px-3 py-2 text-sm font-semibold text-[#ff6a00]">
+                    Reutilizar para nova campanha
+                  </button>
+                </form> : null}
                 {item.resend_broadcast_id ? <p className="mt-3 text-xs text-white/50">ID Resend: {item.resend_broadcast_id} · <a className="underline" href={`https://resend.com/broadcasts/${item.resend_broadcast_id}`} target="_blank" rel="noopener noreferrer">Consultar no Resend</a></p> : null}
                 </article>
               ))}</div> : <p className="mt-5 text-sm text-white/50">Ainda não existem campanhas.</p>
