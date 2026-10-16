@@ -1,6 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["dub1"],
+  "regions": [
+    "dub1"
+  ],
   "crons": [
     {
       "path": "/api/cron/stricker/stocks-pt",
@@ -97,6 +99,10 @@
     {
       "path": "/api/cron/stricker/customization-options-worker",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/catalog-names",
+      "schedule": "12,27,42,57 * * * *"
     }
   ]
 }
