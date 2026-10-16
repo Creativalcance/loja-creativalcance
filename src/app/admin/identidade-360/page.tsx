@@ -21,7 +21,7 @@ export default async function IdentityCatalog({ searchParams }: { searchParams: 
   return <main className="min-h-screen bg-neutral-50 px-4 py-8 sm:px-6"><div className="mx-auto max-w-7xl">
     <Link href="/admin/produtos" className="text-sm underline">Voltar aos produtos</Link>
     <h1 className="mt-6 text-3xl font-semibold">Identidade 360</h1>
-    <p className="mt-3 max-w-3xl text-neutral-600">Correspondência interna entre o catálogo do fornecedor e os nomes da 360. As referências são permanentes. Os nomes preparados aqui ainda não são publicados na loja.</p>
+    <p className="mt-3 max-w-3xl text-neutral-600">Correspondência interna entre o catálogo do fornecedor e os nomes da 360. As referências são permanentes. Os nomes marcados como revistos são apresentados na loja. Os rascunhos aguardam revisão.</p>
     <form className="my-6 flex flex-wrap gap-3"><label className="sr-only" htmlFor="identity-search">Pesquisar por referência ou nome</label>
       <input id="identity-search" name="q" defaultValue={q} placeholder="Referência do fornecedor, referência 360 ou nome" className="min-w-0 flex-1 rounded-xl border bg-white p-3" />
       <label className="sr-only" htmlFor="identity-state">Estado de revisão</label><select id="identity-state" name="estado" defaultValue={status} className="rounded-xl border bg-white p-3"><option value="">Todos os estados</option><option value="draft">Em preparação</option><option value="ready">Nomes revistos</option></select>

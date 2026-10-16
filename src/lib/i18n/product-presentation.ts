@@ -1,3 +1,4 @@
+import { getPublicIdentity, getPublicVariantReferences, publicMediaUrl } from "@/lib/catalog-identity/public";
 import { getLocalizedVariantColors } from "@/lib/i18n/colors";
 import type { ProductCardProduct } from "@/components/catalog/ProductCard";
 import type { SiteLocale } from "@/lib/i18n/config";
@@ -60,6 +61,13 @@ export async function localizeSmartMerchResponse(
   response: SmartMerchSearchResponse,
   locale: SiteLocale,
 ): Promise<SmartMerchSearchResponse> {
+  const references = await getPublicVariantReferences(response.results.flatMap(row => row.variantId ? [row.variantId] : []));
+  response = { ...response, results: await Promise.all(response.results.map(async row => {
+    const identity = await getPublicIdentity(row.id, locale);
+    return identity ? { ...row, name: identity.name, sku: identity.reference, slug: identity.slug, imageAlt: identity.name,
+      imageUrl: row.imageUrl ? publicMediaUrl(row.id) : null,
+      variantSku: row.variantId ? references.get(row.variantId) ?? identity.reference : null } : row;
+  })) };
   if (locale === "pt") return response;
   const translations = await getLocalizedProductTexts({
     productIds: response.results.map((result) => result.id), locale,

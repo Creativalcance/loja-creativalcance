@@ -173,6 +173,7 @@ test('a later page failure is surfaced instead of exposing a partial price list'
 
 const pageSource = fs.readFileSync('src/app/(public)/produto/[slug]/personalizar/page.tsx', 'utf8');
 const helpers = load('src/app/(public)/produto/[slug]/personalizar/page.tsx', {
+    '@/lib/catalog-identity/public': {getPublicIdentity:async()=>null,getPublicVariantReferences:async()=>new Map()},
   'react/jsx-runtime': {}, 'next/link': {}, 'next/navigation': {}, 'lucide-react': {},
   '@/components/product/ProductCustomizationEditor': {}, '@/lib/commerce/minimum-order-quantity': {},
   '@/lib/stricker/images': {}, '@/lib/supabase/server': {}, '@/lib/supabase/read-all-pages': pages,

@@ -30,7 +30,7 @@ function harness({ authorized = true, conflict = false, failure = false } = {}) 
   return { writes, calls, action: load('src/app/admin/identidade-360/actions.ts', {
     '@/lib/auth/assert-admin': { assertAdminAccess: async () => { if (!authorized) throw Error('unauthorized'); return { userId: id }; } },
     '@/lib/supabase/admin': { createSupabaseAdminClient: () => { calls.push('admin'); return admin; } },
-    'next/cache': { revalidatePath: value => calls.push(value) },
+    'next/cache': { revalidatePath: value => calls.push(value), revalidateTag: value => calls.push(value) },
     '@/lib/catalog-identity/validation': validation,
   }).saveCommercialIdentity };
 }

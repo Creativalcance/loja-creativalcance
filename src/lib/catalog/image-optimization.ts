@@ -1,6 +1,7 @@
 // Match the existing Next.js remote image allowlist. Other sources, including
 // customer uploads and signed storage URLs, keep their original delivery path.
 export function canOptimizeCatalogImage(source: string): boolean {
+  if (source.startsWith("/api/catalog/media/")) return true;
   try {
     const url = new URL(source);
     return url.protocol === "https:" && url.hostname === "cdn.hideacontent.com" &&

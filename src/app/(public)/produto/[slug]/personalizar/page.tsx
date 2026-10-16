@@ -1,6 +1,7 @@
+import { getPublicIdentity, getPublicVariantReferences, resolveSupplierSlug, preserveProductQuery, publicMediaUrl } from "@/lib/catalog-identity/public";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
 import ProductCustomizationEditor, {
   type ProductEditorLocation,
@@ -769,7 +770,7 @@ export default async function ProductPersonalizePage({
         )
       `,
     )
-    .eq("slug", slug)
+    .eq("slug", await resolveSupplierSlug(slug))
     .eq("status", "active")
     .eq("is_active", true)
     .maybeSingle();
@@ -781,6 +782,9 @@ export default async function ProductPersonalizePage({
   const product = data as unknown as ProductDetail;
   const localized = await getLocalizedProductText({ productId: product.id, locale });
   if (localized) product.name = localized.name || product.name;
+  const identity = await getPublicIdentity(product.id, locale);
+  if (identity && slug !== identity.slug) permanentRedirect(preserveProductQuery(localizePath(`/produto/${identity.slug}/personalizar`, locale), resolvedSearchParams));
+  if (identity) { product.name = identity.name; product.slug = identity.slug; product.sku = identity.reference; }
   const minimumQuantity = getEffectiveMinimumOrderQuantity(
     product.min_order_quantity,
   );
@@ -792,7 +796,7 @@ export default async function ProductPersonalizePage({
   );
 
   const primaryImage = getPrimaryImage(product);
-  const productImageUrl =
+  const productImageUrl = identity ? publicMediaUrl(product.id) :
     primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
   const variants = await localizeProductColors(product.product_variants ?? [], product.supplier_id, locale);
 
@@ -877,14 +881,15 @@ export default async function ProductPersonalizePage({
         .order("id", { ascending: true }).range(from, to).returns<PrintingPriceTable[]>())
     : [];
 
+  const variantReferences = await getPublicVariantReferences(variants.map(variant => variant.id));
   const editorVariants: ProductEditorVariant[] = variants.map((variant) => ({
     id: variant.id,
-    sku: variant.sku,
+    sku: identity ? variantReferences.get(variant.id) ?? identity.reference : variant.sku,
     color_name: variant.color_name,
     color_label: variant.color_label,
     color_hex: variant.color_hex,
     size: variant.size,
-    image_url:
+    image_url: identity && (variant.optional_image_1_url || variant.optional_image_2_url) ? publicMediaUrl(product.id, variant.id) :
       variant.optional_image_1_url ?? variant.optional_image_2_url,
   }));
 

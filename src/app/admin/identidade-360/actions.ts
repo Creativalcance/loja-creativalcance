@@ -1,7 +1,7 @@
 "use server";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { readIdentityForm, type IdentityFormState } from "@/lib/catalog-identity/validation";
 
 export async function saveCommercialIdentity(_previous: IdentityFormState, form: FormData): Promise<IdentityFormState> {
@@ -17,6 +17,7 @@ export async function saveCommercialIdentity(_previous: IdentityFormState, form:
   }).eq("product_id", value.productId).eq("version", value.version).select("product_id").maybeSingle();
   if (saved.error) return { error: "Não foi possível guardar. Os dados anteriores foram preservados." };
   if (!saved.data) return { error: "Este registo foi alterado noutro separador. Atualiza a página antes de voltar a gravar." };
+  revalidateTag("commercial-identities", "max");
   revalidatePath("/admin/identidade-360");
   revalidatePath(`/admin/identidade-360/${value.productId}`);
   return { saved: true };

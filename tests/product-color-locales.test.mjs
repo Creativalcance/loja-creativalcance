@@ -70,6 +70,7 @@ test('missing/retired codes use supplier name matches or documented fallbacks; s
 test('Smart Merch resolves translated colors by variant ID while retaining price, quantity and ranking',async()=>{
   const colors=fixture();
   const presentation=load('src/lib/i18n/product-presentation.ts',{
+    '@/lib/catalog-identity/public': {getPublicIdentity:async()=>null,getPublicVariantReferences:async()=>new Map()},
     '@/lib/i18n/catalog':{getLocalizedProductTexts:async()=>new Map()},'@/lib/i18n/colors':colors,
   });
   const item={id:'product',variantId:'black',variantColor:'Preto',name:'Venture',quantity:25,unitPrice:0.96,matchScore:94,reasons:[]};

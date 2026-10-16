@@ -21,9 +21,9 @@ export default function IdentityForm({ productId, version, translations, reviewS
         <option value="draft">Em preparação</option><option value="ready">Nomes revistos nos seis idiomas</option>
       </select>
     </label>
-    <p className="text-sm text-neutral-600">Guardar prepara a identidade 360. Não publica os nomes na loja. Mantém as características técnicas e certificações do produto.</p>
+    <p className="text-sm text-neutral-600">Ao guardar como revisto, o nome passa a ser apresentado na loja. Em preparação, a loja apresenta uma designação provisória com a referência 360. Mantém as características técnicas e certificações do produto.</p>
     {state.error && <p role="alert" className="rounded-xl bg-red-50 p-4 text-red-800">{state.error}</p>}
-    {state.saved && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-emerald-800">Identidade guardada. A apresentação na loja mantém-se até à ativação.</p>}
+    {state.saved && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-emerald-800">Identidade guardada. A loja reflete o estado de revisão selecionado.</p>}
     <button disabled={pending} className="rounded-xl bg-neutral-950 px-6 py-3 font-semibold text-white disabled:opacity-50">{pending ? "A guardar…" : "Guardar identidade 360"}</button>
   </form>;
 }

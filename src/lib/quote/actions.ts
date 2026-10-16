@@ -1,4 +1,5 @@
 "use server";
+import { findPublicProductIds, getPublicIdentity } from "@/lib/catalog-identity/public";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSiteLocale } from "@/lib/i18n/config";
@@ -109,16 +110,18 @@ export async function createQuoteRequestAction(
     let product: ProductForQuote | null = null;
 
     if (productSku) {
+      const publicIds = /^360-[a-f0-9]{12}$/i.test(productSku) ? await findPublicProductIds(productSku, "pt") : [];
       const { data: productData } = await admin
         .from("products")
         .select("id, supplier_id, sku, name")
-        .eq("sku", productSku)
+        .eq(publicIds.length === 1 ? "id" : "sku", publicIds.length === 1 ? publicIds[0] : productSku)
         .eq("is_active", true)
         .maybeSingle<ProductForQuote>();
 
       product = productData ?? null;
     }
 
+    const commercialIdentity = product ? await getPublicIdentity(product.id, getSiteLocale(String(formData.get("locale") ?? "pt"))) : null;
     const { data: quoteRequest, error: quoteRequestError } = await admin
       .from("quote_requests")
       .insert({
@@ -131,7 +134,7 @@ export async function createQuoteRequestAction(
         subject:
           subject ??
           (product
-            ? `Pedido de orçamento: ${product.name}`
+            ? `Pedido de orçamento: ${commercialIdentity?.name ?? product.name}`
             : "Pedido de orçamento"),
         message,
         source: product ? "product_page" : "website",
@@ -160,9 +163,9 @@ export async function createQuoteRequestAction(
         quote_request_id: quoteRequest.id,
         product_id: product?.id ?? null,
         supplier_id: product?.supplier_id ?? null,
-        product_sku: product?.sku ?? productSku,
+        product_sku: commercialIdentity?.reference ?? product?.sku ?? productSku,
         product_name:
-          product?.name ??
+          commercialIdentity?.name ?? product?.name ??
           productNameFallback ??
           "Produto indicado pelo cliente",
         quantity,

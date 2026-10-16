@@ -71,6 +71,7 @@ test('checkout rejects unapproved discount and currency',async()=>{
 function quote(fail='') {
   const admin=db({quote_requests:{id:'q'}},fail);
   const api=load('src/lib/quote/actions.ts', {
+    '@/lib/catalog-identity/public': {getPublicIdentity:async()=>null,getPublicVariantReferences:async()=>new Map()},
     '@/lib/supabase/admin':{createSupabaseAdminClient:()=>admin},
     '@/lib/supabase/server':{createSupabaseServerClient:async()=>({auth:{getUser:async()=>({data:{user:null}})}})},
     '@/lib/i18n/config':load('src/lib/i18n/config.ts'),

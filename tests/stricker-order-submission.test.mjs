@@ -272,3 +272,11 @@ for (const status of ['paid', 'sent_to_supplier', 'shipped']) {
     assert.deepEqual(h.notifications, []);
   });
 }
+
+test('360 public references never replace the supplier SKU in product or service requests', () => {
+  const mapped = mapping.mapOrderToStricker(order([item({ product_sku: '360-V-ABCDEF123456', product_name: 'Bloco Horizonte 360' })]));
+  const payload = JSON.stringify(mapped.productPayload);
+  assert.match(payload, /93670-106/);
+  assert.doesNotMatch(payload, /360-V-ABCDEF123456/);
+  assert.equal(mapped.serviceItems[0].servicePayload.ServCode, '93670.4.4.SUB1-01-F');
+});

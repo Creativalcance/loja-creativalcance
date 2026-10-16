@@ -1,3 +1,4 @@
+import { findPublicProductIds } from "@/lib/catalog-identity/public";
 import { localizeProductCards } from "@/lib/i18n/product-presentation";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -144,6 +145,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       localizedProductIds = Array.from(new Set((translatedMatches ?? []).map((row) => row.product_id)));
     }
 
+    if (query) localizedProductIds = [...new Set([...localizedProductIds, ...await findPublicProductIds(query, locale)])];
     let productsQuery = supabase
       .from("products")
       .select(

@@ -1,3 +1,4 @@
+import { getPublicIdentity } from "@/lib/catalog-identity/public";
 import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { getCommercialPages } from "@/lib/seo/commercial-pages";
@@ -232,7 +233,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const products = await getActiveProducts();
+    const products = await Promise.all((await getActiveProducts()).map(async product => ({ ...product, slug: (await getPublicIdentity(product.id))?.slug ?? product.slug })));
     const categories = new Map<string, Date | undefined>();
     const subcategories = new Map<string, { category: string; subcategory: string; lastModified?: Date }>();
 

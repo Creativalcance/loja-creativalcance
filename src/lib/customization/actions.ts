@@ -1,4 +1,5 @@
 "use server";
+import { resolveSupplierSlug, getPublicIdentity } from "@/lib/catalog-identity/public";
 
 import { normalizePrintAreaGeometry } from "@/lib/orders/artwork-preview";
 import { cookies } from "next/headers";
@@ -350,7 +351,7 @@ export async function startCustomizationDraftAction(
         `,
       )
       .eq("id", productId)
-      .eq("slug", productSlug)
+      .eq("slug", await resolveSupplierSlug(productSlug))
       .eq("status", "active")
       .eq("is_active", true)
       .maybeSingle<ProductRecord>();
@@ -480,7 +481,7 @@ export async function startCustomizationDraftAction(
           },
           metadata: {
             source: "product_characteristics",
-            productSlug: product.slug,
+            productSlug,
           },
         })
         .select("id")
@@ -499,7 +500,7 @@ export async function startCustomizationDraftAction(
     }
 
     redirectUrl = localizePath(
-      `/produto/${product.slug}/personalizar` +
+      `/produto/${(await getPublicIdentity(product.id, locale))?.slug ?? product.slug}/personalizar` +
       `?draft=${encodeURIComponent(draftId)}` +
       `&cor=${encodeURIComponent(variant.id)}` +
       `&quantidade=${encodeURIComponent(String(quantity))}`,
@@ -733,7 +734,7 @@ export async function saveCustomizationDraftAction(
         `,
       )
       .eq("id", productId)
-      .eq("slug", productSlug)
+      .eq("slug", await resolveSupplierSlug(productSlug))
       .eq("status", "active")
       .eq("is_active", true)
       .maybeSingle<ProductRecord>();

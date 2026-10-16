@@ -67,6 +67,7 @@ test('incomplete supplier translations fall back by field without replacing requ
   ];
   const query = { select:()=>query, eq:()=>query, in:()=>query, returns:async()=>({data:rows,error:null}) };
   const catalog = load('src/lib/i18n/catalog.ts', {
+    '@/lib/catalog-identity/public': {getPublicIdentity:async()=>null,getPublicVariantReferences:async()=>new Map()},
     '@/lib/i18n/config':config,
     '@/lib/supabase/admin': {createSupabaseAdminClient:()=>({from:()=>query})},
   });

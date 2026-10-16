@@ -1,3 +1,4 @@
+import { getPublicIdentity } from "@/lib/catalog-identity/public";
 import type { SiteLocale } from "@/lib/i18n/config";
 import { getStrickerLanguage } from "@/lib/i18n/config";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -115,7 +116,7 @@ export async function getLocalizedProductTexts(params: {
   const uniqueIds = Array.from(new Set(params.productIds.filter(Boolean)));
   const result = new Map<string, LocalizedProductText>();
 
-  if (uniqueIds.length === 0 || params.locale === "pt") {
+  if (uniqueIds.length === 0) {
     return result;
   }
 
@@ -157,6 +158,16 @@ export async function getLocalizedProductTexts(params: {
     if (localized) result.set(productId, localized);
   }
 
+  await Promise.all(uniqueIds.map(async productId => {
+    const identity = await getPublicIdentity(productId, params.locale);
+    if (!identity) return;
+    const source = result.get(productId);
+    result.set(productId, {
+      productId, language: requestedLanguage, shortDescription: null, description: null,
+      seoTitle: null, seoDescription: null, material: null, typeName: null, subtypeName: null,
+      ...source, name: identity.name, slug: identity.slug,
+    });
+  }));
   return result;
 }
 

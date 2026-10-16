@@ -1,4 +1,6 @@
 "use server";
+import { getPublicIdentity, getPublicVariantReferences } from "@/lib/catalog-identity/public";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
 import { assertStockAvailable } from "@/lib/commerce/check-stock";
 import { cookies } from "next/headers";
@@ -986,6 +988,8 @@ export async function addToCartAction(
     if (stockItemsError) throw new Error("Não foi possível confirmar os artigos do carrinho.");
     await assertStockAvailable([...(existingStockItems ?? []), { product_id: product.id, variant_id: variant?.id ?? null, quantity }]);
 
+    const commercialIdentity = await getPublicIdentity(product.id, await getCurrentLocale());
+    const publicVariants = commercialIdentity && variant ? await getPublicVariantReferences([variant.id]) : new Map<string, string>();
     const {
       data: insertedItem,
       error: insertError,
@@ -1002,10 +1006,9 @@ export async function addToCartAction(
 
         fulfillment_route: product.fulfillment_route,
 
-        product_sku:
-          variant?.sku ?? product.sku,
+        product_sku: commercialIdentity ? (variant && publicVariants.get(variant.id)) || commercialIdentity.reference : variant?.sku ?? product.sku,
 
-        product_name: product.name,
+        product_name: commercialIdentity?.name ?? product.name,
         quantity,
 
         unit_price: productPricing.unitPrice,

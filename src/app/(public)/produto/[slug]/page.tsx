@@ -1,9 +1,10 @@
+import { getPublicIdentity, getPublicVariantReferences, resolveSupplierSlug, preserveProductQuery, publicMediaUrl, publicMediaAsset } from "@/lib/catalog-identity/public";
 import { buildProductGallery } from "@/lib/catalog/product-gallery";
 import { getMaterialClaims, materialMessages } from "@/lib/catalog/materials-collection";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import ProductDirectPurchasePanel, {
   type ProductPurchaseColor,
@@ -237,7 +238,7 @@ export async function generateMetadata({
         )
       `,
     )
-    .eq("slug", slug)
+    .eq("slug", await resolveSupplierSlug(slug))
     .eq("status", "active")
     .eq("is_active", true)
     .maybeSingle();
@@ -257,14 +258,15 @@ export async function generateMetadata({
   const product = data as unknown as ProductMetadataRow;
   const localized = await getLocalizedProductText({ productId: product.id, locale });
 
+  const identity = await getPublicIdentity(product.id, locale);
   return buildProductMetadata({
-    name: localized?.name ?? product.name,
-    slug: product.slug,
+    name: identity?.name ?? localized?.name ?? product.name,
+    slug: identity?.slug ?? product.slug,
     shortDescription: localized?.shortDescription ?? product.short_description,
     description: localized?.description ?? product.description,
-    brand: product.brand,
+    brand: identity ? null : product.brand,
     material: product.material,
-    imageUrl: getMetadataImageUrl(product),
+    imageUrl: identity ? publicMediaUrl(product.id) : getMetadataImageUrl(product),
     locale,
   });
 }
@@ -364,7 +366,7 @@ export default async function ProductDetailPage({
         product_customization_locations (id)
       `,
     )
-    .eq("slug", slug)
+    .eq("slug", await resolveSupplierSlug(slug))
     .eq("status", "active")
     .eq("is_active", true)
     .eq("product_customization_locations.is_active", true)
@@ -376,7 +378,10 @@ export default async function ProductDetailPage({
   }
 
   const product = data as unknown as ProductDetail;
-  const baseSlug = product.slug;
+  const supplierSku = product.sku;
+  const identity = await getPublicIdentity(product.id, locale);
+  if (identity && slug !== identity.slug) permanentRedirect(preserveProductQuery(localizePath(`/produto/${identity.slug}`, locale), resolvedSearchParams));
+  const baseSlug = identity?.slug ?? product.slug;
   const localized = await getLocalizedProductText({ productId: product.id, locale });
   if (localized) {
     product.name = localized.name || product.name;
@@ -385,6 +390,10 @@ export default async function ProductDetailPage({
     product.material = localized.material ?? product.material;
     product.type_name = localized.typeName ?? product.type_name;
     product.subtype_name = localized.subtypeName ?? product.subtype_name;
+  }
+  if (identity) {
+    product.name = identity.name; product.slug = identity.slug; product.sku = identity.reference; product.brand = null;
+    product.description = identity.description ?? product.description;
   }
   let customizationDraft: ProductPurchaseCustomizationDraft | null = null;
 
@@ -460,8 +469,8 @@ export default async function ProductDetailPage({
     }
   }
   const primaryImage = getPrimaryImage(product);
-  const imageUrl = primaryImage?.storage_url ?? primaryImage?.external_url;
-  const highResolutionImageUrl =
+  const imageUrl = identity ? publicMediaUrl(product.id) : primaryImage?.storage_url ?? primaryImage?.external_url;
+  const highResolutionImageUrl = identity ? publicMediaUrl(product.id, "main", "large") :
     buildStrickerProductHighResolutionImageUrl(
       primaryImage?.external_url,
     );
@@ -471,16 +480,17 @@ export default async function ProductDetailPage({
   );
 
   const colors = await localizeProductColors(product.product_variants ?? [], product.supplier_id, locale);
+  const variantReferences = await getPublicVariantReferences(colors.map(color => color.id));
   const purchaseColors: ProductPurchaseColor[] = colors.map((color) => ({
     id: color.id,
-    sku: color.sku,
+    sku: identity ? variantReferences.get(color.id) ?? identity.reference : color.sku,
     color_name: color.color_name,
     color_code: color.color_code,
     color_label: color.color_label,
     color_hex: color.color_hex,
     size: color.size,
-    image_url: color.optional_image_1_url ?? color.optional_image_2_url,
-    high_resolution_image_url:
+    image_url: identity && (color.optional_image_1_url || color.optional_image_2_url) ? publicMediaUrl(product.id, color.id) : color.optional_image_1_url ?? color.optional_image_2_url,
+    high_resolution_image_url: identity && (color.optional_image_1_url || color.optional_image_2_url) ? publicMediaUrl(product.id, color.id, "large") :
       buildStrickerProductHighResolutionImageUrl(
         color.optional_image_1_url ?? color.optional_image_2_url,
       ),
@@ -577,11 +587,11 @@ export default async function ProductDetailPage({
   productDescription={product.description}
   productImageUrl={imageUrl ?? null}
   productGallery={buildProductGallery({
-    sku: product.sku,
+    sku: supplierSku,
     allImageList: product.all_image_list,
     images: product.product_images ?? [],
     variants: product.product_variants ?? [],
-  })}
+  }).map((image, index) => identity ? { ...image, id: `image-${index}`, url: publicMediaUrl(product.id, publicMediaAsset(image.url)), thumbnailUrl: publicMediaUrl(product.id, publicMediaAsset(image.url), "small"), zoomUrl: publicMediaUrl(product.id, publicMediaAsset(image.url), "large") } : image)}
   brand={product.brand}
   material={product.material}
   dimensions={product.dimensions}

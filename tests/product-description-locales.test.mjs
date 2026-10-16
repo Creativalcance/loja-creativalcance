@@ -18,6 +18,8 @@ function load(path, imports = {}) {
   return exports;
 }
 
+const identityStub = { getPublicIdentity: async () => null, getPublicVariantReferences: async () => new Map(), publicMediaUrl: id => `/api/catalog/media/${id}` };
+
 const config = load('src/lib/i18n/config.ts');
 const messages = load('src/lib/i18n/messages.ts');
 const product = {
@@ -47,10 +49,11 @@ function fixture({ failTranslation = false } = {}) {
     returns:async()=>({data:translatedRows,error:failTranslation?{message:'Translation read failed'}:null}),
   };
   const catalog = load('src/lib/i18n/catalog.ts', {
+    '@/lib/catalog-identity/public': identityStub,
     '@/lib/i18n/config':config,
     '@/lib/supabase/admin':{createSupabaseAdminClient:()=>({from:()=>translationQuery})},
   });
-  const presentation = load('src/lib/i18n/product-presentation.ts', {'@/lib/i18n/catalog':catalog, '@/lib/i18n/colors':{getLocalizedVariantColors:async()=>new Map()}});
+  const presentation = load('src/lib/i18n/product-presentation.ts', {'@/lib/catalog-identity/public':identityStub, '@/lib/i18n/catalog':catalog, '@/lib/i18n/colors':{getLocalizedVariantColors:async()=>new Map()}});
   const sourceQuery = {select:()=>sourceQuery,eq:()=>sourceQuery,in:()=>sourceQuery,or:()=>sourceQuery,order:()=>sourceQuery,limit:()=>sourceQuery,
     then:resolve=>Promise.resolve({data:[product],error:null}).then(resolve)};
   const landings = load('src/lib/seo/landing-products.ts', {
@@ -77,6 +80,7 @@ for (const [locale,[name,description]] of Object.entries(translatedCopy)) {
     }
     assert.equal(JSON.stringify(product),before);
     const card = load('src/components/catalog/ProductCard.tsx', {
+      '@/lib/catalog-identity/public': identityStub,
       'next/image': { __esModule: true, default: (input) => { const props = {...input}; delete props.unoptimized; return jsx.jsx('img', props); } },
       '@/lib/catalog/image-optimization': load('src/lib/catalog/image-optimization.ts'),
       'react/jsx-runtime':jsx,
@@ -84,7 +88,7 @@ for (const [locale,[name,description]] of Object.entries(translatedCopy)) {
       'lucide-react':{ArrowRight:()=>null,CheckCircle2:()=>null,Star:()=>null},
       '@/lib/i18n/config':config,'@/lib/i18n/messages':messages,
     });
-    const html=renderToStaticMarkup(card.default({product:ordinary[0],locale}));
+    const html=renderToStaticMarkup(await card.default({product:ordinary[0],locale}));
     assert.ok(html.includes(description));
     assert.ok(html.includes(`alt="${name}"`));
     assert.ok(html.includes(`/${locale}/produto/${product.slug}`));

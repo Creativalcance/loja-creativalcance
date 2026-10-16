@@ -1,3 +1,4 @@
+import { getPublicIdentity, publicMediaUrl } from "@/lib/catalog-identity/public";
 import NextImage from "next/image";
 import { canOptimizeCatalogImage } from "@/lib/catalog/image-optimization";
 import Link from "next/link";
@@ -120,10 +121,12 @@ function formatCatalogText(value: string | null): string | null {
   return formatted.length > 0 ? formatted : null;
 }
 
-export default function ProductCard({ product, locale = "pt" }: ProductCardProps) {
+export default async function ProductCard({ product: source, locale = "pt" }: ProductCardProps) {
+  const identity = await getPublicIdentity(source.id, locale);
+  const product = identity ? { ...source, sku: identity.reference, name: identity.name, slug: identity.slug, short_description: identity.description ?? source.short_description } : source;
   const labels = getMessages(locale);
   const primaryImage = getPrimaryImage(product);
-  const imageUrl = primaryImage?.storage_url ?? primaryImage?.external_url ?? null;
+  const imageUrl = primaryImage ? (identity ? publicMediaUrl(product.id) : primaryImage.storage_url ?? primaryImage.external_url) : null;
   const bestPrice = getBestPrice(product);
   const totalStock = getTotalStock(product);
   const minimumOrderQuantity = product.min_order_quantity ?? 1;
@@ -138,7 +141,7 @@ export default function ProductCard({ product, locale = "pt" }: ProductCardProps
         {imageUrl ? (
           <NextImage unoptimized={!canOptimizeCatalogImage(imageUrl)} width={1000} height={1000} sizes="(min-width: 1280px) 320px, (min-width: 640px) 45vw, 100vw"
             src={imageUrl}
-            alt={locale === "pt" ? primaryImage?.alt_text ?? product.name : product.name}
+            alt={product.name}
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
         ) : (
