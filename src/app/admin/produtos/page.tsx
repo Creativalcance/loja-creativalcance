@@ -160,13 +160,13 @@ export default async function AdminProductsPage({ searchParams }: Props) {
               apresentados na loja.
             </p>
           </div>
-          <Link
+          <div className="flex flex-wrap gap-3"><Link href="/admin/identidade-360" className="inline-flex items-center rounded-2xl border border-neutral-300 px-5 py-3 text-sm font-semibold">Identidade 360</Link><Link
             href="/admin/produtos/novo"
             className="inline-flex items-center rounded-2xl bg-neutral-950 px-5 py-3 text-sm font-semibold text-white"
           >
             <Plus className="mr-2 h-4 w-4" />
             Novo produto 360
-          </Link>
+          </Link></div>
         </div>
         <div className="mt-10 grid gap-5 md:grid-cols-3">
           {[
