@@ -22,13 +22,13 @@ for(const failure of [false,true])test(`language navigation ${failure?'stays put
   const waiting=new Promise((resolve,reject)=>{release=()=>failure?reject(Error('save failed')):resolve();});
   const document={cookie:''};
   const view=load('src/components/layout/LanguageSwitcher.tsx',{
-    react:{useEffect(){},useId:()=> 'menu',useRef:()=>({current:null}),useState:initial=>[openState++===0?true:initial,()=>{}],useTransition:()=>[false,fn=>fn()]},
+    react:{useEffect(){},useId:()=> 'menu',useRef:()=>({current:null}),useState:initial=>[openState++===0?true:initial,()=>{}]},
     'react/jsx-runtime':jsx,'next/image':{__esModule:true,default:()=>null},
-    'next/navigation':{usePathname:()=>'/produto/estojo',useRouter:()=>({push:url=>events.push(url)})},
+    'next/navigation':{usePathname:()=>'/produto/estojo'},
     'lucide-react':{Check:()=>null,ChevronDown:()=>null,LoaderCircle:()=>null},
     '@/lib/i18n/config':config,
     '@/lib/cart/login-snapshot':{preserveShoppingBeforeNavigation:()=>{events.push('save');return waiting;}},
-  },{document,window:{location:{search:'?cor=azul&quantidade=100',hash:'#personalizar'}}}).default({locale:'pt',label:'Idioma'});
+  },{document,window:{location:{search:'?cor=azul&quantidade=100',hash:'#personalizar',assign:url=>events.push(url)}}}).default({locale:'pt',label:'Idioma'});
   const english=buttons(view).find(button=>button.props.role==='menuitemradio'&&button.props.children[1].props.lang==='en-GB');
   english.props.onClick();assert.deepEqual(events,['save']);assert.equal(document.cookie,'');
   release();await new Promise(resolve=>setImmediate(resolve));

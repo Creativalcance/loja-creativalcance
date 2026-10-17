@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useTransition, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import Image from "next/image";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Check, ChevronDown, LoaderCircle } from "lucide-react";
 import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import { preserveShoppingBeforeNavigation } from "@/lib/cart/login-snapshot";
@@ -29,15 +29,13 @@ function saveLocalePreference(locale: SiteLocale) {
 
 export default function LanguageSwitcher({ locale, label }: { locale: SiteLocale; label: string }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [navigating, startTransition] = useTransition();
   const menuId = useId();
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const options = useRef<(HTMLButtonElement | null)[]>([]);
   const [open, setOpen] = useState(false);
   const [saving, setPending] = useState(false);
-  const pending = saving || navigating;
+  const pending = saving;
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -71,11 +69,11 @@ export default function LanguageSwitcher({ locale, label }: { locale: SiteLocale
     try {
       await preserveShoppingBeforeNavigation();
       saveLocalePreference(nextLocale);
-      startTransition(() => {
-        router.push(`${localizePath(pathname, nextLocale)}${window.location.search}${window.location.hash}`);
-      });
+      // Locale routes rewrite to the same Next segment. A document navigation
+      // avoids reusing the previous locale's cached page and shared layout.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- Locale rewrites require a fresh document, after saving shopping state.
+      window.location.assign(`${localizePath(pathname, nextLocale)}${window.location.search}${window.location.hash}`);
       setOpen(false);
-      setPending(false);
     } catch {
       setPending(false);
       setError(true);
