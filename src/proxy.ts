@@ -2,6 +2,7 @@ import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { DEFAULT_SITE_LOCALE, isSiteLocale } from "@/lib/i18n/config";
+import { authUnavailableMessage, isAuthUnavailable } from "@/lib/auth/availability";
 
 export async function proxy(request: NextRequest) {
   const originalPath = request.nextUrl.pathname;
@@ -86,7 +87,40 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const { data: claimsData } = await supabase.auth.getClaims();
+  function withSession(nextResponse: NextResponse) {
+    for (const cookie of response.cookies.getAll()) nextResponse.cookies.set(cookie);
+    for (const header of ["cache-control", "expires", "pragma"]) {
+      const value = response.headers.get(header);
+      if (value) nextResponse.headers.set(header, value);
+    }
+    return nextResponse;
+  }
+
+  function unavailableResponse() {
+    const message = authUnavailableMessage[locale];
+    const headers = { "Cache-Control": "private, no-store", "Retry-After": "30" };
+    if (applicationPath.startsWith("/api/") || request.method !== "GET") {
+      return withSession(NextResponse.json({ error: message }, { status: 503, headers }));
+    }
+    const retry = { pt: "Tentar novamente", en: "Try again", fr: "Réessayer", es: "Intentar de nuevo", de: "Erneut versuchen", it: "Riprova" }[locale];
+    return withSession(new NextResponse(
+      `<!doctype html><html lang="${locale}"><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>360 Merchandising</title></head><body style="font-family:system-ui;margin:0;background:#f5f7f9;color:#162334"><main style="max-width:560px;margin:12vh auto;padding:32px"><h1>360 Merchandising</h1><p role="alert">${message}</p><p><a href="" style="color:inherit">${retry}</a></p></main></body></html>`,
+      { status: 503, headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } },
+    ));
+  }
+
+  // A password login authenticates afresh in the Server Action. Refreshing an
+  // old cookie first can block valid credentials while the old session fails.
+  if (applicationPath === "/login" && request.method === "POST") return response;
+
+  let claimsData;
+  try {
+    const result = await supabase.auth.getClaims();
+    if (isAuthUnavailable(result.error)) return unavailableResponse();
+    claimsData = result.data;
+  } catch {
+    return unavailableResponse();
+  }
   const path = applicationPath;
 
   if (isCustomerPath || isSalesPath || isCheckoutPath) {
@@ -98,33 +132,35 @@ export async function proxy(request: NextRequest) {
 
     if (!userId) {
       if (path.startsWith("/api/")) {
-        return NextResponse.json({ error: "Autenticação necessária." }, { status: 401 });
+        return withSession(NextResponse.json({ error: "Autenticação necessária." }, { status: 401 }));
       }
 
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = localizedPath ? `/${locale}/login` : "/login";
       loginUrl.search = `?next=${encodeURIComponent(originalPath + request.nextUrl.search)}`;
-      return NextResponse.redirect(loginUrl);
+      return withSession(NextResponse.redirect(loginUrl));
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role, is_active")
       .eq("id", userId)
       .maybeSingle<{ role: string; is_active: boolean }>();
+    if (profileError) return unavailableResponse();
 
     let allowed = Boolean(profile?.is_active) &&
       ((isAdminPath && profile?.role === "admin") ||
         (isCustomerPath && profile?.role === "customer") || (isSalesPath && ["customer", "admin"].includes(profile?.role || "")));
 
     if (allowed && isSalesPath) {
-      const { data: agent } = await supabase.from("sales_agents").select("status").eq("user_id", userId).maybeSingle();
+      const { data: agent, error: agentError } = await supabase.from("sales_agents").select("status").eq("user_id", userId).maybeSingle();
+      if (agentError) return unavailableResponse();
       allowed = hasCommercialAccess(profile, agent);
     }
 
     if (!allowed) {
       if (path.startsWith("/api/")) {
-        return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+        return withSession(NextResponse.json({ error: "Sem permissão." }, { status: 403 }));
       }
 
       const destination = request.nextUrl.clone();
@@ -134,7 +170,7 @@ export async function proxy(request: NextRequest) {
           ? `/${locale}`
           : "/";
       destination.search = "";
-      return NextResponse.redirect(destination);
+      return withSession(NextResponse.redirect(destination));
     }
   }
 

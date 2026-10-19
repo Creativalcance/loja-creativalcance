@@ -8,6 +8,7 @@ import { notifyAccountWelcome } from "@/lib/notifications/customer-email";
 import { safeReturnPath, canReturnTo } from "@/lib/auth/return-path";
 import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { claimGuestShopping } from "@/lib/cart/claim-guest";
+import { authUnavailableMessage, isAuthUnavailable } from "@/lib/auth/availability";
 
 export type AuthActionState = {
   success: boolean;
@@ -55,23 +56,27 @@ export async function loginAction(
     if (error) {
       return {
         success: false,
-        message: messages.invalid,
+        message: isAuthUnavailable(error) ? authUnavailableMessage[locale] : messages.invalid,
       };
     }
 
     {
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("role, is_active")
         .eq("id", data.user.id)
         .maybeSingle<ProfileRole & { is_active: boolean }>();
 
+      if (profileError) {
+        return { success: false, message: authUnavailableMessage[locale] };
+      }
       if (!profile || profile.is_active === false) {
         await supabase.auth.signOut();
         return { success: false, message: messages.inactive };
       }
 
-      const { data: membership } = await supabase.from("sales_agents").select("status").eq("user_id", data.user.id).maybeSingle();
+      const { data: membership, error: membershipError } = await supabase.from("sales_agents").select("status").eq("user_id", data.user.id).maybeSingle();
+      if (membershipError) return { success: false, message: authUnavailableMessage[locale] };
       await claimGuestShopping();
       if (!destinationPath || !canReturnTo(profile.role, destinationPath, hasCommercialAccess(profile, membership))) {
         destinationPath = getDefaultRedirectPath(profile.role, getSiteLocale(data.user.user_metadata?.preferred_locale ?? locale));
@@ -80,7 +85,7 @@ export async function loginAction(
   } catch (error) {
     return {
       success: false,
-      message: error instanceof Error ? `${messages.unexpectedLogin} ${error.message}` : messages.unexpectedLogin,
+      message: isAuthUnavailable(error) ? authUnavailableMessage[locale] : messages.unexpectedLogin,
     };
   }
 

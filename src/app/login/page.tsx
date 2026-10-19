@@ -6,6 +6,7 @@ import { localizePath } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
 import { authCopy } from "@/lib/i18n/account";
 import { safeReturnPath, canReturnTo } from "@/lib/auth/return-path";
+import { authUnavailableMessage, isAuthUnavailable } from "@/lib/auth/availability";
 
 type LoginPageProps = {
   searchParams?: Promise<{
@@ -20,17 +21,23 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
   const locale = await getCurrentLocale();
   const t = authCopy[locale];
   const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  let unavailable = isAuthUnavailable(userError);
 
   if (user) {
-    const { data: profile } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
-    if (profile && profile.is_active !== false) {
-      const { data: membership } = await supabase.from("sales_agents").select("status").eq("user_id", user.id).maybeSingle();
-      const destination = nextPath && canReturnTo(profile.role, nextPath, hasCommercialAccess(profile, membership))
-        ? nextPath : profile.role === "admin" ? "/admin" : localizePath("/area-cliente", locale);
-      redirect(`/auth/resume?next=${encodeURIComponent(destination)}`);
+    const { data: profile, error: profileError } = await supabase.from("profiles").select("role, is_active").eq("id", user.id).maybeSingle<{ role: string; is_active: boolean }>();
+    unavailable = Boolean(profileError);
+    if (!profileError && profile && profile.is_active !== false) {
+      const { data: membership, error: membershipError } = await supabase.from("sales_agents").select("status").eq("user_id", user.id).maybeSingle();
+      unavailable = Boolean(membershipError);
+      if (!membershipError) {
+        const destination = nextPath && canReturnTo(profile.role, nextPath, hasCommercialAccess(profile, membership))
+          ? nextPath : profile.role === "admin" ? "/admin" : localizePath("/area-cliente", locale);
+        redirect(`/auth/resume?next=${encodeURIComponent(destination)}`);
+      }
     }
-    await supabase.auth.signOut();
+    // A failed database request is not evidence that the account is inactive.
+    if (!unavailable) await supabase.auth.signOut();
   }
   const registrationSucceeded = resolvedSearchParams?.registo === "sucesso";
 
@@ -49,6 +56,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           {t.loginIntro}
         </p>
 
+        {unavailable ? <p role="alert" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{authUnavailableMessage[locale]}</p> : null}
         <LoginForm
           nextPath={nextPath}
           registrationSucceeded={registrationSucceeded}

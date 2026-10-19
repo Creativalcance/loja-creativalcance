@@ -11,6 +11,7 @@ function load(path, imports = {}) {
   }).outputText;
   vm.runInNewContext(code, { exports, URL, console, process, require: (name) => {
     if (name === "@/lib/auth/commercial-access") return load("src/lib/auth/commercial-access.ts");
+    if (name === "@/lib/auth/availability") return load("src/lib/auth/availability.ts");
     if (!(name in imports)) throw new Error(`Unexpected import: ${name}`);
     return imports[name];
   } });
@@ -32,14 +33,14 @@ test('shopping return paths retain locale, draft and quantity; external/recursiv
   }
 });
 
-function authentication({ role = 'admin', failLogin = false, failClaim = false } = {}) {
+function authentication({ role = 'admin', failLogin = false, failClaim = false, authError = null, profileError = null, membershipError = null } = {}) {
   const events = [];
   const client = {
     auth: {
-      signInWithPassword: async () => ({ data: { user: { id: 'test-user' } }, error: failLogin ? new Error('Invalid') : null }),
+      signInWithPassword: async () => ({ data: { user: { id: 'test-user' } }, error: authError ?? (failLogin ? new Error('Invalid') : null) }),
       signOut: async () => events.push('signout'),
     },
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role, is_active: true } }) }) }) }),
+    from: table => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { role, is_active: true }, error: table === 'profiles' ? profileError : membershipError }) }) }) }),
   };
   const actions = load('src/lib/auth/actions.ts', {
     'next/navigation': { redirect: (path) => { events.push(path); throw new Error(`REDIRECT:${path}`); } },
@@ -70,4 +71,17 @@ test('failed login does not claim data; failed recovery does not silently redire
   const failed = authentication({ failClaim: true });
   assert.equal((await failed.actions.loginAction({}, form)).success, false);
   assert.deepEqual(failed.events, ['claim']);
+});
+
+test('auth outage is not reported as invalid credentials and database outage does not sign out', async () => {
+  const form = new FormData();
+  form.set('email', 'test@example.invalid'); form.set('password', 'test');
+  for (const options of [{ authError: {status:522} }, {profileError:{message:'private DB error'}}, {membershipError:{message:'private DB error'}}]) {
+    const fixture = authentication(options);
+    const result = await fixture.actions.loginAction({}, form);
+    assert.equal(result.success, false);
+    assert.match(result.message, /serviço de autenticação/);
+    assert.doesNotMatch(result.message, /Invalid|private DB error/);
+    assert.deepEqual(fixture.events, []);
+  }
 });
