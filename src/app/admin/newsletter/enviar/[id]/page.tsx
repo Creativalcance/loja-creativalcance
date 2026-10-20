@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { prepareNewsletterBroadcastDraft } from "../../actions";
 import { confirmNewsletterBroadcastSend } from "../../send-actions";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,34 @@ export default async function NewsletterSendConfirmation({ params, searchParams 
   const db = createSupabaseAdminClient();
   const { data: campaign } = await db.from("newsletter_campaigns")
     .select("id,title,subject,locale,audience,status,resend_broadcast_id").eq("id", id).maybeSingle();
-  if (!campaign || campaign.status !== "ready" || !campaign.resend_broadcast_id) notFound();
+  if (!campaign || !["draft", "ready"].includes(campaign.status)) notFound();
+  if (campaign.status === "draft" || !campaign.resend_broadcast_id) {
+    const canPrepare = campaign.status === "draft" && !campaign.resend_broadcast_id &&
+      campaign.locale === "pt" && campaign.audience === "all" && Boolean(
+        process.env.RESEND_API_KEY && process.env.RESEND_NEWSLETTER_SEGMENT_ID && process.env.RESEND_MARKETING_FROM_EMAIL
+      );
+    return <main className="min-h-screen bg-neutral-950 px-5 py-12 text-white">
+      <div className="mx-auto max-w-2xl">
+        <Link href="/admin/newsletter" className="text-sm text-white/60">← Voltar sem enviar</Link>
+        <h1 className="mt-8 text-3xl font-semibold">Enviar campanha</h1>
+        <h2 className="mt-6 text-xl font-semibold">{campaign.title}</h2>
+        <p className="mt-2 text-white/70">{campaign.subject}</p>
+        <Link href={`/admin/newsletter/preview/${id}`} target="_blank" rel="noopener noreferrer" className="mt-4 inline-block text-[#ff6a00] underline">Rever o conteúdo</Link>
+        <p className="mt-6 text-sm leading-6 text-white/65">Primeiro prepara a campanha. No passo seguinte, poderás rever os destinatários e confirmar o envio. Esta preparação não envia emails.</p>
+        {!canPrepare ? <p role="alert" className="mt-4 text-sm text-amber-200">{campaign.status === "ready" || campaign.resend_broadcast_id
+          ? "A preparação está em curso ou necessita de verificação. Volta à lista e atualiza o estado antes de continuar."
+          : campaign.locale !== "pt" || campaign.audience !== "all"
+            ? "O envio está disponível apenas para todos os subscritores elegíveis em português. Edita o idioma e o público da campanha."
+            : "É necessário configurar a API Resend, o segmento e o remetente comercial antes de continuar."}</p> : null}
+        <form action={prepareNewsletterBroadcastDraft} className="mt-6 space-y-4 rounded-2xl border border-white/15 p-6">
+          <input type="hidden" name="campaign_id" value={id} />
+          <input type="hidden" name="continue_to_send" value="yes" />
+          <label className="flex gap-3 text-sm text-white/75"><input type="checkbox" name="confirm" value="yes" required />Confirmo a preparação da campanha, sem envio.</label>
+          <button type="submit" disabled={!canPrepare} className="rounded-xl bg-[#ff6a00] px-5 py-3 font-semibold disabled:opacity-40">Continuar para destinatários e confirmação</button>
+        </form>
+      </div>
+    </main>;
+  }
   const { count: eligible } = await db.from("newsletter_subscribers")
     .select("id", { count: "exact", head: true }).eq("status", "active").eq("locale", "pt")
     .is("unsubscribed_at", null).not("resend_synced_at", "is", null);

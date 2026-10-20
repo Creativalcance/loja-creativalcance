@@ -1,5 +1,6 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -126,6 +127,7 @@ export async function prepareNewsletterBroadcastDraft(formData: FormData): Promi
     }
   }
   revalidatePath("/admin/newsletter");
+  if (formData.get("continue_to_send") === "yes") redirect(`/admin/newsletter/enviar/${id}`);
 }
 
 

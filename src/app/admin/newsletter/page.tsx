@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Download, Mail, Users, Send, FilePenLine } from "lucide-react";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { prepareNewsletterBroadcastDraft, saveNewsletterDraft, sendNewsletterTestEmail } from "./actions";
+import { saveNewsletterDraft, sendNewsletterTestEmail } from "./actions";
 import NewsletterSyncControl from "./NewsletterSyncControl";
 import NewsletterHeroUpload from "./NewsletterHeroUpload";
 import NewsletterContactImport from "./NewsletterContactImport";
@@ -112,7 +112,7 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
           </section>
           <section className="rounded-3xl border border-white/10 bg-white/[.03] p-6">
             <div className="flex items-center gap-3"><Send className="h-5 w-5 text-[#ff6a00]" /><h2 className="text-xl font-semibold">Campanhas</h2></div>
-            <p className="mt-2 text-sm text-white/55">Histórico de rascunhos e respetivos estados.</p>
+            <p className="mt-2 text-sm text-white/55">Para distribuir uma campanha: prepara o envio, revê os destinatários e confirma. Guardar um rascunho não envia emails.</p>
             {!marketingDraftConfigured ? <p className="mt-3 rounded-xl bg-amber-500/10 p-3 text-xs text-amber-200">É necessário configurar o segmento e o remetente comercial antes de preparar rascunhos externos.</p> : null}
             {campaignsReady ? (
               campaigns.length > 0 ? <div className="mt-5 grid gap-3">{campaigns.map((item) => (
@@ -139,20 +139,12 @@ export default async function NewsletterAdminPage({ searchParams }: { searchPara
                     </button>
                   </form>
                 ) : null}
-                {item.status === "draft" ? (
-                  <form action={prepareNewsletterBroadcastDraft} className="mt-4 border-t border-white/10 pt-3">
-                    <input type="hidden" name="campaign_id" value={item.id} />
-                    <label className="flex items-start gap-2 text-xs leading-5 text-white/60">
-                      <input name="confirm" value="yes" required type="checkbox" className="mt-1" />
-                      Preparar no Resend apenas como rascunho, sem envio. A lista de contactos precisa de validação antes da distribuição.
-                    </label>
-                    <button type="submit" disabled={!marketingDraftConfigured} className="mt-3 rounded-xl border border-[#ff6a00]/50 px-3 py-2 text-xs font-semibold text-[#ff6a00] hover:bg-[#ff6a00]/10 disabled:cursor-not-allowed disabled:opacity-40">Preparar rascunho Resend</button>
-                  </form>
-                ) : null}
-                {item.status === "ready" && item.resend_broadcast_id ? (
+                {["draft", "ready"].includes(item.status) ? (
                   <div className="mt-4 rounded-xl border border-[#ff6a00]/30 p-3">
-                    <p className="text-xs text-white/60">Rascunho preparado no Resend. A distribuição exige confirmação administrativa separada.</p>
-                    <Link href={`/admin/newsletter/enviar/${item.id}`} className="mt-3 inline-block rounded-xl bg-[#ff6a00] px-4 py-2 text-sm font-semibold text-white">Rever destinatários e autorizar envio</Link>
+                    <Link href={`/admin/newsletter/enviar/${item.id}`} className="inline-flex items-center gap-2 rounded-xl bg-[#ff6a00] px-4 py-3 text-sm font-semibold text-white hover:bg-[#e65f00]">
+                      <Send className="h-4 w-4" />Enviar campanha
+                    </Link>
+                    <p className="mt-2 text-xs text-white/60">Revê o conteúdo e os destinatários. O envio só acontece após a confirmação.</p>
                   </div>
                 ) : null}
                 {item.status === "sending" ? <p className="mt-3 text-xs text-amber-300">Envio solicitado. Confirma o estado no Resend; não repitas a operação.</p> : null}
