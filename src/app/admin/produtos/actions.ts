@@ -8,6 +8,7 @@ import {
   manualProductData,
   manualProductPrice,
 } from "@/lib/manual-products/validation";
+import { parseProductPhotos } from "@/lib/manual-products/photos";
 import { redirect } from "next/navigation";
 
 function value(formData: FormData, key: string): string {
@@ -27,7 +28,7 @@ function slugify(input: string): string {
 export async function createManualProductAction(
   formData: FormData,
 ): Promise<void> {
-  await assertAdminAccess("/admin/produtos/novo");
+  const { userId } = await assertAdminAccess("/admin/produtos/novo");
   const name = value(formData, "name");
   const sku = value(formData, "sku").toUpperCase();
   const slug = slugify(value(formData, "slug") || name);
@@ -45,7 +46,8 @@ export async function createManualProductAction(
   if (!Number.isInteger(stock) || stock < minimum)
     throw new Error("O stock deve ser igual ou superior à quantidade mínima.");
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.rpc("create_manual_catalog_product", {
+  const imageUrls = parseProductPhotos(value(formData, "imageUrls"), process.env.NEXT_PUBLIC_SUPABASE_URL!, userId);
+  const { data, error } = await admin.rpc("create_manual_catalog_product_with_photos", {
     p_product: {
       sku,
       name,
@@ -70,7 +72,8 @@ export async function createManualProductAction(
     p_category_id: categoryId,
     p_price: price,
     p_stock: stock,
-    p_image_url: value(formData, "imageUrl") || null,
+    p_image_url: imageUrls.length ? null : value(formData, "imageUrl") || null,
+    p_image_urls: imageUrls,
   });
   if (error || !data)
     throw new Error(

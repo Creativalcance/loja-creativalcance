@@ -2,7 +2,7 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createManualProductAction } from "../actions";
+import ProductCreationForm from "./ProductCreationForm";
 
 export const dynamic = "force-dynamic";
 type Category = { id: string; name: string; catalog_source: string };
@@ -43,10 +43,7 @@ export default async function NewManualProductPage() {
             Gerir categorias
           </Link>
         </p>
-        <form
-          action={createManualProductAction}
-          className="mt-8 grid gap-6 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm md:grid-cols-2"
-        >
+        <ProductCreationForm>
           <label className={label}>
             Nome
             <input className={input} name="name" required minLength={2} />
@@ -136,7 +133,7 @@ export default async function NewManualProductPage() {
             </select>
           </label>
           <label className={label + " md:col-span-2"}>
-            URL da imagem principal
+            URL da imagem principal (opcional, se não carregares fotografias)
             <input
               className={input}
               name="imageUrl"
@@ -172,12 +169,7 @@ export default async function NewManualProductPage() {
             <input type="checkbox" name="featured" />
             Apresentar em destaque
           </label>
-          <div className="md:col-span-2 flex justify-end">
-            <button className="rounded-2xl bg-orange-600 px-6 py-3 font-semibold text-white">
-              Criar produto
-            </button>
-          </div>
-        </form>
+        </ProductCreationForm>
       </section>
     </main>
   );
