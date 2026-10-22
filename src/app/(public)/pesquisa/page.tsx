@@ -1,3 +1,5 @@
+import Form from "next/form";
+import { getSearchFacets } from "@/lib/catalog/search-facets";
 import { findPublicProductIds } from "@/lib/catalog-identity/public";
 import { localizeProductCards } from "@/lib/i18n/product-presentation";
 import Link from "next/link";
@@ -111,21 +113,14 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
 
   const supabase = await createSupabaseServerClient();
 
-  const { data: facetData } = await supabase
-    .from("products")
-    .select("material, type_name")
-    .eq("status", "active")
-    .eq("is_active", true)
-    .limit(3000);
-
-  const facets = (facetData ?? []) as FacetProduct[];
-  const materialOptions = getUniqueSortedValues(facets, "material");
-  const typeOptions = getUniqueSortedValues(facets, "type_name");
+  // Start the independent filter lookup while the results query runs.
+  const facetsPromise = getSearchFacets().catch(() => [] as FacetProduct[]);
 
   let products: ProductCardProduct[] = [];
   let hasProductsError = false;
 
   if (hasActiveSearch) {
+    const publicMatchesPromise = query ? findPublicProductIds(query, locale) : Promise.resolve([]);
     let localizedProductIds: string[] = [];
     if (query && locale !== "pt") {
       const language = getStrickerLanguage(locale);
@@ -145,7 +140,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
       localizedProductIds = Array.from(new Set((translatedMatches ?? []).map((row) => row.product_id)));
     }
 
-    if (query) localizedProductIds = [...new Set([...localizedProductIds, ...await findPublicProductIds(query, locale)])];
+    if (query) localizedProductIds = [...new Set([...localizedProductIds, ...await publicMatchesPromise])];
     let productsQuery = supabase
       .from("products")
       .select(
@@ -234,6 +229,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     if (!error) products = await localizeProductCards(products, locale);
   }
 
+  const facets = await facetsPromise;
+  const materialOptions = getUniqueSortedValues(facets, "material");
+  const typeOptions = getUniqueSortedValues(facets, "type_name");
+
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-12">
       <section className="mx-auto max-w-7xl">
@@ -258,7 +257,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           </p>
         </div>
 
-        <form action={localizePath("/pesquisa", locale)} className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+        <Form action={localizePath("/pesquisa", locale)} className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="relative flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
@@ -352,7 +351,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
               </select>
             </label>
           </div>
-        </form>
+        </Form>
 
         <div className="mt-8 flex items-center justify-between gap-4">
           <p className="text-sm text-neutral-500">
