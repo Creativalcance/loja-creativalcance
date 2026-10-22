@@ -5,7 +5,9 @@ import { MATERIALS_PATH, MATERIALS_CARD_IMAGE, materialMessages } from "@/lib/ca
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight, Boxes, Search } from "lucide-react";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { unstable_cache } from "next/cache";
+import type { SiteLocale } from "@/lib/i18n/config";
 import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
 import { getCurrentLocale } from "@/lib/i18n/server";
@@ -165,7 +167,6 @@ function getCatalogCategories(
     }
 
     const categoryName = preferredNames.get(sourceName) ?? sourceName;
-    const localizedProductName = translations.get(row.id)?.name;
     const existingCategory = categoryMap.get(sourceName);
     const imageUrl = isDemoProduct(row) ? null : getImageUrl(row);
 
@@ -177,10 +178,7 @@ function getCatalogCategories(
           existingCategory.representativeProductId ??
           (isDemoProduct(row) ? null : row.id),
         imageUrl: existingCategory.imageUrl ?? imageUrl,
-        imageAlt:
-          existingCategory.imageAlt !== categoryName
-            ? existingCategory.imageAlt
-            : localizedProductName ?? row.name ?? categoryName,
+        imageAlt: categoryName,
       });
 
       return;
@@ -192,7 +190,7 @@ function getCatalogCategories(
       count: 1,
       representativeProductId: isDemoProduct(row) ? null : row.id,
       imageUrl,
-      imageAlt: localizedProductName ?? row.name ?? categoryName,
+      imageAlt: categoryName,
     });
   });
 
@@ -201,13 +199,14 @@ function getCatalogCategories(
   );
 }
 
-export default async function CategoriesPage() {
-  const locale = await getCurrentLocale();
-  const labels = getMessages(locale);
-  const intlLocale = SITE_LOCALES[locale].intlLocale;
-  const supabase = await createSupabaseServerClient();
+// Cache only public category metadata, independently for each language.
+// Failed reads throw so they cannot replace a previously successful snapshot.
+const getCategories = unstable_cache(async (locale: SiteLocale) => {
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
   const rows: CategoryRow[] = [];
-  let catalogError: Error | null = null;
+  const signal = AbortSignal.timeout(12000);
 
   for (let from = 0; from < MAX_CATEGORY_PRODUCTS; from += CATEGORY_PAGE_SIZE) {
     const { data, error } = await supabase
@@ -219,11 +218,11 @@ export default async function CategoriesPage() {
       .order("is_purchasable", { ascending: false })
       .order("is_featured", { ascending: false })
       .order("updated_at", { ascending: false })
-      .range(from, from + CATEGORY_PAGE_SIZE - 1);
+      .order("id")
+      .range(from, from + CATEGORY_PAGE_SIZE - 1).abortSignal(signal);
 
     if (error) {
-      catalogError = new Error(error.message);
-      break;
+      throw new Error(error.message);
     }
 
     const pageRows = (data ?? []) as unknown as CategoryRow[];
@@ -234,6 +233,8 @@ export default async function CategoriesPage() {
   const translations = await getLocalizedProductTexts({
     productIds: rows.map((row) => row.id),
     locale,
+    taxonomyOnly: true,
+    signal,
   });
   let categories = getCatalogCategories(rows, translations);
   const representativeIds = categories
@@ -248,9 +249,10 @@ export default async function CategoriesPage() {
         product_images (external_url,storage_url,alt_text,is_primary,sort_order,image_type),
         product_variants (optional_image_1_url,optional_image_2_url)
       `)
-      .in("id", representativeIds);
+      .in("id", representativeIds).abortSignal(signal);
 
-    if (!mediaError) {
+    if (mediaError) throw new Error(mediaError.message);
+    {
       const mediaById = new Map(
         ((mediaRows ?? []) as unknown as CategoryRow[]).map((row) => [row.id, row]),
       );
@@ -262,6 +264,17 @@ export default async function CategoriesPage() {
       });
     }
   }
+
+  return categories;
+}, ["public-category-directory-v1"], { revalidate: 300 });
+
+export default async function CategoriesPage() {
+  const locale = await getCurrentLocale();
+  const labels = getMessages(locale);
+  const intlLocale = SITE_LOCALES[locale].intlLocale;
+  const result = await getCategories(locale).catch(() => null);
+  const catalogError = result === null;
+  const categories = result ?? [];
 
   return (
     <main className="min-h-screen bg-neutral-950 text-white">
@@ -365,7 +378,7 @@ export default async function CategoriesPage() {
               </Link>
             ))}
           </div>
-        ) : (
+        ) : !catalogError ? (
           <div className="mt-10 rounded-3xl border border-white/10 bg-white/[0.03] p-10 text-center">
             <h2 className="text-xl font-semibold text-white">
               {labels.catalog.emptyTitle}
@@ -375,7 +388,7 @@ export default async function CategoriesPage() {
               {labels.catalog.emptyText}
             </p>
           </div>
-        )}
+        ) : null}
       </section>
     </main>
   );

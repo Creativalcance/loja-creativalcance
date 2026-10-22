@@ -112,6 +112,8 @@ function chunkValues<T>(values: T[], size = QUERY_CHUNK_SIZE): T[][] {
 export async function getLocalizedProductTexts(params: {
   productIds: string[];
   locale: SiteLocale;
+  taxonomyOnly?: boolean;
+  signal?: AbortSignal;
 }): Promise<Map<string, LocalizedProductText>> {
   const uniqueIds = Array.from(new Set(params.productIds.filter(Boolean)));
   const result = new Map<string, LocalizedProductText>();
@@ -125,19 +127,30 @@ export async function getLocalizedProductTexts(params: {
   const fallbackLanguages = Array.from(new Set([requestedLanguage, "EN", "PT"]));
   const translations: TranslationRow[] = [];
 
-  for (const productIds of chunkValues(uniqueIds)) {
-    const { data, error } = await supabase
-      .from("product_translations")
-      .select("product_id,language,name,slug,short_description,description,seo_title,seo_description,material,type_name,subtype_name")
-      .in("product_id", productIds)
-      .in("language", fallbackLanguages)
-      .returns<TranslationRow[]>();
+  const chunks = chunkValues(uniqueIds);
+  // Bound concurrency instead of serializing every translation batch.
+  for (let index = 0; index < chunks.length; index += 4) {
+    await Promise.all(chunks.slice(index, index + 4).map(async (productIds) => {
+      const query = supabase
+        .from("product_translations")
+        .select(params.taxonomyOnly
+          ? "product_id,language,type_name,subtype_name"
+          : "product_id,language,name,slug,short_description,description,seo_title,seo_description,material,type_name,subtype_name")
+        .in("product_id", productIds)
+        .in("language", fallbackLanguages)
+        .returns<TranslationRow[]>();
+      if (params.signal) query.abortSignal(params.signal);
+      const { data, error } = await query;
 
-    if (error) {
-      throw new Error(`Não foi possível obter as traduções dos produtos: ${error.message}`);
-    }
+      if (error) {
+        throw new Error(`Não foi possível obter as traduções dos produtos: ${error.message}`);
+      }
 
-    translations.push(...(data ?? []));
+      translations.push(...(data ?? []).map(row => params.taxonomyOnly ? {
+        ...row, name: "", slug: "", short_description: null, description: null,
+        seo_title: null, seo_description: null, material: null,
+      } : row));
+    }));
   }
 
   const byProduct = new Map<string, Map<string, TranslationRow>>();
@@ -157,6 +170,8 @@ export async function getLocalizedProductTexts(params: {
     }));
     if (localized) result.set(productId, localized);
   }
+
+  if (params.taxonomyOnly) return result;
 
   await Promise.all(uniqueIds.map(async productId => {
     const identity = await getPublicIdentity(productId, params.locale);

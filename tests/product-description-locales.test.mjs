@@ -123,3 +123,25 @@ test('Smart Merch translates display text without changing rankings, variants, p
   }
   assert.equal(result.name,product.name);
 });
+
+test('category taxonomy keeps language fallback without loading commercial identities or descriptions', async () => {
+  let selected;
+  const query = {
+    select: fields => { selected = fields; return query; },
+    in: () => query,
+    returns: async () => ({ data: [
+      { product_id: 'one', language: 'FR', type_name: 'Sacs', subtype_name: null },
+      { product_id: 'one', language: 'EN', type_name: 'Bags', subtype_name: 'Cotton' },
+    ], error: null }),
+  };
+  const catalog = load('src/lib/i18n/catalog.ts', {
+    '@/lib/catalog-identity/public': { getPublicIdentity: () => { throw new Error('Unnecessary identity lookup'); } },
+    '@/lib/i18n/config': config,
+    '@/lib/supabase/admin': { createSupabaseAdminClient: () => ({ from: () => query }) },
+  });
+  const result = await catalog.getLocalizedProductTexts({ productIds: ['one'], locale: 'fr', taxonomyOnly: true });
+  assert.equal(result.get('one').typeName, 'Sacs');
+  assert.equal(result.get('one').subtypeName, 'Cotton');
+  assert.equal(result.get('one').description, null);
+  assert.equal(selected, 'product_id,language,type_name,subtype_name');
+});
