@@ -114,7 +114,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const supabase = await createSupabaseServerClient();
 
   // Start the independent filter lookup while the results query runs.
-  const facetsPromise = getSearchFacets().catch(() => [] as FacetProduct[]);
+  const facetsPromise = getSearchFacets().catch(() => null);
 
   let products: ProductCardProduct[] = [];
   let hasProductsError = false;
@@ -229,7 +229,8 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     if (!error) products = await localizeProductCards(products, locale);
   }
 
-  const facets = await facetsPromise;
+  const facetResult = await facetsPromise;
+  const facets = facetResult ?? [];
   const materialOptions = getUniqueSortedValues(facets, "material");
   const typeOptions = getUniqueSortedValues(facets, "type_name");
 
@@ -257,6 +258,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           </p>
         </div>
 
+        {facetResult === null ? <p role="status" className="mt-6 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{labels.catalog.loadError} {labels.common.retry}</p> : null}
         <Form action={localizePath("/pesquisa", locale)} className="mt-8 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 md:flex-row">
             <div className="relative flex-1">

@@ -7,7 +7,7 @@ export const getSearchFacets = unstable_cache(async () => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const { data, error } = await db.from("products")
-    .select("material,type_name").eq("status", "active").eq("is_active", true).limit(3000);
+    .select("material,type_name").eq("status", "active").eq("is_active", true).limit(3000).abortSignal(AbortSignal.timeout(3000));
   if (error) throw new Error("Search filters unavailable");
   return data ?? [];
 }, ["public-search-facets-v1"], { revalidate: 300 });
