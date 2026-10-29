@@ -1,4 +1,4 @@
-import { getPublicIdentity } from "@/lib/catalog-identity/public";
+import { IDENTITY_CACHE_TAG } from "@/lib/catalog-identity/public";
 import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { getCommercialPages } from "@/lib/seo/commercial-pages";
@@ -34,16 +34,14 @@ function parseDate(value: string | null): Date | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
-const getActiveProducts = unstable_cache(async (): Promise<SitemapProductRow[]> => {
+const getActiveProductPage = unstable_cache(async (from: number): Promise<SitemapProductRow[]> => {
   const supabase = createSupabaseAdminClient();
-  const products: SitemapProductRow[] = [];
 
-  for (let from = 0; from < MAX_PRODUCTS; from += PAGE_SIZE) {
     const to = Math.min(from + PAGE_SIZE - 1, MAX_PRODUCTS - 1);
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, slug, type_name, subtype_name, updated_at")
+      .select("id, slug, type_name, subtype_name, updated_at, supplier_id, product_commercial_identities(public_reference)")
       .eq("status", "active")
       .eq("is_active", true)
       .not("slug", "is", null)
@@ -55,16 +53,24 @@ const getActiveProducts = unstable_cache(async (): Promise<SitemapProductRow[]> 
       throw error;
     }
 
-    const rows = (data ?? []) as SitemapProductRow[];
-    products.push(...rows.filter((row) => Boolean(row.slug?.trim())));
+    const rows = (data ?? []) as unknown as (SitemapProductRow & {
+      supplier_id: string | null;
+      product_commercial_identities: { public_reference: string } | null;
+    })[];
+    return rows.map(({ supplier_id, product_commercial_identities: identity, ...row }) => ({
+      ...row, slug: supplier_id && identity ? identity.public_reference.toLowerCase() : row.slug,
+    }));
+}, ["sitemap-active-products-page-v3"], { revalidate: 3600, tags: [IDENTITY_CACHE_TAG] });
 
-    if (rows.length < PAGE_SIZE) {
-      break;
-    }
+async function getActiveProducts(): Promise<SitemapProductRow[]> {
+  const products: SitemapProductRow[] = [];
+  for (let from = 0; from < MAX_PRODUCTS; from += PAGE_SIZE) {
+    const rows = await getActiveProductPage(from);
+    products.push(...rows.filter(row => Boolean(row.slug?.trim())));
+    if (rows.length < PAGE_SIZE) break;
   }
-
   return products;
-}, ["sitemap-active-products-v2"], { revalidate: 300 });
+}
 
 function withLocalizedEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
   const locales: SiteLocale[] = Object.keys(SITE_LOCALES) as SiteLocale[];
@@ -233,7 +239,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    const products = await Promise.all((await getActiveProducts()).map(async product => ({ ...product, slug: (await getPublicIdentity(product.id))?.slug ?? product.slug })));
+    const products = await getActiveProducts();
     const categories = new Map<string, Date | undefined>();
     const subcategories = new Map<string, { category: string; subcategory: string; lastModified?: Date }>();
 

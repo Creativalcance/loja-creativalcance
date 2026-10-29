@@ -11,33 +11,28 @@ type Identity = {
   products: { slug: string; supplier_id: string | null };
 };
 export const IDENTITY_CACHE_TAG = "commercial-identities";
-const readIdentities = unstable_cache(async () => {
-  const admin = createSupabaseAdminClient();
-  const result: Identity[] = [];
-  for (let from = 0; ; from += 500) {
-    const { data, error } = await admin.from("product_commercial_identities")
-      .select("product_id,public_reference,review_status,translations,products!inner(slug,supplier_id)")
-      .order("product_id").range(from, from + 499);
-    if (error) throw new Error("Não foi possível obter o catálogo 360.");
-    const rows = data as unknown as Identity[];
-    result.push(...rows.filter(row => row.products.supplier_id));
-    if (rows.length < 500) break;
-  }
-  return result;
-}, ["commercial-identities-v1"], { revalidate: 60, tags: [IDENTITY_CACHE_TAG] });
-const identities = cache(readIdentities);
+// Product pages must never read the entire catalogue to resolve one identity.
+const readIdentity = cache(unstable_cache(async (productId: string) => {
+  const { data, error } = await createSupabaseAdminClient().from("product_commercial_identities")
+    .select("product_id,public_reference,review_status,translations,products!inner(slug,supplier_id)")
+    .eq("product_id", productId).maybeSingle();
+  if (error) throw new Error("Não foi possível obter a identidade 360.");
+  return data as unknown as Identity | null;
+}, ["commercial-identity-v2"], { revalidate: 3600, tags: [IDENTITY_CACHE_TAG] }));
+
+type SearchIdentity = { product_id: string; public_reference: string; review_status: string; name: string | null; products: { supplier_id: string | null } };
+// Cache bounded pages: descriptions and other languages are not search inputs.
+const readSearchPage = unstable_cache(async (locale: SiteLocale, from: number) => {
+  const { data, error } = await createSupabaseAdminClient().from("product_commercial_identities")
+    .select(`product_id,public_reference,review_status,name:translations->${locale}->>name,products!inner(supplier_id)`)
+    .order("product_id").range(from, from + 499);
+  if (error) throw new Error("Não foi possível pesquisar o catálogo 360.");
+  return (data ?? []) as unknown as SearchIdentity[];
+}, ["commercial-identity-search-v2"], { revalidate: 3600, tags: [IDENTITY_CACHE_TAG] });
 const generic = { pt: "Produto", en: "Product", fr: "Produit", es: "Producto", de: "Produkt", it: "Prodotto" };
 export async function getPublicIdentity(productId: string, locale: SiteLocale = "pt") {
-  let row = (await identities()).find(row => row.product_id === productId);
-  if (!row) {
-    // A newly imported product may be newer than the shared cache.
-    const { data, error } = await createSupabaseAdminClient().from("product_commercial_identities")
-      .select("product_id,public_reference,review_status,translations,products!inner(slug,supplier_id)").eq("product_id", productId).maybeSingle();
-    if (error) throw new Error("Não foi possível obter a identidade 360.");
-    const fresh = data as unknown as Identity | null;
-    if (!fresh?.products.supplier_id) return null;
-    row = fresh;
-  }
+  const row = await readIdentity(productId);
+  if (!row?.products.supplier_id) return null;
   const text = row.review_status === "ready" ? row.translations[locale] : undefined;
   return {
     reference: row.public_reference,
@@ -47,22 +42,30 @@ export async function getPublicIdentity(productId: string, locale: SiteLocale = 
   };
 }
 // Resolve only on the server. Existing IDs, supplier slugs and order contracts stay intact.
+const readSupplierSlug = cache(unstable_cache(async (reference: string) => {
+  const { data, error } = await createSupabaseAdminClient().from("product_commercial_identities")
+    .select("products!inner(slug)").eq("public_reference", reference).maybeSingle();
+  if (error) throw new Error("Não foi possível resolver o produto.");
+  return (data as unknown as { products: { slug: string } } | null)?.products.slug ?? null;
+}, ["commercial-identity-slug-v2"], { revalidate: 3600, tags: [IDENTITY_CACHE_TAG] }));
 export async function resolveSupplierSlug(slug: string): Promise<string> {
   if (!/^360-[a-f0-9]{12}$/i.test(slug)) return slug;
-  const row = (await identities()).find(row => row.public_reference.toLowerCase() === slug.toLowerCase());
-  if (row) return row.products.slug;
-  const { data, error } = await createSupabaseAdminClient().from("product_commercial_identities")
-    .select("products!inner(slug)").eq("public_reference", slug.toUpperCase()).maybeSingle();
-  if (error) throw new Error("Não foi possível resolver o produto.");
-  return (data as unknown as { products: { slug: string } } | null)?.products.slug ?? slug;
+  return (await readSupplierSlug(slug.toUpperCase())) ?? slug;
 }
 export async function findPublicProductIds(query: string, locale: SiteLocale): Promise<string[]> {
   const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
   if (!terms.length) return [];
-  return (await identities()).filter(row => {
-    const text = `${row.public_reference} ${row.review_status === "ready" ? row.translations[locale]?.name ?? "" : ""}`.toLocaleLowerCase();
-    return terms.every(term => text.includes(term));
-  }).slice(0, 200).map(row => row.product_id);
+  const ids: string[] = [];
+  for (let from = 0; ; from += 500) {
+    const rows = await readSearchPage(locale, from);
+    for (const row of rows) {
+      if (!row.products.supplier_id) continue;
+      const text = `${row.public_reference} ${row.review_status === "ready" ? row.name ?? "" : ""}`.toLocaleLowerCase();
+      if (terms.every(term => text.includes(term))) ids.push(row.product_id);
+      if (ids.length === 200) return ids;
+    }
+    if (rows.length < 500) return ids;
+  }
 }
 export async function getPublicVariantReferences(ids: string[]): Promise<Map<string, string>> {
   if (!ids.length) return new Map();

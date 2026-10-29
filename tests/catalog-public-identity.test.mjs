@@ -12,8 +12,8 @@ function load(file, imports, extra = {}) {
 }
 const id = '11111111-1111-4111-8111-111111111111';
 const row = { product_id:id,public_reference:'360-ABCDEF123456',review_status:'ready',translations:{pt:{name:'Bloco Horizonte 360'},en:{name:'Notebook Horizonte 360'}},products:{slug:'heaney-93669',supplier_id:'supplier'} };
-function fixture(rows=[row]) {
-  const q = {select:()=>q,order:()=>q,eq:()=>q,maybeSingle:async()=>({data:rows[0]??null,error:null}),range:async()=>({data:rows,error:null}),in:async()=>({data:[{variant_id:'variant',public_reference:'360-V-ABC'}],error:null})};
+function fixture(rows=[row], calls=[]) {
+  const q = {select:value=>{calls.push(["select",value]);return q;},order:()=>q,eq:(...args)=>{calls.push(["eq",...args]);return q;},maybeSingle:async()=>({data:rows[0]??null,error:null}),range:async()=>{calls.push(["range"]);return {data:rows.map(r=>({...r,name:r.translations.pt?.name})),error:null};},in:async()=>({data:[{variant_id:'variant',public_reference:'360-V-ABC'}],error:null})};
   return load('src/lib/catalog-identity/public.ts', {
     'server-only':{}, 'node:crypto':crypto, react:{cache:fn=>fn}, 'next/cache':{unstable_cache:fn=>fn},
     '@/lib/supabase/admin':{createSupabaseAdminClient:()=>({from:()=>q})},
@@ -56,4 +56,20 @@ test('media route accepts only stored public images and rejects arbitrary assets
   assert.equal((await route.GET(req('main'),context)).status,200);assert.equal(fetches,1);
   source='https://127.0.0.1/private';assert.equal((await route.GET(req('main'),context)).status,404);assert.equal(fetches,1);
   assert.ok(filters.some(([k,v])=>k==='is_active'&&v===true));assert.ok(filters.some(([k,v])=>k==='status'&&v==='active'));
+});
+
+test('single product and public slug lookups use indexed filters without catalogue pagination',async()=>{
+  const calls=[]; const api=fixture([row],calls);
+  await api.getPublicIdentity(id);
+  await api.resolveSupplierSlug('360-abcdef123456');
+  assert.ok(calls.some(c=>c[0]==='eq'&&c[1]==='product_id'&&c[2]===id));
+  assert.ok(calls.some(c=>c[0]==='eq'&&c[1]==='public_reference'&&c[2]==='360-ABCDEF123456'));
+  assert.ok(!calls.some(c=>c[0]==='range'));
+});
+test('search selects only the requested language name and excludes unapproved names',async()=>{
+  const calls=[];
+  assert.equal((await fixture([{...row,review_status:'draft'}],calls).findPublicProductIds('Horizonte','pt')).length,0);
+  const selection=calls.find(c=>c[0]==='select')[1];
+  assert.ok(selection.includes('name:translations->pt->>name'));
+  assert.ok(!selection.includes('review_status,translations'));
 });
