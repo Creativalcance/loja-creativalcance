@@ -32,6 +32,22 @@ export async function getCustomizationJob(lang?: StrickerLanguage): Promise<Job 
   return data;
 }
 
+// Read-only preflight: idle/cooling workers must not write lock rows every minute.
+// The processor still re-reads the oldest active job after acquiring the lock.
+export async function hasRunnableCustomizationJob(): Promise<boolean> {
+  const client = createSupabaseAdminClient();
+  const { data, error } = await client.from("supplier_dataset_imports")
+    .select("next_run_at:raw_payload->>nextRunAt")
+    .eq("supplier_id", await getStrickerSupplierId())
+    .eq("dataset_name", CUSTOMIZATION_JOB_DATASET)
+    .in("status", ["pending", "running"])
+    .order("created_at", { ascending: true }).limit(1)
+    .maybeSingle<{ next_run_at: string | null }>();
+  if (error) throw new Error(error.message);
+  if (!data) return false;
+  return !data.next_run_at || !(Date.parse(data.next_run_at) > Date.now());
+}
+
 // Called with the common integration lock held by either the admin endpoint or cron.
 export async function enqueueCustomizationJob(lang: StrickerLanguage, weekly = false): Promise<Job> {
   const client = createSupabaseAdminClient();

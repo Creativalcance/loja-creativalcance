@@ -8,7 +8,7 @@ import {
   reconcileCommercialAvailability,
   syncCommercialDataset,
 } from "@/lib/stricker/rest/sync-commercial-status";
-import { enqueueCustomizationJob, getCustomizationJob, processCustomizationJob } from "@/lib/stricker/customization-jobs";
+import { enqueueCustomizationJob, getCustomizationJob, hasRunnableCustomizationJob, processCustomizationJob } from "@/lib/stricker/customization-jobs";
 import { syncRestCustomizationOptionsSource } from "@/lib/stricker/rest/sync-customization-options-source";
 import { syncRestCustomizationTables } from "@/lib/stricker/rest/sync-customization-tables";
 import {
@@ -276,6 +276,9 @@ export async function runStrickerAutomaticSync(
   | { skipped: true; reason: string }
   | { skipped: false; result: JsonResult }
 > {
+  if (job === "customization-options-worker" && !(await hasRunnableCustomizationJob())) {
+    return { skipped: true, reason: "Sem geração de personalizações pronta para executar." };
+  }
   const ownerToken = randomUUID();
   const lockKey = job === "orders-status"
     ? "stricker:automatic-sync:orders-status"
