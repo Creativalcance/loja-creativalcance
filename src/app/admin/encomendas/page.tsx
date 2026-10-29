@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { RevenueControls } from "./revenue-controls";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,10 @@ type OrderStatistics = {
   revenue: number;
   supplierCosts: number;
   margin: number;
+  monthStart: string;
+  periodStart: string;
+  nextMonth: string;
+  manualResetAt: string | null;
 };
 
 const PAGE_SIZE = 25;
@@ -489,9 +494,9 @@ function sanitizeSearchQuery(value: string): string {
 
 async function getOrderStatistics(): Promise<OrderStatistics> {
   const supabaseAdmin = createSupabaseAdminClient();
-  const { data, error } = await supabaseAdmin.from("orders").select("status,payment_status,fulfillment_status,supplier_submission_status,grand_total,supplier_cost_total,requested_shipping_date").is("deleted_at", null).returns<Array<{status:string;payment_status:string;fulfillment_status:string;supplier_submission_status:string;grand_total:number;supplier_cost_total:number;requested_shipping_date:string|null}>>();
-  if(error)throw new Error(error.message);const rows=data??[];const today=new Date().toISOString().slice(0,10);const paid=rows.filter(row=>row.payment_status==="paid");const revenue=paid.reduce((sum,row)=>sum+Number(row.grand_total??0),0);const supplierCosts=paid.reduce((sum,row)=>sum+Number(row.supplier_cost_total??0),0);
-  return {total:rows.length,pendingPayment:rows.filter(row=>row.payment_status==="pending").length,paid:paid.length,supplierErrors:rows.filter(row=>row.supplier_submission_status==="failed").length,inProduction:rows.filter(row=>row.status==="in_production").length,shipped:rows.filter(row=>row.fulfillment_status==="shipped").length,completed:rows.filter(row=>row.status==="delivered"||row.fulfillment_status==="delivered").length,cancelled:rows.filter(row=>row.status==="cancelled").length,delayed:rows.filter(row=>Boolean(row.requested_shipping_date&&row.requested_shipping_date<today)&&!["delivered","cancelled"].includes(row.fulfillment_status)).length,revenue,supplierCosts,margin:revenue-supplierCosts};
+  const { data, error } = await supabaseAdmin.rpc("admin_order_dashboard_statistics");
+  if (error || !data) throw new Error(error?.message ?? "Não foi possível obter os indicadores das encomendas.");
+  return data as OrderStatistics;
 }
 
 async function getOrders(params: {
@@ -884,11 +889,20 @@ export default async function AdminOrdersPage({
           <StatisticsCard label="Atrasadas" value={statistics.delayed} description="Ultrapassaram a data de entrega solicitada." icon={Clock3} variant="error" />
         </div>
 
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          <FinancialCard label="Faturação paga" value={statistics.revenue} description="Total de encomendas com pagamento confirmado." />
-          <FinancialCard label="Custos do fornecedor" value={statistics.supplierCosts} description="Valores de compra registados nas encomendas." />
-          <FinancialCard label="Margem bruta" value={statistics.margin} description="Faturação paga menos os custos do fornecedor registados." />
-        </div>
+        <section aria-labelledby="revenue-heading" className="mt-6 rounded-3xl border border-neutral-200 bg-white p-5 shadow-sm">
+          <h2 id="revenue-heading" className="text-lg font-semibold text-neutral-900">Faturação do mês</h2>
+          <p className="mt-2 text-sm leading-6 text-neutral-600">
+            {new Intl.DateTimeFormat("pt-PT", { month: "long", year: "numeric", timeZone: "Europe/Lisbon" }).format(new Date(statistics.monthStart))}
+            {statistics.manualResetAt && <> · Contadores repostos em {new Intl.DateTimeFormat("pt-PT", { dateStyle: "short", timeStyle: "medium", timeZone: "Europe/Lisbon" }).format(new Date(statistics.periodStart))}</>}
+            {". "}Reinicia automaticamente às 00:00 do dia 1 de cada mês (hora de Lisboa).
+          </p>
+          <RevenueControls nextMonth={statistics.nextMonth} />
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <FinancialCard label="Faturação paga" value={statistics.revenue} description="Pagamentos confirmados neste mês, após a última reposição, se existir." />
+            <FinancialCard label="Custos do fornecedor" value={statistics.supplierCosts} description="Custos das mesmas encomendas incluídas na faturação deste período." />
+            <FinancialCard label="Margem bruta" value={statistics.margin} description="Faturação paga menos os custos do fornecedor deste período." />
+          </div>
+        </section>
 
         <form
           action="/admin/encomendas"
