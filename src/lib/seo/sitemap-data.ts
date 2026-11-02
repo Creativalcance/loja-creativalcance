@@ -10,9 +10,7 @@ import { getSelectionPages } from "@/lib/seo/selection-pages";
 import { absoluteUrl } from "@/lib/seo/site";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
-
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+import { buildLanguageAlternates } from "@/lib/seo/languages";
 
 type SitemapProductRow = {
   id: string;
@@ -20,9 +18,10 @@ type SitemapProductRow = {
   type_name: string | null;
   subtype_name: string | null;
   updated_at: string | null;
+  product_translations: Array<{ language: string; type_name: string | null; subtype_name: string | null }>;
 };
 
-const PAGE_SIZE = 1000;
+const PAGE_SIZE = 500;
 const MAX_PRODUCTS = 45000;
 
 function parseDate(value: string | null): Date | undefined {
@@ -41,7 +40,7 @@ const getActiveProductPage = unstable_cache(async (from: number): Promise<Sitema
 
     const { data, error } = await supabase
       .from("products")
-      .select("id, slug, type_name, subtype_name, updated_at, supplier_id, product_commercial_identities(public_reference)")
+      .select("id, slug, type_name, subtype_name, updated_at, supplier_id, product_commercial_identities(public_reference), product_translations(language,type_name,subtype_name)")
       .eq("status", "active")
       .eq("is_active", true)
       .not("slug", "is", null)
@@ -60,7 +59,7 @@ const getActiveProductPage = unstable_cache(async (from: number): Promise<Sitema
     return rows.map(({ supplier_id, product_commercial_identities: identity, ...row }) => ({
       ...row, slug: supplier_id && identity ? identity.public_reference.toLowerCase() : row.slug,
     }));
-}, ["sitemap-active-products-page-v3"], { revalidate: 3600, tags: [IDENTITY_CACHE_TAG] });
+}, ["sitemap-active-products-page-v4"], { revalidate: 3600, tags: [IDENTITY_CACHE_TAG] });
 
 async function getActiveProducts(): Promise<SitemapProductRow[]> {
   const products: SitemapProductRow[] = [];
@@ -72,26 +71,43 @@ async function getActiveProducts(): Promise<SitemapProductRow[]> {
   return products;
 }
 
-function withLocalizedEntries(entries: MetadataRoute.Sitemap): MetadataRoute.Sitemap {
-  const locales: SiteLocale[] = Object.keys(SITE_LOCALES) as SiteLocale[];
-  return entries.map((entry) => {
-    const path = new URL(entry.url).pathname;
-    const languages = Object.fromEntries(
-      locales.map((locale) => [
-        SITE_LOCALES[locale].htmlLang,
-        absoluteUrl(localizePath(path, locale)),
-      ]),
-    );
+// Resolve translated taxonomy names in one cached catalogue read, not one
+// database request per category and language. Match the route's majority rule.
+function taxonomyLanguages(products: SitemapProductRow[], category: string, subcategory?: string) {
+  const categoryRows = products.filter((row) => row.type_name?.trim() === category);
+  const subcategoryRows = subcategory
+    ? categoryRows.filter((row) => row.subtype_name?.trim() === subcategory)
+    : [];
+  function translatedName(rows: SitemapProductRow[], locale: SiteLocale, field: "type_name" | "subtype_name", fallback: string) {
+    if (locale === "pt") return fallback;
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      const name = row.product_translations?.find((t) => t.language === SITE_LOCALES[locale].strickerLanguage)?.[field]?.trim();
+      if (name) counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? fallback;
+  }
+  return buildLanguageAlternates((locale) => {
+    const name = translatedName(categoryRows, locale, "type_name", category);
+    const path = `/categorias/${encodeURIComponent(name)}`;
+    return subcategory
+      ? `${path}/${encodeURIComponent(translatedName(subcategoryRows, locale, "subtype_name", subcategory))}`
+      : path;
+  });
+}
 
+export function localizeSitemapEntries(entries: MetadataRoute.Sitemap, locale: SiteLocale): MetadataRoute.Sitemap {
+  return entries.map((entry) => {
+    const languages: Record<string, string | undefined> = entry.alternates?.languages ?? buildLanguageAlternates(new URL(entry.url).pathname);
     return {
       ...entry,
-      url: absoluteUrl(localizePath(path, "pt")),
-      alternates: { languages: { ...languages, "x-default": absoluteUrl(localizePath(path, "pt")) } },
+      url: languages[SITE_LOCALES[locale].htmlLang] ?? absoluteUrl(localizePath(new URL(entry.url).pathname, locale)),
+      alternates: { languages },
     };
   });
 }
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+export async function getSitemapEntries(): Promise<MetadataRoute.Sitemap> {
   const commercialEntries: MetadataRoute.Sitemap = [
     {
       url: absoluteUrl("/solucoes"),
@@ -238,7 +254,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ];
 
-  try {
+  {
     const products = await getActiveProducts();
     const categories = new Map<string, Date | undefined>();
     const subcategories = new Map<string, { category: string; subcategory: string; lastModified?: Date }>();
@@ -291,6 +307,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       )
       .map(([categoryName, lastModified]) => ({
         url: absoluteUrl(`/categorias/${encodeURIComponent(categoryName)}`),
+        alternates: { languages: taxonomyLanguages(products, categoryName) },
         lastModified,
         changeFrequency: "weekly",
         priority: 0.8,
@@ -309,19 +326,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         url: absoluteUrl(
           `/categorias/${encodeURIComponent(category)}/${encodeURIComponent(subcategory)}`,
         ),
+        alternates: { languages: taxonomyLanguages(products, category, subcategory) },
         lastModified,
         changeFrequency: "weekly",
         priority: 0.75,
       }));
 
-    return withLocalizedEntries([
+    return [
       ...staticEntries,
       ...categoryEntries,
       ...subcategoryEntries,
       ...productEntries,
-    ]);
-  } catch (error) {
-    console.error("SEO sitemap generation failed:", error);
-    return withLocalizedEntries(staticEntries);
+    ];
   }
 }

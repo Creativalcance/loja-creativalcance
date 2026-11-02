@@ -33,7 +33,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     assertCronRequest(request);
     const results = await syncRecentMarketingWeeks({
-      weeks: 4,
+      // Refresh the current and previous week to capture delayed Google data.
+      weeks: 2,
       vercelOidcToken: request.headers.get("x-vercel-oidc-token"),
     });
 

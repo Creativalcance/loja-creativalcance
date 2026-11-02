@@ -6,6 +6,10 @@ import { authUnavailableMessage, isAuthUnavailable } from "@/lib/auth/availabili
 
 export async function proxy(request: NextRequest) {
   const originalPath = request.nextUrl.pathname;
+  // Public XML has no locale/session state; avoid cookies that disable CDN caching.
+  if (originalPath === "/sitemap.xml" || /^\/sitemaps\/(pt|en|fr|es|de|it)\/sitemap\.xml$/.test(originalPath)) {
+    return NextResponse.next();
+  }
   const firstSegment = originalPath.split("/").filter(Boolean)[0] ?? "";
   const localizedPath = isSiteLocale(firstSegment) && firstSegment !== "pt";
   const locale = localizedPath ? firstSegment : DEFAULT_SITE_LOCALE;

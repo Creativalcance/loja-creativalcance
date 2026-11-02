@@ -67,3 +67,13 @@ test('customer accounts still cannot access admin; administrators retain access'
   const allowed = await fixture({role:'admin'}).proxy(new NextRequest('https://store.test/admin'));
   assert.equal(allowed.status,200);
 });
+
+test('public sitemap XML stays free of session calls and locale cookies so it can be cached', async () => {
+  const f = fixture();
+  for (const path of ['/sitemap.xml', '/sitemaps/pt/sitemap.xml', '/sitemaps/en/sitemap.xml']) {
+    const response = await f.proxy(new NextRequest(`https://store.test${path}`));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('set-cookie'), null);
+  }
+  assert.equal(f.calls(), 0);
+});

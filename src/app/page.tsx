@@ -1,3 +1,4 @@
+import { buildLanguageAlternates } from "@/lib/seo/languages";
 import { MATERIALS_PATH, MATERIALS_CARD_IMAGE, materialMessages } from "@/lib/catalog/materials-collection";
 import Image from "next/image";
 import Link from "next/link";
@@ -78,12 +79,7 @@ it: {
     description: content.description,
     alternates: {
       canonical: localizedPath,
-      languages: {
-        "pt-PT": "/",
-        "en-GB": "/en",
-        "fr-FR": "/fr",
-        "x-default": "/",
-      },
+      languages: buildLanguageAlternates("/"),
     },
   };
 }

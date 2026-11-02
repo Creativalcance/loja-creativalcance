@@ -1,3 +1,4 @@
+import { buildLanguageAlternates } from "@/lib/seo/languages";
 import type { Metadata } from "next";
 import {
   absoluteUrl,
@@ -84,6 +85,7 @@ export function buildProductMetadata(
     description,
     alternates: {
       canonical: canonicalPath,
+      languages: buildLanguageAlternates(canonicalPath),
     },
     openGraph: {
       type: "website",

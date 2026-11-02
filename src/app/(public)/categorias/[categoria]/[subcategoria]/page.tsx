@@ -1,3 +1,4 @@
+import { buildCategoryTitle } from "@/lib/seo/category-title";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Search } from "lucide-react";
@@ -65,26 +66,26 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
   const subcategoryName = subcategory.localizedName;
   const copy = (locale === "es" ? ({
     back: `Volver a ${categoryName}`, label: "Subcategor\u00EDa",
-    title: `Productos personalizables: ${subcategoryName}`, search: "Buscar en el cat\u00E1logo",
+    title: buildCategoryTitle(subcategoryName, locale), search: "Buscar en el cat\u00E1logo",
     productCount: (count: number) => `${count.toLocaleString("es-ES")} producto${count === 1 ? "" : "s"}`,
     loadError: "No se han podido cargar los productos de esta subcategor\u00EDa. Int\u00E9ntalo de nuevo.",
     emptyTitle: "No hay productos disponibles", emptyText: "Explora la categor\u00EDa principal o busca en el cat\u00E1logo.",
 }) : locale === "de" ? ({
     back: `Zur\u00FCck zu ${categoryName}`, label: "Unterkategorie",
-    title: `Personalisierbare Produkte: ${subcategoryName}`, search: "Katalog durchsuchen",
+    title: buildCategoryTitle(subcategoryName, locale), search: "Katalog durchsuchen",
     productCount: (count: number) => `${count.toLocaleString("de-DE")} Produkt${count === 1 ? "" : "e"}`,
     loadError: "Die Produkte dieser Unterkategorie konnten nicht geladen werden. Bitte versuchen Sie es erneut.",
     emptyTitle: "Keine Produkte verf\u00FCgbar", emptyText: "Erkunden Sie die Hauptkategorie oder durchsuchen Sie den Katalog.",
 }) : locale === "it" ? ({
     back: `Torna a ${categoryName}`, label: "Sottocategoria",
-    title: `Prodotti personalizzabili: ${subcategoryName}`, search: "Cerca nel catalogo",
+    title: buildCategoryTitle(subcategoryName, locale), search: "Cerca nel catalogo",
     productCount: (count: number) => `${count.toLocaleString("it-IT")} prodott${count === 1 ? "o" : "i"}`,
     loadError: "Impossibile caricare i prodotti di questa sottocategoria. Riprova.",
     emptyTitle: "Nessun prodotto disponibile", emptyText: "Esplora la categoria principale o cerca nel catalogo.",
 }) : locale === "en"
     ? {
         back: `Back to ${categoryName}`, label: "Subcategory",
-        title: `Customisable ${subcategoryName} products`, search: "Search the catalogue",
+        title: buildCategoryTitle(subcategoryName, locale), search: "Search the catalogue",
         productCount: (count: number) => `${count.toLocaleString("en-GB")} product${count === 1 ? "" : "s"}`,
         loadError: "We couldn't load the products in this subcategory. Please try again.",
         emptyTitle: "No products available", emptyText: "Explore the main category or search the catalogue.",
@@ -92,14 +93,14 @@ export default async function SubcategoryPage({ params }: SubcategoryPageProps) 
     : locale === "fr"
       ? {
           back: `Retour à ${categoryName}`, label: "Sous-catégorie",
-          title: `Produits ${subcategoryName} personnalisables`, search: "Rechercher dans le catalogue",
+          title: buildCategoryTitle(subcategoryName, locale), search: "Rechercher dans le catalogue",
           productCount: (count: number) => `${count.toLocaleString("fr-FR")} produit${count === 1 ? "" : "s"}`,
           loadError: "Impossible de charger les produits de cette sous-catégorie. Veuillez réessayer.",
           emptyTitle: "Aucun produit disponible", emptyText: "Explorez la catégorie principale ou utilisez la recherche du catalogue.",
         }
       : {
           back: `Voltar a ${categoryName}`, label: "Subcategoria",
-          title: `Produtos de ${subcategoryName} personalizáveis`, search: "Pesquisar no catálogo",
+          title: buildCategoryTitle(subcategoryName, locale), search: "Pesquisar no catálogo",
           productCount: (count: number) => `${count.toLocaleString("pt-PT")} produto${count === 1 ? "" : "s"} apresentado${count === 1 ? "" : "s"}`,
           loadError: "Não foi possível carregar os produtos desta subcategoria. Tenta novamente.",
           emptyTitle: "Sem produtos disponíveis", emptyText: "Explore a categoria principal ou utilize a pesquisa do catálogo.",
@@ -257,11 +258,7 @@ export async function generateMetadata({
   const subcategoryName = subcategory.localizedName;
   const path = localizePath(`/categorias/${encodeURIComponent(categoryName)}/${encodeURIComponent(subcategoryName)}`, locale);
   const description = buildSubcategoryDescription(categoryName, subcategoryName, locale);
-  const title = (locale === "es" ? (`Productos personalizables: ${subcategoryName}`) : locale === "de" ? (`Personalisierbare Produkte: ${subcategoryName}`) : locale === "it" ? (`Prodotti personalizzabili: ${subcategoryName}`) : locale === "en"
-    ? `Customisable ${subcategoryName} products`
-    : locale === "fr"
-      ? `Produits ${subcategoryName} personnalisables`
-      : `Produtos de ${subcategoryName} personalizáveis`);
+  const title = buildCategoryTitle(subcategoryName, locale);
 
   return {
     title,
