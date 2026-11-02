@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
-import { NextRequest, NextResponse } from 'next/server.js';
+import { NextRequest, NextResponse, userAgent } from 'next/server.js';
 
 function load(file, imports = {}, globals = {}) {
   const exports = {};
@@ -16,12 +16,14 @@ function load(file, imports = {}, globals = {}) {
 }
 const availability = load('src/lib/auth/availability.ts');
 const config = load('src/lib/i18n/config.ts');
+const detection = load('src/lib/i18n/detection.ts', { '@/lib/i18n/config': config });
 const commercial = load('src/lib/auth/commercial-access.ts');
 
 function fixture({ authError = null, profileError = null, userId = 'user', role = 'customer', clearCookie = false } = {}) {
   let authCalls = 0;
   const { proxy } = load('src/proxy.ts', {
-    'next/server': {NextResponse}, '@/lib/auth/availability': availability,
+    'next/server': {NextResponse, userAgent}, '@/lib/auth/availability': availability,
+    '@/lib/i18n/detection': detection,
     '@/lib/i18n/config': config, '@/lib/auth/commercial-access': commercial,
     '@supabase/ssr': {createServerClient: (_url, _key, options) => ({
       auth: {getClaims: async () => {

@@ -40,3 +40,19 @@ test('only configured public supplier images use the image optimizer',()=>{
   assert.equal(canOptimizeCatalogImage('https://cdn.hideacontent.com/public/products/1000x1000/11196.jpg'),true);
   for(const source of ['blob:local-artwork','data:image/png;base64,AAA','https://storage.example/private/logo.png','https://cdn.hideacontent.com/private/logo.png','https://cdn.hideacontent.com.evil.test/public/products/logo.jpg'])assert.equal(canOptimizeCatalogImage(source),false);
 });
+
+test('confirming the current language explicitly replaces an older saved preference without navigating', async () => {
+  let state = 0;
+  const document = { cookie: 'site-locale=fr' };
+  const view = load('src/components/layout/LanguageSwitcher.tsx', {
+    react: { useEffect() {}, useId: () => 'menu', useRef: () => ({ current: null }), useState: initial => [state++ === 0 ? true : initial, () => {}] },
+    'react/jsx-runtime': jsx, 'next/image': { __esModule: true, default: () => null },
+    'next/navigation': { usePathname: () => '/' },
+    'lucide-react': { Check: () => null, ChevronDown: () => null, LoaderCircle: () => null },
+    '@/lib/i18n/config': config,
+    '@/lib/cart/login-snapshot': { preserveShoppingBeforeNavigation: () => { throw new Error('No navigation needed'); } },
+  }, { document }).default({ locale: 'pt', label: 'Idioma' });
+  const portuguese = buttons(view).find(button => button.props.role === 'menuitemradio' && button.props.children[1].props.lang === 'pt-PT');
+  portuguese.props.onClick();
+  assert.match(document.cookie, /^site-locale=pt;/);
+});

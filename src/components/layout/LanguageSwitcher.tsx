@@ -63,7 +63,7 @@ export default function LanguageSwitcher({ locale, label }: { locale: SiteLocale
 
   async function select(nextLocale: SiteLocale) {
     if (pending) return;
-    if (nextLocale === locale) { close(); return; }
+    if (nextLocale === locale) { saveLocalePreference(nextLocale); close(); return; }
     setPending(true);
     setError(false);
     try {

@@ -1,7 +1,8 @@
 import { hasCommercialAccess } from "@/lib/auth/commercial-access";
 import { createServerClient } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
-import { DEFAULT_SITE_LOCALE, isSiteLocale } from "@/lib/i18n/config";
+import { type NextRequest, NextResponse, userAgent } from "next/server";
+import { DEFAULT_SITE_LOCALE, isSiteLocale, localizePath, type SiteLocale } from "@/lib/i18n/config";
+import { detectEntryLocale, isDocumentNavigation } from "@/lib/i18n/detection";
 import { authUnavailableMessage, isAuthUnavailable } from "@/lib/auth/availability";
 
 export async function proxy(request: NextRequest) {
@@ -13,6 +14,37 @@ export async function proxy(request: NextRequest) {
   const firstSegment = originalPath.split("/").filter(Boolean)[0] ?? "";
   const localizedPath = isSiteLocale(firstSegment) && firstSegment !== "pt";
   const locale = localizedPath ? firstSegment : DEFAULT_SITE_LOCALE;
+  const savedLocale = request.cookies.get("site-locale")?.value;
+  const hasLocalePreference = Boolean(savedLocale && isSiteLocale(savedLocale));
+  const humanNavigation = isDocumentNavigation(request) && !userAgent(request).isBot;
+
+  function rememberLocale(response: NextResponse, selectedLocale: SiteLocale) {
+    if (!hasLocalePreference && humanNavigation && (originalPath === "/" || localizedPath)) {
+      response.cookies.set("site-locale", selectedLocale, {
+        path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365,
+        secure: request.nextUrl.protocol === "https:",
+      });
+    }
+  }
+
+  // Personalize only the homepage entry. Explicit URLs, shopping flows,
+  // server actions, prefetches and crawlers keep their existing routes.
+  if (originalPath === "/" && humanNavigation) {
+    const entryLocale = detectEntryLocale({
+      savedLocale,
+      country: request.headers.get("x-vercel-ip-country"),
+      acceptLanguage: request.headers.get("accept-language"),
+    });
+    if (entryLocale !== DEFAULT_SITE_LOCALE) {
+      const destination = request.nextUrl.clone();
+      destination.pathname = localizePath("/", entryLocale);
+      const redirect = NextResponse.redirect(destination, 307);
+      redirect.headers.set("Cache-Control", "private, no-store");
+      redirect.headers.set("Vercel-CDN-Cache-Control", "no-store");
+      rememberLocale(redirect, entryLocale);
+      return redirect;
+    }
+  }
   const applicationPath = localizedPath
     ? originalPath.replace(new RegExp(`^/${firstSegment}(?=/|$)`), "") || "/"
     : originalPath;
@@ -44,12 +76,11 @@ export async function proxy(request: NextRequest) {
       nextResponse = NextResponse.next({ request: { headers: requestHeaders } });
     }
 
-    if (request.cookies.get("site-locale")?.value !== locale) {
-      nextResponse.cookies.set("site-locale", locale, {
-        path: "/",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 365,
-      });
+    rememberLocale(nextResponse, locale);
+    if (originalPath === "/") {
+      // Do not share a homepage response across visitors with different locales.
+      nextResponse.headers.set("Cache-Control", "private, no-store");
+      nextResponse.headers.set("Vercel-CDN-Cache-Control", "no-store");
     }
 
     return nextResponse;
