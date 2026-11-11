@@ -1744,8 +1744,9 @@ function PurchasePanel({
           ) : null}
 
           <form
+            id="comprar"
             action={cartFormAction}
-            className="mt-6 space-y-5"
+            className="mt-6 scroll-mt-28 space-y-5"
           >
             <input
               type="hidden"

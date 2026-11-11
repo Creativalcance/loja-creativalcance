@@ -1,3 +1,7 @@
+import { Fragment, type ReactNode } from "react";
+import { loadHomepage } from "@/lib/homepage/data";
+import type { HomeSectionId } from "@/lib/homepage/config";
+import HomepageCampaign from "@/components/homepage/Campaign";
 import { buildLanguageAlternates } from "@/lib/seo/languages";
 import { MATERIALS_PATH, MATERIALS_CARD_IMAGE, materialMessages } from "@/lib/catalog/materials-collection";
 import Image from "next/image";
@@ -351,6 +355,7 @@ const buyingStepIcons = [LayoutGrid, Palette, ShoppingCart, CheckCircle2] as con
 export default async function HomePage() {
   const locale = await getCurrentLocale();
   const messages = getMessages(locale).home;
+  const { config, products } = await loadHomepage(locale);
   const additionalCopy = additionalCategoriesCopy[locale];
   const steps = messages.steps.map(([title, description], index) => ({
     title,
@@ -358,11 +363,9 @@ export default async function HomePage() {
     icon: buyingStepIcons[index] ?? LayoutGrid,
   }));
 
-  return (
-    <>
-      <SiteHeader />
-
-      <main className="min-h-screen overflow-hidden bg-[#101b2a] text-white">
+  const sections: Record<HomeSectionId, ReactNode> = {
+    campaign: <HomepageCampaign config={config} products={products} locale={locale} />,
+    smart_merch: (
         <section className="relative isolate border-b border-white/10">
           <div
             aria-hidden="true"
@@ -376,9 +379,9 @@ export default async function HomePage() {
                 360 Smart Merch — {messages.badge}
               </p>
 
-              <h1 className="mt-7 text-4xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
+              <h2 className="mt-7 text-4xl font-semibold leading-[1.05] tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
                 {messages.title}
-              </h1>
+              </h2>
 
               <p className="mt-6 max-w-xl text-base leading-7 text-white/65 sm:text-lg sm:leading-8">
                 {messages.intro}
@@ -394,7 +397,7 @@ export default async function HomePage() {
                 </Link>
 
                 <Link
-                  href="#como-comprar"
+                  href={config.sections.some(section => section.id === "how_to_buy" && section.enabled) ? "#como-comprar" : localizePath("/ajuda", locale)}
                   className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/20 px-6 text-sm font-semibold text-white transition hover:border-white/45 hover:bg-white/[0.07]"
                 >
                   {messages.howToBuy}
@@ -417,7 +420,8 @@ export default async function HomePage() {
             ))}
           </div>
         </section>
-
+    ),
+    categories: (
         <section id="categorias" className="bg-[#f5f7f9] text-[#162334]">
           <div className="mx-auto w-full max-w-7xl px-6 py-16 lg:py-20">
             <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
@@ -551,7 +555,8 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
-
+    ),
+    how_to_buy: (
         <section id="como-comprar" className="border-y border-white/10 bg-white/[0.025]">
           <div className="mx-auto w-full max-w-7xl px-6 py-16 lg:py-20">
             <p className="text-sm font-medium uppercase tracking-[0.2em] text-[#ff7a1a]">
@@ -581,7 +586,8 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
-
+    ),
+    business: (
         <section className="mx-auto w-full max-w-7xl px-6 py-16 lg:py-20">
           <div className="grid overflow-hidden rounded-[2rem] bg-white text-[#162334] lg:grid-cols-[1fr_auto] lg:items-center">
             <div className="p-8 sm:p-10 lg:p-12">
@@ -605,9 +611,20 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
-      </main>
+    ),
+    newsletter: <NewsletterSignup locale={locale} />,
+  };
 
-      <NewsletterSignup locale={locale} />
+  const visibleSections = config.sections.filter(section => section.enabled && (section.id !== "campaign" || products.length > 0));
+  if (!visibleSections.some(section => section.id !== "newsletter")) visibleSections.unshift({ id: "smart_merch", enabled: true });
+
+  return (
+    <>
+      <SiteHeader />
+      <main className="min-h-screen overflow-hidden bg-[#101b2a] text-white">
+        <h1 className="sr-only">{messages.title}</h1>
+        {visibleSections.map(section => <Fragment key={section.id}>{sections[section.id]}</Fragment>)}
+      </main>
       <SiteFooter />
     </>
   );

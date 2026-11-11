@@ -6,6 +6,7 @@ import {
   Mail,
   FileText,
   FolderTree,
+  LayoutTemplate,
   Bell,
   LogOut,
   PackageSearch,
@@ -26,6 +27,7 @@ type AdminModule = {
 };
 
 const adminModules: AdminModule[] = [
+  { title: "Homepage", description: "Escolher produtos destacados, organizar blocos e editar os textos e botões das campanhas.", href: "/admin/homepage", icon: LayoutTemplate },
   { title: "Mercados, impostos e moedas", description: "Consultar destinos, tratamento fiscal e moedas disponíveis.", href: "/admin/mercados", icon: BadgeEuro },
   { title: "Rede Comercial", description: "Gerir comerciais por país, carteiras de clientes, comissões e pagamentos.", href: "/admin/rede-comercial", icon: Building2 },
   {
