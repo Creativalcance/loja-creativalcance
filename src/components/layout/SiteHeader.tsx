@@ -1,8 +1,9 @@
 import { hamperText } from "@/lib/checkout/hamper-copy";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, ShoppingCart, Sparkles } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import HeaderAccountLink from "@/components/layout/HeaderAccountLink";
+import HeaderCartLink from "@/components/layout/HeaderCartLink";
 import LanguageSwitcher from "@/components/layout/LanguageSwitcher";
 import { localizePath } from "@/lib/i18n/config";
 import { getMessages } from "@/lib/i18n/messages";
@@ -104,13 +105,7 @@ export default async function SiteHeader({
             label="Language / Langue / Idioma"
           />
 
-          <Link
-            href={localizePath("/carrinho", locale)}
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#162334]/12 bg-white text-[#162334]/75 transition hover:border-[#162334]/35 hover:text-[#162334]"
-            aria-label={messages.cart}
-          >
-            <ShoppingCart className="h-5 w-5" />
-          </Link>
+          <HeaderCartLink locale={locale} label={messages.cart} />
 
           <HeaderAccountLink context={context} locale={locale} />
         </div>

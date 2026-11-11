@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState, useActionState } from "react";
 import { ShoppingCart } from "lucide-react";
-import { addToCartAction, type AddToCartActionState } from "@/lib/cart/actions";
+import { type AddToCartActionState } from "@/lib/cart/actions";
+import { addToCartWithFeedback } from "@/lib/cart/client-actions";
 import { calculateCartItemPricing } from "@/lib/pricing/calculate-cart-item";
 
 type ColorOption = {
@@ -71,7 +72,7 @@ export default function AddToCartForm({
   const [printingTechniqueId, setPrintingTechniqueId] = useState("");
 
   const [state, formAction, isPending] = useActionState(
-    addToCartAction,
+    addToCartWithFeedback,
     initialState,
   );
 

@@ -3,10 +3,8 @@
 import { useActionState } from "react";
 import type { SiteLocale } from "@/lib/i18n/config";
 import { Trash2 } from "lucide-react";
-import {
-  removeCartItemAction,
-  type RemoveCartItemActionState,
-} from "@/lib/cart/actions";
+import { type RemoveCartItemActionState } from "@/lib/cart/actions";
+import { removeCartItemWithFeedback } from "@/lib/cart/client-actions";
 
 type RemoveCartItemButtonProps = {
   locale?: SiteLocale;
@@ -27,7 +25,7 @@ export default function RemoveCartItemButton({
   returnTo,
 }: RemoveCartItemButtonProps) {
   const [state, formAction, isPending] = useActionState(
-    removeCartItemAction,
+    removeCartItemWithFeedback,
     initialState,
   );
 

@@ -22,10 +22,8 @@ import {
   ShoppingCart,
   Truck,
 } from "lucide-react";
-import {
-  addToCartAction,
-  type AddToCartActionState,
-} from "@/lib/cart/actions";
+import { type AddToCartActionState } from "@/lib/cart/actions";
+import { addToCartWithFeedback } from "@/lib/cart/client-actions";
 import {
   startCustomizationDraftAction,
   type StartCustomizationDraftState,
@@ -1012,7 +1010,7 @@ function PurchasePanel({
     cartFormAction,
     isAddingToCart,
   ] = useActionState(
-    addToCartAction,
+    addToCartWithFeedback,
     initialCartState,
   );
 
