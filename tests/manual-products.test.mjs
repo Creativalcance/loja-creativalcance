@@ -246,6 +246,7 @@ test("edit form retains current data, all photos, upload control and featured se
   const Edit = load("src/components/admin/manual-products/EditForm.tsx", {
     "react/jsx-runtime": jsx,
     "./PhotoEditForm": PhotoEditForm,
+    "./LogisticsFields": load("src/components/admin/manual-products/LogisticsFields.tsx", { "react/jsx-runtime": jsx, react: React }).default,
     "./Controls": controls,
     "@/lib/manual-products/validation": rules,
   }).default;
@@ -280,6 +281,9 @@ test("edit form retains current data, all photos, upload control and featured se
     "https://example.invalid/current.png",
     "https://example.invalid/second.png",
     "Carregar fotografias",
+    "Peso (kg)",
+    "Dimensões",
+    "Condições de entrega",
     "Fotografia de destaque",
     "Definir como destaque",
     "3.25",
@@ -412,4 +416,19 @@ test("gallery edit sends the featured image first and keeps legacy callers worki
     assert.equal((await invalid.run(form("edit", { ...fields, photos: bad }))).success, false);
     assert.equal(invalid.calls.length, 0);
   }
+});
+
+test("manual hamper edits accept one unit only with an explicit delivery tariff, weight and dimensions", async () => {
+ const h=harness();
+ const result=await h.run(form("edit",{...fields,minimum:"1",shipping_profile:"christmas_hamper_2026",delivery_unit_price:"6,00",weight_kg:"2,27",dimensions:"30 × 20 × 15 cm"}));
+ assert.equal(result.success,true);
+ assert.equal(h.calls[0].args.p_data.weight,2270);
+ assert.equal(h.calls[0].args.p_data.dimensions,"30 × 20 × 15 cm");
+ assert.equal(h.calls[0].args.p_data.delivery_unit_price,6);
+ assert.equal(h.calls[0].args.p_data.minimum,1);
+ for (const invalid of [{shipping_profile:"standard"},{delivery_unit_price:""},{delivery_unit_price:"-1"},{weight_kg:"-2"},{weight_kg:"2kg"},{shipping_profile:"supplier"}]) {
+   const bad=harness();
+   assert.equal((await bad.run(form("edit",{...fields,minimum:"1",shipping_profile:"christmas_hamper_2026",delivery_unit_price:"6",...invalid}))).success,false);
+   assert.equal(bad.calls.length,0);
+ }
 });

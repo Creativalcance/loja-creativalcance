@@ -1,3 +1,4 @@
+import HamperDeliveryNotice from "@/components/checkout/HamperDeliveryNotice";
 import { getPublicIdentity, getPublicVariantReferences, resolveSupplierSlug, preserveProductQuery, publicMediaUrl, publicMediaAsset } from "@/lib/catalog-identity/public";
 import { buildProductGallery } from "@/lib/catalog/product-gallery";
 import { getMaterialClaims, materialMessages } from "@/lib/catalog/materials-collection";
@@ -94,6 +95,8 @@ type ProductDetail = {
   type_name: string | null;
   subtype_name: string | null;
   min_order_quantity: number;
+  shipping_profile: string;
+  delivery_unit_price: number | null;
   lead_time_days: number | null;
   is_customizable: boolean;
   product_images: ProductImage[] | null;
@@ -321,6 +324,8 @@ export default async function ProductDetailPage({
         type_name,
         subtype_name,
         min_order_quantity,
+        shipping_profile,
+        delivery_unit_price,
         lead_time_days,
         is_customizable,
         product_images (
@@ -577,6 +582,8 @@ export default async function ProductDetailPage({
           </ul>
         ) : null}
 
+        {product.shipping_profile === "christmas_hamper_2026" && <HamperDeliveryNotice locale={locale} unitPrice={product.delivery_unit_price} />}
+
         <ProductDirectPurchasePanel
           locale={locale}
   productId={product.id}
@@ -596,7 +603,7 @@ export default async function ProductDetailPage({
   material={product.material}
   dimensions={product.dimensions}
   weight={product.weight}
-  minimumQuantity={getEffectiveMinimumOrderQuantity(product.min_order_quantity)}
+  minimumQuantity={getEffectiveMinimumOrderQuantity(product.min_order_quantity, product.shipping_profile)}
   totalStock={getTotalStock(product)}
   isCustomizable={Boolean(product.product_customization_locations?.length)}
   prices={purchasePrices}

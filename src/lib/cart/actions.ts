@@ -34,6 +34,7 @@ type ProductForCart = {
   sku: string;
   name: string;
   min_order_quantity: number;
+  shipping_profile: string;
   product_prices: {
     variant_id: string | null;
     quantity_min: number;
@@ -608,6 +609,7 @@ export async function addToCartAction(
             sku,
             name,
             min_order_quantity,
+            shipping_profile,
             product_prices (
               variant_id,
               quantity_min,
@@ -632,7 +634,7 @@ export async function addToCartAction(
     }
 
     const minimumQuantity = getEffectiveMinimumOrderQuantity(
-      product.min_order_quantity,
+      product.min_order_quantity, product.shipping_profile,
     );
 
     if (quantity < minimumQuantity) {
@@ -816,6 +818,7 @@ export async function addToCartAction(
       calculateCartItemPricing({
         quantity,
         prices: activePrices,
+        minimumQuantity,
         selectedPrintingTechnique:
           customizationDraft
             ? null

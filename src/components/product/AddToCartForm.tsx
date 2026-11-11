@@ -87,10 +87,11 @@ export default function AddToCartForm({
     () =>
       calculateCartItemPricing({
         quantity,
+        minimumQuantity,
         prices,
         selectedPrintingTechnique: selectedTechnique,
       }),
-    [quantity, prices, selectedTechnique],
+    [quantity, prices, selectedTechnique, minimumQuantity],
   );
 
   return (

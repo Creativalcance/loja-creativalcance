@@ -1,5 +1,7 @@
 "use client";
 
+import HamperDeliveryNotice from "./HamperDeliveryNotice";
+import { hamperText } from "@/lib/checkout/hamper-copy";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { CalendarDays, Check, Truck } from "lucide-react";
 import {
@@ -9,7 +11,7 @@ import {
 import { SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
 import {
   calculateAmountUntilFreeShipping,
-  calculateShippingTotal,
+  type ShippingQuote,
   FREE_SHIPPING_THRESHOLD,
 } from "@/lib/checkout/shipping-pricing";
 
@@ -20,6 +22,7 @@ type CheckoutShippingFormProps = {
   cartId: string;
   currency: string;
   merchandiseTotal: number;
+  shippingQuote: ShippingQuote;
   initialShippingMethod: CheckoutShippingMethod | null;
   initialRequestedDeliveryDate: string;
   initialAcceptsDeliveryAfterDate: boolean;
@@ -92,6 +95,7 @@ export default function CheckoutShippingForm({
   cartId,
   currency,
   merchandiseTotal,
+  shippingQuote,
   initialShippingMethod,
   initialRequestedDeliveryDate,
   initialAcceptsDeliveryAfterDate,
@@ -334,9 +338,9 @@ export default function CheckoutShippingForm({
   const estimatedShippingPrice = useMemo(
     () =>
       shippingMethod === "store_transport"
-        ? calculateShippingTotal(merchandiseTotal)
+        ? shippingQuote.total
         : 0,
-    [merchandiseTotal, shippingMethod],
+    [shippingQuote.total, shippingMethod],
   );
 
   const estimatedTotal = useMemo(
@@ -405,6 +409,13 @@ export default function CheckoutShippingForm({
           {text.methodHint}
         </p>
 
+        {shippingQuote.hamperQuantity > 0 ? <>
+          <HamperDeliveryNotice locale={locale} quote={shippingQuote} />
+          <label className="flex items-start gap-3 rounded-xl border border-neutral-300 p-4 text-sm leading-6">
+            <input type="checkbox" name="hamperGroundFloorAccess" value="true" required className="mt-1 h-5 w-5 shrink-0" />
+            <span>{hamperText("access", locale)}</span>
+          </label>
+        </> : (
         <div
           className={`mt-5 rounded-2xl border px-4 py-3 text-sm font-medium ${amountUntilFreeShipping === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-900"}`}
         >
@@ -415,6 +426,7 @@ export default function CheckoutShippingForm({
                 formatPrice(amountUntilFreeShipping, currency, locale),
               )}
         </div>
+        )}
 
         <div className="mt-6 grid gap-4">
           <button

@@ -1,5 +1,8 @@
 "use server";
 
+import { calculateCartShipping, hasConfirmedHamperAccess, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
+import { hamperText } from "@/lib/checkout/hamper-copy";
+
 import { validateCartPricing } from "@/lib/checkout/validate-cart-pricing";
 import { assertStockAvailable } from "@/lib/commerce/check-stock";
 
@@ -20,7 +23,6 @@ import {
 import { getStrickerConfig } from "@/lib/stricker/config";
 import {
   calculateEligibleOrderTotal,
-  calculateShippingTotal,
 } from "@/lib/checkout/shipping-pricing";
 import {
   getCustomizationServiceCodeHints,
@@ -35,6 +37,7 @@ export type CheckoutPaymentActionState = {
 type JsonRecord = Record<string, unknown>;
 
 type CartItem = {
+  shipping_product: ProductShippingPolicy | null;
   id: string;
   product_id: string | null;
   variant_id: string | null;
@@ -418,6 +421,7 @@ export async function createPaymentCheckoutSessionAction(
             country_code
           ),
           cart_items (
+            shipping_product:products(shipping_profile,delivery_unit_price),
             id,
             product_id,
             variant_id,
@@ -661,7 +665,8 @@ export async function createPaymentCheckoutSessionAction(
 
     // Recalcular no servidor antes da cobrança evita portes desatualizados
     // quando os artigos mudam depois do passo de expedição.
-    const shippingTotal = calculateShippingTotal(eligibleOrderTotal);
+    const shippingQuote = calculateCartShipping(eligibleOrderTotal, cartItems);
+    const shippingTotal = shippingQuote.total;
 
     const taxableTotal = roundMoney(
       Math.max(0, eligibleOrderTotal + shippingTotal),
@@ -669,6 +674,12 @@ export async function createPaymentCheckoutSessionAction(
 
     const tax = assessCheckoutDestination(shippingAddress, cart.currency || "EUR");
     if (tax.status === "review") return { success: false, message: marketText(tax.reason, locale) };
+
+    if (shippingQuote.hamperQuantity > 0) {
+      if (tax.region !== "continental") return { success: false, message: hamperText("mainland", locale) };
+      if (!hasConfirmedHamperAccess(cart.metadata, cart.shipping_address_id))
+        return { success: false, message: hamperText("confirm", locale) };
+    }
 
     const taxTotal = roundMoney(taxableTotal * tax.rate);
     const grandTotal = roundMoney(taxableTotal + taxTotal);
@@ -766,6 +777,8 @@ export async function createPaymentCheckoutSessionAction(
         source: "checkout",
         cartId: cart.id,
         locale: getSiteLocale(typeof user.user_metadata?.preferred_locale === "string" ? user.user_metadata.preferred_locale : locale),
+        shippingQuote,
+        hamperDelivery: shippingQuote.hamperQuantity > 0 ? cart.metadata?.hamperDelivery : null,
         taxPolicyVersion: MARKET_POLICY_VERSION,
         taxCountry: tax.country,
         taxPostalCode: tax.postalCode,

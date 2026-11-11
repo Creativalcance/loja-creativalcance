@@ -1,3 +1,4 @@
+import { calculateCartShipping, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
 import { assessCheckoutDestination } from "@/lib/markets/policy";
 import ReviewNotice from "@/components/markets/ReviewNotice";
 import Link from "next/link";
@@ -23,6 +24,7 @@ import { getCurrentLocale } from "@/lib/i18n/server";
 export const dynamic = "force-dynamic";
 
 type CartItem = {
+  shipping_product: ProductShippingPolicy | null;
   id: string;
   product_name: string;
   quantity: number;
@@ -149,6 +151,7 @@ export default async function CheckoutShippingPage() {
           country_code
         ),
         cart_items (
+            shipping_product:products(shipping_profile,delivery_unit_price),
           id,
           product_name,
           quantity,
@@ -225,6 +228,9 @@ export default async function CheckoutShippingPage() {
       Number(cart.discount_total ?? 0),
   );
 
+  const shippingQuote = calculateCartShipping(merchandiseTotal, items);
+  if (shippingQuote.hamperQuantity > 0 && eligibility.region !== "continental")
+    return <ReviewNotice reason="hamperMainland" locale={locale} cartId={cart.id}/>;
   const address = cart.customer_addresses;
 
   return (
@@ -323,6 +329,7 @@ export default async function CheckoutShippingPage() {
               cartId={cart.id}
               currency={currency}
               merchandiseTotal={merchandiseTotal}
+              shippingQuote={shippingQuote}
               initialShippingMethod={cart.shipping_method}
               initialRequestedDeliveryDate={
                 cart.requested_delivery_date ?? ""

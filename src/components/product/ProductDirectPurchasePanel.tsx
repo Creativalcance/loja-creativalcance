@@ -1113,11 +1113,13 @@ function PurchasePanel({
       calculateCartItemPricing({
         quantity: selectedQuantity,
         prices: activePrices,
+        minimumQuantity,
         selectedPrintingTechnique: null,
       }),
     [
       selectedQuantity,
       activePrices,
+      minimumQuantity,
     ],
   );
 

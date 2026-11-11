@@ -4,7 +4,7 @@ import { normalizeCountryCode, normalizePortuguesePostalCode } from "./countries
 // This is NOT an OSS, chain-transaction, customs or exemption engine.
 // Country selection never grants an exemption or enables another market.
 export const MARKET_POLICY_VERSION = "pt-standard-postal-v1";
-export type ReviewReason = "invalidCountry" | "internationalReview" | "invalidPostal" | "currencyReview";
+export type ReviewReason = "hamperMainland" | "invalidCountry" | "internationalReview" | "invalidPostal" | "currencyReview";
 export type TaxDecision =
   | { status: "review"; reason: ReviewReason }
   | { status: "ready"; rate: number; region: "continental" | "madeira" | "acores"; label: string; country: "PT"; postalCode: string };

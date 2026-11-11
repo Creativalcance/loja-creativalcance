@@ -7,6 +7,7 @@ import {
   manualProductCommand,
   manualProductData,
   manualProductPrice,
+  manualProductLogistics,
 } from "@/lib/manual-products/validation";
 import { parseProductPhotos, parseProductPhotoSelection } from "@/lib/manual-products/photos";
 import { redirect } from "next/navigation";
@@ -34,15 +35,18 @@ export async function createManualProductAction(
   const slug = slugify(value(formData, "slug") || name);
   const categoryId = value(formData, "categoryId");
   const price = Number(value(formData, "price").replace(",", "."));
-  const minimum = Number(value(formData, "minOrderQuantity"));
+  const logistics = manualProductLogistics(formData);
+  const minimum = Number(value(formData, "minimum") || value(formData, "minOrderQuantity"));
   const stock = Number(value(formData, "stock"));
   const status = value(formData, "status") === "active" ? "active" : "draft";
   if (name.length < 2 || !sku || !slug || !categoryId)
     throw new Error("Preenche nome, SKU e categoria.");
   if (!Number.isFinite(price) || price <= 0)
     throw new Error("Indica um preço unitário válido.");
-  if (!Number.isInteger(minimum) || minimum < 10)
-    throw new Error("A quantidade mínima da loja é 10 unidades.");
+  if (!Number.isInteger(minimum) || minimum < (logistics.shipping_profile === "christmas_hamper_2026" ? 1 : 10))
+    throw new Error(logistics.shipping_profile === "christmas_hamper_2026"
+      ? "A quantidade mínima deve ser pelo menos 1 unidade."
+      : "A quantidade mínima da loja é 10 unidades.");
   if (!Number.isInteger(stock) || stock < minimum)
     throw new Error("O stock deve ser igual ou superior à quantidade mínima.");
   const admin = createSupabaseAdminClient();
@@ -57,6 +61,7 @@ export async function createManualProductAction(
       brand: value(formData, "brand") || null,
       material: value(formData, "material") || null,
       min_order_quantity: minimum,
+      ...logistics,
       lead_time_days: Number(value(formData, "leadTimeDays")) || null,
       seo_title: value(formData, "seoTitle") || null,
       seo_description: value(formData, "seoDescription") || null,
@@ -135,13 +140,16 @@ export async function manageManualProductAction(
   }
   if (operation === "edit") {
     let price: number;
+    let logistics = {};
     try {
       price = manualProductPrice(value(formData, "price"));
+      if (formData.has("shipping_profile")) logistics = manualProductLogistics(formData);
     } catch (error) {
       return { success: false, message: (error as Error).message };
     }
     const parsed = manualProductData.safeParse({
       ...Object.fromEntries(formData),
+      ...logistics,
       image_url: value(formData, "image_url"),
       price,
       minimum: Number(value(formData, "minimum")),

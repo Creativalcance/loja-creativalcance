@@ -15,6 +15,7 @@ export type PrintingTechniquePrice = {
 
 export type CartItemPricingInput = {
   quantity: number;
+  minimumQuantity?: number;
   prices: PriceTier[];
   selectedPrintingTechnique?: PrintingTechniquePrice | null;
 };
@@ -61,8 +62,9 @@ export function calculateCartItemPricing({
   quantity,
   prices,
   selectedPrintingTechnique,
+  minimumQuantity = GLOBAL_MINIMUM_ORDER_QUANTITY,
 }: CartItemPricingInput): CartItemPricingResult {
-  if (quantity > 0 && quantity < GLOBAL_MINIMUM_ORDER_QUANTITY) {
+  if (!Number.isInteger(quantity) || quantity < Math.max(1, minimumQuantity)) {
     return {
       currency: prices[0]?.currency ?? "EUR",
       unitPrice: 0,

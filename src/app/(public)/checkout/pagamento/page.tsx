@@ -1,3 +1,5 @@
+import HamperDeliveryNotice from "@/components/checkout/HamperDeliveryNotice";
+import { calculateCartShipping, hasConfirmedHamperAccess, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
 import CurrencyReference from "@/components/markets/CurrencyReference";
 import { assessCheckoutDestination } from "@/lib/markets/policy";
 import ReviewNotice from "@/components/markets/ReviewNotice";
@@ -19,12 +21,12 @@ import { localizePath, SITE_LOCALES } from "@/lib/i18n/config";
 import { getCurrentLocale } from "@/lib/i18n/server";
 import {
   calculateEligibleOrderTotal,
-  calculateShippingTotal,
 } from "@/lib/checkout/shipping-pricing";
 
 export const dynamic = "force-dynamic";
 
 type CartItem = {
+  shipping_product: ProductShippingPolicy | null;
   id: string;
   product_name: string;
   quantity: number;
@@ -71,6 +73,7 @@ type Cart = {
   shipping_method: string | null;
   shipping_method_name: string | null;
   requested_delivery_date: string | null;
+  metadata: Record<string, unknown> | null;
   tax_rate: number;
   tax_region: string | null;
   customer_addresses: ShippingAddress | null;
@@ -246,6 +249,7 @@ export default async function CheckoutPaymentPage() {
         company_tax_id,
         shipping_address_id,
         shipping_method,
+        metadata,
         shipping_method_name,
         requested_delivery_date,
         tax_rate,
@@ -262,6 +266,7 @@ export default async function CheckoutPaymentPage() {
           country_code
         ),
         cart_items (
+            shipping_product:products(shipping_profile,delivery_unit_price),
           id,
           product_name,
           quantity,
@@ -327,12 +332,17 @@ export default async function CheckoutPaymentPage() {
     discountTotal: Number(cart.discount_total ?? 0),
   });
 
-  const shippingTotal = calculateShippingTotal(eligibleOrderTotal);
+  const shippingQuote = calculateCartShipping(eligibleOrderTotal, items);
+  const shippingTotal = shippingQuote.total;
 
   const taxableTotal = Math.max(0, eligibleOrderTotal + shippingTotal);
 
   const tax = assessCheckoutDestination(address, currency);
   if (tax.status === "review") return <ReviewNotice reason={tax.reason} locale={locale} cartId={cart.id}/>;
+  if (shippingQuote.hamperQuantity > 0 && tax.region !== "continental")
+    return <ReviewNotice reason="hamperMainland" locale={locale} cartId={cart.id}/>;
+  if (shippingQuote.hamperQuantity > 0 && !hasConfirmedHamperAccess(cart.metadata, cart.shipping_address_id))
+    redirect(localizePath("/checkout/expedicao", locale));
   const taxRate = tax.rate;
   const taxTotal = Number((taxableTotal * taxRate).toFixed(2));
   const grandTotal = Number((taxableTotal + taxTotal).toFixed(2));
@@ -340,6 +350,7 @@ export default async function CheckoutPaymentPage() {
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
       <section className="mx-auto max-w-7xl">
+        {shippingQuote.hamperQuantity > 0 && <HamperDeliveryNotice locale={locale} quote={shippingQuote} />}
         <Link
           href={localizePath("/checkout/expedicao", locale)}
           className="inline-flex items-center text-sm font-medium text-neutral-500 transition hover:text-neutral-950"

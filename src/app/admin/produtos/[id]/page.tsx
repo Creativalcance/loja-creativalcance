@@ -22,7 +22,7 @@ export default async function EditManualProductPage({
   const result = await admin
     .from("products")
     .select(
-      "id,name,sku,slug,status,updated_at,deleted_at,short_description,description,brand,material,min_order_quantity,lead_time_days,seo_title,seo_description,is_featured",
+      "id,name,sku,slug,status,updated_at,deleted_at,short_description,description,brand,material,min_order_quantity,weight,dimensions,shipping_profile,delivery_unit_price,lead_time_days,seo_title,seo_description,is_featured",
     )
     .eq("id", id)
     .eq("catalog_source", "manual")

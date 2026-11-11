@@ -1,3 +1,4 @@
+import LogisticsFields from "./LogisticsFields";
 import PhotoEditForm from "./PhotoEditForm";
 import type { SavedProductPhoto } from "@/lib/manual-products/photos";
 import {
@@ -13,6 +14,10 @@ export type ManualProductEditData = ManualProductControlData & {
   brand: string | null;
   material: string | null;
   min_order_quantity: number;
+  weight: number | null;
+  dimensions: string | null;
+  shipping_profile: string;
+  delivery_unit_price: number | null;
   lead_time_days: number | null;
   seo_title: string | null;
   seo_description: string | null;
@@ -97,13 +102,9 @@ export default function ManualProductEditForm({
           required: true,
           inputMode: "decimal",
         })}
-        {field(
-          "Quantidade mínima",
-          "minimum",
-          product.min_order_quantity,
-          "number",
-          { required: true, min: 10, max: 1000000 },
-        )}
+        <LogisticsFields weight={product.weight} dimensions={product.dimensions}
+          minimum={product.min_order_quantity} shippingProfile={product.shipping_profile}
+          deliveryUnitPrice={product.delivery_unit_price} />
         <div>
           {field("Stock disponível", "stock", stock, "number", {
             required: true,

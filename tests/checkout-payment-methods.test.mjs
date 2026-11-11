@@ -20,19 +20,28 @@ function load(file, imports = {}) {
   return exports;
 }
 
-function harness({ stripeError = false } = {}) {
+function harness({ stripeError = false, hamperQuantity = 0, unitRate = 6, standardTotal = 0, postalCode = "3050-001", access = true, country = "PT" } = {}) {
   const requests = [], writes = [];
   const cart = {
     id: 'cart', user_id: 'owner', status: 'active', currency: 'EUR', discount_total: 0,
     customer_name: 'Checkout test', customer_email: 'checkout@example.test',
     shipping_address_id: 'address', shipping_method: 'store_transport',
-    customer_addresses: { country_code: 'PT', postal_code: '3050-001' },
+    customer_addresses: { country_code: country, postal_code: postalCode },
+    metadata: { hamperDelivery: { groundFloorAccess: access, addressId: 'address' } },
     cart_items: [{
       id: 'item', product_id: 'product', variant_id: 'variant', fulfillment_route: 'internal_360',
       product_name: 'Checkout test product', product_sku: 'TEST', quantity: 10,
       unit_price: 2, subtotal: 20, total: 20, personalization_required: false,
     }],
   };
+  if (hamperQuantity) {
+    cart.cart_items[0] = { ...cart.cart_items[0], variant_id: null,
+      quantity: hamperQuantity, unit_price: 20, subtotal: 20*hamperQuantity, total: 20*hamperQuantity,
+      shipping_product: { shipping_profile: 'christmas_hamper_2026', delivery_unit_price: unitRate } };
+    if (standardTotal) cart.cart_items.push({ ...cart.cart_items[0], id:'normal-item',
+      quantity:10, unit_price:standardTotal/10, subtotal:standardTotal,total:standardTotal,
+      shipping_product: { shipping_profile:'standard', delivery_unit_price:null } });
+  }
   const session = {
     id: 'cs_test_fixture', url: 'https://checkout.stripe.com/c/pay/cs_test_fixture',
     payment_intent: null, expires_at: 1791374400,
@@ -76,6 +85,7 @@ function harness({ stripeError = false } = {}) {
     '@/lib/i18n/config': load('src/lib/i18n/config.ts'),
     '@/lib/stricker/config': { getStrickerConfig: () => ({ orderTestMode: true }) },
     '@/lib/checkout/shipping-pricing': load('src/lib/checkout/shipping-pricing.ts'),
+    '@/lib/checkout/hamper-copy': load('src/lib/checkout/hamper-copy.ts'),
     '@/lib/stricker/resolve-customization-service-code': {},
   });
   async function run() {
@@ -119,4 +129,30 @@ test('Stripe failure does not redirect or record a payment session', async () =>
   assert.equal(result.success, false);
   assert.match(result.message, /Stripe unavailable/);
   assert.equal(h.writes.some(write => write.name === 'record_checkout_payment'), false);
+});
+
+test('hamper checkout sends the table shipping and 23% VAT to Stripe at every boundary', async () => {
+ for (const [hamperQuantity, shipping, expectedCents] of [[1,6,3198],[9,54,28782],[10,40,29520],[24,40,63960],[25,0,61500]]) {
+  const h=harness({hamperQuantity});
+  await assert.rejects(h.run(), error=>error.url===h.session.url);
+  const order=h.writes.find(w=>w.name==='prepare_checkout_order').payload.p_order;
+  assert.equal(order.shipping_total,shipping);
+  assert.equal(order.metadata.taxRate,0.23);
+  assert.equal(h.requests[0].params.line_items.reduce((n,item)=>n+item.quantity*item.price_data.unit_amount,0),expectedCents);
+ }
+});
+test('mixed cart retains standard shipping independently of hamper value',async()=>{
+ const h=harness({hamperQuantity:1,standardTotal:40});
+ await assert.rejects(h.run(),error=>error.url===h.session.url);
+ assert.equal(h.writes[0].payload.p_order.shipping_total,10.9);
+ assert.equal(h.requests[0].params.line_items.reduce((n,item)=>n+item.quantity*item.price_data.unit_amount,0),8721);
+});
+test('hamper checkout refuses islands, other countries and unconfirmed access before creating payment or order',async()=>{
+ for(const options of [{postalCode:'9000-001'},{postalCode:'9500-001'},{country:'ES'},{access:false},{unitRate:null}]) {
+  const h=harness({hamperQuantity:1,...options});
+  const result=await h.run();
+  assert.equal(result.success,false);
+  assert.equal(h.requests.length,0);
+  assert.equal(h.writes.length,0);
+ }
 });

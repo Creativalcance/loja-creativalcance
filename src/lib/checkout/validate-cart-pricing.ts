@@ -20,15 +20,16 @@ export async function validateCartPricing(items: Item[], currency: string, disco
   const changed = () => new Error("Os preços do carrinho precisam de ser atualizados. Remove e volta a adicionar os artigos antes de continuar.");
   for (const item of items) {
     const { data: product, error } = await admin.from("products")
-      .select("id,supplier_id,min_order_quantity,product_prices(variant_id,quantity_min,quantity_max,final_price,currency)")
+      .select("id,supplier_id,min_order_quantity,shipping_profile,product_prices(variant_id,quantity_min,quantity_max,final_price,currency)")
       .eq("id", item.product_id).single();
     if (error || !product) throw new Error("Não foi possível confirmar os preços atuais.");
-    if (item.quantity < getEffectiveMinimumOrderQuantity(product.min_order_quantity)) throw changed();
+    const minimumQuantity = getEffectiveMinimumOrderQuantity(product.min_order_quantity, product.shipping_profile);
+    if (item.quantity < minimumQuantity) throw changed();
     const allPrices = product.product_prices ?? [];
     const variantPrices = item.variant_id ? allPrices.filter(p => p.variant_id === item.variant_id) : [];
     const basePrices = allPrices.filter(p => !p.variant_id);
     const prices = variantPrices.length ? variantPrices : basePrices.length ? basePrices : allPrices;
-    const pricing = calculateCartItemPricing({ quantity: item.quantity, prices });
+    const pricing = calculateCartItemPricing({ quantity: item.quantity, prices, minimumQuantity });
     if (pricing.unitPrice <= 0 || pricing.currency !== currency) throw changed();
     let personalization = 0; let setup = 0; let extras = 0;
     if (item.customization_draft_id) {

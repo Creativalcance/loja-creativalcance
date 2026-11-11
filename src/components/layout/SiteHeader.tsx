@@ -1,3 +1,4 @@
+import { hamperText } from "@/lib/checkout/hamper-copy";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, ShoppingCart, Sparkles } from "lucide-react";
@@ -31,6 +32,7 @@ export default async function SiteHeader({
           className="block bg-[#e85f00] px-4 py-2 text-center text-xs font-semibold text-white transition hover:bg-[#d95600] sm:text-sm"
         >
           {freeShippingMessage}
+          <span className="ml-2 text-[10px] font-normal sm:text-xs">· {hamperText("exception", locale)}</span>
         </Link>
       ) : null}
       <div className="mx-auto flex h-[4.75rem] max-w-7xl items-center justify-between gap-2 px-4 sm:gap-4 sm:px-6">

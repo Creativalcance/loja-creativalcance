@@ -2,6 +2,7 @@ export const GLOBAL_MINIMUM_ORDER_QUANTITY = 10;
 
 export function getEffectiveMinimumOrderQuantity(
   supplierMinimum: number | null | undefined,
+  shippingProfile?: string | null,
 ): number {
   const normalizedSupplierMinimum =
     typeof supplierMinimum === "number" &&
@@ -11,7 +12,7 @@ export function getEffectiveMinimumOrderQuantity(
       : 1;
 
   return Math.max(
-    GLOBAL_MINIMUM_ORDER_QUANTITY,
+    shippingProfile === "christmas_hamper_2026" ? 1 : GLOBAL_MINIMUM_ORDER_QUANTITY,
     normalizedSupplierMinimum,
   );
 }

@@ -2,6 +2,7 @@ import { assertAdminAccess } from "@/lib/auth/assert-admin";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import LogisticsFields from "@/components/admin/manual-products/LogisticsFields";
 import ProductCreationForm from "./ProductCreationForm";
 
 export const dynamic = "force-dynamic";
@@ -94,17 +95,7 @@ export default async function NewManualProductPage() {
               placeholder="9,90"
             />
           </label>
-          <label className={label}>
-            Quantidade mínima
-            <input
-              className={input}
-              name="minOrderQuantity"
-              type="number"
-              min={10}
-              defaultValue={10}
-              required
-            />
-          </label>
+          <LogisticsFields />
           <label className={label}>
             Stock disponível
             <input

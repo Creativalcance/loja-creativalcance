@@ -1,3 +1,5 @@
+import HamperDeliveryNotice from "@/components/checkout/HamperDeliveryNotice";
+import { calculateCartShipping, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowLeft, ShoppingCart } from "lucide-react";
@@ -14,6 +16,7 @@ import {
 } from "@/lib/checkout/shipping-pricing";
 
 type CartItem = {
+  shipping_product: ProductShippingPolicy | null;
   id: string;
   product_id: string | null;
   product_sku: string;
@@ -91,6 +94,7 @@ export default async function CartPage() {
           grand_total,
           currency,
           cart_items (
+            shipping_product:products(shipping_profile,delivery_unit_price),
             id,
             product_id,
             product_sku,
@@ -132,6 +136,7 @@ export default async function CartPage() {
     setupAndExtrasTotal: Number(cart?.setup_total ?? 0),
     discountTotal: Number(cart?.discount_total ?? 0),
   });
+  const shippingQuote = calculateCartShipping(eligibleOrderTotal, cartItems);
   const amountUntilFreeShipping =
     calculateAmountUntilFreeShipping(eligibleOrderTotal);
 
@@ -239,6 +244,7 @@ export default async function CartPage() {
                 {labels.cart.summary}
               </h2>
 
+              {shippingQuote.hamperQuantity > 0 ? <HamperDeliveryNotice locale={locale} quote={shippingQuote} /> : (
               <div
                 className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${amountUntilFreeShipping === 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-orange-200 bg-orange-50 text-orange-900"}`}
               >
@@ -258,6 +264,7 @@ export default async function CartPage() {
                   {labels.cart.freeShipping}
                 </p>
               </div>
+              )}
 
               <div className="mt-6 space-y-3 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">

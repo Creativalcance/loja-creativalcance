@@ -1,12 +1,13 @@
 "use server";
 
 import { assessCheckoutDestination } from "@/lib/markets/policy";
+import { hamperText } from "@/lib/checkout/hamper-copy";
 import { marketText } from "@/lib/markets/i18n";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getSiteLocale, localizePath } from "@/lib/i18n/config";
-import { calculateShippingTotal } from "@/lib/checkout/shipping-pricing";
+import { calculateCartShipping, type ShippingLine } from "@/lib/checkout/shipping-pricing";
 
 export type CheckoutShippingActionState = {
   success: boolean;
@@ -16,6 +17,7 @@ export type CheckoutShippingActionState = {
 type ShippingMethod = "store_transport";
 
 type CartRecord = {
+  cart_items: ShippingLine[] | null;
   id: string;
   user_id: string | null;
   status: string;
@@ -133,7 +135,7 @@ function getMetadataRecord(
 
 function calculateShipping(params: {
   method: ShippingMethod;
-  merchandiseTotal: number;
+  shippingTotal: number;
 }): ShippingCalculation {
   return {
     method: "store_transport",
@@ -142,7 +144,7 @@ function calculateShipping(params: {
     originCountryCode: "PT",
     estimatedDaysMin: 1,
     estimatedDaysMax: 3,
-    shippingTotal: calculateShippingTotal(params.merchandiseTotal),
+    shippingTotal: params.shippingTotal,
   };
 }
 
@@ -228,7 +230,8 @@ export async function saveCheckoutShippingAction(
             tax_total,
             grand_total,
             shipping_address_id,
-            metadata
+            metadata,
+            cart_items(quantity,total,shipping_product:products(shipping_profile,delivery_unit_price))
           `,
         )
         .eq("id", cartId)
@@ -264,9 +267,15 @@ export async function saveCheckoutShippingAction(
           Number(cart.discount_total ?? 0),
       );
 
+      const quote = calculateCartShipping(merchandiseTotal, cart.cart_items ?? []);
+      const groundFloorAccess = getBoolean(formData, "hamperGroundFloorAccess");
+      if (quote.hamperQuantity > 0) {
+        if (eligibility.region !== "continental") return { success: false, message: hamperText("mainland", locale) };
+        if (!groundFloorAccess) return { success: false, message: hamperText("confirm", locale) };
+      }
       const shipping = calculateShipping({
         method: requestedShippingMethod,
-        merchandiseTotal,
+        shippingTotal: quote.total,
       });
 
       const totalBeforeTax = roundMoney(
@@ -313,11 +322,12 @@ export async function saveCheckoutShippingAction(
           shipping_completed_at: completedAt,
           metadata: {
             ...currentMetadata,
+            hamperDelivery: quote.hamperQuantity > 0 ? { groundFloorAccess, addressId: cart.shipping_address_id, confirmedAt: completedAt } : null,
             checkout: {
               ...currentCheckoutMetadata,
               shippingCompleted: true,
               shippingCompletedAt: completedAt,
-              shippingPricingStatus: "free_over_50",
+              shippingPricingStatus: quote.hamperQuantity > 0 ? "christmas_hamper_2026" : "free_over_50",
             },
           },
         })
