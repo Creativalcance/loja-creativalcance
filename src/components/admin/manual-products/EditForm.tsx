@@ -1,4 +1,5 @@
-import ProductActionForm from "./ActionForm";
+import PhotoEditForm from "./PhotoEditForm";
+import type { SavedProductPhoto } from "@/lib/manual-products/photos";
 import {
   ProductCommandFields,
   type ManualProductControlData,
@@ -25,14 +26,14 @@ export default function ManualProductEditForm({
   categoryId,
   price,
   stock,
-  imageUrl,
+  photos,
 }: {
   product: ManualProductEditData;
   categories: { id: string; name: string; is_active: boolean }[];
   categoryId: string;
   price: number;
   stock: number;
-  imageUrl: string;
+  photos: SavedProductPhoto[];
 }) {
   const field = (
     label: string,
@@ -53,10 +54,7 @@ export default function ManualProductEditForm({
     </label>
   );
   return (
-    <ProductActionForm
-      submit="Guardar alterações"
-      className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm"
-    >
+    <PhotoEditForm initialPhotos={photos}>
       <ProductCommandFields product={product} operation="edit" />
       <div className="grid gap-5 md:grid-cols-2">
         {field("Nome", "name", product.name, "text", {
@@ -142,12 +140,6 @@ export default function ManualProductEditForm({
           />
           Apresentar em destaque
         </label>
-        <div className="md:col-span-2">
-          {field("URL da imagem principal", "image_url", imageUrl, "url")}
-          <p className="mt-2 text-xs text-neutral-500">
-            Deixa vazio para retirar a imagem principal.
-          </p>
-        </div>
         {field("Marca", "brand", product.brand)}
         {field("Material", "material", product.material)}
         <label className="text-sm font-semibold md:col-span-2">
@@ -171,6 +163,6 @@ export default function ManualProductEditForm({
         {field("Título SEO", "seo_title", product.seo_title)}
         {field("Descrição SEO", "seo_description", product.seo_description)}
       </div>
-    </ProductActionForm>
+    </PhotoEditForm>
   );
 }

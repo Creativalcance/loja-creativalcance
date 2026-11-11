@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectProductPhoto, parseProductPhotos } from '../src/lib/manual-products/photos.ts';
+import { detectProductPhoto, parseProductPhotos, parseProductPhotoSelection } from '../src/lib/manual-products/photos.ts';
 const origin='https://example.supabase.co';
 const user='11111111-1111-4111-8111-111111111111';
 const url=`${origin}/storage/v1/object/public/product-360-photos/${user}/22222222-2222-4222-8222-222222222222.png`;
@@ -19,4 +19,12 @@ test('empty galleries preserve legacy URL flow; duplicates and oversized galleri
  assert.throws(()=>parseProductPhotos(JSON.stringify([url,url]),origin,user));
  assert.throws(()=>parseProductPhotos(JSON.stringify(Array(11).fill(url)),origin,user));
  assert.throws(()=>parseProductPhotos('{}',origin,user));
+});
+
+test('edit gallery preserves IDs and featured order, including photos from older uploads',()=>{
+ const selection=[{url},{id:user},{externalUrl:'https://example.invalid/photo.png'}];
+ assert.deepEqual(parseProductPhotoSelection(JSON.stringify(selection),origin,user),selection);
+ assert.deepEqual(parseProductPhotoSelection('[]',origin,user),[]);
+ for(const invalid of ['null','{}','invalid',JSON.stringify([{id:user,url}]),JSON.stringify([{id:user},{id:user}]),JSON.stringify([{id:'invalid'}]),JSON.stringify([{url:url.replace(user,'33333333-3333-4333-8333-333333333333')}]),JSON.stringify([{externalUrl:'javascript:alert(1)'}]),JSON.stringify([{externalUrl:'https://user:password@example.invalid/photo.png'}])])
+  assert.throws(()=>parseProductPhotoSelection(invalid,origin,user));
 });

@@ -8,7 +8,7 @@ import {
   manualProductData,
   manualProductPrice,
 } from "@/lib/manual-products/validation";
-import { parseProductPhotos } from "@/lib/manual-products/photos";
+import { parseProductPhotos, parseProductPhotoSelection } from "@/lib/manual-products/photos";
 import { redirect } from "next/navigation";
 
 function value(formData: FormData, key: string): string {
@@ -142,6 +142,7 @@ export async function manageManualProductAction(
     }
     const parsed = manualProductData.safeParse({
       ...Object.fromEntries(formData),
+      image_url: value(formData, "image_url"),
       price,
       minimum: Number(value(formData, "minimum")),
       stock:
@@ -156,6 +157,13 @@ export async function manageManualProductAction(
     if (!parsed.success)
       return { success: false, message: parsed.error.issues[0].message };
     data = parsed.data;
+    if (formData.has("photos")) {
+      try {
+        data.photos = parseProductPhotoSelection(value(formData, "photos"), process.env.NEXT_PUBLIC_SUPABASE_URL!, userId);
+      } catch (error) {
+        return { success: false, message: (error as Error).message };
+      }
+    }
   } else if (operation === "status") {
     const parsed = manualProductData.shape.status.safeParse(
       value(formData, "status"),

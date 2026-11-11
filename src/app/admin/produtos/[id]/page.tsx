@@ -50,12 +50,14 @@ export default async function EditManualProductPage({
         .eq("product_id", id),
       admin
         .from("product_images")
-        .select("external_url,storage_url")
+        .select("id,external_url,storage_url,alt_text")
         .eq("product_id", id)
         .is("variant_id", null)
-        .eq("is_primary", true)
+        .is("supplier_id", null)
+        .in("image_type", ["main", "gallery", "manual", "box"])
+        .order("is_primary", { ascending: false })
         .order("sort_order")
-        .limit(1),
+        .order("id"),
       admin
         .from("manual_product_changes")
         .select("id,action,created_at")
@@ -138,11 +140,11 @@ export default async function EditManualProductPage({
               categoryId={mappings.data?.[0]?.category_id ?? ""}
               price={Number(price?.final_price ?? 0)}
               stock={stock?.available_quantity ?? 0}
-              imageUrl={
-                images.data?.[0]?.storage_url ??
-                images.data?.[0]?.external_url ??
-                ""
-              }
+              photos={(images.data ?? []).map((image, index) => ({
+                id: image.id,
+                url: image.storage_url ?? image.external_url ?? "",
+                label: image.alt_text || `Fotografia ${index + 1}`,
+              }))}
             />
           ) : (
             <section className="rounded-3xl border bg-white p-6">

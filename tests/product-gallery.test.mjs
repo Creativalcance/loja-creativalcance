@@ -73,3 +73,14 @@ test('empty/single-image products and missing-colour images have safe fallbacks'
   assert.equal(selectGalleryImages(images, 'code:999', null, false).length, 1);
   assert.equal(buildProductGallery({ sku: '1', allImageList: {}, images: [], variants: [] }).length, 0);
 });
+
+test('manual featured photo leads the storefront gallery regardless of incoming row order', () => {
+ const selected='https://example.supabase.co/storage/v1/object/public/product-360-photos/selected.png';
+ const gallery=buildProductGallery({sku:'360-MANUAL',allImageList:null,variants:[],images:[
+  {external_url:'https://example.invalid/old.png',storage_url:null,image_type:'gallery',sort_order:1,is_primary:false},
+  {external_url:selected,storage_url:selected,image_type:'main',sort_order:0,is_primary:true},
+ ]});
+ assert.equal(gallery[0].url,selected);
+ assert.equal(selectGalleryImages(gallery,null,null,false)[0].url,selected);
+ assert.equal(gallery.length,2);
+});

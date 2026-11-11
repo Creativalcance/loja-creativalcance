@@ -5,6 +5,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import { z } from "zod";
 import React from "react";
+import * as photoRules from "../src/lib/manual-products/photos.ts";
 import * as jsx from "react/jsx-runtime";
 import { renderToStaticMarkup } from "react-dom/server";
 function load(file, imports = {}) {
@@ -26,6 +27,7 @@ function load(file, imports = {}) {
       Intl,
       Date,
       console,
+      process: { env: { NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co" } },
       require: (name) => {
         if (!(name in imports)) throw Error(`Unexpected import ${name}`);
         return imports[name];
@@ -95,6 +97,7 @@ function harness({ authorized = true, error = null } = {}) {
       }),
     },
     "@/lib/manual-products/validation": rules,
+    "@/lib/manual-products/photos": photoRules,
   });
   return {
     run: (f) =>
@@ -231,10 +234,18 @@ test("manual controls expose edit, all four states and explicit confirmation; de
   assert.ok(!deleted.includes('value="delete"'));
   assert.ok(!deleted.includes("Editar produto"));
 });
-test("edit form retains current price, zero stock, image and descriptions", () => {
+const PhotoEditForm = load("src/components/admin/manual-products/PhotoEditForm.tsx", {
+  "react/jsx-runtime": jsx,
+  react: React,
+  "next/image": ({ unoptimized, ...props }) => React.createElement("img", props),
+  "@/app/admin/produtos/actions": { manageManualProductAction: () => {} },
+  "@/app/admin/produtos/photo-actions": { uploadManualProductPhoto: () => {} },
+  "@/lib/manual-products/photos": photoRules,
+}).default;
+test("edit form retains current data, all photos, upload control and featured selection", () => {
   const Edit = load("src/components/admin/manual-products/EditForm.tsx", {
     "react/jsx-runtime": jsx,
-    "./ActionForm": ActionForm,
+    "./PhotoEditForm": PhotoEditForm,
     "./Controls": controls,
     "@/lib/manual-products/validation": rules,
   }).default;
@@ -254,7 +265,10 @@ test("edit form retains current price, zero stock, image and descriptions", () =
       categoryId: id,
       price: 3.25,
       stock: 0,
-      imageUrl: "https://example.invalid/current.png",
+      photos: [
+        { id, url: "https://example.invalid/current.png", label: "Imagem atual" },
+        { id: adminId, url: "https://example.invalid/second.png", label: "Segunda imagem" },
+      ],
     }),
   );
   for (const text of [
@@ -264,12 +278,19 @@ test("edit form retains current price, zero stock, image and descriptions", () =
     "Resumo atual",
     "Categoria atual",
     "https://example.invalid/current.png",
+    "https://example.invalid/second.png",
+    "Carregar fotografias",
+    "Fotografia de destaque",
+    "Definir como destaque",
     "3.25",
     "Guardar alterações",
   ])
     assert.ok(html.includes(text));
   assert.match(html, /name="stock"[^>]*value="0"/);
   assert.match(html, /name="expectedVersion"/);
+  assert.match(html, /type="file"[^>]*multiple/);
+  assert.equal((html.match(/aria-pressed="true"/g) ?? []).length, 1);
+  assert.equal((html.match(/<form/g) ?? []).length, 1);
 });
 
 test("admin listing makes manual actions visible and preserves source/deleted filters across pages", async () => {
@@ -375,5 +396,20 @@ test("admin listing makes manual actions visible and preserves source/deleted fi
       html.indexOf("Ações</th>") < html.indexOf("SKU</th>"),
       "Manual controls should not be hidden at the far end of the table",
     );
+  }
+});
+
+test("gallery edit sends the featured image first and keeps legacy callers working", async () => {
+  const h = harness();
+  const upload = `https://example.supabase.co/storage/v1/object/public/product-360-photos/${adminId}/22222222-2222-4222-8222-222222222222.png`;
+  const photos = [{ url: upload }, { id }];
+  const result = await h.run(form("edit", { ...fields, photos: JSON.stringify(photos) }));
+  assert.equal(result.success, true);
+  assert.deepEqual(h.calls[0].args.p_data.photos, photos);
+  assert.equal(h.calls[0].name, "manage_manual_product");
+  for (const bad of ["not json", JSON.stringify([{ id }, { id }]), JSON.stringify([{ url: upload.replace(adminId, id) }])]) {
+    const invalid = harness();
+    assert.equal((await invalid.run(form("edit", { ...fields, photos: bad }))).success, false);
+    assert.equal(invalid.calls.length, 0);
   }
 });
