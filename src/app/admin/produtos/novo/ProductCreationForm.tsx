@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import Image from "next/image";
-import { createManualProductAction } from "../actions";
+import { createManualProductAction, validateManualProductCreationAction, type ManualProductCreationConflict } from "../actions";
 import { uploadManualProductPhoto } from "../photo-actions";
 import { MAX_PHOTO_BYTES, MAX_PRODUCT_PHOTOS } from "@/lib/manual-products/photos";
 
@@ -13,6 +13,7 @@ export default function ProductCreationForm({ children }: { children: ReactNode 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [conflicts, setConflicts] = useState<ManualProductCreationConflict[]>([]);
   const previews = useRef(new Set<string>());
   const submitting = useRef(false);
   useEffect(() => {
@@ -23,8 +24,14 @@ export default function ProductCreationForm({ children }: { children: ReactNode 
   async function submit(formData: FormData) {
     if (submitting.current) return;
     submitting.current = true;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setConflicts([]);
     try {
+      setMessage("A verificar os dados do produto…");
+      const validation = await validateManualProductCreationAction(formData);
+      if (!validation.success) {
+        setError(validation.message); setConflicts(validation.conflicts ?? []);
+        return;
+      }
       const urls: string[] = [];
       for (const [index, photo] of photos.entries()) {
         setMessage(`A carregar fotografia ${index + 1} de ${photos.length}…`);
@@ -32,7 +39,7 @@ export default function ProductCreationForm({ children }: { children: ReactNode 
         if (!url) {
           const upload = new FormData(); upload.set("photo", photo.file);
           const result = await uploadManualProductPhoto(upload);
-          if (!result.url) throw new Error(result.error || "Falhou o carregamento da fotografia.");
+          if (!result.url) { setError(result.error || "Falhou o carregamento da fotografia."); return; }
           url = result.url;
           setPhotos(current => current.map(item => item.id === photo.id ? { ...item, uploaded: url } : item));
         }
@@ -40,11 +47,14 @@ export default function ProductCreationForm({ children }: { children: ReactNode 
       }
       formData.set("imageUrls", JSON.stringify(urls));
       setMessage("A guardar produto…");
-      await createManualProductAction(formData);
+      const result = await createManualProductAction(formData);
+      if (result && !result.success) {
+        setError(result.message); setConflicts(result.conflicts ?? []);
+      }
     } catch (cause) {
       // Preserve Next's successful redirect; only display actual action failures.
       if (cause instanceof Error && cause.message === "NEXT_REDIRECT") throw cause;
-      setError(cause instanceof Error ? cause.message : "Não foi possível guardar. Tenta novamente.");
+      setError("Não foi possível concluir o pedido. Os dados e as fotografias mantêm-se no formulário; tenta novamente.");
     } finally {
       submitting.current = false; setBusy(false); setMessage("");
     }
@@ -87,7 +97,17 @@ export default function ProductCreationForm({ children }: { children: ReactNode 
         </div>
       </section>
       <div className="md:col-span-2">
-        {error ? <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
+        {error ? <div role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">
+          <p>{error}</p>
+          {conflicts.length > 0 && <ul className="mt-3 space-y-3">
+            {conflicts.map(conflict => <li key={conflict.field}>
+              <p>{conflict.field === "sku" ? "SKU" : "URL amigável"}: {conflict.name}{conflict.deleted ? " (eliminado)" : ""}.</p>
+              {conflict.href && <a href={conflict.href} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block font-semibold underline">
+                {conflict.deleted ? "Abrir produto para restaurar" : "Abrir produto existente"} (nova aba)
+              </a>}
+            </li>)}
+          </ul>}
+        </div> : null}
         <p role="status" aria-live="polite" className="mb-3 text-sm text-neutral-600">{message}</p>
         <button type="submit" className="rounded-2xl bg-orange-600 px-6 py-3 font-semibold text-white disabled:opacity-50">{busy ? "A guardar…" : "Criar produto"}</button>
       </div>
