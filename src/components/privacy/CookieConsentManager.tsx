@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import GoogleAnalyticsTag from "@/components/analytics/GoogleAnalyticsTag";
+import MetaPixelTag from "@/components/analytics/MetaPixelTag";
+import { revokeMetaPixelConsent } from "@/lib/analytics/meta-pixel";
 import { localizePath, type SiteLocale } from "@/lib/i18n/config";
 
 const COOKIE_NAME = "cookie-consent-v1";
@@ -84,6 +86,7 @@ export default function CookieConsentManager({ locale }: { locale: SiteLocale })
       updatedAt: new Date().toISOString(),
     };
     document.cookie = `${COOKIE_NAME}=${encodeURIComponent(JSON.stringify(next))}; Path=/; Max-Age=${MAX_AGE}; SameSite=Lax; Secure`;
+    if (!next.marketing) revokeMetaPixelConsent();
     updateGoogleConsent(next.analytics);
     setPreferences(next);
     window.dispatchEvent(new CustomEvent("cookie-consent-updated", { detail: next }));
@@ -93,6 +96,7 @@ export default function CookieConsentManager({ locale }: { locale: SiteLocale })
 
   return (
     <>
+      <MetaPixelTag consentGranted={preferences?.marketing === true} />
       {preferences?.analytics ? <GoogleAnalyticsTag /> : null}
       {!preferences ? (
         <div className="fixed inset-x-0 bottom-0 z-[100] p-3 sm:p-5" role="dialog" aria-modal="true" aria-labelledby="cookie-title">
