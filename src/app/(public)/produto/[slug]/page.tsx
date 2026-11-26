@@ -582,8 +582,6 @@ export default async function ProductDetailPage({
           </ul>
         ) : null}
 
-        {product.shipping_profile === "christmas_hamper_2026" && <HamperDeliveryNotice locale={locale} unitPrice={product.delivery_unit_price} />}
-
         <ProductDirectPurchasePanel
           locale={locale}
   productId={product.id}
@@ -612,6 +610,14 @@ export default async function ProductDetailPage({
   futureStocks={purchaseFutureStocks}
   customizationDraft={customizationDraft}
 />
+
+        {product.shipping_profile === "christmas_hamper_2026" && (
+          <HamperDeliveryNotice
+            locale={locale}
+            unitPrice={product.delivery_unit_price}
+            variant="subtle"
+          />
+        )}
       </section>
 
       <script
