@@ -24,41 +24,12 @@ type CategoryProductsPageProps = {
   }>;
 };
 
-type SubtypeRow = {
-  id: string;
-  subtype_name: string | null;
-};
-
-type CatalogSubcategory = { sourceName: string; name: string };
-
 function sanitizeCategoryValue(value: string): string {
   return decodeURIComponent(value)
     .trim()
     .replace(/[<>]/g, "")
     .replace(/\s+/g, " ")
     .slice(0, 100);
-}
-
-function getSubcategories(
-  rows: SubtypeRow[],
-  translations: Map<string, LocalizedProductText>,
-): CatalogSubcategory[] {
-  const grouped = new Map<string, Map<string, number>>();
-  for (const row of rows) {
-    const sourceName = row.subtype_name?.trim();
-    if (!sourceName) continue;
-    const localizedName = translations.get(row.id)?.subtypeName?.trim() ?? sourceName;
-    const counts = grouped.get(sourceName) ?? new Map<string, number>();
-    counts.set(localizedName, (counts.get(localizedName) ?? 0) + 1);
-    grouped.set(sourceName, counts);
-  }
-
-  return [...grouped.entries()]
-    .map(([sourceName, counts]) => ({
-      sourceName,
-      name: [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? sourceName,
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 function applyTranslation(
@@ -87,21 +58,21 @@ export default async function CategoryProductsPage({
   const seoContent = buildCategorySeoContent(categoryName, locale);
   const copy = (locale === "es" ? ({
     back: "Volver a las categor\u00EDas", category: "Categor\u00EDa", search: "Buscar productos",
-    subcategories: "Subcategor\u00EDas", productCount: (count: number) => `${count.toLocaleString("es-ES")} producto${count === 1 ? "" : "s"}`,
+    productCount: (count: number) => `${count.toLocaleString("es-ES")} producto${count === 1 ? "" : "s"}`,
     loadError: "No se han podido cargar los productos de esta categor\u00EDa. Int\u00E9ntalo de nuevo.", emptyTitle: "No hay productos en esta categor\u00EDa",
     emptyText: "Comprueba que haya productos activos asignados a esta categor\u00EDa.", explore: "Explorar por necesidad",
     exploreTitle: "M\u00E1s all\u00E1 de las categor\u00EDas", exploreText: "Explora soluciones por presupuesto y cantidad, aplicaciones como kits de bienvenida y eventos, o p\u00E1ginas para sectores espec\u00EDficos.",
     solutions: "Soluciones", applications: "Casos de uso", industries: "Sectores", breadcrumb: "Categor\u00EDas",
 }) : locale === "de" ? ({
     back: "Zur\u00FCck zu den Kategorien", category: "Kategorie", search: "Produkte suchen",
-    subcategories: "Unterkategorien", productCount: (count: number) => `${count.toLocaleString("de-DE")} Produkt${count === 1 ? "" : "e"}`,
+    productCount: (count: number) => `${count.toLocaleString("de-DE")} Produkt${count === 1 ? "" : "e"}`,
     loadError: "Die Produkte dieser Kategorie konnten nicht geladen werden. Bitte versuchen Sie es erneut.", emptyTitle: "Keine Produkte in dieser Kategorie",
     emptyText: "Pr\u00FCfen Sie, ob dieser Kategorie aktive Produkte zugeordnet sind.", explore: "Nach Bedarf entdecken",
     exploreTitle: "\u00DCber Kategorien hinaus", exploreText: "Entdecken Sie L\u00F6sungen nach Budget und Menge, Anwendungen wie Willkommenspakete und Veranstaltungen oder Seiten f\u00FCr bestimmte Branchen.",
     solutions: "L\u00F6sungen", applications: "Anwendungsf\u00E4lle", industries: "Branchen", breadcrumb: "Kategorien",
 }) : locale === "it" ? ({
     back: "Torna alle categorie", category: "Categoria", search: "Cerca prodotti",
-    subcategories: "Sottocategorie", productCount: (count: number) => `${count.toLocaleString("it-IT")} prodott${count === 1 ? "o" : "i"}`,
+    productCount: (count: number) => `${count.toLocaleString("it-IT")} prodott${count === 1 ? "o" : "i"}`,
     loadError: "Impossibile caricare i prodotti di questa categoria. Riprova.", emptyTitle: "Nessun prodotto in questa categoria",
     emptyText: "Verifica che ci siano prodotti attivi assegnati a questa categoria.", explore: "Esplora per esigenza",
     exploreTitle: "Oltre le categorie", exploreText: "Esplora soluzioni per budget e quantit\u00E0, applicazioni come kit di benvenuto ed eventi o pagine dedicate a settori specifici.",
@@ -109,7 +80,7 @@ export default async function CategoryProductsPage({
 }) : locale === "en"
     ? {
         back: "Back to categories", category: "Category", search: "Search products",
-        subcategories: "Subcategories", productCount: (count: number) => `${count.toLocaleString("en-GB")} product${count === 1 ? "" : "s"}`,
+        productCount: (count: number) => `${count.toLocaleString("en-GB")} product${count === 1 ? "" : "s"}`,
         loadError: "We couldn't load the products in this category. Please try again.", emptyTitle: "No products in this category",
         emptyText: "Check whether there are active products assigned to this category.", explore: "Explore by need",
         exploreTitle: "Go beyond categories", exploreText: "Browse solutions by budget and quantity, use cases such as welcome kits and events, or pages for specific industries.",
@@ -118,7 +89,7 @@ export default async function CategoryProductsPage({
     : locale === "fr"
       ? {
           back: "Retour aux catégories", category: "Catégorie", search: "Rechercher des produits",
-          subcategories: "Sous-catégories", productCount: (count: number) => `${count.toLocaleString("fr-FR")} produit${count === 1 ? "" : "s"}`,
+          productCount: (count: number) => `${count.toLocaleString("fr-FR")} produit${count === 1 ? "" : "s"}`,
           loadError: "Impossible de charger les produits de cette catégorie. Veuillez réessayer.", emptyTitle: "Aucun produit dans cette catégorie",
           emptyText: "Vérifiez que des produits actifs sont associés à cette catégorie.", explore: "Explorer selon vos besoins",
           exploreTitle: "Ne vous limitez pas aux catégories", exploreText: "Découvrez des solutions par budget et quantité, des usages comme les welcome kits et événements, ou des pages dédiées à des secteurs précis.",
@@ -126,7 +97,7 @@ export default async function CategoryProductsPage({
         }
       : {
           back: "Voltar às categorias", category: "Categoria", search: "Pesquisar produtos",
-          subcategories: "Subcategorias", productCount: (count: number) => `${count.toLocaleString("pt-PT")} produto${count === 1 ? "" : "s"} apresentado${count === 1 ? "" : "s"}`,
+          productCount: (count: number) => `${count.toLocaleString("pt-PT")} produto${count === 1 ? "" : "s"} apresentado${count === 1 ? "" : "s"}`,
           loadError: "Não foi possível carregar os produtos desta categoria. Tenta novamente.", emptyTitle: "Sem produtos nesta categoria",
           emptyText: "Confirma se existem produtos ativos com esta categoria.", explore: "Explorar por necessidade",
           exploreTitle: "Não procure apenas por categoria", exploreText: "Consulte soluções por orçamento e quantidade, aplicações como welcome kits e eventos, ou páginas dedicadas a setores específicos.",
@@ -135,68 +106,56 @@ export default async function CategoryProductsPage({
 
   const supabase = await createSupabaseServerClient();
 
-  const [productsResult, subtypesResult] = await Promise.all([
-    supabase
-      .from("products")
-      .select(
-        `
-          id,
-          sku,
-          name,
-          slug,
-          short_description,
-          brand,
-          material,
-          type_name,
-          subtype_name,
-          is_featured,
-          is_customizable,
-          min_order_quantity,
-          product_images (
-            external_url,
-            storage_url,
-            alt_text,
-            is_primary,
-            sort_order,
-            image_type
-          ),
-          product_prices (
-            final_price,
-            quantity_min,
-            currency
-          ),
-          product_stocks (
-            available_quantity
-          )
-        `,
-      )
-      .eq("status", "active")
-      .eq("is_active", true)
-      .eq("type_name", category.sourceName)
-      .order("is_purchasable", { ascending: false })
-      .order("is_featured", { ascending: false })
-      .order("updated_at", { ascending: false })
-      .limit(48),
-    supabase
-      .from("products")
-      .select("id,subtype_name")
-      .eq("status", "active")
-      .eq("is_active", true)
-      .eq("type_name", category.sourceName)
-      .not("subtype_name", "is", null)
-      .limit(2000),
-  ]);
+  const productsResult = await supabase
+    .from("products")
+    .select(
+      `
+        id,
+        sku,
+        name,
+        slug,
+        short_description,
+        brand,
+        material,
+        type_name,
+        subtype_name,
+        is_featured,
+        is_customizable,
+        min_order_quantity,
+        product_images (
+          external_url,
+          storage_url,
+          alt_text,
+          is_primary,
+          sort_order,
+          image_type
+        ),
+        product_prices (
+          final_price,
+          quantity_min,
+          currency
+        ),
+        product_stocks (
+          available_quantity
+        )
+      `,
+    )
+    .eq("status", "active")
+    .eq("is_active", true)
+    .eq("type_name", category.sourceName)
+    .order("is_purchasable", { ascending: false })
+    .order("is_featured", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(48);
 
   const baseProducts = productsResult.error
     ? []
     : ((productsResult.data ?? []) as unknown as ProductCardProduct[]);
-  const subtypeRows = subtypesResult.error ? [] : ((subtypesResult.data ?? []) as SubtypeRow[]);
   const translations = await getLocalizedProductTexts({
-    productIds: [...baseProducts.map((product) => product.id), ...subtypeRows.map((row) => row.id)],
+    productIds: baseProducts.map((product) => product.id),
     locale,
   });
   const products = baseProducts.map((product) => applyTranslation(product, translations.get(product.id)));
-  const subcategories = getSubcategories(subtypeRows, translations);
 
   const categoryPath = `/categorias/${encodeURIComponent(categoryName)}`;
   const structuredData = buildCollectionStructuredData({
@@ -241,25 +200,6 @@ export default async function CategoryProductsPage({
             {copy.search}
           </Link>
         </div>
-
-        {subcategories.length > 0 ? (
-          <div className="mt-10 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">
-              {copy.subcategories}
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2.5">
-              {subcategories.map((subcategory) => (
-                <Link
-                  key={subcategory.sourceName}
-                  href={localizePath(`${categoryPath}/${encodeURIComponent(subcategory.name)}`, locale)}
-                  className="rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 hover:bg-white hover:text-neutral-950"
-                >
-                  {subcategory.name}
-                </Link>
-              ))}
-            </div>
-          </div>
-        ) : null}
 
         <div className="mt-8 flex items-center justify-between gap-4">
           <p className="text-sm text-neutral-500">

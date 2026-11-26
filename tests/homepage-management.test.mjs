@@ -99,7 +99,7 @@ test('campaign renders real product prices and localized purchase links for all 
     assert.match(html, /Galileia/);
     const gross = html.indexOf(vat.formatStorePrice(24.58, 'EUR', locale));
     const net = html.indexOf(vat.formatStorePrice(19.98, 'EUR', locale));
-    assert.ok(gross >= 0 && net > gross);
+    assert.ok(net >= 0 && gross > net);
     assert.ok(html.includes(vat.vatLabels[locale].mainland));
     assert.ok(html.includes(vat.vatLabels[locale].excluded));
   }

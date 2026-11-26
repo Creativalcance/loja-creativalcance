@@ -1577,7 +1577,7 @@ function PurchasePanel({
                 </thead>
 
                 <tbody>
-                  {[true, false].map((includeVat) => (
+                  {[false, true].map((includeVat) => (
                     <tr key={String(includeVat)}>
                       <th scope="row" className="border-b border-neutral-100 px-4 py-3 text-left font-medium text-neutral-600">
                         {includeVat ? `${vatText.included} (${vatText.mainland})` : vatText.excluded} {vatText.perUnit}
@@ -1590,7 +1590,7 @@ function PurchasePanel({
                         return (
                           <td
                             key={`${price.variant_id ?? "product"}-${price.quantity_min}-${price.quantity_max ?? "plus"}`}
-                            className={`border-b border-neutral-100 px-4 py-3 text-center ${includeVat ? "font-semibold text-neutral-950" : "text-neutral-600"}`}
+                            className={`border-b border-neutral-100 px-4 py-3 text-center ${includeVat ? "text-neutral-600" : "font-semibold text-neutral-950"}`}
                           >
                             {includeVat && rate === null ? "—" : formatPrice(value, price.currency)}
                           </td>

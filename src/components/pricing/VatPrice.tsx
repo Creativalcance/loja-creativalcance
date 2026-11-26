@@ -30,14 +30,16 @@ export default function VatPrice({
     <span className={className}>
       <span className="block font-semibold tabular-nums">
         {from ? `${from} ` : ""}
-        {appliedRate === null ? net : `${formatStorePrice(getVatAmounts(amount, appliedRate).gross, currency, locale)}${unitLabel}`}
+        {net}
         {" "}
         <span className="text-xs font-medium">
-          {appliedRate === null ? labels.excluded : `${labels.included}${mainlandLabel}`}
+          {labels.excluded}
         </span>
       </span>
       {appliedRate !== null && (
-        <span className="block text-xs font-normal opacity-75">{net} {labels.excluded}</span>
+        <span className="block text-xs font-normal opacity-75">
+          {formatStorePrice(getVatAmounts(amount, appliedRate).gross, currency, locale)}{unitLabel} {labels.included}{mainlandLabel}
+        </span>
       )}
     </span>
   );
