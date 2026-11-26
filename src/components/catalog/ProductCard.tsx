@@ -1,9 +1,11 @@
+import VatPrice from "@/components/pricing/VatPrice";
 import { getPublicIdentity, publicMediaUrl } from "@/lib/catalog-identity/public";
 import NextImage from "next/image";
 import { canOptimizeCatalogImage } from "@/lib/catalog/image-optimization";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Star } from "lucide-react";
 import { localizePath, SITE_LOCALES, type SiteLocale } from "@/lib/i18n/config";
+import { vatLabels } from "@/lib/pricing/vat-display";
 import { getMessages } from "@/lib/i18n/messages";
 
 export type ProductCardImage = {
@@ -48,19 +50,6 @@ type ProductCardProps = {
   locale?: SiteLocale;
 };
 
-function formatPrice(value: number | string | null, currency: string | null, locale: SiteLocale): string {
-  const numericValue = Number(value);
-
-  if (!Number.isFinite(numericValue)) {
-    return getMessages(locale).common.quote;
-  }
-
-  return new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, {
-    style: "currency",
-    currency: currency ?? "EUR",
-  }).format(numericValue);
-}
-
 function getPrimaryImage(product: ProductCardProduct): ProductCardImage | null {
   const images = product.product_images ?? [];
 
@@ -78,7 +67,9 @@ function getPrimaryImage(product: ProductCardProduct): ProductCardImage | null {
 }
 
 function getBestPrice(product: ProductCardProduct): ProductCardPrice | null {
-  const prices = product.product_prices ?? [];
+  const prices = (product.product_prices ?? []).filter(
+    (price) => Number(price.final_price) > 0,
+  );
 
   if (prices.length === 0) {
     return null;
@@ -196,17 +187,18 @@ export default async function ProductCard({ product: source, locale = "pt" }: Pr
           ) : null}
         </div>
 
-        <div className="mt-6 flex items-end justify-between gap-4">
+        <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs text-neutral-500">
-              {labels.catalog.from} {minimumOrderQuantity.toLocaleString(SITE_LOCALES[locale].intlLocale)} {labels.common.units}
-            </p>
-
-            <p className="mt-1 text-lg font-semibold text-neutral-950">
-              {bestPrice
-                ? formatPrice(bestPrice.final_price, bestPrice.currency, locale)
-                : labels.common.quote}
-            </p>
+            {bestPrice ? (
+              <>
+                <p className="mb-1 text-xs text-neutral-600">
+                  {vatLabels[locale].fromQuantity.replace("{quantity}",
+                    Math.max(minimumOrderQuantity, bestPrice.quantity_min ?? 1).toLocaleString(SITE_LOCALES[locale].intlLocale),
+                  )}
+                </p>
+                <VatPrice amount={Number(bestPrice.final_price)} currency={bestPrice.currency ?? "EUR"} locale={locale} unit className="block text-lg text-neutral-950" />
+              </>
+            ) : <p className="text-sm font-semibold">{labels.common.quote}</p>}
           </div>
 
           <div className="text-right">

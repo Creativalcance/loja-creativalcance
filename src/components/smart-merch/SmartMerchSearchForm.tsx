@@ -1,5 +1,6 @@
 "use client";
 
+import { vatLabels } from "@/lib/pricing/vat-display";
 import { useState } from "react";
 import { Check, Euro, Search, Sparkles, UsersRound } from "lucide-react";
 import { localizePath, type SiteLocale } from "@/lib/i18n/config";
@@ -106,7 +107,7 @@ export default function SmartMerchSearchForm({
         </label>
 
         <label className="relative block">
-          <span className="sr-only">{messages.budget}</span>
+          <span className="sr-only">{messages.budget} ({vatLabels[locale].excluded})</span>
           <Euro className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
           <input
             type="number"
@@ -116,7 +117,7 @@ export default function SmartMerchSearchForm({
             step="0.01"
             required={suggestions}
             defaultValue={defaultBudget ?? ""}
-            placeholder={messages.budget}
+            placeholder={`${messages.budget} (${vatLabels[locale].excluded})`}
             className="w-full rounded-2xl border border-neutral-300 bg-white py-3 pl-11 pr-4 text-sm text-neutral-950 outline-none transition focus:border-neutral-950 focus:ring-2 focus:ring-neutral-950/10"
           />
         </label>

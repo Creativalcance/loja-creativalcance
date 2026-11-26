@@ -13,7 +13,7 @@ export const getHomepageConfig = unstable_cache(async () => {
   return parsed.data;
 }, ["homepage-settings-v1"], { revalidate: 3600, tags: [HOMEPAGE_CACHE_TAG] });
 
-export type HomepageProduct = { id: string; name: string; slug: string; image: string | null; price: number; minimum: number };
+export type HomepageProduct = { id: string; name: string; slug: string; image: string | null; price: number; priceQuantity: number; minimum: number };
 
 // Only the selected IDs are read. Prices and availability are checked on every request.
 export async function getHomepageProducts(ids: string[], locale: SiteLocale): Promise<HomepageProduct[]> {
@@ -32,7 +32,7 @@ export async function getHomepageProducts(ids: string[], locale: SiteLocale): Pr
     if (product.supplier_id && !identity) return null;
     return { id: product.id, name: identity?.name ?? product.name, slug: identity?.slug ?? product.slug,
       image: product.product_images.length ? publicMediaUrl(product.id) : null,
-      price, minimum: product.min_order_quantity || 1 };
+      price, priceQuantity: prices[0].quantity_min, minimum: product.min_order_quantity || 1 };
   }));
   const byId = new Map(mapped.filter((row): row is HomepageProduct => row !== null).map(row => [row.id, row]));
   return ids.flatMap(id => byId.has(id) ? [byId.get(id)!] : []);

@@ -1,5 +1,8 @@
 "use client";
 
+import VatPrice from "@/components/pricing/VatPrice";
+import { getVatAmounts, vatLabels } from "@/lib/pricing/vat-display";
+import { getMessages } from "@/lib/i18n/messages";
 import HamperDeliveryNotice from "./HamperDeliveryNotice";
 import { hamperText } from "@/lib/checkout/hamper-copy";
 import { useActionState, useMemo, useRef, useState } from "react";
@@ -22,6 +25,7 @@ type CheckoutShippingFormProps = {
   cartId: string;
   currency: string;
   merchandiseTotal: number;
+  taxRate: number;
   shippingQuote: ShippingQuote;
   initialShippingMethod: CheckoutShippingMethod | null;
   initialRequestedDeliveryDate: string;
@@ -95,6 +99,7 @@ export default function CheckoutShippingForm({
   cartId,
   currency,
   merchandiseTotal,
+  taxRate,
   shippingQuote,
   initialShippingMethod,
   initialRequestedDeliveryDate,
@@ -102,6 +107,7 @@ export default function CheckoutShippingForm({
   initialInternalReference,
   initialShippingNotes,
 }: CheckoutShippingFormProps) {
+  const vatText = vatLabels[locale];
   const text =
     (locale === "es" ? ({
     method: "M\u00E9todo de env\u00EDo",
@@ -343,10 +349,7 @@ export default function CheckoutShippingForm({
     [shippingQuote.total, shippingMethod],
   );
 
-  const estimatedTotal = useMemo(
-    () => merchandiseTotal + estimatedShippingPrice,
-    [estimatedShippingPrice, merchandiseTotal],
-  );
+  const estimate = getVatAmounts(merchandiseTotal + estimatedShippingPrice, taxRate);
   const amountUntilFreeShipping =
     calculateAmountUntilFreeShipping(merchandiseTotal);
 
@@ -514,7 +517,7 @@ export default function CheckoutShippingForm({
                   : "border-neutral-200"
               }`}
             >
-              <span className="text-sm">{text.cost}</span>
+              <span className="text-sm">{text.cost} · {vatText.excluded}</span>
               <span className="font-semibold">
                 {estimatedShippingPrice === 0
                   ? text.free
@@ -685,35 +688,26 @@ export default function CheckoutShippingForm({
         </div>
       </section>
 
-      <section className="rounded-3xl bg-neutral-50 p-5">
-        <p className="text-sm font-semibold text-neutral-950">
-          {text.beforeVat}
-        </p>
-        <div className="mt-4 space-y-3 text-sm text-neutral-600">
-          <div className="flex justify-between gap-4">
-            <span>{text.goods}</span>
-            <span className="font-semibold text-neutral-950">
-              {formatPrice(merchandiseTotal, currency, locale)}
-            </span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span>{text.shipping}</span>
-            <span className="font-semibold text-neutral-950">
-              {formatPrice(estimatedShippingPrice, currency, locale)}
-            </span>
-          </div>
-          <div className="border-t border-neutral-200 pt-3">
-            <div className="flex justify-between gap-4 text-base">
-              <span className="font-semibold text-neutral-950">
-                {text.current}
-              </span>
-              <span className="font-semibold text-neutral-950">
-                {formatPrice(estimatedTotal, currency, locale)}
-              </span>
-            </div>
-          </div>
+      <dl className="space-y-3 rounded-3xl bg-neutral-50 p-5 text-sm text-neutral-600">
+        <div className="flex justify-between gap-4">
+          <dt>{vatText.subtotal}</dt>
+          <dd className="text-right text-neutral-950">
+            <VatPrice amount={merchandiseTotal} currency={currency} locale={locale} rate={taxRate} />
+          </dd>
         </div>
-      </section>
+        <div className="flex justify-between gap-4">
+          <dt>{vatText.estimatedShipping} · {vatText.excluded}</dt>
+          <dd className="font-semibold text-neutral-950">{formatPrice(estimatedShippingPrice, currency, locale)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt>{getMessages(locale).common.vat} ({Math.round(taxRate * 100)}%)</dt>
+          <dd className="font-semibold text-neutral-950">{formatPrice(estimate.vat, currency, locale)}</dd>
+        </div>
+        <div className="flex justify-between gap-4 border-t border-neutral-200 pt-3 text-base font-semibold text-neutral-950">
+          <dt>{vatText.estimated} · {vatText.included}</dt>
+          <dd>{formatPrice(estimate.gross, currency, locale)}</dd>
+        </div>
+      </dl>
 
       {state.message ? (
         <div

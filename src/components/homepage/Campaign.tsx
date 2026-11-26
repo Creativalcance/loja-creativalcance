@@ -1,3 +1,5 @@
+import VatPrice from "@/components/pricing/VatPrice";
+import { vatLabels } from "@/lib/pricing/vat-display";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Gift } from "lucide-react";
@@ -6,12 +8,12 @@ import { campaignText, type HomepageConfig } from "@/lib/homepage/config";
 import type { HomepageProduct } from "@/lib/homepage/data";
 
 const copy = {
-  pt: { minimum: "Mínimo", units: "un.", from: "Desde", note: "Preços sem IVA. Consulta as condições de entrega na página de cada produto." },
-  en: { minimum: "Minimum", units: "units", from: "From", note: "Prices exclude VAT. Check each product page for delivery conditions." },
-  fr: { minimum: "Minimum", units: "unités", from: "Dès", note: "Prix hors TVA. Consultez les conditions de livraison sur chaque fiche produit." },
-  es: { minimum: "Mínimo", units: "ud.", from: "Desde", note: "Precios sin IVA. Consulta las condiciones de entrega en cada producto." },
-  de: { minimum: "Mindestens", units: "Stück", from: "Ab", note: "Preise ohne MwSt. Die Lieferbedingungen finden Sie auf der jeweiligen Produktseite." },
-  it: { minimum: "Minimo", units: "unità", from: "Da", note: "Prezzi IVA esclusa. Consulta le condizioni di consegna nella pagina di ogni prodotto." },
+  pt: { minimum: "Mínimo", units: "un.", note: "Consulta as condições de entrega na página de cada produto." },
+  en: { minimum: "Minimum", units: "units", note: "Check each product page for delivery conditions." },
+  fr: { minimum: "Minimum", units: "unités", note: "Consultez les conditions de livraison sur chaque fiche produit." },
+  es: { minimum: "Mínimo", units: "ud.", note: "Consulta las condiciones de entrega en cada producto." },
+  de: { minimum: "Mindestens", units: "Stück", note: "Die Lieferbedingungen finden Sie auf der jeweiligen Produktseite." },
+  it: { minimum: "Minimo", units: "unità", note: "Consulta le condizioni di consegna nella pagina di ogni prodotto." },
 };
 export default function HomepageCampaign({ config, products, locale }: { config: HomepageConfig; products: HomepageProduct[]; locale: SiteLocale }) {
   if (!products.length) return null;
@@ -34,8 +36,12 @@ export default function HomepageCampaign({ config, products, locale }: { config:
           <div className="flex flex-1 flex-col p-3 sm:p-5">
             <h3 className="text-base font-semibold sm:text-xl">{product.name}</h3>
             <p className="mt-2 text-xs text-neutral-500">{labels.minimum} {product.minimum} {labels.units}</p>
-            <p className="mt-4 text-xs text-neutral-500">{labels.from}</p>
-            <p className="mb-5 text-xl font-semibold tracking-tight sm:text-2xl">{new Intl.NumberFormat(SITE_LOCALES[locale].intlLocale, { style: "currency", currency: "EUR" }).format(product.price)}</p>
+            {product.priceQuantity > product.minimum && (
+              <p className="mt-2 text-xs text-neutral-600">
+                {vatLabels[locale].fromQuantity.replace("{quantity}", product.priceQuantity.toLocaleString(SITE_LOCALES[locale].intlLocale))}
+              </p>
+            )}
+            <VatPrice amount={product.price} locale={locale} unit className="mb-5 mt-4 block text-lg tracking-tight sm:text-xl" />
             <Link href={localizePath(`/produto/${product.slug}`, locale) + "#comprar"} aria-label={`${text.productCta} ${product.name}`} className="mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#162334] px-3 py-3 text-sm font-semibold text-white transition hover:bg-[#b95010]">{text.productCta}<ArrowRight className="h-4 w-4" aria-hidden="true" /></Link>
           </div>
         </li>)}

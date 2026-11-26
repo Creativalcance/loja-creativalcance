@@ -1,3 +1,4 @@
+import { vatLabels } from "@/lib/pricing/vat-display";
 import HamperDeliveryNotice from "@/components/checkout/HamperDeliveryNotice";
 import { calculateCartShipping, hasConfirmedHamperAccess, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
 import CurrencyReference from "@/components/markets/CurrencyReference";
@@ -93,6 +94,7 @@ function formatPrice(
 
 export default async function CheckoutPaymentPage() {
   const locale = await getCurrentLocale();
+  const vatText = vatLabels[locale];
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const text =
     (locale === "es" ? ({
@@ -495,7 +497,7 @@ export default async function CheckoutPaymentPage() {
 
                     <div className="flex shrink-0 flex-col items-end gap-3">
                       <p className="text-sm font-semibold text-neutral-950">
-                        {formatPrice(item.total, currency, intlLocale)}
+                        {formatPrice(item.total, currency, intlLocale)} {vatText.excluded}
                       </p>
 
                       <RemoveCartItemButton
@@ -511,28 +513,42 @@ export default async function CheckoutPaymentPage() {
 
             <div className="mt-5 space-y-3 border-t border-neutral-200 pt-5 text-sm text-neutral-600">
               <div className="flex justify-between gap-4">
-                <span>{text.products}</span>
+                <span>{text.products} · {vatText.excluded}</span>
                 <span className="font-semibold text-neutral-950">
                   {formatPrice(productsTotal, currency, intlLocale)}
                 </span>
               </div>
 
               <div className="flex justify-between gap-4">
-                <span>{text.personalization}</span>
+                <span>{text.personalization} · {vatText.excluded}</span>
                 <span className="font-semibold text-neutral-950">
                   {formatPrice(personalizationTotal, currency, intlLocale)}
                 </span>
               </div>
 
               <div className="flex justify-between gap-4">
-                <span>{text.setupExtras}</span>
+                <span>{text.setupExtras} · {vatText.excluded}</span>
                 <span className="font-semibold text-neutral-950">
                   {formatPrice(preparationTotal, currency, intlLocale)}
                 </span>
               </div>
 
+              {Number(cart.discount_total) > 0 && (
+                <div className="flex justify-between gap-4">
+                  <span>{vatText.discount} · {vatText.excluded}</span>
+                  <span className="font-semibold text-neutral-950">
+                    {formatPrice(-Number(cart.discount_total), currency, intlLocale)}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between gap-4 border-t border-neutral-200 pt-3">
+                <span>{vatText.subtotal} · {vatText.excluded}</span>
+                <span className="font-semibold text-neutral-950">{formatPrice(eligibleOrderTotal, currency, intlLocale)}</span>
+              </div>
+
               <div className="flex justify-between gap-4">
-                <span>{text.shipping}</span>
+                <span>{text.shipping} · {vatText.excluded}</span>
                 <span className="font-semibold text-neutral-950">
                   {shippingTotal === 0
                     ? (locale === "es" ? ("Gratis") : locale === "de" ? ("Kostenlos") : locale === "it" ? ("Gratuito") : locale === "en"
@@ -556,7 +572,7 @@ export default async function CheckoutPaymentPage() {
               <div className="border-t border-neutral-200 pt-4">
                 <div className="flex justify-between gap-4 text-lg">
                   <span className="font-semibold text-neutral-950">
-                    {text.payTotal}
+                    {text.payTotal} · {vatText.included}
                   </span>
 
                   <span className="font-semibold text-neutral-950">

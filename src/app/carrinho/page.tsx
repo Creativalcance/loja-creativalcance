@@ -1,3 +1,6 @@
+import VatPrice from "@/components/pricing/VatPrice";
+import { getMainlandPriceRate, getVatAmounts, vatLabels } from "@/lib/pricing/vat-display";
+import { assessCheckoutDestination } from "@/lib/markets/policy";
 import HamperDeliveryNotice from "@/components/checkout/HamperDeliveryNotice";
 import { calculateCartShipping, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
 import Link from "next/link";
@@ -36,10 +39,8 @@ type Cart = {
   subtotal: number;
   personalization_total: number;
   setup_total: number;
-  shipping_total: number;
   discount_total: number;
-  tax_total: number;
-  grand_total: number;
+  customer_addresses: { country_code: string; postal_code: string } | null;
   currency: string;
   cart_items: CartItem[] | null;
 };
@@ -70,6 +71,7 @@ async function getCurrentUserId(): Promise<string | null> {
 export default async function CartPage() {
   const locale = await getCurrentLocale();
   const labels = getMessages(locale);
+  const vatText = vatLabels[locale];
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const cookieStore = await cookies();
   const sessionId = cookieStore.get(CART_SESSION_COOKIE)?.value ?? null;
@@ -88,10 +90,8 @@ export default async function CartPage() {
           subtotal,
           personalization_total,
           setup_total,
-          shipping_total,
           discount_total,
-          tax_total,
-          grand_total,
+          customer_addresses!carts_shipping_address_id_fkey(country_code,postal_code),
           currency,
           cart_items (
             shipping_product:products(shipping_profile,delivery_unit_price),
@@ -137,6 +137,14 @@ export default async function CartPage() {
     discountTotal: Number(cart?.discount_total ?? 0),
   });
   const shippingQuote = calculateCartShipping(eligibleOrderTotal, cartItems);
+  const destination = cart?.customer_addresses;
+  const tax = destination ? assessCheckoutDestination(destination, currency) : null;
+  const rate = tax === null ? getMainlandPriceRate(currency)
+    : tax.status === "ready" && (shippingQuote.hamperQuantity === 0 || tax.region === "continental")
+      ? tax.rate
+      : null;
+  const estimate = rate === null ? null : getVatAmounts(eligibleOrderTotal + shippingQuote.total, rate);
+
   const amountUntilFreeShipping =
     calculateAmountUntilFreeShipping(eligibleOrderTotal);
 
@@ -197,14 +205,14 @@ export default async function CartPage() {
 
                     <div className="flex flex-col items-start text-sm text-neutral-600 md:items-end md:text-right">
                       <p>
-                        {labels.cart.unit}:{" "}
+                        {labels.cart.unit} · {vatText.excluded}:{" "}
                         <span className="font-semibold text-neutral-950">
                           {formatPrice(item.unit_price, currency, intlLocale)}
                         </span>
                       </p>
 
                       <p className="mt-2">
-                        {labels.common.personalization}:{" "}
+                        {labels.common.personalization} · {vatText.excluded}:{" "}
                         <span className="font-semibold text-neutral-950">
                           {formatPrice(
                             item.personalization_total,
@@ -215,15 +223,13 @@ export default async function CartPage() {
                       </p>
 
                       <p className="mt-2">
-                        {labels.common.setup}:{" "}
+                        {labels.common.setup} · {vatText.excluded}:{" "}
                         <span className="font-semibold text-neutral-950">
                           {formatPrice(item.setup_cost, currency, intlLocale)}
                         </span>
                       </p>
 
-                      <p className="mt-4 text-lg font-semibold text-neutral-950">
-                        {formatPrice(item.total, currency, intlLocale)}
-                      </p>
+                      <VatPrice amount={Number(item.total)} currency={currency} locale={locale} rate={destination ? rate : undefined} className="mt-4 block text-lg text-neutral-950" />
 
                       <div className="mt-5">
                         <RemoveCartItemButton
@@ -261,59 +267,38 @@ export default async function CartPage() {
                       )}
                 </p>
                 <p className="mt-1 text-xs opacity-80">
-                  {labels.cart.freeShipping}
+                  {labels.cart.freeShipping} ({vatText.excluded})
                 </p>
               </div>
               )}
 
-              <div className="mt-6 space-y-3 text-sm text-neutral-600">
+              <dl className="mt-6 space-y-3 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.products}</span>
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.subtotal ?? 0, currency, intlLocale)}
-                  </span>
+                  <dt>{vatText.subtotal} · {vatText.excluded}</dt>
+                  <dd className="font-semibold text-neutral-950">{formatPrice(eligibleOrderTotal, currency, intlLocale)}</dd>
                 </div>
-
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.personalization}</span>
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(
-                      cart?.personalization_total ?? 0,
-                      currency,
-                      intlLocale,
-                    )}
-                  </span>
+                  <dt>{vatText.estimatedShipping} · {vatText.excluded}</dt>
+                  <dd className="font-semibold text-neutral-950">
+                    {estimate ? formatPrice(shippingQuote.total, currency, intlLocale) : "—"}
+                  </dd>
                 </div>
-
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.setup}</span>
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.setup_total ?? 0, currency, intlLocale)}
-                  </span>
+                  <dt>
+                    {labels.common.vat}
+                    {rate !== null && ` (${Math.round(rate * 100)}%${destination ? "" : ` · ${vatText.mainland}`})`}
+                  </dt>
+                  <dd className="text-right font-semibold text-neutral-950">
+                    {estimate ? formatPrice(estimate.vat, currency, intlLocale) : vatText.pendingTax}
+                  </dd>
                 </div>
-
-                <div className="flex justify-between gap-4">
-                  <span>{labels.common.vat}</span>
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(cart?.tax_total ?? 0, currency, intlLocale)}
-                  </span>
-                </div>
-
-                <div className="border-t border-neutral-200 pt-4">
-                  <div className="flex justify-between gap-4 text-base">
-                    <span className="font-semibold text-neutral-950">
-                      {labels.common.total}
-                    </span>
-                    <span className="font-semibold text-neutral-950">
-                      {formatPrice(
-                        cart?.grand_total ?? 0,
-                        currency,
-                        intlLocale,
-                      )}
-                    </span>
+                {estimate && (
+                  <div className="flex justify-between gap-4 border-t border-neutral-200 pt-4 text-base font-semibold text-neutral-950">
+                    <dt>{vatText.estimated} · {vatText.included}</dt>
+                    <dd>{formatPrice(estimate.gross, currency, intlLocale)}</dd>
                   </div>
-                </div>
-              </div>
+                )}
+              </dl>
 
               <Link
                 href={localizePath("/checkout", locale)}

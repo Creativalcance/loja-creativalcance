@@ -1,5 +1,7 @@
 "use client";
 
+import VatPrice from "@/components/pricing/VatPrice";
+import { getMainlandPriceRate, getVatAmounts, vatLabels } from "@/lib/pricing/vat-display";
 import ProductGallery from "@/components/product/ProductGallery";
 import { getGalleryColorKey, type ProductGalleryImage } from "@/lib/catalog/product-gallery";
 
@@ -662,6 +664,7 @@ function PurchasePanel({
   const stockDay = useSyncExternalStore(subscribeToStockDay, getStockDay, getServerStockDay);
   const labels = getMessages(locale);
   const intlLocale = SITE_LOCALES[locale].intlLocale;
+  const vatText = vatLabels[locale];
   const formatPrice = (value: number, currency: string) => formatMoney(value, currency, intlLocale);
   const detailText = {
     pt: { colors: "Cores disponíveis", information: "Informação adicional", brand: "Marca", material: "Material", dimensions: "Dimensões", weight: "Peso", available: "Produto disponível para encomenda online.", added: "Produto adicionado ao carrinho." },
@@ -675,7 +678,6 @@ function PurchasePanel({
     (locale === "es" ? ({
     product: "Producto",
     from: "Desde",
-    perUnit: "/ unidad",
     minQuantity: "Cantidad m\u00EDnima",
     stockAvailable: "Stock disponible",
     personalization: "Personalizaci\u00F3n",
@@ -683,7 +685,6 @@ function PurchasePanel({
     notIncluded: "No incluido",
     priceTiers: "Escalones de precio",
     quantity: "Cantidad",
-    unitPrice: "Precio / unidad",
     pricePending: "El precio se mostrar\u00E1 antes de completar el pedido.",
     orderTitle: "Realiza tu pedido",
     orderWithSizes: "Elige primero un color y despu\u00E9s introduce la cantidad para la talla que necesitas.",
@@ -705,8 +706,6 @@ function PurchasePanel({
     summary: "Resumen del pedido",
     size: "Tama\u00F1o",
     preparation: "Preparaci\u00F3n",
-    total: "Total estimado",
-    disclaimer: "Precios sin IVA ni env\u00EDo. La disponibilidad, personalizaci\u00F3n e importe final se confirman antes de completar el pedido.",
     viewCart: "Ver carrito",
     preparing: "Preparando personalizaci\u00F3n...",
     continuePersonalization: "Continuar a la personalizaci\u00F3n",
@@ -716,7 +715,6 @@ function PurchasePanel({
 }) : locale === "de" ? ({
     product: "Produkt",
     from: "Ab",
-    perUnit: "/ St\u00FCck",
     minQuantity: "Mindestmenge",
     stockAvailable: "Verf\u00FCgbarer Bestand",
     personalization: "Personalisierung",
@@ -724,7 +722,6 @@ function PurchasePanel({
     notIncluded: "Nicht enthalten",
     priceTiers: "Preisstaffeln",
     quantity: "Menge",
-    unitPrice: "Preis / St\u00FCck",
     pricePending: "Der Preis wird vor Abschluss der Bestellung angezeigt.",
     orderTitle: "Bestellung aufgeben",
     orderWithSizes: "W\u00E4hlen Sie zuerst eine Farbe und geben Sie dann die Menge f\u00FCr die gew\u00FCnschte Gr\u00F6\u00DFe ein.",
@@ -746,8 +743,6 @@ function PurchasePanel({
     summary: "Bestell\u00FCbersicht",
     size: "Gr\u00F6\u00DFe",
     preparation: "Einrichtung",
-    total: "Gesch\u00E4tzter Gesamtbetrag",
-    disclaimer: "Preise ohne MwSt. und Versand. Verf\u00FCgbarkeit, Personalisierung und endg\u00FCltiger Betrag werden vor Bestellabschluss best\u00E4tigt.",
     viewCart: "Warenkorb ansehen",
     preparing: "Personalisierung wird vorbereitet...",
     continuePersonalization: "Weiter zur Personalisierung",
@@ -757,7 +752,6 @@ function PurchasePanel({
 }) : locale === "it" ? ({
     product: "Prodotto",
     from: "Da",
-    perUnit: "/ unit\u00E0",
     minQuantity: "Quantit\u00E0 minima",
     stockAvailable: "Disponibilit\u00E0 a magazzino",
     personalization: "Personalizzazione",
@@ -765,7 +759,6 @@ function PurchasePanel({
     notIncluded: "Non incluso",
     priceTiers: "Fasce di prezzo",
     quantity: "Quantit\u00E0",
-    unitPrice: "Prezzo / unit\u00E0",
     pricePending: "Il prezzo verr\u00E0 mostrato prima del completamento dell'ordine.",
     orderTitle: "Effettua l'ordine",
     orderWithSizes: "Scegli prima un colore, poi inserisci la quantit\u00E0 per la taglia desiderata.",
@@ -787,8 +780,6 @@ function PurchasePanel({
     summary: "Riepilogo dell'ordine",
     size: "Dimensione",
     preparation: "Preparazione",
-    total: "Totale stimato",
-    disclaimer: "Prezzi esclusi IVA e spedizione. Disponibilit\u00E0, personalizzazione e importo finale vengono confermati prima del completamento dell'ordine.",
     viewCart: "Vedi carrello",
     preparing: "Preparazione della personalizzazione...",
     continuePersonalization: "Continua alla personalizzazione",
@@ -799,7 +790,6 @@ function PurchasePanel({
       ? {
           product: "Product",
           from: "From",
-          perUnit: "/ unit",
           minQuantity: "Minimum quantity",
           stockAvailable: "Available stock",
           personalization: "Personalization",
@@ -807,7 +797,6 @@ function PurchasePanel({
           notIncluded: "Not included",
           priceTiers: "Price tiers",
           quantity: "Quantity",
-          unitPrice: "Price / unit",
           pricePending: "The price will be shown before the order is completed.",
           orderTitle: "Place your order",
           orderWithSizes: "Choose a colour first, then enter the quantity for the required size.",
@@ -829,8 +818,6 @@ function PurchasePanel({
           summary: "Order summary",
           size: "Size",
           preparation: "Setup",
-          total: "Estimated total",
-          disclaimer: "Prices exclude VAT and shipping. Availability, personalization and the final amount are confirmed before the order is completed.",
           viewCart: "View cart",
           preparing: "Preparing personalization...",
           continuePersonalization: "Continue to personalization",
@@ -842,7 +829,6 @@ function PurchasePanel({
         ? {
             product: "Produit",
             from: "À partir de",
-            perUnit: "/ unité",
             minQuantity: "Quantité minimale",
             stockAvailable: "Stock disponible",
             personalization: "Personnalisation",
@@ -850,7 +836,6 @@ function PurchasePanel({
             notIncluded: "Non incluse",
             priceTiers: "Tarifs dégressifs",
             quantity: "Quantité",
-            unitPrice: "Prix / unité",
             pricePending: "Le prix sera affiché avant la finalisation de la commande.",
             orderTitle: "Passez votre commande",
             orderWithSizes: "Choisissez d’abord une couleur, puis saisissez la quantité pour la taille souhaitée.",
@@ -872,8 +857,6 @@ function PurchasePanel({
             summary: "Récapitulatif de la commande",
             size: "Taille",
             preparation: "Préparation",
-            total: "Total estimé",
-            disclaimer: "Prix hors TVA et frais de livraison. La disponibilité, la personnalisation et le montant final sont confirmés avant la finalisation de la commande.",
             viewCart: "Voir le panier",
             preparing: "Préparation de la personnalisation...",
             continuePersonalization: "Continuer vers la personnalisation",
@@ -884,7 +867,6 @@ function PurchasePanel({
         : {
             product: "Produto",
             from: "Desde",
-            perUnit: "/ un.",
             minQuantity: "Quantidade mín.",
             stockAvailable: "Stock disponível",
             personalization: "Personalização",
@@ -892,7 +874,6 @@ function PurchasePanel({
             notIncluded: "Não incluída",
             priceTiers: "Escalões de preço",
             quantity: "Quantidade",
-            unitPrice: "Preço / un.",
             pricePending: "O preço será apresentado antes da conclusão da encomenda.",
             orderTitle: "Faça a sua encomenda",
             orderWithSizes: "Escolha primeiro a cor e indique a quantidade no tamanho pretendido.",
@@ -914,8 +895,6 @@ function PurchasePanel({
             summary: "Resumo da encomenda",
             size: "Tamanho",
             preparation: "Preparação",
-            total: "Total estimado",
-            disclaimer: "Valores sem IVA e sem portes. A disponibilidade, personalização e valor final são confirmados antes da conclusão da encomenda.",
             viewCart: "Ver carrinho",
             preparing: "A preparar personalização...",
             continuePersonalization: "Continuar para personalização",
@@ -1507,16 +1486,14 @@ function PurchasePanel({
         ) : null}
 
         {lowestPrice ? (
-          <p className="mt-6 text-sm text-neutral-500">
-            {panelText.from}{" "}
-            <span className="text-2xl font-semibold text-neutral-950">
-              {formatPrice(
-                lowestPrice.final_price,
-                lowestPrice.currency,
-              )}
-            </span>{" "}
-            {panelText.perUnit}
-          </p>
+          <div className="mt-6">
+            <VatPrice amount={lowestPrice.final_price} currency={lowestPrice.currency} locale={locale} from={panelText.from} unit className="block text-2xl text-neutral-950" />
+            {lowestPrice.quantity_min > minimumQuantity && (
+              <p className="mt-1 text-xs text-neutral-600">
+                {vatText.fromQuantity.replace("{quantity}", lowestPrice.quantity_min.toLocaleString(intlLocale))}
+              </p>
+            )}
+          </div>
         ) : null}
 
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
@@ -1600,30 +1577,27 @@ function PurchasePanel({
                 </thead>
 
                 <tbody>
-                  <tr>
-                    <td className="border-b border-neutral-100 px-4 py-3 text-left font-medium text-neutral-500">
-                      {panelText.unitPrice}
-                    </td>
-
-                    {activePrices
-                      .slice(0, 8)
-                      .map(
-                        (
-                          price,
-                          index,
-                        ) => (
+                  {[true, false].map((includeVat) => (
+                    <tr key={String(includeVat)}>
+                      <th scope="row" className="border-b border-neutral-100 px-4 py-3 text-left font-medium text-neutral-600">
+                        {includeVat ? `${vatText.included} (${vatText.mainland})` : vatText.excluded} {vatText.perUnit}
+                      </th>
+                      {activePrices.slice(0, 8).map((price) => {
+                        const rate = getMainlandPriceRate(price.currency);
+                        const value = includeVat && rate !== null
+                          ? getVatAmounts(price.final_price, rate).gross
+                          : price.final_price;
+                        return (
                           <td
-                            key={`${price.variant_id ?? "product"}-${price.quantity_min}-${price.final_price}-${index}`}
-                            className="border-b border-neutral-100 px-4 py-3 text-center font-semibold text-neutral-950"
+                            key={`${price.variant_id ?? "product"}-${price.quantity_min}-${price.quantity_max ?? "plus"}`}
+                            className={`border-b border-neutral-100 px-4 py-3 text-center ${includeVat ? "font-semibold text-neutral-950" : "text-neutral-600"}`}
                           >
-                            {formatPrice(
-                              price.final_price,
-                              price.currency,
-                            )}
+                            {includeVat && rate === null ? "—" : formatPrice(value, price.currency)}
                           </td>
-                        ),
-                      )}
-                  </tr>
+                        );
+                      })}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -2020,7 +1994,7 @@ function PurchasePanel({
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>{panelText.product}</span>
+                  <span>{panelText.product} · {vatText.excluded}</span>
 
                   <span className="font-medium text-neutral-950">
                     {formatPrice(
@@ -2034,7 +2008,7 @@ function PurchasePanel({
                   <>
                     <div className="flex justify-between gap-4">
                       <span>
-                        {panelText.personalization}
+                        {panelText.personalization} · {vatText.excluded}
                       </span>
 
                       <span className="font-medium text-neutral-950">
@@ -2048,7 +2022,7 @@ function PurchasePanel({
 
                     <div className="flex justify-between gap-4">
                       <span>
-                        {panelText.preparation}
+                        {panelText.preparation} · {vatText.excluded}
                       </span>
 
                       <span className="font-medium text-neutral-950">
@@ -2061,7 +2035,7 @@ function PurchasePanel({
                     </div>
 
                     <div className="flex justify-between gap-4">
-                      <span>Extras</span>
+                      <span>{getMessages(locale).common.extras} · {vatText.excluded}</span>
 
                       <span className="font-medium text-neutral-950">
                         {formatPrice(
@@ -2075,24 +2049,16 @@ function PurchasePanel({
                 ) : null}
 
                 <div className="border-t border-neutral-200 pt-3">
-                  <div className="flex justify-between gap-4 text-base">
-                    <span className="font-semibold text-neutral-950">
-                      {panelText.total}
-                    </span>
-
-                    <span className="font-semibold text-neutral-950">
-                      {formatPrice(
-                        displayedTotal,
-
-                        activeCustomizationDraft?.currency ??
-                          pricing.currency,
-                      )}
-                    </span>
+                  <div className="flex justify-between gap-4 text-base text-neutral-950">
+                    <span className="font-semibold">{vatText.subtotal}</span>
+                    <VatPrice
+                      amount={displayedTotal}
+                      currency={activeCustomizationDraft?.currency ?? pricing.currency}
+                      locale={locale}
+                      className="text-right"
+                    />
                   </div>
-
-                  <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    {panelText.disclaimer}
-                  </p>
+                  <p className="mt-2 text-xs leading-5 text-neutral-600">{vatText.shippingPending}.</p>
                 </div>
               </div>
             </div>
