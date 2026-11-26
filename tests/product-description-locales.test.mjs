@@ -21,6 +21,11 @@ function load(path, imports = {}) {
 const identityStub = { getPublicIdentity: async () => null, getPublicVariantReferences: async () => new Map(), publicMediaUrl: id => `/api/catalog/media/${id}` };
 
 const config = load('src/lib/i18n/config.ts');
+const countries = load('src/lib/markets/countries.ts');
+const policy = load('src/lib/markets/policy.ts', { './countries': countries });
+const vat = load('src/lib/pricing/vat-display.ts', { '@/lib/i18n/config': config, '@/lib/markets/policy': policy });
+const VatPrice = load('src/components/pricing/VatPrice.tsx', { 'react/jsx-runtime': jsx, '@/lib/pricing/vat-display': vat });
+
 const messages = load('src/lib/i18n/messages.ts');
 const product = {
   id:'product-one', sku:'92583', name:'Saco de oferta', slug:'saco-de-oferta-92583',
@@ -87,6 +92,7 @@ for (const [locale,[name,description]] of Object.entries(translatedCopy)) {
       'next/link':{__esModule:true,default:({children,...props})=>jsx.jsx('a',{...props,children})},
       'lucide-react':{ArrowRight:()=>null,CheckCircle2:()=>null,Star:()=>null},
       '@/lib/i18n/config':config,'@/lib/i18n/messages':messages,
+      '@/components/pricing/VatPrice':VatPrice,'@/lib/pricing/vat-display':vat,
     });
     const html=renderToStaticMarkup(await card.default({product:ordinary[0],locale}));
     assert.ok(html.includes(description));

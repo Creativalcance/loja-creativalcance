@@ -16,6 +16,11 @@ function load(file, imports = {}) {
 }
 const configModule = load('src/lib/homepage/config.ts', { zod: { z } });
 const locales = load('src/lib/i18n/config.ts');
+const countries = load('src/lib/markets/countries.ts');
+const policy = load('src/lib/markets/policy.ts', { './countries': countries });
+const vat = load('src/lib/pricing/vat-display.ts', { '@/lib/i18n/config': locales, '@/lib/markets/policy': policy });
+const VatPrice = load('src/components/pricing/VatPrice.tsx', { 'react/jsx-runtime': jsx, '@/lib/pricing/vat-display': vat });
+
 const id = '11111111-1111-4111-8111-111111111111';
 const otherId = '22222222-2222-4222-8222-222222222222';
 function configuration() {
@@ -83,15 +88,20 @@ const Campaign = load('src/components/homepage/Campaign.tsx', {
   'react/jsx-runtime': jsx, 'next/link': Link,
   'next/image': ({ priority, ...props }) => React.createElement('img', props),
   'lucide-react': icons, '@/lib/i18n/config': locales, '@/lib/homepage/config': configModule,
+  '@/components/pricing/VatPrice': VatPrice, '@/lib/pricing/vat-display': vat,
 }).default;
-const product = { id, name: 'Galileia', slug: 'galileia', image: '/api/catalog/media/' + id, price: 19.98, minimum: 1 };
+const product = { id, name: 'Galileia', slug: 'galileia', image: '/api/catalog/media/' + id, price: 19.98, priceQuantity: 1, minimum: 1 };
 test('campaign renders real product prices and localized purchase links for all six languages', () => {
   for (const locale of configModule.HOME_LOCALES) {
     const html = renderToStaticMarkup(React.createElement(Campaign, { config: configuration(), products: [product], locale }));
     assert.ok(html.includes(locales.localizePath('/produto/galileia', locale) + '#comprar'));
     assert.ok(html.includes(configModule.campaignText(configuration(), locale).productCta));
     assert.match(html, /Galileia/);
-    assert.ok(html.includes('19,98') || html.includes('19.98'));
+    const gross = html.indexOf(vat.formatStorePrice(24.58, 'EUR', locale));
+    const net = html.indexOf(vat.formatStorePrice(19.98, 'EUR', locale));
+    assert.ok(gross >= 0 && net > gross);
+    assert.ok(html.includes(vat.vatLabels[locale].mainland));
+    assert.ok(html.includes(vat.vatLabels[locale].excluded));
   }
   assert.equal(renderToStaticMarkup(React.createElement(Campaign, { config: configuration(), products: [], locale: 'pt' })), '');
 });
@@ -135,4 +145,16 @@ test('homepage respects block order and hides sections without leaving a broken 
   assert.ok(!html.includes('id="como-comprar"'));
   assert.ok(html.includes('href="/ajuda"'));
   assert.equal((html.match(/<h1/g) ?? []).length, 1);
+});
+
+
+test('VAT estimates follow checkout rates and round on the subtotal', () => {
+  for (const [postalCode, expectedGross] of [['1000-001', 61.25], ['9000-001', 60.76], ['9500-001', 57.77]]) {
+    const tax = policy.assessCheckoutDestination({ country_code: 'PT', postal_code: postalCode });
+    assert.equal(tax.status, 'ready');
+    assert.equal(vat.getVatAmounts(49.80, tax.rate).gross, expectedGross);
+  }
+  const html = renderToStaticMarkup(React.createElement(VatPrice.default, { amount: 49.80, locale: 'pt', rate: null }));
+  assert.match(html, /sem IVA/);
+  assert.doesNotMatch(html, /61,25|Portugal Continental/);
 });

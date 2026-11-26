@@ -1,3 +1,5 @@
+import VatPrice from "@/components/pricing/VatPrice";
+import { vatLabels } from "@/lib/pricing/vat-display";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -86,6 +88,7 @@ function roundMoney(value: number): number {
 export default async function CheckoutPage() {
   const locale = await getCurrentLocale();
   const labels = getMessages(locale);
+  const vatText = vatLabels[locale];
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const supabase = await createSupabaseServerClient();
 
@@ -210,13 +213,10 @@ export default async function CheckoutPage() {
     ),
   );
 
-  const currentTotal = roundMoney(
-    items.reduce(
-      (total, item) =>
-        total + Number(item.total ?? 0),
-      0,
-    ),
-  );
+  const currentTotal = Math.max(0, roundMoney(
+    items.reduce((total, item) => total + Number(item.total ?? 0), 0) -
+      Number(cart.discount_total ?? 0),
+  ));
 
   const ga4Items = items.map((item) => ({
     item_name: item.product_name,
@@ -404,7 +404,7 @@ export default async function CheckoutPage() {
 
                       <div className="flex shrink-0 flex-col items-end gap-3">
                         <p className="text-sm font-semibold text-neutral-950">
-                          {formatPrice(item.total, currency, intlLocale)}
+                          {formatPrice(item.total, currency, intlLocale)} {vatText.excluded}
                         </p>
 
                         <RemoveCartItemButton
@@ -458,7 +458,7 @@ export default async function CheckoutPage() {
 
               <div className="mt-6 space-y-3 border-t border-neutral-200 pt-5 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.products}</span>
+                  <span>{labels.common.products} · {vatText.excluded}</span>
 
                   <span className="font-semibold text-neutral-950">
                     {formatPrice(cart.subtotal, currency, intlLocale)}
@@ -466,7 +466,7 @@ export default async function CheckoutPage() {
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.personalization}</span>
+                  <span>{labels.common.personalization} · {vatText.excluded}</span>
 
                   <span className="font-semibold text-neutral-950">
                     {formatPrice(
@@ -478,7 +478,7 @@ export default async function CheckoutPage() {
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.setup}</span>
+                  <span>{labels.common.setup} · {vatText.excluded}</span>
 
                   <span className="font-semibold text-neutral-950">
                     {formatPrice(setupTotal, currency, intlLocale)}
@@ -486,7 +486,7 @@ export default async function CheckoutPage() {
                 </div>
 
                 <div className="flex justify-between gap-4">
-                  <span>{labels.common.extras}</span>
+                  <span>{labels.common.extras} · {vatText.excluded}</span>
 
                   <span className="font-semibold text-neutral-950">
                     {formatPrice(extrasTotal, currency, intlLocale)}
@@ -503,25 +503,20 @@ export default async function CheckoutPage() {
 
                 <div className="flex justify-between gap-4">
                   <span>{labels.common.vat}</span>
-
-                  <span className="font-semibold text-neutral-500">
-                    {labels.checkout.shippingCalc}
-                  </span>
+                  <span className="font-semibold text-neutral-500">{vatText.pendingTax}</span>
                 </div>
 
                 <div className="border-t border-neutral-200 pt-4">
                   <div className="flex justify-between gap-4 text-base">
                     <span className="font-semibold text-neutral-950">
-                      {labels.checkout.currentTotal}
+                      {vatText.subtotal}
                     </span>
 
-                    <span className="font-semibold text-neutral-950">
-                      {formatPrice(currentTotal, currency, intlLocale)}
-                    </span>
+                    <VatPrice amount={currentTotal} currency={currency} locale={locale} className="text-right text-neutral-950" />
                   </div>
 
                   <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    {labels.checkout.taxNote}
+                    {vatText.shippingPending}.
                   </p>
                 </div>
               </div>

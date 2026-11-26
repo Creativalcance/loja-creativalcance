@@ -1,3 +1,6 @@
+import { getMessages } from "@/lib/i18n/messages";
+import VatPrice from "@/components/pricing/VatPrice";
+import { getVatAmounts, vatLabels } from "@/lib/pricing/vat-display";
 import { calculateCartShipping, type ProductShippingPolicy } from "@/lib/checkout/shipping-pricing";
 import { assessCheckoutDestination } from "@/lib/markets/policy";
 import ReviewNotice from "@/components/markets/ReviewNotice";
@@ -89,6 +92,7 @@ function roundMoney(value: number): number {
 
 export default async function CheckoutShippingPage() {
   const locale = await getCurrentLocale();
+  const vatText = vatLabels[locale];
   const intlLocale = SITE_LOCALES[locale].intlLocale;
   const text = (locale === "es" ? ({
     back: "Volver al destino", destination: "Destino", complete: "Completado", shipping: "Env\u00EDo", shippingTime: "M\u00E9todo y plazo", payment: "Pago", reviewPayment: "Revisi\u00F3n y pago", step: "Paso 2 de 3", intro: "Elige el m\u00E9todo de env\u00EDo, confirma el plazo estimado y a\u00F1ade las referencias necesarias para la entrega.", address: "Direcci\u00F3n de entrega", change: "Cambiar destino", order: "Pedido", summary: "Resumen", configured: "Personalizaci\u00F3n configurada", location: "Ubicaci\u00F3n", technique: "T\u00E9cnica", confirm: "Por confirmar", products: "Productos", personalization: "Personalizaci\u00F3n", setup: "Preparaci\u00F3n", extras: "Extras", selecting: "Por seleccionar", current: "Total actual", before: "Importe sin env\u00EDo ni IVA.", next: "Siguiente paso", nextHelp: "En el pago podr\u00E1s revisar todos los importes, confirmar los datos de facturaci\u00F3n y completar el pago seguro.", units: "unidades",
@@ -232,6 +236,8 @@ export default async function CheckoutShippingPage() {
   if (shippingQuote.hamperQuantity > 0 && eligibility.region !== "continental")
     return <ReviewNotice reason="hamperMainland" locale={locale} cartId={cart.id}/>;
   const address = cart.customer_addresses;
+  const subtotal = Math.max(0, merchandiseTotal);
+  const estimate = getVatAmounts(subtotal + shippingQuote.total, eligibility.rate);
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 py-10">
@@ -328,7 +334,8 @@ export default async function CheckoutShippingPage() {
               locale={locale}
               cartId={cart.id}
               currency={currency}
-              merchandiseTotal={merchandiseTotal}
+              merchandiseTotal={subtotal}
+              taxRate={eligibility.rate}
               shippingQuote={shippingQuote}
               initialShippingMethod={cart.shipping_method}
               initialRequestedDeliveryDate={
@@ -438,7 +445,7 @@ export default async function CheckoutShippingPage() {
 
                       <div className="flex shrink-0 flex-col items-end gap-3">
                         <p className="text-sm font-semibold text-neutral-950">
-                          {formatPrice(item.total, currency, intlLocale)}
+                          {formatPrice(item.total, currency, intlLocale)} {vatText.excluded}
                         </p>
 
                         <RemoveCartItemButton
@@ -481,69 +488,24 @@ export default async function CheckoutShippingPage() {
                 ))}
               </div>
 
-              <div className="mt-6 space-y-3 border-t border-neutral-200 pt-5 text-sm text-neutral-600">
+              <dl className="mt-6 space-y-3 border-t border-neutral-200 pt-5 text-sm text-neutral-600">
                 <div className="flex justify-between gap-4">
-                  <span>{text.products}</span>
-
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(productsTotal, currency, intlLocale)}
-                  </span>
+                  <dt>{vatText.subtotal}</dt>
+                  <dd className="text-right text-neutral-950"><VatPrice amount={subtotal} currency={currency} locale={locale} rate={eligibility.rate} /></dd>
                 </div>
-
                 <div className="flex justify-between gap-4">
-                  <span>{text.personalization}</span>
-
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(
-                      personalizationTotal,
-                      currency, intlLocale,
-                    )}
-                  </span>
+                  <dt>{vatText.estimatedShipping} · {vatText.excluded}</dt>
+                  <dd className="font-semibold text-neutral-950">{formatPrice(shippingQuote.total, currency, intlLocale)}</dd>
                 </div>
-
                 <div className="flex justify-between gap-4">
-                  <span>{text.setup}</span>
-
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(setupTotal, currency, intlLocale)}
-                  </span>
+                  <dt>{getMessages(locale).common.vat} ({Math.round(eligibility.rate * 100)}%)</dt>
+                  <dd className="font-semibold text-neutral-950">{formatPrice(estimate.vat, currency, intlLocale)}</dd>
                 </div>
-
-                <div className="flex justify-between gap-4">
-                  <span>{text.extras}</span>
-
-                  <span className="font-semibold text-neutral-950">
-                    {formatPrice(extrasTotal, currency, intlLocale)}
-                  </span>
+                <div className="flex justify-between gap-4 border-t border-neutral-200 pt-4 text-base font-semibold text-neutral-950">
+                  <dt>{vatText.estimated} · {vatText.included}</dt>
+                  <dd>{formatPrice(estimate.gross, currency, intlLocale)}</dd>
                 </div>
-
-                <div className="flex justify-between gap-4">
-                  <span>{text.shipping}</span>
-
-                  <span className="font-semibold text-neutral-500">
-                    {text.selecting}
-                  </span>
-                </div>
-
-                <div className="border-t border-neutral-200 pt-4">
-                  <div className="flex justify-between gap-4 text-base">
-                    <span className="font-semibold text-neutral-950">
-                      {text.current}
-                    </span>
-
-                    <span className="font-semibold text-neutral-950">
-                      {formatPrice(
-                        merchandiseTotal,
-                        currency, intlLocale,
-                      )}
-                    </span>
-                  </div>
-
-                  <p className="mt-2 text-xs leading-5 text-neutral-500">
-                    {text.before}
-                  </p>
-                </div>
-              </div>
+              </dl>
             </div>
 
             <div className="mt-5 rounded-3xl bg-neutral-950 p-5 text-white shadow-sm">
